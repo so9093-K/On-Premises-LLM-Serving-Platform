@@ -216,7 +216,17 @@ def validate_chat_request(
         if "tools" in payload:
             _validate_tools(payload["tools"], max_tools=max_tools)
         if "tool_choice" in payload:
-            _validate_tool_choice(payload["tool_choice"])
+            choice_policy = tool_policy.get("tool_choice", {}) if isinstance(tool_policy, dict) else {}
+            allowed_choices = frozenset(
+                str(value)
+                for value in choice_policy.get("allowed", [])
+                if isinstance(value, str)
+            ) if isinstance(choice_policy, dict) else frozenset()
+            _validate_tool_choice(
+                payload["tool_choice"],
+                allowed=allowed_choices,
+                allow_named=isinstance(choice_policy, dict) and choice_policy.get("allow_named") is True,
+            )
             _validate_tool_choice_matches_tools(payload)
         if "parallel_tool_calls" in payload:
             if not isinstance(payload["parallel_tool_calls"], bool):
