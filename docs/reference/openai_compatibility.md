@@ -8,7 +8,7 @@
 받는 파라미터는 아래 표가 전부다. 선언되지 않은 파라미터는 조용히 무시하지
 않고 422로 거부한다 -- 무시하면 사용자가 적용됐다고 믿기 때문이다.
 
-요청 파라미터 25개 가운데 표준 15개, 좁힌 표준 6개, 확장 4개다.
+요청 파라미터 25개 가운데 표준 14개, 좁힌 표준 7개, 확장 4개다.
 
 ## 요청 파라미터
 
@@ -22,6 +22,7 @@
 | `model` (필수) | 표준(좁힘) | - | 활성 프로필이 선언한 이름 하나만 받는다. |
 | `n` | 표준(좁힘) | integer, 최소 1, 최대 1 | 1만 받는다. 여러 후보 생성은 지원하지 않는다. |
 | `stream_options` | 표준(좁힘) | object | include_usage만 받는다. include_obfuscation을 포함한 나머지는 거부한다. |
+| `tool_choice` | 표준(좁힘) | - | 허용 문자열 값과 named function choice 여부는 활성 Main Model profile의 /v1/models[].request_parameters.tool_choice를 따른다. |
 | `top_logprobs` | 표준(좁힘) | integer, 최소 0, 최대 10 | OpenAI는 20까지 허용하지만 이 Gateway는 10으로 제한한다. |
 | `user` | 표준(좁힘) | string | 형식만 검증하고 upstream에 전달하지 않는다. |
 | `frequency_penalty` | 표준 | number, 최소 -2, 최대 2 | - |
@@ -36,7 +37,6 @@
 | `stop` | 표준 | - | - |
 | `stream` | 표준 | boolean | When true, Gateway relays the upstream SSE response as text/event-stream without buffering. Each chat.completion.chunk is narrowed to the fields this contract declares, so runtime-internal state never reaches the client. |
 | `temperature` | 표준 | number, 최소 0, 최대 2 | - |
-| `tool_choice` | 표준 | - | - |
 | `tools` | 표준 | array | - |
 | `top_p` | 표준 | number, 초과 0, 최대 1 | - |
 
