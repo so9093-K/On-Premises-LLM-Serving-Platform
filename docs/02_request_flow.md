@@ -476,12 +476,17 @@ Prompt detector는 Kanana Safeguard-Prompt가 생성한 단일 label을 A1 Promp
 
 | API | Backend |
 |---|---|
-| `/v1/risk/detectors/prompt/assessments` | Kanana `prompt-injection-detector-runtime` |
+| `/v1/risk/detectors/prompt/assessments` | Kanana `prompt-injection-detector-runtime` (현재 비활성) |
 | `/v1/risk/detectors/pii/assessments` | Risk Signal Service in-process PII detector |
 | `/v1/risk/detectors/secret/assessments` | Risk Signal Service in-process Secret detector |
-| `/v1/risk/assessments` | PII → Secret → Prompt 순차 처리 |
+| `/v1/risk/assessments` | 활성 detector를 registry 순서대로 순차 처리 |
 
-Aggregate 요청은 세 detector 결과를 하나의 signal response로 합친다. 응답은 탐지 결과와 system signal을 제공하며 최종 허용·차단 판단은 호출 측 policy layer가 담당한다.
+Prompt detector runtime은 현재 비활성이며 그 사유는
+[4. Runtime 모드](./04_runtime_modes.md#prompt-injection-detector-runtime-비활성)가 소유한다.
+따라서 현재 aggregate는 PII와 Secret 결과를 합치고, `/v1/risk/detectors/prompt/assessments`는
+`DETECTOR_DISABLED`로 응답한다.
+
+Aggregate 요청은 활성 detector 결과를 하나의 signal response로 합친다. 응답은 탐지 결과와 system signal을 제공하며 최종 허용·차단 판단은 호출 측 policy layer가 담당한다.
 
 ## 2.4 외부 공개 경로와 내부 서비스 경로
 
