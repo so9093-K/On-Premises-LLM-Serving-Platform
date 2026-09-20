@@ -38,6 +38,7 @@ while IFS=$'\t' read -r config_key config_value; do
     default_retrieval_model) SMOKE_RETRIEVAL_MODEL="$config_value" ;;
     retrieval_runtime) SMOKE_RETRIEVAL_RUNTIME="$config_value" ;;
     prompt_injection_detector_runtime) SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME="$config_value" ;;
+    prompt_detector_enabled) SMOKE_PROMPT_DETECTOR_ENABLED="$config_value" ;;
     public_model_ids_json) SMOKE_PUBLIC_MODEL_IDS_JSON="$config_value" ;;
     *) echo "[smoke] unknown model configuration key: $config_key" >&2; exit 2 ;;
   esac
@@ -56,12 +57,26 @@ def required(value: object, label: str) -> str:
         raise SystemExit(f"invalid or missing {label}")
     return value
 
+detectors = serving["risk_signal_service"]["detectors"]
+prompt_detector = detectors["prompt"]
+prompt_detector_enabled = prompt_detector.get("enabled", True) is True
+
+# 비활성 vLLM detector가 받치는 model은 Gateway 공개 목록에 나오지 않는다.
+# catalog의 gateway_listing만 보면 띄우지도 않은 runtime을 기대하게 된다.
+disabled_detector_models = {
+    str(cfg.get("source_model", key))
+    for key, cfg in detectors.items()
+    if isinstance(cfg, dict)
+    and cfg.get("type", "vllm") != "local"
+    and cfg.get("enabled", True) is not True
+}
 public_ids = sorted(
     model_id
     for model_id, metadata in models.items()
     if isinstance(metadata, dict)
     and isinstance(metadata.get("gateway_listing"), dict)
     and metadata["gateway_listing"].get("enabled") is True
+    and model_id not in disabled_detector_models
 )
 if not public_ids:
     raise SystemExit("model_catalog.yaml has no gateway_listing.enabled models")
@@ -74,7 +89,8 @@ print("default_embedding_model\t" + default_embedding_model)
 print("default_embedding_runtime\t" + required(embedding_profiles[default_embedding_model]["service_key"], "default embedding service_key"))
 print("default_retrieval_model\t" + retrieval_model)
 print("retrieval_runtime\t" + required(embedding_profiles[retrieval_model]["service_key"], "retrieval embedding service_key"))
-print("prompt_injection_detector_runtime\t" + required(serving["risk_signal_service"]["detectors"]["prompt"]["service_key"], "risk_signal_service.detectors.prompt.service_key"))
+print("prompt_injection_detector_runtime\t" + required(prompt_detector["service_key"], "risk_signal_service.detectors.prompt.service_key"))
+print("prompt_detector_enabled\t" + ("1" if prompt_detector_enabled else "0"))
 print("public_model_ids_json\t" + json.dumps(public_ids, separators=(",", ":")))
 PY
 )
@@ -85,6 +101,7 @@ PY
 : "${SMOKE_RETRIEVAL_MODEL:?failed to load retrieval model from config}"
 : "${SMOKE_RETRIEVAL_RUNTIME:?failed to load retrieval runtime from config}"
 : "${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME:?failed to load Prompt Injection Detector runtime from config}"
+: "${SMOKE_PROMPT_DETECTOR_ENABLED:?failed to load Prompt Injection Detector enablement from config}"
 : "${SMOKE_PUBLIC_MODEL_IDS_JSON:?failed to load public model IDs from config}"
 export SMOKE_PUBLIC_MODEL_IDS_JSON
 
@@ -245,6 +262,11 @@ PY
 
 skip_runtime() {
   local runtime="$1"
+  # 비활성 detector runtime은 배포본이 아예 기동하지 않는다. deferred와 이유는
+  # 다르지만 "이 runtime에 추론 probe를 보내지 않는다"는 결과는 같다.
+  if [[ "$runtime" == "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME" && "$SMOKE_PROMPT_DETECTOR_ENABLED" != "1" ]]; then
+    return 0
+  fi
   case ",${SMOKE_SKIP_RUNTIMES}," in
     *",${runtime},"*) return 0 ;;
     *) return 1 ;;
@@ -259,7 +281,7 @@ get_json gateway-models "$GATEWAY_BASE_URL/v1/models"
 assert_json models
 
 if skip_runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME"; then
-  echo "[smoke] ${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME} runtime is deferred; skipping risk inference probes" >&2
+  echo "[smoke] ${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME} runtime is not serving; skipping risk inference probes" >&2
 else
   post_json_with_retry gateway-risk-aggregate "$GATEWAY_BASE_URL/v1/risk/assessments" \
     '{"prompt":"smoke test prompt"}'
