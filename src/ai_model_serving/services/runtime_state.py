@@ -53,7 +53,7 @@ class RuntimeStateStore:
     A corrupt persistent file must never silently turn an intentional ``stopped``
     state back into the default ``active`` state. Corrupt input is quarantined and
     replaced with an explicit fail-closed recovery state where every controllable
-    secondary runtime is ``stopped`` until an operator starts it again.
+    Model Runtime is ``stopped`` until an operator starts it again.
     """
 
     def __init__(
@@ -62,7 +62,7 @@ class RuntimeStateStore:
         *,
         controllable_keys: set[str] | frozenset[str] | None = None,
         deferred_keys: Iterable[str] = (),
-        release_id: str = "",
+        startup_generation: str = "",
     ) -> None:
         self._lock = asyncio.Lock()
         self._path = Path(path) if path is not None else None
@@ -78,14 +78,14 @@ class RuntimeStateStore:
             k: RuntimeStateRecord(RuntimeState.active, source="default", updated_at=now)
             for k in self.controllable_keys
         }
-        self._applied_release_id = ""
+        self._applied_startup_generation = ""
         had_persisted_state = False
         recovered_corrupt_state = False
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             migration_required = False
             try:
-                records, self._applied_release_id, migration_required = self._read_file()
+                records, self._applied_startup_generation, migration_required = self._read_file()
             except RuntimeStateStoreError as exc:
                 recovered_corrupt_state = True
                 self.recovery_error = str(exc)
@@ -100,7 +100,7 @@ class RuntimeStateStore:
                     )
                     for key in self.controllable_keys
                 }
-                self._applied_release_id = ""
+                self._applied_startup_generation = ""
                 try:
                     self._write_file()
                 except OSError as write_exc:
@@ -120,66 +120,60 @@ class RuntimeStateStore:
                     self._write_file()
                 except OSError as exc:
                     raise RuntimeStateStoreError(
-                        "runtime desired state key migration could not be persisted"
+                        "runtime desired state migration could not be persisted"
                     ) from exc
         # A corrupt desired-state file means operator intent is unknown. Applying a
-        # deploy directive in the same startup could immediately turn a fail-closed
-        # recovery state back to active, so recovery always wins for this boot.
+        # startup directive in the same boot could immediately overwrite the fail-closed
+        # recovery state, so recovery always wins for this boot.
         if not recovered_corrupt_state:
-            self._apply_deploy_directive(
+            self._apply_startup_directive(
                 deferred_keys,
-                release_id,
+                startup_generation,
                 had_persisted_state=had_persisted_state,
             )
 
-    def _apply_deploy_directive(
+    def _apply_startup_directive(
         self,
         deferred_keys: Iterable[str],
-        release_id: str,
+        startup_generation: str,
         *,
         had_persisted_state: bool,
     ) -> None:
-        """배포가 지정한 deferred runtime을 기동 시 한 번만 stopped로 새긴다.
+        """compose-up startup policy를 기동 시 한 번만 desired state에 적용한다.
 
-        배포 스크립트는 이 파일을 직접 쓰지 않는다. Gateway 컨테이너가
-        non-root appuser로 쓰는 디렉터리를 배포 사용자가 함께 쓰면, 먼저 만든
-        쪽이 소유권을 가져가 반대쪽이 영구히 쓰지 못한다 -- 실제로 그 상태에서
-        배포가 조용히 실패한 적이 있다. 그래서 desired state의 writer는
-        Gateway 하나로 두고, 배포는 지시만 env로 넘긴다.
+        runtime-state.json의 writer는 Gateway 하나다. compose-up은 deferred runtime과
+        startup generation을 env directive로 넘길 뿐 persistent state를 직접 쓰지 않는다.
 
-        릴리스 ID로 게이팅하는 이유는 재적용을 막기 위해서다. 컨테이너가 단순
-        재시작될 때마다 지시를 다시 적용하면, 운영자가 Admin API로 켜 둔 런타임이
-        재시작 한 번에 다시 꺼진다. 같은 릴리스에서는 파일에 남은 상태가 이긴다.
+        startup generation은 동일 compose-up 실행에서 Gateway가 재시작될 때 directive를
+        다시 적용하지 않기 위한 토큰이다. 매 재시작마다 다시 적용하면 운영자가 Admin API로
+        켜 둔 runtime이 의도치 않게 다시 stopped가 될 수 있다.
         """
         stop_keys = [k for k in deferred_keys if k in self.controllable_keys]
         if not stop_keys:
             return
-        if release_id:
-            if release_id == self._applied_release_id:
+        if startup_generation:
+            if startup_generation == self._applied_startup_generation:
                 return
         elif had_persisted_state:
-            # 릴리스 ID 없이 기동한 경우(배포 스크립트를 거치지 않은 수동 실행)
-            # 재적용 여부를 판단할 근거가 없다. 남은 desired state가 있으면 그쪽을
-            # 신뢰하고, 없을 때만 지시를 적용한다 -- 지시를 조용히 버리지도,
-            # 운영자 조작을 매 재시작마다 되돌리지도 않는다.
+            # startup generation 없이 기동한 경우 재적용 여부를 판단할 근거가 없다.
+            # 남은 desired state가 있으면 그쪽을 신뢰하고, 없을 때만 directive를 적용한다.
             return
         now = time.time()
         for key in stop_keys:
             self._records[key] = RuntimeStateRecord(
                 RuntimeState.stopped,
-                reason="deferred_at_deploy",
-                source="deploy",
+                reason="deferred_at_startup",
+                source="startup",
                 updated_at=now,
             )
-        self._applied_release_id = release_id
+        self._applied_startup_generation = startup_generation
         try:
             self._write_file()
         except OSError as exc:
-            # 배포 지시는 release 단위로 한 번만 적용되어야 한다. 메모리만 바뀐 채
-            # 계속 기동하면 다음 restart에서 operator intent가 뒤집힐 수 있으므로
-            # persistent writer가 준비되지 않은 운영 배포는 소리내서 실패한다.
+            # startup directive는 generation 단위로 한 번만 적용되어야 한다. 메모리만
+            # 바뀐 채 계속 기동하면 다음 restart에서 operator intent가 뒤집힐 수 있다.
             raise RuntimeStateStoreError(
-                "failed to persist runtime desired state deploy directive"
+                "failed to persist runtime desired state startup directive"
             ) from exc
 
     @staticmethod
@@ -218,16 +212,19 @@ class RuntimeStateStore:
         if not isinstance(value, dict):
             raise RuntimeStateStoreError("runtime desired state root must be an object")
         schema_version = value.get("schema_version", 1)
-        if isinstance(schema_version, bool) or schema_version not in {1, 2}:
+        if isinstance(schema_version, bool) or schema_version not in {1, 2, 3}:
             raise RuntimeStateStoreError(
                 f"unsupported runtime desired state schema version: {schema_version!r}"
             )
-        applied = str(value.get("applied_release_id") or "")
+        if schema_version >= 3:
+            applied = str(value.get("applied_startup_generation") or "")
+        else:
+            applied = str(value.get("applied_release_id") or "")
         states = value.get("states")
         if not isinstance(states, dict):
             raise RuntimeStateStoreError("runtime desired state states must be an object")
         parsed: dict[str, RuntimeStateRecord] = {}
-        migrated = False
+        migrated = schema_version != 3 or "applied_release_id" in value
         for key, raw in states.items():
             canonical_key = _RUNTIME_STATE_KEY_RENAMES.get(key, key)
             if canonical_key not in self.controllable_keys:
@@ -274,10 +271,10 @@ class RuntimeStateStore:
         if self._path is None:
             return
         payload = {
-            "schema_version": 2,
-            # 배포 지시를 어느 릴리스에서 적용했는지 함께 남긴다. 같은 릴리스로
-            # 컨테이너가 재시작되면 지시를 다시 적용하지 않는 근거가 된다.
-            "applied_release_id": self._applied_release_id,
+            "schema_version": 3,
+            # 같은 compose-up startup directive를 Gateway restart에서 다시 적용하지
+            # 않도록 마지막으로 적용한 internal generation을 기록한다.
+            "applied_startup_generation": self._applied_startup_generation,
             "states": {
                 key: {
                     "state": record.state.value,

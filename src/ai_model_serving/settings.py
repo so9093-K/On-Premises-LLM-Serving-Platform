@@ -434,6 +434,6 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             else ""
         ),
         static_main_profile=static_main_profile,
-        deploy_release_id=_env("DEPLOY_RELEASE_ID", ""),
+        runtime_startup_generation=_env("RUNTIME_STARTUP_GENERATION", ""),
         log_request_response_body=_as_bool(_env("LOG_REQUEST_RESPONSE_BODY", "false"), False),
     )

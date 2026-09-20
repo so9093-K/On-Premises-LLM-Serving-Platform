@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Remote release 제거 뒤 남아 있던 Runtime Startup 내부 이름을 정리했다. `DEPLOY_DEFERRED_RUNTIMES` / `DEPLOY_RELEASE_ID`는 `RUNTIME_STARTUP_DEFERRED_KEYS` / `RUNTIME_STARTUP_GENERATION`으로 직접 cutover하고 operator `.env`에서 제거한다. `runtime-state.json`은 schema v3의 `applied_startup_generation`을 사용하며 schema v1/v2의 desired state와 `applied_release_id`를 원자적으로 이관한다. Control Plane bootstrap v4의 nullable `platform.release_id`에는 startup generation을 새 의미로 투영하지 않는다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
+
 - Repository-owned deployment authority를 target-aware local lifecycle(`make setup/build/prepare/up/status/down`)로 수렴하고, 별도 remote release transport·`rolling/full` mode·release symlink·자동 rollback state machine을 제거했다. `make package`와 deterministic release manifest는 artifact/reproducibility 계약으로 유지하며 Runtime/Main Model rollback은 각 Control Plane component가 소유한다. Unified vLLM build-input manifest는 deployment helper가 아니라 `scripts/lib/vllm_unified_image.sh`가 소유한다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
 
 - Qualification evidence의 immutable history와 current profile eligibility를 분리했다. GPU 제품·UUID·driver·resource policy·검증 시각은 run provenance로 유지하며 그 차이만으로 profile-level requalification을 요구하지 않는다. Model/revision/capability, Main Model target, 현재 required check가 current evidence match를 소유한다. Qualification check registry가 확장되면 과거 receipt를 수정하지 않고 보존하되 새 required check가 없는 run은 current verified/status-promotion 근거에서 제외한다. ([ADR-0036](docs/adr/0036-qualification-evidence-reuse-and-invalidation.md))

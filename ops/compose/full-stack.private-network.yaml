@@ -32,9 +32,9 @@ services:
       REQUEST_EVENT_LOG_DIR: /var/log/ai-model-serving
       # compose-up이 결정한 deferred runtime 목록. Gateway가 기동 시 한 번 적용하며,
       # 상태 파일 자체는 Gateway만 쓴다(두 writer 소유권 충돌 방지).
-      DEPLOY_DEFERRED_RUNTIMES: ${DEPLOY_DEFERRED_RUNTIMES:-}
-      # startup directive 재적용을 막는 호환 토큰. compose-up은 실행마다 새 값을 준다.
-      DEPLOY_RELEASE_ID: ${DEPLOY_RELEASE_ID:-}
+      RUNTIME_STARTUP_DEFERRED_KEYS: ${RUNTIME_STARTUP_DEFERRED_KEYS:-}
+      # startup directive 재적용을 막는 내부 generation. compose-up은 실행마다 새 값을 준다.
+      RUNTIME_STARTUP_GENERATION: ${RUNTIME_STARTUP_GENERATION:-}
     depends_on:
       risk-signal-service:
         condition: service_healthy

@@ -205,11 +205,11 @@ done
 # 영구히 쓰지 못한다. 대신 결정을 env로 넘기고 기록은 Gateway가 한다
 # (src/ai_model_serving/services/runtime_state.py 참고).
 #
-# release id를 매 실행마다 새로 부여하는 이유: compose-up은 아래에서 deferred
+# startup generation을 매 실행마다 새로 부여하는 이유: compose-up은 아래에서 deferred
 # 컨테이너를 실제로 정지시키므로 desired state도 매번 함께 맞춰야 한다. 반대로
-# `docker compose restart`처럼 compose-up을 거치지 않는 재시작에서는 id가 그대로라
-# Admin API로 켜 둔 런타임이 도로 꺼지지 않는다.
-export_deferred_runtime_directive "compose-up-$(date +%s)-$$" "${DEFERRED_RUNTIME_KEYS[@]}"
+# `docker compose restart`처럼 compose-up을 거치지 않는 재시작에서는 generation이
+# 그대로라 Admin API로 켜 둔 런타임이 도로 꺼지지 않는다.
+export_runtime_startup_directive "compose-up-$(date +%s)-$" "${DEFERRED_RUNTIME_KEYS[@]}"
 
 # Compose와 같은 precedence로 현재 platform image를 고른 뒤, writable bind mount의
 # 존재만이 아니라 소유권까지 그 이미지 기준으로 맞춘다.

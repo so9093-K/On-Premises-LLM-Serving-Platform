@@ -127,8 +127,10 @@ Full-stack compose 기동 시 처음부터 활성화할 non-main Runtime 조합�
 RUNTIME_STARTUP_PROFILE=retrieval_ready make compose-up
 ```
 
-Startup Profile은 **초기 desired state**만 결정한다. 기동 후 Runtime 상태 변경은 Admin
-Runtime API / Control Plane이 소유한다.
+Startup Profile은 **초기 desired state**만 결정한다. `compose-up`은 이를
+`RUNTIME_STARTUP_DEFERRED_KEYS`와 실행별 `RUNTIME_STARTUP_GENERATION` 내부 directive로
+Gateway에 전달한다. 두 값은 operator-facing persistent `.env` 설정이 아니다. 기동 후 Runtime
+상태 변경은 Admin Runtime API / Control Plane이 소유한다.
 
 Main Model profile은 별도의 Main Model Control 계약을 사용하며 GPU 제품명 자체를
 지원 allowlist로 사용하지 않는다.

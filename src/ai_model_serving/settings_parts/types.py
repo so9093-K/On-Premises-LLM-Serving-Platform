@@ -139,7 +139,7 @@ class AppSettings:
     streaming_max_bytes: int = 104_857_600
     runtime_controller_url: str = ""
     static_main_profile: str = ""
-    deploy_release_id: str = ""
+    runtime_startup_generation: str = ""
     log_request_response_body: bool = False
 
     def runtime_service_id(self, runtime_key: str) -> str:

@@ -32,11 +32,11 @@ def test_runtime_state_store_persists_desired_state(tmp_path):
     assert asyncio.run(reloaded.get("embedding_ko")) == RuntimeState.stopped
     assert asyncio.run(reloaded.get("embedding")) == RuntimeState.active
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["states"]["embedding_ko"]["state"] == "stopped"
 
 
-def test_deploy_directive_applies_once_per_release(tmp_path):
+def test_startup_directive_applies_once_per_generation(tmp_path):
     path = tmp_path / "runtime-state.json"
     keys = {"embedding", "prompt_injection_detector"}
 
@@ -44,9 +44,12 @@ def test_deploy_directive_applies_once_per_release(tmp_path):
         path,
         controllable_keys=keys,
         deferred_keys=("prompt_injection_detector",),
-        release_id="release-1",
+        startup_generation="startup-1",
     )
-    assert asyncio.run(first.get("prompt_injection_detector")) == RuntimeState.stopped
+    first_record = asyncio.run(first.all_records())["prompt_injection_detector"]
+    assert first_record.state == RuntimeState.stopped
+    assert first_record.reason == "deferred_at_startup"
+    assert first_record.source == "startup"
 
     asyncio.run(
         first.set(
@@ -60,19 +63,19 @@ def test_deploy_directive_applies_once_per_release(tmp_path):
         path,
         controllable_keys=keys,
         deferred_keys=("prompt_injection_detector",),
-        release_id="release-1",
+        startup_generation="startup-1",
     )
     assert asyncio.run(restarted.get("prompt_injection_detector")) == RuntimeState.active
 
-    next_release = RuntimeStateStore(
+    next_startup = RuntimeStateStore(
         path,
         controllable_keys=keys,
         deferred_keys=("prompt_injection_detector",),
-        release_id="release-2",
+        startup_generation="startup-2",
     )
-    assert asyncio.run(next_release.get("prompt_injection_detector")) == RuntimeState.stopped
+    assert asyncio.run(next_startup.get("prompt_injection_detector")) == RuntimeState.stopped
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["applied_release_id"] == "release-2"
+    assert payload["applied_startup_generation"] == "startup-2"
 
 
 
@@ -90,7 +93,34 @@ def test_runtime_state_store_reads_legacy_v1_and_ignores_unknown_keys(tmp_path):
     assert store.recovery_quarantine_path is None
 
 
-def test_runtime_state_store_migrates_legacy_prompt_detector_key(tmp_path):
+def test_runtime_state_store_migrates_v2_release_generation_without_state_key_change(tmp_path):
+    path = tmp_path / "runtime-state.json"
+    path.write_text(
+        json.dumps({
+            "schema_version": 2,
+            "applied_release_id": "old-release-token",
+            "states": {
+                "embedding": {
+                    "state": "stopped",
+                    "reason": "operator_stop_requested",
+                    "source": "runtime_control",
+                    "updated_at": 7.0,
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    store = RuntimeStateStore(path, controllable_keys={"embedding"})
+
+    assert asyncio.run(store.get("embedding")) == RuntimeState.stopped
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    assert persisted["schema_version"] == 3
+    assert persisted["applied_startup_generation"] == "old-release-token"
+    assert "applied_release_id" not in persisted
+
+
+def test_runtime_state_store_migrates_v2_generation_and_legacy_prompt_detector_key(tmp_path):
     path = tmp_path / "runtime-state.json"
     path.write_text(
         json.dumps({
@@ -121,7 +151,9 @@ def test_runtime_state_store_migrates_legacy_prompt_detector_key(tmp_path):
         updated_at=123.5,
     )
     persisted = json.loads(path.read_text(encoding="utf-8"))
-    assert persisted["applied_release_id"] == "release-before-rename"
+    assert persisted["schema_version"] == 3
+    assert persisted["applied_startup_generation"] == "release-before-rename"
+    assert "applied_release_id" not in persisted
     assert "risk_prompt" not in persisted["states"]
     assert persisted["states"]["prompt_injection_detector"]["state"] == "stopped"
 
@@ -129,7 +161,7 @@ def test_runtime_state_store_migrates_legacy_prompt_detector_key(tmp_path):
 def test_runtime_state_store_keeps_legacy_key_while_it_is_still_canonical(tmp_path, monkeypatch):
     path = tmp_path / "runtime-state.json"
     original = json.dumps({
-        "schema_version": 2,
+        "schema_version": 3,
         "states": {
             "risk_prompt": {
                 "state": "stopped",
@@ -227,7 +259,7 @@ def test_runtime_state_store_fails_startup_if_key_migration_cannot_persist(tmp_p
 
     with pytest.raises(
         RuntimeStateStoreError,
-        match="runtime desired state key migration could not be persisted",
+        match="runtime desired state migration could not be persisted",
     ):
         RuntimeStateStore(
             path,
@@ -254,7 +286,7 @@ def test_runtime_state_store_quarantines_invalid_known_record_and_stops_all(tmp_
     assert all(record.source == "recovery" for record in records.values())
 
     recovered = json.loads(path.read_text(encoding="utf-8"))
-    assert recovered["schema_version"] == 2
+    assert recovered["schema_version"] == 3
     assert all(item["state"] == "stopped" for item in recovered["states"].values())
 
 
