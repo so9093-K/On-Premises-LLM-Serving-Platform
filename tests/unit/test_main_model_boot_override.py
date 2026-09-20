@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ai_model_serving.main_model.control import MainModelStateError
+from ai_model_serving.main_model.control import MainModelConfigurationError, MainModelStateError
 from ai_model_serving.main_model.boot import render_boot_override
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -123,3 +123,67 @@ def test_invalid_persisted_profile_type_fails_instead_of_falling_back(tmp_path):
             state_path=state,
             env_path=env,
         )
+
+
+def _flag(command: list[str], flag: str) -> str:
+    return command[command.index(flag) + 1]
+
+
+def test_host_resource_variant_reaches_the_compose_boot_command(tmp_path):
+    # Compose가 main runtime을 띄울 때 쓰는 command는 이 override가 소유한다.
+    # 여기에 variant가 반영되지 않으면, host가 GPU class를 선언해도 부팅은
+    # reference host 값으로 일어나고 24GB GPU에서 그대로 OOM이 난다.
+    env = tmp_path / ".env"
+    state = tmp_path / "state.json"
+    env.write_text(
+        "MAIN_MODEL_BOOT_PROFILE=gemma4-e4b-it\n"
+        "MAIN_MODEL_PROFILE_LOCKED=false\n"
+        "MAIN_MODEL_RESOURCE_VARIANT=rtx4090-24gb\n"
+        f"MAIN_MODEL_VLLM_IMAGE_OVERRIDE={_RUNTIME_IMAGE}\n"
+        f"VLLM_IMAGE={_RUNTIME_IMAGE}\n",
+        encoding="utf-8",
+    )
+    _state(state, None)
+
+    profile, override = render_boot_override(
+        catalog_path=CATALOG, state_path=state, env_path=env
+    )
+    command = override["services"]["main-llm-vllm"]["command"]
+    assert profile == "gemma4-e4b-it"
+    assert _flag(command, "--max-num-batched-tokens") == "4096"
+    # 나머지 자원 값은 reference host와 같게 유지된다.
+    assert _flag(command, "--max-model-len") == "65000"
+    assert _flag(command, "--max-num-seqs") == "4"
+    assert _flag(command, "--gpu-memory-utilization") == "0.76"
+
+
+def test_boot_override_without_a_variant_keeps_reference_values(tmp_path):
+    env = tmp_path / ".env"
+    state = tmp_path / "state.json"
+    _env(env, profile="gemma4-e4b-it", locked=False, profile_image=_RUNTIME_IMAGE)
+    _state(state, None)
+
+    _, override = render_boot_override(
+        catalog_path=CATALOG, state_path=state, env_path=env
+    )
+    command = override["services"]["main-llm-vllm"]["command"]
+    assert _flag(command, "--max-num-batched-tokens") == "50000"
+
+
+def test_boot_override_refuses_a_profile_without_this_hosts_variant(tmp_path):
+    # host가 GPU class를 선언하면 그 class를 지원하지 않는 profile은 부팅 대상이
+    # 아니다. 조용히 reference 값으로 기동하지 않는다.
+    env = tmp_path / ".env"
+    state = tmp_path / "state.json"
+    env.write_text(
+        "MAIN_MODEL_BOOT_PROFILE=gemma4-12b-unified-fp8\n"
+        "MAIN_MODEL_PROFILE_LOCKED=false\n"
+        "MAIN_MODEL_RESOURCE_VARIANT=rtx4090-24gb\n"
+        f"MAIN_MODEL_VLLM_IMAGE_OVERRIDE={_RUNTIME_IMAGE}\n"
+        f"VLLM_IMAGE={_RUNTIME_IMAGE}\n",
+        encoding="utf-8",
+    )
+    _state(state, None)
+
+    with pytest.raises(MainModelConfigurationError):
+        render_boot_override(catalog_path=CATALOG, state_path=state, env_path=env)
