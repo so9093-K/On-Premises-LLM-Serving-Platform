@@ -82,7 +82,16 @@ def test_gateway_forwards_risk_assessments_to_internal_risk_signal_service():
 
 
 def test_gateway_risk_aggregate_returns_503_when_prompt_runtime_stopped():
+    # 배포본은 이 detector runtime을 끄고 있어 topology 기준으로는 controllable이
+    # 아니다. 이 테스트가 보는 계약은 "detector runtime이 멈춰 있으면 aggregate가
+    # risk service를 부르지 않는다"이므로, 그 runtime이 controllable인 store를
+    # 직접 만들어 그 경로를 그대로 유지한다.
+    from ai_model_serving.services.runtime_state import RuntimeStateStore
+
     clients = FakeGatewayClients()
+    clients.runtime_state = RuntimeStateStore(
+        controllable_keys={"prompt_injection_detector"}
+    )
     asyncio.run(clients.runtime_state.set("prompt_injection_detector", RuntimeState.stopped))
     client = TestClient(create_gateway_app(settings(), clients))
 

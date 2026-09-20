@@ -94,17 +94,28 @@ def _runtime_service_ids() -> dict[str, str]:
 
 
 def _risk_detectors() -> tuple[RiskDetectorSettings, ...]:
-    """detector 선언은 production과 같은 설정에서 읽는다.
+    """detector 선언은 production과 같은 설정에서 읽되, 전부 enabled로 본다.
 
     family나 allowed_codes를 여기 손으로 적으면 설정이 바뀌어도 테스트는 옛 값으로
     계속 통과하고, 응답 schema의 enum과도 조용히 갈라진다.
+
+    ``enabled``만 덮는 이유는 이 helper를 쓰는 테스트가 "배포본이 어떤 detector를
+    켜 두었는가"가 아니라 "detector 한 종류가 실제로 어떻게 동작하는가"를 보기
+    때문이다. 배포에서 꺼진 detector의 코드 경로도 코드에 남아 있는 한 계약은
+    유지되어야 하며, 다시 켜는 순간 회귀가 드러나야 한다. 어떤 detector가 실제로
+    켜져 있는지는 설정 계약 검증과 runtime validation이 따로 소유한다.
     """
+    from dataclasses import replace
+
     from ai_model_serving.configuration import load_yaml_mapping
     from ai_model_serving.project_paths import resolve_project_root
     from ai_model_serving.settings import _risk_detectors_from_config
 
     document = load_yaml_mapping(resolve_project_root() / "configs" / "model_serving.yaml")
-    return _risk_detectors_from_config(document["risk_signal_service"])
+    return tuple(
+        replace(detector, enabled=True)
+        for detector in _risk_detectors_from_config(document["risk_signal_service"])
+    )
 
 
 def settings() -> AppSettings:

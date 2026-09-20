@@ -20,6 +20,48 @@ _DYNAMIC_TARGET = load_deployment_target(
 )
 
 
+_CONFIG_FILES = (
+    "model_serving.yaml",
+    "model_catalog.yaml",
+    "main_model_profiles.yaml",
+    "deployment_targets.yaml",
+    "runtime_topology.yaml",
+    "services.yaml",
+)
+
+
+def _config_root(tmp_path: Path) -> Path:
+    repo = Path(__file__).resolve().parents[2]
+    (tmp_path / "configs").mkdir(exist_ok=True)
+    for name in _CONFIG_FILES:
+        shutil.copy(repo / "configs" / name, tmp_path / "configs" / name)
+    shutil.copy(repo / "VERSION", tmp_path / "VERSION")
+    return tmp_path
+
+
+def _config_root_with_prompt_detector(tmp_path: Path) -> Path:
+    """vLLM prompt detector를 켠 설정 트리를 만든다.
+
+    배포본은 이 detector를 끄고 있지만 그 코드 경로는 그대로 남아 있다. 어떤
+    detector가 실제로 켜져 있는지는 설정 계약 검증이 소유하고, 여기서는 vLLM
+    detector가 하나라도 있을 때 성립해야 하는 settings 계약을 본다.
+    """
+    root = _config_root(tmp_path)
+    serving_path = root / "configs" / "model_serving.yaml"
+    serving = yaml.safe_load(serving_path.read_text(encoding="utf-8"))
+    serving["models"]["prompt_injection_detector"]["enabled"] = True
+    serving["risk_signal_service"]["detectors"]["prompt"]["enabled"] = True
+    serving_path.write_text(yaml.safe_dump(serving), encoding="utf-8")
+
+    topology_path = root / "configs" / "runtime_topology.yaml"
+    topology = yaml.safe_load(topology_path.read_text(encoding="utf-8"))
+    binding = topology["runtimes"]["prompt_injection_detector"]
+    binding.update(enabled=True, required=True, controllable=True)
+    binding["start_prerequisites"] = ["embedding", "embedding_ko"]
+    topology_path.write_text(yaml.safe_dump(topology), encoding="utf-8")
+    return root
+
+
 @pytest.fixture(autouse=True)
 def isolate_settings_environment(monkeypatch):
     for name in [
@@ -132,11 +174,19 @@ def test_load_settings_reads_local_dotenv_without_overriding_exported_values(tmp
     assert settings.max_request_body_bytes == 1234
     assert settings.runtime("main_llm").max_concurrency == 2
     catalog = yaml.safe_load((root / "configs" / "model_catalog.yaml").read_text(encoding="utf-8"))
+    serving = yaml.safe_load((root / "configs" / "model_serving.yaml").read_text(encoding="utf-8"))
+    # 비활성 vLLM detector가 뒤를 받치는 model은 공개 목록에 나오지 않는다.
+    # Gateway가 띄우지도 않은 runtime을 /v1/models로 광고하면 안 된다.
+    disabled_detector_models = {
+        str(cfg.get("source_model", key))
+        for key, cfg in serving["risk_signal_service"]["detectors"].items()
+        if cfg.get("type") == "vllm" and cfg.get("enabled", True) is not True
+    }
     expected_public_ids = {
         model_id
         for model_id, metadata in catalog["models"].items()
         if metadata.get("gateway_listing", {}).get("enabled", True) is True
-    }
+    } - disabled_detector_models
     assert {item["id"] for item in settings.public_models} == expected_public_ids
 
     monkeypatch.setenv("API_KEYS", "exported-key")
@@ -320,13 +370,15 @@ def test_load_settings_uses_canonical_risk_signal_service_application_env(monkey
     assert settings.risk_signal_service_timeout_seconds == 16
 
 
-def test_load_settings_rejects_risk_signal_service_timeout_below_sequential_budget(monkeypatch):
+def test_load_settings_rejects_risk_signal_service_timeout_below_sequential_budget(tmp_path, monkeypatch):
+    root = _config_root_with_prompt_detector(tmp_path)
     monkeypatch.setenv("RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS", "6")
     with pytest.raises(RuntimeError, match="RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS"):
-        load_settings()
+        load_settings(root)
 
 
-def test_load_settings_uses_canonical_prompt_injection_detector_env(monkeypatch):
+def test_load_settings_uses_canonical_prompt_injection_detector_env(tmp_path, monkeypatch):
+    root = _config_root_with_prompt_detector(tmp_path)
     monkeypatch.setenv("PROMPT_INJECTION_DETECTOR_BASE_URL", "http://prompt-detector:9503/v1")
     monkeypatch.setenv("PROMPT_INJECTION_DETECTOR_MODEL", "risk-prompt")
     monkeypatch.setenv("PROMPT_INJECTION_DETECTOR_TIMEOUT_SECONDS", "3")
@@ -336,7 +388,7 @@ def test_load_settings_uses_canonical_prompt_injection_detector_env(monkeypatch)
     monkeypatch.setenv("PROMPT_INJECTION_DETECTOR_CIRCUIT_BREAKER_RESET_SECONDS", "19")
     monkeypatch.setenv("RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS", "10")
 
-    settings = load_settings()
+    settings = load_settings(root)
     endpoint = settings.runtime("prompt_injection_detector")
 
     assert endpoint.base_url == "http://prompt-detector:9503/v1"

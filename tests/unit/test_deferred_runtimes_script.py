@@ -26,17 +26,20 @@ def test_default_profile_defers_all_non_main_runtimes():
 
     payload = json.loads(result.stdout)
     assert payload == {
-        "keys": ["embedding", "embedding_ko", "prompt_injection_detector"],
-        "services": ["embedding-vllm", "embedding-ko-vllm", "prompt-injection-detector-runtime"],
+        "keys": ["embedding", "embedding_ko"],
+        "services": ["embedding-vllm", "embedding-ko-vllm"],
         "profile": "main_only",
     }
 
 
 def test_explicit_profile_overrides_default_profile():
+    # retrieval_ready는 아무것도 미루지 않는다. 기본 profile이 embedding 두 종을
+    # 미루므로, 빈 결과 자체가 override가 실제로 적용됐다는 증거다.
     result = run_script("--profile", "retrieval_ready", "--output", "json")
 
     payload = json.loads(result.stdout)
-    assert payload["keys"] == ["prompt_injection_detector"]
+    assert payload["keys"] == []
+    assert payload["services"] == []
     assert payload["profile"] == "retrieval_ready"
 
 

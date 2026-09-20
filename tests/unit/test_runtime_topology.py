@@ -21,18 +21,19 @@ def test_runtime_topology_uses_explicit_lifecycle_bindings() -> None:
     assert topology.service_by_key == {
         "embedding": "embedding-vllm",
         "embedding_ko": "embedding-ko-vllm",
-        "prompt_injection_detector": "prompt-injection-detector-runtime",
     }
     assert "main_llm" not in topology.controllable_keys
     assert topology.bindings_by_key["embedding"].service_id == "embedding_vllm"
     assert topology.bindings_by_key["embedding"].compose_service == "embedding-vllm"
     assert topology.runtime_keys_for_features(frozenset({"chat"})) == frozenset({"main_llm"})
+    # risk feature는 유지되지만 요구하는 runtime이 없다. 현재 risk 신호는
+    # in-process PII/Secret detector가 소유하고, vLLM prompt detector binding은
+    # 비활성이라 어떤 feature의 required 집합에도 들어가지 않는다.
     assert topology.required_keys_for_features(
         frozenset({"chat", "embeddings", "risk"})
-    ) == frozenset({"main_llm", "embedding", "embedding_ko", "prompt_injection_detector"})
+    ) == frozenset({"main_llm", "embedding", "embedding_ko"})
     assert topology.start_prerequisites_by_service == {
         "embedding-ko-vllm": ["embedding-vllm"],
-        "prompt-injection-detector-runtime": ["embedding-vllm", "embedding-ko-vllm"],
     }
 
 
@@ -91,7 +92,7 @@ def test_runtime_topology_rejects_invalid_binding(tmp_path, update, message) -> 
 def test_runtime_topology_rejects_prerequisite_cycle(tmp_path) -> None:
     path = _copy_runtime_configs(tmp_path)
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    document["runtimes"]["embedding"]["start_prerequisites"] = ["prompt_injection_detector"]
+    document["runtimes"]["embedding"]["start_prerequisites"] = ["embedding_ko"]
     path.write_text(yaml.safe_dump(document), encoding="utf-8")
 
     with pytest.raises(ValueError, match="start_prerequisites contain a cycle"):
