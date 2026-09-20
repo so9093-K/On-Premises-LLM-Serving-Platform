@@ -59,14 +59,51 @@ def _write_minimal_configs(root: Path) -> None:
         "version: 1\nrecords:\n  existing:\n    kind: legacy_backfill\n",
         encoding="utf-8",
     )
-    for name in ("main_model_profiles.yaml", "deployment_targets.yaml", "qualification_checks.yaml"):
-        (config_dir / name).write_text("version: 1\n", encoding="utf-8")
+    (config_dir / "main_model_profiles.yaml").write_text(
+        "version: 1\n", encoding="utf-8"
+    )
+    (config_dir / "deployment_targets.yaml").write_text(
+        "version: 1\n", encoding="utf-8"
+    )
+    (config_dir / "qualification_checks.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "checks": {
+                    "main_model.runtime.models": {
+                        "description": "runtime model identity"
+                    }
+                },
+                "capability_requirements": {
+                    "text": ["main_model.runtime.models"]
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_failed_candidate_cannot_be_promoted(tmp_path: Path) -> None:
     path = _write_candidate(tmp_path, _receipt(result="failed"))
     with pytest.raises(QualificationPromotionError, match="only a passed"):
         load_candidate(path)
+
+
+def test_candidate_missing_current_required_check_cannot_be_promoted(
+    tmp_path: Path,
+) -> None:
+    _write_minimal_configs(tmp_path)
+    checks_path = tmp_path / "configs/qualification_checks.yaml"
+    checks = yaml.safe_load(checks_path.read_text(encoding="utf-8"))
+    checks["checks"]["main_model.chat.text"] = {"description": "text canary"}
+    checks["capability_requirements"]["text"].append("main_model.chat.text")
+    checks_path.write_text(yaml.safe_dump(checks, sort_keys=False), encoding="utf-8")
+
+    candidate = _write_candidate(tmp_path, _receipt())
+
+    with pytest.raises(QualificationPromotionError, match="current required qualification checks"):
+        plan_candidate(candidate, root=tmp_path)
 
 
 def test_candidate_filename_is_current_contract_identity(tmp_path: Path) -> None:
@@ -181,11 +218,11 @@ def test_matching_orphan_receipt_can_be_recovered_by_catalog_apply(tmp_path: Pat
 
 
 def test_promotion_refuses_existing_catalog_identity(tmp_path: Path) -> None:
+    _write_minimal_configs(tmp_path)
     receipt = _receipt()
     candidate = _write_candidate(tmp_path, receipt)
     record_id = candidate_record_id(receipt)
     config_dir = tmp_path / "configs"
-    config_dir.mkdir()
     (config_dir / "qualification_evidence.yaml").write_text(
         yaml.safe_dump({"version": 1, "records": {record_id: {"kind": "qualified_run"}}}),
         encoding="utf-8",

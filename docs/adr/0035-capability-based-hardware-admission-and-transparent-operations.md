@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-20
 - Refines: [ADR-0034](./0034-main-model-host-resource-variant.md), [ADR-0033](./0033-qualification-status-promotion-contract.md), [ADR-0032](./0032-qualification-evidence-v1.md)
+- Extended by: [ADR-0036](./0036-qualification-evidence-reuse-and-invalidation.md)
 
 ## Context
 
@@ -55,6 +56,10 @@ incompatible. In particular:
 
 A new hardware model does not require a new profile-level qualification simply because its product
 name is new.
+
+The exact reuse and invalidation boundary for durable evidence is defined by ADR-0036. Hardware,
+driver, resource-policy and validation-time fingerprints remain run provenance; current profile
+contract identity and required checks decide profile-level evidence eligibility.
 
 ### 3. `resource_variant` means an explicit resource-policy override
 

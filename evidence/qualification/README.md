@@ -22,6 +22,16 @@ receipt v1은 다음 형태를 사용한다.
 `record`는 `configs/qualification_evidence.yaml`의 대응 record에서 `source`만 제외한 값과
 정확히 같아야 한다. repository validator가 receipt와 catalog drift를 거부한다.
 
+Receipt는 **그 실행 당시의 사실을 보존하는 immutable history**다. 이후 GPU/driver/resource policy가
+바뀌거나 qualification check registry가 확장되어도 과거 receipt를 현재 값으로 다시 쓰지 않는다.
+
+현재 Main Model profile의 `verified` 근거로 재사용 가능한지는 receipt 보존 여부와 별도로 판단한다.
+Profile/model/revision/capability와 Main Model deployment target이 맞아야 하며, `qualified_run`은
+현재 required check를 모두 통과한 기록이어야 한다. GPU 이름·UUID·driver, runtime fingerprint,
+`resource_variant`, `validated_at`은 provenance이며 그 값만 달라졌다는 이유로 profile-level
+qualification을 무효화하지 않는다. 세부 경계는
+[ADR-0036](../../docs/adr/0036-qualification-evidence-reuse-and-invalidation.md)을 따른다.
+
 runtime의 `image_digest`는 registry/distribution에서 재식별할 수 있는
 `sha256:<64 hex>` digest다. Docker daemon의 local `image_id`와 같은 개념으로 취급하지
 않으며, 실행 artifact의 distribution digest를 단일하게 관측하지 못하면 값을 추측하지 않는다.

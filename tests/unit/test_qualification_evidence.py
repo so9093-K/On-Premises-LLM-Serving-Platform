@@ -31,7 +31,37 @@ def _unverified_profiles() -> dict:
 
 
 def _targets() -> dict:
-    return {"targets": {"linux-nvidia-dynamic": {}}}
+    return {
+        "targets": {
+            "linux-nvidia-dynamic": {
+                "main_profile_catalog": "configs/main_model_profiles.yaml"
+            }
+        }
+    }
+
+
+def _expanded_checks() -> dict:
+    return {
+        "version": 1,
+        "checks": {
+            "main_model.runtime.models": {"description": "runtime model identity"},
+            "main_model.gateway.models": {"description": "gateway model contract"},
+            "main_model.chat.text": {"description": "text canary"},
+            "main_model.chat.image": {"description": "image canary"},
+            "main_model.chat.image.guard": {"description": "new image guard"},
+        },
+        "capability_requirements": {
+            "text": [
+                "main_model.runtime.models",
+                "main_model.gateway.models",
+                "main_model.chat.text",
+            ],
+            "image": [
+                "main_model.chat.image",
+                "main_model.chat.image.guard",
+            ],
+        },
+    }
 
 
 def _legacy_record() -> dict:
@@ -156,6 +186,53 @@ def test_complete_qualified_run_is_accepted(tmp_path) -> None:
     )
 
 
+def test_verified_profile_reuses_evidence_across_hardware_and_resource_policy(
+    tmp_path,
+) -> None:
+    evidence = _qualified_record()
+    record = evidence["records"]["candidate-legacy"]
+    record["hardware"] = {
+        "gpu": "NVIDIA GeForce RTX 4090",
+        "driver_version": "999.99",
+    }
+    record["subject"]["resource_variant"] = "rtx4090-24gb"
+    record["validated_at"] = "2020-01-01T00:00:00Z"
+    _write_receipt(tmp_path, evidence)
+
+    validate_qualification_evidence_document(
+        evidence,
+        _profiles(),
+        _targets(),
+        root=tmp_path,
+    )
+
+
+def test_verified_profile_does_not_use_evidence_from_different_profile_catalog_target(
+    tmp_path,
+) -> None:
+    evidence = _qualified_record()
+    evidence["records"]["candidate-legacy"]["deployment_target"] = "macos-metal-static"
+    targets = {
+        "targets": {
+            "linux-nvidia-dynamic": {
+                "main_profile_catalog": "configs/main_model_profiles.yaml"
+            },
+            "macos-metal-static": {
+                "main_profile_catalog": "configs/macos_mlx_runtime.yaml"
+            },
+        }
+    }
+    _write_receipt(tmp_path, evidence)
+
+    with pytest.raises(SystemExit, match="requires passed qualification evidence"):
+        validate_qualification_evidence_document(
+            evidence,
+            _profiles(),
+            targets,
+            root=tmp_path,
+        )
+
+
 def test_qualified_run_requires_repository_owned_receipt() -> None:
     evidence = _qualified_record()
     evidence["records"]["candidate-legacy"]["source"]["path"] = "configs/main_model_profiles.yaml"
@@ -199,16 +276,31 @@ def test_qualified_run_rejects_unknown_check_id() -> None:
         validate_qualification_evidence_document(evidence, _profiles(), _targets())
 
 
-def test_qualified_run_requires_all_checks_for_declared_capabilities() -> None:
+def test_historical_qualified_run_survives_required_check_expansion(tmp_path) -> None:
     evidence = _qualified_record()
-    evidence["records"]["candidate-legacy"]["checks"] = [
-        item
-        for item in evidence["records"]["candidate-legacy"]["checks"]
-        if item["id"] != "main_model.chat.image"
-    ]
+    _write_receipt(tmp_path, evidence)
 
-    with pytest.raises(SystemExit, match="missing required qualification checks"):
-        validate_qualification_evidence_document(evidence, _profiles(), _targets())
+    validate_qualification_evidence_document(
+        evidence,
+        _unverified_profiles(),
+        _targets(),
+        _expanded_checks(),
+        root=tmp_path,
+    )
+
+
+def test_verified_profile_requires_run_satisfying_current_required_checks(tmp_path) -> None:
+    evidence = _qualified_record()
+    _write_receipt(tmp_path, evidence)
+
+    with pytest.raises(SystemExit, match="requires passed qualification evidence"):
+        validate_qualification_evidence_document(
+            evidence,
+            _profiles(),
+            _targets(),
+            _expanded_checks(),
+            root=tmp_path,
+        )
 
 
 def test_passed_qualified_run_rejects_skipped_required_check() -> None:
@@ -217,7 +309,7 @@ def test_passed_qualified_run_rejects_skipped_required_check() -> None:
         image_status="skipped"
     )
 
-    with pytest.raises(SystemExit, match="requires every required check to pass"):
+    with pytest.raises(SystemExit, match="passed result cannot contain failed or skipped checks"):
         validate_qualification_evidence_document(evidence, _profiles(), _targets())
 
 

@@ -293,6 +293,28 @@ make main-model-prepare PROFILE=<profile-id>
 Main Model profile 또는 관련 compatibility 입력이 변경되면 pinned Transformers/Hugging
 Face 환경에서 profile config를 확인하고 실제 모델 전환 흐름은 [6. 모델 운영](./06_model_operations.md)을 따른다.
 
+
+### Qualification evidence 재사용 판단
+
+Profile 변경과 host/runtime 변경을 같은 재qualification trigger로 취급하지 않는다.
+
+| 변화 | 기존 profile evidence | 추가 확인 |
+|---|---|---|
+| GPU 제품명·UUID·driver 변경 | 재사용 가능 | compatibility/resource admission + runtime validation |
+| 같은 target의 resource policy override 변경 | profile evidence 재사용 가능 | override 실측·review + runtime validation |
+| reboot/redeploy 또는 시간 경과 | 재사용 가능 | 일반 readiness/runtime validation |
+| model ID 또는 immutable revision 변경 | current evidence로 재사용 불가 | 새 contract qualification |
+| deployed capability 변경 | current evidence로 재사용 불가 | 새 capability required checks 포함 qualification |
+| required qualification check 추가 | 과거 receipt는 보존, current evidence eligibility는 재평가 | 새 check를 포함한 qualified run |
+| Main Model profile catalog를 소유하지 않는 target | current profile evidence로 사용 불가 | target-specific qualification contract |
+
+Runtime image digest나 engine/version이 바뀌면 새 artifact에 대한 release confidence를 위해 새
+`qualified_run`을 만들 수 있지만, 현행 profile-level qualification status가 artifact digest를
+identity로 소유하지 않으므로 그 변화만으로 GPU 지원 또는 profile status를 자동 강등하지 않는다.
+Artifact-specific certification이 필요하면 별도 authority를 정의한다.
+
+세부 계약은 [ADR-0036](./adr/0036-qualification-evidence-reuse-and-invalidation.md)을 따른다.
+
 ---
 
 ## 13.6 Unified vLLM / Runtime Image 변경

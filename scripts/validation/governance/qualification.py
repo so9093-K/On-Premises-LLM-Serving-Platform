@@ -87,13 +87,19 @@ def load_qualification_check_contract(
     return _validate_check_registry(checks_document)
 
 
-def _validate_qualified_run_checks(
+def _qualified_run_check_statuses(
     record_id: str,
     record: dict[str, Any],
     *,
     known_checks: set[str],
     capability_requirements: dict[str, frozenset[str]],
-) -> None:
+) -> dict[str, str]:
+    """Immutable run에 실제 기록된 check 결과의 구조만 검증한다.
+
+    현재 capability requirement가 나중에 확장되어도 과거 receipt 자체를 거짓으로
+    만들지 않는다. 다만 record가 선언한 capability가 현재 registry에 전혀 없으면
+    새/현재 qualification 의미를 해석할 수 없으므로 fail-closed한다.
+    """
     checks = record.get("checks")
     if not isinstance(checks, list) or not checks:
         raise SystemExit(
@@ -144,35 +150,14 @@ def _validate_qualified_run_checks(
             )
         statuses[check_id] = str(status)
 
-    required: set[str] = set()
     for capability in record["capabilities"]:
-        required_for_capability = capability_requirements.get(str(capability))
-        if required_for_capability is None:
+        if capability_requirements.get(str(capability)) is None:
             raise SystemExit(
                 f"qualification evidence {record_id!r} capability {capability!r} "
                 "has no required-check mapping"
             )
-        required.update(required_for_capability)
-
-    missing = sorted(required - statuses.keys())
-    if missing:
-        raise SystemExit(
-            f"qualification evidence {record_id!r} missing required qualification checks: "
-            + ", ".join(missing)
-        )
 
     if record["result"] == "passed":
-        non_passed_required = sorted(
-            check_id for check_id in required if statuses[check_id] != "passed"
-        )
-        if non_passed_required:
-            details = ", ".join(
-                f"{check_id}={statuses[check_id]}" for check_id in non_passed_required
-            )
-            raise SystemExit(
-                f"qualification evidence {record_id!r} passed result requires every "
-                f"required check to pass; got {details}"
-            )
         non_passed_recorded = sorted(
             check_id for check_id, status in statuses.items() if status != "passed"
         )
@@ -187,6 +172,68 @@ def _validate_qualified_run_checks(
             f"qualification evidence {record_id!r} failed result requires at least "
             "one failed or skipped check"
         )
+    return statuses
+
+
+def qualified_run_satisfies_current_check_contract(
+    record: dict[str, Any],
+    capability_requirements: dict[str, frozenset[str]],
+) -> bool:
+    """qualified_run이 현재 capability별 required check 계약을 충족하는지 판정한다."""
+    if record.get("kind") != "qualified_run" or record.get("result") != "passed":
+        return False
+    checks = record.get("checks")
+    if not isinstance(checks, list):
+        return False
+    statuses = {
+        str(item.get("id")): str(item.get("status"))
+        for item in checks
+        if isinstance(item, dict) and _non_empty_string(item.get("id"))
+    }
+    required: set[str] = set()
+    for capability in record.get("capabilities", []):
+        required_for_capability = capability_requirements.get(str(capability))
+        if required_for_capability is None:
+            return False
+        required.update(required_for_capability)
+    return required <= statuses.keys() and all(
+        statuses[check_id] == "passed" for check_id in required
+    )
+
+
+def qualification_record_matches_current_profile(
+    record: dict[str, Any],
+    *,
+    profile_id: str,
+    model_id: str,
+    revision: str,
+    capabilities: set[str],
+    eligible_targets: set[str],
+    capability_requirements: dict[str, frozenset[str]],
+) -> bool:
+    """Profile-level qualification의 current evidence match key를 한 곳에서 정의한다.
+
+    Hardware/driver/runtime fingerprint/resource_variant/validated_at은 run provenance이며
+    profile-level match key가 아니다. qualified_run만 현재 check registry까지 만족해야 한다.
+    legacy_backfill은 기존 verified history 호환성을 위해 identity/capability/target만 비교한다.
+    """
+    subject = record.get("subject")
+    if not isinstance(subject, dict):
+        return False
+    if not (
+        subject.get("profile_id") == profile_id
+        and subject.get("model_id") == model_id
+        and subject.get("revision") == revision
+        and record.get("result") == "passed"
+        and record.get("deployment_target") in eligible_targets
+        and set(str(item) for item in record.get("capabilities", [])) == capabilities
+    ):
+        return False
+    if record.get("kind") == "legacy_backfill":
+        return True
+    return qualified_run_satisfies_current_check_contract(
+        record, capability_requirements
+    )
 
 
 def _resolve_source_path(
@@ -290,7 +337,8 @@ def _validate_record(
             )
     # resource_variant는 선택 field다. reference policy로 검증한 run은 이 key가
     # 없고, 실제 resource-policy override를 적용한 run만 그 id를 provenance로 남긴다.
-    # 이 값은 GPU 지원 allowlist가 아니지만, 존재한다면 profile 선언과 일치해야 한다.
+    # 과거 receipt는 immutable history이므로 현재 profile의 variant 선언과 재대조해
+    # 수정하거나 무효화하지 않는다. current execution support는 별도 admission이 소유한다.
     if "resource_variant" in subject and not _non_empty_string(subject.get("resource_variant")):
         raise SystemExit(
             f"qualification evidence {record_id!r}.subject.resource_variant must be "
@@ -366,7 +414,7 @@ def _validate_record(
                 f"qualification evidence {record_id!r} qualified_run deployment_target "
                 "must reference configs/deployment_targets.yaml"
             )
-        _validate_qualified_run_checks(
+        _qualified_run_check_statuses(
             record_id,
             record,
             known_checks=known_checks,
@@ -412,6 +460,12 @@ def validate_qualification_evidence_document(
     if not isinstance(targets_document, dict) or not targets_document:
         raise SystemExit("deployment_targets.yaml must declare targets")
     targets = set(str(target) for target in targets_document)
+    main_profile_targets = {
+        str(target_id)
+        for target_id, target in targets_document.items()
+        if isinstance(target, dict)
+        and target.get("main_profile_catalog") == "configs/main_model_profiles.yaml"
+    }
 
     known_checks, capability_requirements = load_qualification_check_contract(
         qualification_checks_document
@@ -450,23 +504,25 @@ def validate_qualification_evidence_document(
         expected_model_id = str(profile.get("model_id", ""))
         expected_revision = str(profile.get("revision", ""))
 
-        matches = []
-        for record in validated_records:
-            subject = record["subject"]
-            if (
-                subject["profile_id"] == profile_id
-                and subject["model_id"] == expected_model_id
-                and subject["revision"] == expected_revision
-                and record["result"] == "passed"
-                and record["deployment_target"] in targets
-                and set(record["capabilities"]) == expected_capabilities
-            ):
-                matches.append(record)
+        matches = [
+            record
+            for record in validated_records
+            if qualification_record_matches_current_profile(
+                record,
+                profile_id=str(profile_id),
+                model_id=expected_model_id,
+                revision=expected_revision,
+                capabilities=expected_capabilities,
+                eligible_targets=main_profile_targets,
+                capability_requirements=capability_requirements,
+            )
+        ]
 
         if not matches:
             raise SystemExit(
                 f"verified main model profile {profile_id!r} requires passed qualification evidence "
-                "matching current model_id, revision, and deployed_input capabilities"
+                "matching current model_id, revision, deployed_input capabilities, "
+                "deployment target, and required qualification checks"
             )
 
 

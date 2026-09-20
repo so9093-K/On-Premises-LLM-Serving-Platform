@@ -191,6 +191,12 @@ Evidence의 hardware fingerprint는 **어디에서 실제로 검증했는지**�
 특정 GPU 이름의 direct evidence가 없다는 이유만으로 실행을 막거나 같은 profile을 다시
 qualification하지 않는다. Profile evidence와 현재 host의 resource feasibility는 서로 다른 판단이다.
 
+Evidence는 GPU/driver/resource policy/검증 시각이 바뀌었다는 이유만으로 자동 만료되지 않는다.
+현재 profile-level 근거의 identity는 profile/model/revision/capability와 Main Model deployment
+target이며, `qualified_run`은 현재 required qualification check를 만족해야 한다. 새 required
+check가 추가되면 과거 receipt는 history로 그대로 남지만 현재 verified 근거에서는 제외될 수 있다.
+재사용·무효화 규칙은 [ADR-0036](./adr/0036-qualification-evidence-reuse-and-invalidation.md)을 따른다.
+
 ### Profile Lock
 
 `MAIN_MODEL_PROFILE_LOCKED=true`이면 `MAIN_MODEL_BOOT_PROFILE`을 기준으로 Main Model profile을 고정한다. 일반 운영에서는 persisted active profile이 다음 기동에도 이어진다.
