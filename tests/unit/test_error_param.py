@@ -10,7 +10,11 @@ from ai_model_serving.errors import ServiceError, default_code_for_status, error
 _STRICT_CHAT_POLICY = {
     "allow_unlisted_parameters": False,
     "supported_parameters": ["stream", "stream_options", "max_tokens", "tools", "tool_choice"],
-    "tool_calling": {"enabled": True, "max_tools": 2},
+    "tool_calling": {
+        "enabled": True,
+        "max_tools": 2,
+        "tool_choice": {"allowed": ["auto", "none", "required"], "allow_named": True},
+    },
 }
 
 

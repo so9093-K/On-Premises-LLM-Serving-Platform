@@ -13,3 +13,21 @@ def test_main_serving_projection_excludes_runtime_control_fields() -> None:
     assert not hasattr(profile, "image")
     assert not hasattr(profile, "command")
     assert not hasattr(profile, "vram_fraction")
+
+
+def test_gemma_tool_choice_policy_is_explicit_and_fail_closed() -> None:
+    root = Path(__file__).resolve().parents[2]
+    catalog = load_main_serving_catalog(root / "configs" / "main_model_profiles.yaml")
+
+    for profile_id in (
+        "gemma4-26b-a4b-fp8",
+        "gemma4-12b-unified-fp8",
+        "gemma4-e4b-it",
+    ):
+        tool_policy = catalog.profiles[profile_id].gateway_policy[
+            "request_parameter_policy"
+        ]["tool_calling"]
+        assert tool_policy["tool_choice"] == {
+            "allowed": ["auto", "none"],
+            "allow_named": False,
+        }
