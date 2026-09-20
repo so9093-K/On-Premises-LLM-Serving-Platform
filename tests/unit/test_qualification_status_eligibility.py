@@ -20,6 +20,26 @@ def _profiles() -> dict:
     }
 
 
+def _checks() -> dict:
+    return {
+        "version": 1,
+        "checks": {
+            "main_model.runtime.models": {"description": "runtime model identity"},
+            "main_model.gateway.models": {"description": "gateway model contract"},
+            "main_model.chat.text": {"description": "text canary"},
+            "main_model.chat.image": {"description": "image canary"},
+        },
+        "capability_requirements": {
+            "text": [
+                "main_model.runtime.models",
+                "main_model.gateway.models",
+                "main_model.chat.text",
+            ],
+            "image": ["main_model.chat.image"],
+        },
+    }
+
+
 def _targets() -> dict:
     return {
         "targets": {
@@ -56,6 +76,12 @@ def _record(
         "deployment_target": target,
         "capabilities": ["text", "image"],
         "result": "passed",
+        "checks": [
+            {"id": "main_model.runtime.models", "status": "passed"},
+            {"id": "main_model.gateway.models", "status": "passed"},
+            {"id": "main_model.chat.text", "status": "passed"},
+            {"id": "main_model.chat.image", "status": "passed"},
+        ],
     }
 
 
@@ -80,7 +106,7 @@ def test_promotion_uses_only_evidence_from_the_reviewed_deployment_target() -> N
             evidence,
             _profiles(),
             _targets(),
-            {},
+            _checks(),
         )
 
     assert eligible == ["linux-run"]
@@ -107,10 +133,35 @@ def test_resource_variant_is_provenance_not_profile_promotion_gate() -> None:
             evidence,
             _profiles(),
             _targets(),
-            {},
+            _checks(),
         )
 
     assert eligible == ["override-run", "reference-run"]
+
+
+def test_promotion_rejects_old_run_missing_new_required_check() -> None:
+    run_id, record = _record(
+        "old-run",
+        target="linux-nvidia-dynamic",
+    )
+    checks = _checks()
+    checks["checks"]["main_model.chat.image.guard"] = {
+        "description": "new image guard"
+    }
+    checks["capability_requirements"]["image"].append("main_model.chat.image.guard")
+
+    with patch(
+        "scripts.qualification.status_eligibility.validate_qualification_evidence_document"
+    ):
+        with pytest.raises(SystemExit, match="has no current qualified_run"):
+            eligible_qualified_run_ids(
+                "gemma-test",
+                "linux-nvidia-dynamic",
+                {"records": {run_id: record}},
+                _profiles(),
+                _targets(),
+                checks,
+            )
 
 
 def test_promotion_refuses_target_owned_by_a_different_main_profile_catalog() -> None:
@@ -129,5 +180,5 @@ def test_promotion_refuses_target_owned_by_a_different_main_profile_catalog() ->
                 {"records": {run_id: record}},
                 _profiles(),
                 _targets(),
-                {},
+                _checks(),
             )

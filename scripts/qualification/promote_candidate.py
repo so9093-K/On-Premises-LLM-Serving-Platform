@@ -31,6 +31,8 @@ from scripts.qualification.produce_candidate import (  # noqa: E402
     candidate_record_id,
 )
 from scripts.validation.governance.qualification import (  # noqa: E402
+    load_qualification_check_contract,
+    qualified_run_satisfies_current_check_contract,
     validate_qualification_evidence_document,
 )
 
@@ -212,6 +214,15 @@ def plan_candidate(candidate_path: Path, *, root: Path) -> PromotionPlan:
         ) from exc
 
     receipt = load_candidate(candidate_path)
+    _, capability_requirements = load_qualification_check_contract(
+        load_yaml_mapping(root / "configs/qualification_checks.yaml")
+    )
+    if not qualified_run_satisfies_current_check_contract(
+        receipt["record"], capability_requirements
+    ):
+        raise QualificationPromotionError(
+            "candidate does not satisfy the current required qualification checks"
+        )
     record_id = candidate_record_id(receipt)
     catalog, catalog_text, catalog_before_digest = _load_catalog(root)
     records = catalog["records"]

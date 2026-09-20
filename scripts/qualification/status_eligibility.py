@@ -13,6 +13,8 @@ if str(ROOT) not in sys.path:
 
 from scripts.validation.governance.common import read_yaml  # noqa: E402
 from scripts.validation.governance.qualification import (  # noqa: E402
+    load_qualification_check_contract,
+    qualification_record_matches_current_profile,
     validate_qualification_evidence_document,
 )
 
@@ -84,25 +86,26 @@ def eligible_qualified_run_ids(
     if not isinstance(records, dict):
         raise SystemExit("qualification_evidence.yaml must declare records")
 
-    expected_model_id = profile.get("model_id")
-    expected_revision = profile.get("revision")
+    expected_model_id = str(profile.get("model_id", ""))
+    expected_revision = str(profile.get("revision", ""))
     expected_capabilities = set(str(item) for item in deployed_input)
+    _, capability_requirements = load_qualification_check_contract(
+        qualification_checks_document
+    )
     matches: list[str] = []
     for record_id, raw_record in records.items():
         if not isinstance(raw_record, dict):
             continue
-        subject = raw_record.get("subject")
-        if not isinstance(subject, dict):
+        if raw_record.get("kind") != "qualified_run":
             continue
-        if (
-            raw_record.get("kind") == "qualified_run"
-            and raw_record.get("result") == "passed"
-            and subject.get("profile_id") == profile_id
-            and subject.get("model_id") == expected_model_id
-            and subject.get("revision") == expected_revision
-            and raw_record.get("deployment_target") == target_id
-            and set(str(item) for item in raw_record.get("capabilities", []))
-            == expected_capabilities
+        if qualification_record_matches_current_profile(
+            raw_record,
+            profile_id=profile_id,
+            model_id=expected_model_id,
+            revision=expected_revision,
+            capabilities=expected_capabilities,
+            eligible_targets={target_id},
+            capability_requirements=capability_requirements,
         ):
             matches.append(str(record_id))
 
