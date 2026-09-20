@@ -31,7 +31,11 @@ runtimes:
   prompt_injection_detector:
     service_id: prompt_injection_detector_runtime
     features: [risk]
-    required: true
-    enabled: true
-    controllable: true
-    start_prerequisites: [embedding, embedding_ko]
+    # 이 runtime은 현재 기동하지 않는다. risk feature 자체는 유지되며 in-process
+    # PII/Secret detector가 계속 소유한다 -- 여기서 빠지는 것은 vLLM prompt attack
+    # detector뿐이다. 비활성 binding은 feature의 required runtime 집합에서 제외되므로
+    # Gateway가 존재하지 않는 runtime을 readiness 조건으로 요구하지 않는다.
+    # start_prerequisites는 enabled+controllable일 때만 선언할 수 있어 함께 비운다.
+    enabled: false
+    required: false
+    controllable: false

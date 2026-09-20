@@ -136,6 +136,16 @@ def validate_risk_detector_generation_budget() -> None:
         for detector in detector_specs.values()
         if detector.get('enabled', True) is True and detector.get('type', 'vllm') != 'local'
     ]
+    if not enabled_detector_keys:
+        # enabled vLLM detector가 없으면 이 상한을 유도할 detector context가 없다.
+        # 그때 max_prompt_chars는 local detector에만 적용되는 자체 guard이므로 양수인지만
+        # 본다. settings.py의 runtime 유도도 같은 분기를 갖는다.
+        if max_prompt_chars <= 0:
+            raise SystemExit(
+                'configs/model_serving.yaml risk_signal_service.input_policy.max_prompt_chars '
+                'must be > 0'
+            )
+        return
     min_detector_window = min(int(serving[key]['max_model_len']) for key in enabled_detector_keys)
     expected_upper_bound = detector_prompt_char_budget(min_detector_window)
     if max_prompt_chars <= 0 or max_prompt_chars > expected_upper_bound:
