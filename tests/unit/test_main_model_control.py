@@ -24,6 +24,7 @@ from ai_model_serving.main_model.control import (
     MainModelSwitchError,
     load_main_model_catalog,
     resolve_boot_profile,
+    resource_variant_from_mapping,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -998,3 +999,122 @@ def test_gpu_util_override_from_mapping_parses_and_validates():
     for bad in ("abc", "0", "1.5"):
         with pytest.raises(MainModelConfigurationError):
             f({"MAIN_MODEL_GPU_MEMORY_UTILIZATION": bad})
+
+
+def _flag(command, flag):
+    command = list(command)
+    return command[command.index(flag) + 1]
+
+
+def _variant_catalog(variant, **kwargs):
+    return load_main_model_catalog(
+        ROOT / "configs/main_model_profiles.yaml",
+        resource_variant=variant,
+        env={"VLLM_IMAGE": _SHARED_IMAGE, "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": _PROFILE_IMAGE},
+        **kwargs,
+    )
+
+
+def test_resource_variant_overrides_only_the_declared_resource_knob() -> None:
+    # 2026-09-19 RTX 4090 실측: 24GB에서 달라지는 값은 prefill workspace를 정하는
+    # max_num_batched_tokens 하나뿐이고, context/seqs/util은 48GB 값 그대로 기동한다.
+    # variant가 그 이상을 조용히 바꾸기 시작하면 profile이 사실상 다른 profile이 된다.
+    base = _variant_catalog(None).profiles["gemma4-e4b-it"]
+    tuned = _variant_catalog("rtx4090-24gb").profiles["gemma4-e4b-it"]
+
+    assert _flag(base.command, "--max-num-batched-tokens") == "50000"
+    assert _flag(tuned.command, "--max-num-batched-tokens") == "4096"
+    for flag in ("--max-model-len", "--max-num-seqs", "--gpu-memory-utilization"):
+        assert _flag(tuned.command, flag) == _flag(base.command, flag)
+    assert tuned.model_id == base.model_id
+    assert tuned.revision == base.revision
+    assert tuned.capabilities == base.capabilities
+    assert tuned.gateway_policy == base.gateway_policy
+
+
+def test_resource_variant_is_recorded_on_the_profile_snapshot() -> None:
+    # qualification context와 admin 응답이 이 값을 읽는다. 어떤 자원 정책으로
+    # 서빙 중인지 증거에 남지 않으면 48GB run과 24GB run이 구분되지 않는다.
+    tuned = _variant_catalog("rtx4090-24gb").profiles["gemma4-e4b-it"]
+    assert tuned.resource_variant == "rtx4090-24gb"
+    assert tuned.public_view()["resource_variant"] == "rtx4090-24gb"
+
+    base = _variant_catalog(None).profiles["gemma4-e4b-it"]
+    assert base.resource_variant is None
+    assert base.public_view()["resource_variant"] is None
+    # 선언 목록은 선택 여부와 무관하게 노출된다.
+    assert "rtx4090-24gb" in base.public_view()["resource_variants"]
+
+
+def test_profiles_without_the_selected_variant_keep_reference_values() -> None:
+    loaded = _variant_catalog("rtx4090-24gb")
+    for profile_id in ("gemma4-12b-unified-fp8", "gemma4-26b-a4b-fp8"):
+        profile = loaded.profiles[profile_id]
+        assert profile.resource_variant is None
+        assert profile.resource_variants == ()
+
+
+def test_unknown_resource_variant_fails_instead_of_booting_reference_values() -> None:
+    # 조용한 fallback은 48GB 자원 정책이 24GB GPU에서 그대로 기동을 시도하게 만드는
+    # 경로다. 오타는 반드시 기동 실패로 드러나야 한다.
+    with pytest.raises(MainModelConfigurationError) as excinfo:
+        _variant_catalog("rtx4090-24g")
+    assert "rtx4090-24g" in str(excinfo.value)
+
+
+def test_gpu_util_env_override_still_wins_over_a_variant() -> None:
+    # variant는 catalog가 소유한 검토된 host class 정책이고,
+    # MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일 호스트용 escape hatch다.
+    # 후자가 항상 마지막 발언권을 갖고, vram_fraction도 그 값을 따라간다.
+    tuned = _variant_catalog("rtx4090-24gb", gpu_memory_utilization_override=0.8)
+    profile = tuned.profiles["gemma4-e4b-it"]
+    assert _flag(profile.command, "--gpu-memory-utilization") == "0.8"
+    assert profile.vram_fraction == 0.8
+    assert _flag(profile.command, "--max-num-batched-tokens") == "4096"
+
+
+def test_resource_variant_env_parsing_rejects_malformed_ids() -> None:
+    assert resource_variant_from_mapping({}) is None
+    assert resource_variant_from_mapping({"MAIN_MODEL_RESOURCE_VARIANT": "  "}) is None
+    assert (
+        resource_variant_from_mapping({"MAIN_MODEL_RESOURCE_VARIANT": " rtx4090-24gb "})
+        == "rtx4090-24gb"
+    )
+    with pytest.raises(MainModelConfigurationError):
+        resource_variant_from_mapping({"MAIN_MODEL_RESOURCE_VARIANT": "RTX4090"})
+
+
+def test_resource_variant_may_not_change_model_identity_or_policy(tmp_path) -> None:
+    import yaml
+
+    raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text(encoding="utf-8"))
+    raw["profiles"]["gemma4-e4b-it"]["resource_variants"]["rtx4090-24gb"]["revision"] = "b" * 40
+    path = tmp_path / "profiles.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(MainModelConfigurationError) as excinfo:
+        load_main_model_catalog(
+            path,
+            resource_variant="rtx4090-24gb",
+            env={"VLLM_IMAGE": _SHARED_IMAGE, "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": _PROFILE_IMAGE},
+        )
+    assert "unsupported key" in str(excinfo.value)
+
+
+def test_variant_max_model_len_is_projected_into_gateway_limits(tmp_path) -> None:
+    # engine 한도와 Gateway admission이 갈라지면, Gateway가 engine이 곧바로 거부할
+    # 요청을 통과시키거나 서빙 가능한 요청을 막는다. variant가 context를 옮기면
+    # Gateway 선제 검사도 같은 값을 따라가야 한다.
+    import yaml
+
+    raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text(encoding="utf-8"))
+    raw["profiles"]["gemma4-e4b-it"]["resource_variants"]["rtx4090-24gb"]["max_model_len"] = 32000
+    path = tmp_path / "profiles.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    loaded = load_main_model_catalog(
+        path,
+        resource_variant="rtx4090-24gb",
+        env={"VLLM_IMAGE": _SHARED_IMAGE, "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": _PROFILE_IMAGE},
+    )
+    profile = loaded.profiles["gemma4-e4b-it"]
+    assert _flag(profile.command, "--max-model-len") == "32000"
+    assert profile.gateway_policy["request_limits"]["max_model_len"] == 32000

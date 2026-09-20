@@ -240,3 +240,29 @@ def test_multiple_visible_gpus_are_not_guessed() -> None:
 
     with pytest.raises(QualificationHardwareError, match="exactly one visible NVIDIA GPU"):
         parse_nvidia_smi_output(output)
+
+
+def test_resource_variant_is_carried_into_the_candidate_subject() -> None:
+    # 같은 profile을 다른 host class의 자원 정책으로 서빙했다면 그것은 다른 증거다.
+    # 이 값이 record에 남지 않으면 24GB에서 나온 run이 48GB reference 정책에서
+    # 통과한 것처럼 읽힌다.
+    status = _status()
+    status["active_profile"]["resource_variant"] = "rtx4090-24gb"
+    receipt = _build(status=status)
+    assert receipt["record"]["subject"]["resource_variant"] == "rtx4090-24gb"
+
+
+def test_base_resource_policy_leaves_the_subject_shape_unchanged() -> None:
+    receipt = _build()
+    assert "resource_variant" not in receipt["record"]["subject"]
+
+
+def test_resource_variant_change_during_validation_is_producer_error() -> None:
+    # 시작/종료 snapshot 사이에 자원 정책이 바뀌면 그 run이 무엇을 검증했는지
+    # 말할 수 없다. profile 변경과 같은 이유로 버려야 한다.
+    status = _status()
+    status["active_profile"]["resource_variant"] = "rtx4090-24gb"
+    report = _report(status)
+    report["qualification_context"]["finished"]["resource_variant"] = "other-variant"
+    with pytest.raises(QualificationCandidateError):
+        _build(report=report, status=status)

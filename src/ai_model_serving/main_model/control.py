@@ -130,6 +130,12 @@ class MainModelProfile:
     # 이 프로필이 예약하는 전체 GPU VRAM의 비율
     # (--gpu-memory-utilization). 공유 GPU budget / admission planner에서 사용된다.
     vram_fraction: float = 0.9
+    # 이 host에 실제로 적용된 resource variant. base 자원 정책으로 서빙 중이면
+    # None이다. qualification context가 이 값을 함께 기록하므로, 같은 profile의
+    # 서로 다른 자원 정책에서 나온 증거가 한 덩어리로 섞이지 않는다.
+    resource_variant: str | None = None
+    # 이 profile이 선언한 모든 variant id다(선택 여부와 무관).
+    resource_variants: tuple[str, ...] = ()
 
     def public_view(self) -> dict[str, Any]:
         return {
@@ -144,6 +150,8 @@ class MainModelProfile:
             "gateway_policy": self.gateway_policy,
             "runtime_image": self.image,
             "vram_fraction": self.vram_fraction,
+            "resource_variant": self.resource_variant,
+            "resource_variants": list(self.resource_variants),
         }
 
 
@@ -185,6 +193,123 @@ def gpu_util_override_from_mapping(mapping: dict[str, str]) -> float | None:
     if not 0.0 < value <= 1.0:
         raise MainModelConfigurationError(f"{GPU_UTIL_OVERRIDE_ENV} must be in (0, 1]")
     return value
+
+
+# Host class별 runtime resource policy. catalog의 command는 reference host의
+# 실측값이고, VRAM이 다른 host는 그 profile을 복제하는 대신 여기서 자원 knob만
+# 덮어쓴다. model/revision/capabilities/gateway 정책은 변하지 않으므로 profile은
+# 계속 하나의 identity다 -- 달라지는 것은 그 identity를 이 host에서 어떤 자원
+# 정책으로 서빙하는가 뿐이다.
+#
+# 이 경계가 필요한 이유는 GPU budget이 VRAM 총량 대비 *비율*로 표현되는 반면,
+# 그 비율이 덮어야 하는 것(weight, CUDA context, prefill activation workspace,
+# reserve)은 *절대량*이기 때문이다. 48GB에서 정한 비율은 24GB로 이전되지 않는다.
+RESOURCE_VARIANT_ENV = "MAIN_MODEL_RESOURCE_VARIANT"
+# variant가 덮을 수 있는 knob과 대응하는 vLLM flag다. 자원 정책만 허용하고
+# 모델 신원·capability·gateway 계약은 variant로 바꿀 수 없다.
+_RESOURCE_VARIANT_FLAGS: dict[str, tuple[str, type]] = {
+    "max_model_len": ("--max-model-len", int),
+    "max_num_seqs": ("--max-num-seqs", int),
+    "max_num_batched_tokens": ("--max-num-batched-tokens", int),
+    "gpu_memory_utilization": ("--gpu-memory-utilization", float),
+}
+_RESOURCE_VARIANT_METADATA_KEYS = frozenset({"display_name", "description"})
+_RESOURCE_VARIANT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+def resource_variant_from_mapping(mapping: dict[str, str]) -> str | None:
+    """호스트별 resource variant 선택을 파싱하고 없으면 ``None``을 반환한다."""
+    raw = mapping.get(RESOURCE_VARIANT_ENV, "").strip()
+    if not raw:
+        return None
+    if not _RESOURCE_VARIANT_ID_RE.fullmatch(raw):
+        raise MainModelConfigurationError(
+            f"{RESOURCE_VARIANT_ENV} must be a lowercase id like 'rtx4090-24gb'"
+        )
+    return raw
+
+
+def _parse_resource_variants(profile_id: str, raw: object) -> dict[str, dict[str, Any]]:
+    """profile의 ``resource_variants`` 블록을 검증한다.
+
+    선택되지 않은 variant도 전부 검증한다. 오타가 있는 variant는 그 host에
+    배포되는 순간이 아니라 catalog를 읽는 모든 곳에서 즉시 실패해야 한다.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not raw:
+        raise MainModelConfigurationError(
+            f"profile {profile_id} resource_variants must be a non-empty object"
+        )
+    parsed: dict[str, dict[str, Any]] = {}
+    for variant_id, spec in raw.items():
+        name = str(variant_id)
+        if not _RESOURCE_VARIANT_ID_RE.fullmatch(name):
+            raise MainModelConfigurationError(
+                f"profile {profile_id} resource variant id {name!r} must be lowercase "
+                "alphanumeric with hyphens"
+            )
+        if not isinstance(spec, dict):
+            raise MainModelConfigurationError(
+                f"profile {profile_id} resource variant {name} must be an object"
+            )
+        unknown = set(spec) - set(_RESOURCE_VARIANT_FLAGS) - _RESOURCE_VARIANT_METADATA_KEYS
+        if unknown:
+            raise MainModelConfigurationError(
+                f"profile {profile_id} resource variant {name} has unsupported key(s): "
+                f"{sorted(unknown)}; a variant may only override "
+                f"{sorted(_RESOURCE_VARIANT_FLAGS)}"
+            )
+        overrides = {key: spec[key] for key in spec if key in _RESOURCE_VARIANT_FLAGS}
+        if not overrides:
+            raise MainModelConfigurationError(
+                f"profile {profile_id} resource variant {name} must override at least one of "
+                f"{sorted(_RESOURCE_VARIANT_FLAGS)}"
+            )
+        normalized: dict[str, Any] = {}
+        for key, value in overrides.items():
+            _, caster = _RESOURCE_VARIANT_FLAGS[key]
+            if isinstance(value, bool):
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be a number"
+                )
+            try:
+                cast = caster(value)
+            except (TypeError, ValueError) as exc:
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be a "
+                    f"{caster.__name__}"
+                ) from exc
+            if caster is int and cast <= 0:
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be a positive integer"
+                )
+            if caster is float and not 0.0 < cast <= 1.0:
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be in (0, 1]"
+                )
+            normalized[key] = cast
+        for meta_key in _RESOURCE_VARIANT_METADATA_KEYS & set(spec):
+            if not isinstance(spec[meta_key], str) or not spec[meta_key].strip():
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{meta_key} must be a "
+                    "non-empty string"
+                )
+        parsed[name] = normalized
+    return parsed
+
+
+def _apply_resource_variant(command: list[str], overrides: dict[str, Any]) -> list[str]:
+    """선택된 resource variant를 runtime command에 반영한다."""
+    out = list(command)
+    for key, value in overrides.items():
+        flag, _ = _RESOURCE_VARIANT_FLAGS[key]
+        rendered = f"{value:g}" if isinstance(value, float) else str(value)
+        if flag in out:
+            out[out.index(flag) + 1] = rendered
+        else:
+            out.extend([flag, rendered])
+    return out
 
 
 def _apply_util_override(command: list[str], override: float | None) -> list[str]:
@@ -253,6 +378,7 @@ def load_main_model_catalog(
     path: Path,
     *,
     gpu_memory_utilization_override: float | None = None,
+    resource_variant: str | None = None,
     env: dict[str, str] | None = None,
     resolve_runtime_images: bool = True,
 ) -> MainModelCatalog:
@@ -322,6 +448,14 @@ def load_main_model_catalog(
             public_model,
             *command,
         ]
+        # Host class의 resource variant를 먼저 반영한다. variant는 catalog가 소유한
+        # 검토된 자원 정책이고, 그 뒤의 MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일
+        # 호스트용 escape hatch이므로 더 나중에 적용해 항상 마지막 발언권을 갖는다.
+        declared_variants = _parse_resource_variants(str(profile_id), item.get("resource_variants"))
+        applied_variant: str | None = None
+        if resource_variant is not None and resource_variant in declared_variants:
+            command = _apply_resource_variant(command, declared_variants[resource_variant])
+            applied_variant = resource_variant
         # 호스트별 gpu-memory-utilization 오버라이드가 있으면 적용하여
         # 런타임 커맨드와 파싱된 vram_fraction이 항상 서로 일치하도록 한다.
         command = _apply_util_override(command, gpu_memory_utilization_override)
@@ -356,6 +490,21 @@ def load_main_model_catalog(
         gateway_policy = item.get("gateway_policy", {})
         if not isinstance(gateway_policy, dict):
             raise MainModelConfigurationError(f"profile {profile_id} gateway_policy must be an object")
+        # engine 한도와 Gateway admission이 갈라지지 않게 하는 계약은 variant를 적용한
+        # 뒤에도 유지되어야 한다. variant가 --max-model-len을 옮기면 Gateway의 선제
+        # 검사도 같은 값으로 따라간다. 여기서 투영하지 않으면 Gateway가 engine이 곧바로
+        # 거부할 요청을 통과시키거나, 반대로 서빙 가능한 요청을 막는다.
+        if applied_variant is not None and "--max-model-len" in command:
+            variant_max_model_len = int(command[command.index("--max-model-len") + 1])
+            request_limits = gateway_policy.get("request_limits")
+            if isinstance(request_limits, dict) and "max_model_len" in request_limits:
+                gateway_policy = {
+                    **gateway_policy,
+                    "request_limits": {
+                        **request_limits,
+                        "max_model_len": variant_max_model_len,
+                    },
+                }
         # 이전 catalog 형식은 image/boot resolution만 시험하는 최소 Profile을 허용했다.
         # 실제 배포 catalog의 정책 존재는 governance validation에서 강제한다.
         if gateway_policy:
@@ -402,6 +551,19 @@ def load_main_model_catalog(
             gateway_policy=dict(gateway_policy),
             image=resolved_image,
             vram_fraction=_parse_gpu_fraction(command),
+            resource_variant=applied_variant,
+            resource_variants=tuple(sorted(declared_variants)),
+        )
+    # 선택된 variant를 아무 profile도 선언하지 않았다면 오타이거나 잘못된 host
+    # 설정이다. 조용히 reference host 값으로 부팅시키지 않는다 -- 그 침묵이 바로
+    # 48GB 자원 정책이 24GB GPU에서 그대로 기동을 시도하게 만드는 경로다.
+    if resource_variant is not None and not any(
+        resource_variant in profile.resource_variants for profile in profiles.values()
+    ):
+        declared = sorted({v for profile in profiles.values() for v in profile.resource_variants})
+        raise MainModelConfigurationError(
+            f"{RESOURCE_VARIANT_ENV}={resource_variant} is not declared by any profile; "
+            f"declared variants: {declared or 'none'}"
         )
     if default_profile not in profiles:
         raise MainModelConfigurationError("default_profile must reference a configured profile")

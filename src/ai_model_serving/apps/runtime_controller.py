@@ -23,6 +23,7 @@ from ..main_model.control import (
     MainModelStateStore,
     MainModelSwitchError,
     gpu_util_override_from_mapping,
+    resource_variant_from_mapping,
     load_main_model_catalog,
 )
 from ..log_target_manifest import build_targets, write_manifest
@@ -279,6 +280,7 @@ async def _wait_healthy(service: str, url: str, timeout: float = 120.0) -> bool:
 _catalog = load_main_model_catalog(
     APP_CONFIG_ROOT / "configs/main_model_profiles.yaml",
     gpu_memory_utilization_override=gpu_util_override_from_mapping(os.environ),
+    resource_variant=resource_variant_from_mapping(os.environ),
     env=dict(os.environ),
 )
 _state_store = MainModelStateStore(MAIN_MODEL_STATE_PATH, _catalog.default_profile)

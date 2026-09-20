@@ -45,9 +45,24 @@ def qualification_context_from_main_model_status(
     else:
         raise QualificationContextError("last_operation must be a mapping or null")
 
+    # 같은 profile이라도 host class마다 자원 정책이 다르므로, 어떤 resource variant로
+    # 서빙 중이었는지가 증거 identity의 일부다. 이 값이 없으면 "gemma4-e4b-it가
+    # linux-nvidia-dynamic에서 통과했다"는 기록이 어떤 자원 정책에서 나온 것인지
+    # 말하지 못하고, 48GB reference 값으로 읽힌다.
+    raw_variant = active.get("resource_variant")
+    if raw_variant is None:
+        resource_variant = None
+    elif isinstance(raw_variant, str) and raw_variant.strip():
+        resource_variant = raw_variant.strip()
+    else:
+        raise QualificationContextError(
+            "active_profile.resource_variant must be a non-empty string or null"
+        )
+
     return {
         "public_model": _text(status.get("public_model"), "public_model"),
         "profile_id": _text(active.get("id"), "active_profile.id"),
+        "resource_variant": resource_variant,
         "model_id": _text(active.get("upstream_model_id"), "active_profile.upstream_model_id"),
         "revision": _text(active.get("revision"), "active_profile.revision"),
         "capabilities": sorted(str(item).strip() for item in deployed),
