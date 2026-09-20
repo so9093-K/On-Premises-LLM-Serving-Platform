@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Main Model `qualification.status` 승격 plan이 검토 대상 deployment target을 명시적으로 포함하고, 해당 target의 `qualified_run`만 eligibility 근거로 사용한다. Plan digest는 profile/evidence뿐 아니라 `deployment_targets.yaml`과 qualification check registry에도 묶여 review 뒤 계약 drift를 fail-closed한다. `resource_variant`는 evidence provenance로 유지하며 같은 target 안에서 GPU/resource override 차이만으로 profile-level promotion을 막지 않는다. ([ADR-0033](docs/adr/0033-qualification-status-promotion-contract.md), [ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
+
 - Main Model hardware admission과 qualification evidence의 의미를 분리했다. GPU 제품명·UUID·driver는 관측/evidence provenance이며 hardware allowlist가 아니다. 직접 GPU evidence가 없다는 이유만으로 unsupported가 되거나 재qualification을 요구하지 않으며, 실행 가능성은 deployment/runtime compatibility와 GPU resource admission, runtime validation이 판단한다. `resource_variant`는 reference policy가 실제로 맞지 않을 때만 쓰는 명시적 resource-policy override로 정의하고 기존 `rtx4090-24gb` ID와 명시적 override의 fail-closed fallback 방지는 유지한다. Control Plane은 profile evidence와 hardware support를 별개로 설명하고 switch stage를 운영자용 진행 의미로 표시한다. ([ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
 
 - Gemma4 tool calling의 공개 계약을 실제 vLLM 0.25.1 실측 범위로 좁혔다. Main Model profile의 `tool_calling.tool_choice`가 허용 문자열 값과 named choice 여부를 소유하며, 현재 Linux/CUDA Gemma profile은 `auto`와 `none`만 공개한다. `required`와 named forced choice는 Gemma4 parser가 강제 호출 계약을 안정적으로 지키지 못해 Gateway가 upstream 호출 전에 `422`로 거부한다. 기존 `required_single` 요청 재작성 우회는 제거했다. Responses API도 요청한 tool choice, 제공된 tool 이름, `parallel_tool_calls=false`를 upstream output에서 검증한다.

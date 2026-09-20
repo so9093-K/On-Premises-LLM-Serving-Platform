@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-19
 - Extends: [ADR-0032](./0032-qualification-evidence-v1.md)
+- Refined by: [ADR-0035](./0035-capability-based-hardware-admission-and-transparent-operations.md)
 
 ## Context
 
@@ -37,13 +38,21 @@ repository state를 기준으로 eligibility를 다시 검증해야 한다.
 
 - `result: passed`
 - 현재 profile의 `profile_id + model_id + revision + deployed_input capabilities`와 정확히 일치
-- 현재 deployment target을 참조
+- status-promotion plan이 명시적으로 검토한 deployment target을 참조
+- 그 deployment target이 `configs/main_model_profiles.yaml`을 Main Model catalog로 사용
 - repository-owned durable receipt가 존재하고 catalog record와 `source`를 제외하고 일치
 - runtime engine/version, distribution image digest, GPU/driver fingerprint가 완전함
 - capability registry가 요구하는 stable check ID가 모두 존재하고 모두 `passed`
 
 `legacy_backfill`은 기존 verified 상태의 역사적 근거를 정직하게 보존하기 위한 compatibility
 record다. 새 status promotion의 근거로 사용하지 않는다.
+
+`resource_variant`는 qualified run이 어떤 resource policy에서 실행됐는지 남기는 provenance다.
+Profile-level `qualification.status`는 GPU 제품 또는 resource variant별 지원 상태가 아니므로,
+같은 deployment target에서 현재 profile identity/capability 계약을 통과한 qualified run은
+reference policy인지 reviewed override인지 만으로 promotion eligibility에서 배제하지 않는다.
+Hardware/resource 실행 가능성은 ADR-0035의 compatibility/resource admission/runtime validation
+경계가 소유한다.
 
 ### 3. Promotion은 fail-closed하고 history를 추론하지 않는다
 
@@ -77,9 +86,12 @@ API에 새로 노출하지 않는다.
 - durable current `qualified_run` 없이는 `verified` promotion을 거부
 - `legacy_backfill`만으로 새 promotion을 거부
 - profile identity/revision/capability drift를 거부
+- 검토한 deployment target과 다른 target의 qualified run을 거부
+- Main Model catalog가 다른 deployment target을 거부
 - failed/skipped/missing required check를 거부
 - receipt/catalog drift를 거부
-- eligibility 확인과 profile mutation 사이의 repository state drift를 거부하거나 원자적으로 검증
+- eligibility 확인과 profile mutation 사이의 profile/evidence/deployment-target/check-registry
+  repository state drift를 거부하거나 원자적으로 검증
 
 특정 과거 commit, PR 번호, migration sequence를 성공 조건으로 고정하지 않는다.
 

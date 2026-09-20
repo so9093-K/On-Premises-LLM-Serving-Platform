@@ -166,9 +166,10 @@ qualification-promote: ## CANDIDATE=<json> evidence 승격 plan (적용: APPLY=1
 	$(PYTHON) scripts/qualification/promote_candidate.py "$(CANDIDATE)" \
 		$(if $(filter 1,$(APPLY)),--apply --confirm "$(CONFIRM)",)
 
-qualification-status-promote: ## PROFILE=<id> verified 승격 plan (적용: APPLY=1 CONFIRM=<plan-digest>)
+qualification-status-promote: ## PROFILE=<id> TARGET=<deployment-target> verified 승격 plan (적용: APPLY=1 CONFIRM=<plan-digest>)
 	@if [[ -z "$(PROFILE)" ]]; then echo "PROFILE=<main-model-profile-id>를 지정하세요" >&2; exit 2; fi
-	$(PYTHON) scripts/qualification/status_promotion.py --profile "$(PROFILE)" \
+	@if [[ -z "$(TARGET)" ]]; then echo "TARGET=<deployment-target>를 지정하세요" >&2; exit 2; fi
+	$(PYTHON) scripts/qualification/status_promotion.py --profile "$(PROFILE)" --target "$(TARGET)" \
 		$(if $(filter 1,$(APPLY)),--apply --confirm "$(CONFIRM)",)
 
 perf-smoke: ## 성능 계측 경로 확인 (요청 몇 건, SLO 판정 없음)
