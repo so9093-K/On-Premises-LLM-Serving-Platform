@@ -1046,12 +1046,70 @@ def test_resource_variant_is_recorded_on_the_profile_snapshot() -> None:
     assert "rtx4090-24gb" in base.public_view()["resource_variants"]
 
 
-def test_profiles_without_the_selected_variant_keep_reference_values() -> None:
+def test_profiles_without_the_selected_variant_are_not_selectable_on_this_host() -> None:
+    # host가 GPU class를 선언했는데 profile에 그 class의 자원 정책이 없으면, 그
+    # profile에 대해 우리가 아는 값은 reference host 것뿐이다. 24GB host에서 26B는
+    # weight만 25.8 GiB라 reference 값으로 전환하면 그대로 OOM 경로가 된다.
     loaded = _variant_catalog("rtx4090-24gb")
+    assert loaded.resource_variant == "rtx4090-24gb"
+    assert loaded.unsupported_host_variant("gemma4-e4b-it") is None
     for profile_id in ("gemma4-12b-unified-fp8", "gemma4-26b-a4b-fp8"):
-        profile = loaded.profiles[profile_id]
-        assert profile.resource_variant is None
-        assert profile.resource_variants == ()
+        assert loaded.unsupported_host_variant(profile_id) == "rtx4090-24gb"
+
+
+def test_reference_host_leaves_every_profile_selectable() -> None:
+    loaded = _variant_catalog(None)
+    assert loaded.resource_variant is None
+    for profile_id in loaded.profiles:
+        assert loaded.unsupported_host_variant(profile_id) is None
+
+
+def test_switch_to_a_profile_without_this_hosts_variant_is_refused(tmp_path) -> None:
+    loaded = _variant_catalog("rtx4090-24gb")
+    loaded.runtime["drain_timeout_seconds"] = 0
+    store = MainModelStateStore(tmp_path / "state.json", "gemma4-e4b-it")
+    manager = MainModelManager(loaded, store, FakeBackend(), boot_profile="gemma4-e4b-it")
+    with pytest.raises(MainModelSwitchError) as error:
+        manager.request_switch("gemma4-26b-a4b-fp8")
+    assert error.value.code == "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED"
+
+
+def test_host_variant_refusal_is_not_bypassed_by_unverified_confirmation(tmp_path) -> None:
+    # confirm_unverified는 qualification 축의 확인이지 자원 정책의 확인이 아니다.
+    # boot reconcile이 이 flag를 켜고 같은 경로를 지나므로, 여기서 우회가 되면
+    # 재기동만으로 reference 자원 정책이 이 host에 다시 적용된다.
+    loaded = _variant_catalog("rtx4090-24gb")
+    loaded.runtime["drain_timeout_seconds"] = 0
+    store = MainModelStateStore(tmp_path / "state.json", "gemma4-e4b-it")
+    manager = MainModelManager(loaded, store, FakeBackend(), boot_profile="gemma4-e4b-it")
+    with pytest.raises(MainModelSwitchError) as error:
+        manager.request_switch(
+            "gemma4-12b-unified-fp8", confirm_unverified=True, boot_reconcile=True
+        )
+    assert error.value.code == "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED"
+
+
+def test_boot_refuses_a_profile_without_this_hosts_variant() -> None:
+    loaded = _variant_catalog("rtx4090-24gb")
+    # default_profile(12B)은 이 host의 자원 정책을 선언하지 않으므로 boot에서 걸린다.
+    with pytest.raises(MainModelConfigurationError):
+        resolve_boot_profile(
+            loaded, configured_profile=None, locked=False, persisted_profile=None
+        )
+    # persisted 상태로 되살아나는 경로도 같은 검사를 지난다.
+    with pytest.raises(MainModelConfigurationError):
+        resolve_boot_profile(
+            loaded,
+            configured_profile="gemma4-e4b-it",
+            locked=False,
+            persisted_profile="gemma4-26b-a4b-fp8",
+        )
+    assert (
+        resolve_boot_profile(
+            loaded, configured_profile="gemma4-e4b-it", locked=True, persisted_profile=None
+        )
+        == "gemma4-e4b-it"
+    )
 
 
 def test_unknown_resource_variant_fails_instead_of_booting_reference_values() -> None:
