@@ -139,6 +139,10 @@ class RuntimeValidator:
         supported = set(parameters) if isinstance(parameters, dict) else set()
         response_format = parameters.get("response_format", {}) if isinstance(parameters, dict) else {}
         response_types = set(response_format.get("allowed_types", [])) if isinstance(response_format, dict) else set()
+        tool_choice = parameters.get("tool_choice", {}) if isinstance(parameters, dict) else {}
+        named_tool_choice_enabled = (
+            isinstance(tool_choice, dict) and tool_choice.get("allow_named") is True
+        )
 
         def run_when_supported(
             category: str,
@@ -163,10 +167,25 @@ class RuntimeValidator:
             ("logprobs-non-stream-canary", "logprobs non-stream", {"logprobs"}, self.live_checks.check_logprobs_non_stream, None),
             ("logprobs-stream-canary", "logprobs stream", {"logprobs"}, self.live_checks.check_logprobs_stream, None),
             ("logit-bias-shape-canary", "logit_bias shape", {"logit_bias"}, self.live_checks.check_logit_bias_shape, None),
-            ("named-tool-choice-canary", "named tool choice", {"tools", "tool_choice"}, self.live_checks.check_named_tool_choice, None),
             ("json-schema-with-reasoning-canary", "json_schema with reasoning", {"response_format", "reasoning"}, self.live_checks.check_json_schema_with_reasoning, "json_schema"),
         ):
             run_when_supported(category, name, required, fn, response_type=response_type)
+
+        named_missing = {"tools", "tool_choice"} - supported
+        if not named_tool_choice_enabled:
+            named_missing.add("tool_choice.named")
+        if named_missing:
+            self.skip_check(
+                "named-tool-choice-canary",
+                "named tool choice",
+                missing_parameters=named_missing,
+            )
+        else:
+            self.safe_check(
+                "named-tool-choice-canary",
+                "named tool choice",
+                self.live_checks.check_named_tool_choice,
+            )
         metric_sources = self.monitoring["metric_sources"]
         gateway_metrics = metric_sources["gateway"]["required_metrics"]
         risk_metrics = metric_sources["risk_signal_service"]["required_metrics"]
