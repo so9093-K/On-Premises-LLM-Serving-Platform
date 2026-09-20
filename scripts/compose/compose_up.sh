@@ -108,6 +108,11 @@ DEFERRED_RUNTIME_RESOLUTION="$(
     --profile "$RUNTIME_STARTUP_PROFILE_REQUESTED" \
     --output lines
 )"
+# 비활성 runtime은 Compose 정의를 유지하되 기동 대상에서 뺀다. 비활성 binding은
+# controllable일 수 없어 deferred 목록에 들어갈 수 없으므로 별도로 구한다.
+mapfile -t DISABLED_RUNTIME_SERVICES < <(
+  "$PYTHON_BIN" scripts/runtime/disabled_runtime_services.py --config-root "$ROOT"
+)
 mapfile -t DEFERRED_RUNTIME_LINES <<<"$DEFERRED_RUNTIME_RESOLUTION"
 read -r -a DEFERRED_RUNTIME_KEYS <<<"${DEFERRED_RUNTIME_LINES[0]:-}"
 read -r -a DEFERRED_RUNTIME_SERVICES <<<"${DEFERRED_RUNTIME_LINES[1]:-}"
@@ -232,15 +237,32 @@ mapfile -t ALL_COMPOSE_SERVICES < <(
 )
 ACTIVE_COMPOSE_SERVICES=()
 for compose_service in "${ALL_COMPOSE_SERVICES[@]}"; do
-  compose_service_deferred=0
+  compose_service_skipped=0
   for deferred_service in "${DEFERRED_RUNTIME_SERVICES[@]}"; do
     if [[ "$compose_service" == "$deferred_service" ]]; then
-      compose_service_deferred=1
+      compose_service_skipped=1
       break
     fi
   done
-  if [[ $compose_service_deferred -eq 0 ]]; then
+  for disabled_service in "${DISABLED_RUNTIME_SERVICES[@]}"; do
+    if [[ "$compose_service" == "$disabled_service" ]]; then
+      compose_service_skipped=1
+      break
+    fi
+  done
+  if [[ $compose_service_skipped -eq 0 ]]; then
     ACTIVE_COMPOSE_SERVICES+=("$compose_service")
+  fi
+done
+
+# 이전 배포에서 남은 비활성 runtime 컨테이너는 제거한다. deferred와 달리 운영자가
+# Admin API로 시작할 수 있는 대상이 아니므로 정지 상태로 남겨둘 이유가 없고,
+# restart policy가 붙어 있으면 그대로 두는 것이 위험하다.
+for disabled_service in "${DISABLED_RUNTIME_SERVICES[@]}"; do
+  disabled_container_id="$(docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" ps --all -q "$disabled_service" 2>/dev/null || true)"
+  if [[ -n "$disabled_container_id" ]]; then
+    echo "[compose-up] removing disabled runtime container: $disabled_service"
+    docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" rm -sf "$disabled_service" >/dev/null || true
   fi
 done
 
