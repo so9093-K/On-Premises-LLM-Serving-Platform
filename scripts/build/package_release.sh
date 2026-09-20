@@ -26,8 +26,8 @@ fi
 cd "$ROOT"
 
 # Release file selection, canonical mode, source identity and per-file hash are owned by
-# one resolver. Remote deployment calls the same materializer instead of maintaining a
-# second git-ls-files/exclude implementation.
+# one resolver. Packaging does not duplicate git-ls-files/exclude rules or own runtime
+# deployment state.
 "$PYTHON_BIN" scripts/release/release_artifact.py materialize \
   --source "$ROOT" \
   --destination "$STAGE/$PACKAGE_ROOT" \

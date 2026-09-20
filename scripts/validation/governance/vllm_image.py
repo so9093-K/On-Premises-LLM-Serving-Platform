@@ -72,7 +72,7 @@ def _strip_copy_flags(raw: str, *, line_number: int) -> tuple[bool, str]:
 def _normalize_local_source(raw: str, *, line_number: int) -> str:
     if any(token in raw for token in ("*", "?", "[", "]")):
         raise SystemExit(
-            "vLLM Dockerfile COPY source must be an exact repository file so deploy "
+            "vLLM Dockerfile COPY source must be an exact repository file so build-input "
             f"drift can compare it deterministically: {_DOCKERFILE}:{line_number}: {raw!r}"
         )
     path = PurePosixPath(raw)
@@ -122,7 +122,7 @@ def _declared_source_manifest() -> list[str]:
         [
             "bash",
             "-c",
-            "source scripts/lib/deploy_recreate_policy.sh; vllm_unified_image_source_paths",
+            "source scripts/lib/vllm_unified_image.sh; vllm_unified_image_source_paths",
         ],
         cwd=ROOT,
         text=True,
@@ -147,7 +147,7 @@ def _declared_source_manifest() -> list[str]:
 
 
 def validate_vllm_unified_build_inputs() -> None:
-    """Keep deploy source-drift authority aligned with the Docker build context."""
+    """Keep the canonical unified-vLLM source manifest aligned with the Docker build context."""
     declared = set(_declared_source_manifest())
     missing_controls = _REQUIRED_MANIFEST_ENTRIES - declared
     if missing_controls:

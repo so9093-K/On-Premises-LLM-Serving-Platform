@@ -314,7 +314,7 @@ GPU Memory / Headroom
 
 ### Rolling 배포
 
-Rolling 배포 후에는 Gateway 상태와 요청 흐름을 우선 확인한다.
+Application/runtime lifecycle 변경 후에는 Gateway 상태와 요청 흐름을 우선 확인한다.
 
 - Gateway `/health`
 - 요청량과 오류율

@@ -5,6 +5,24 @@
 # runtime image authority다. 독립 runtime artifact lifecycle이 다시 필요해질 때는
 # 별도 build, qualification, promotion, rollback 계약과 함께 새 authority를 정의한다.
 
+vllm_unified_image_source_paths() {
+  # Unified vLLM image의 canonical repository build-input manifest다.
+  # Dockerfile의 local COPY source는 governance validation이 이 목록에 모두
+  # 포함되는지 확인한다. 원격 deploy source-drift가 아니라 build reproducibility
+  # 계약이 소유한다.
+  printf '%s\n' \
+    .dockerignore \
+    LICENSE \
+    NOTICE \
+    ops/images/vllm-unified/Dockerfile \
+    ops/images/vllm-unified/requirements.media.lock \
+    ops/patches/apply_gemma4_multimodal_patches.py \
+    ops/patches/apply_gemma4_streaming_reasoning_patch.py \
+    ops/patches/transformers_llama_head_dim_guard.py \
+    scripts/build/build_vllm_unified_image.sh \
+    scripts/models/print_vllm_unified_compatibility.py
+}
+
 vllm_unified_default_image() {
   local version
   version="$(cat VERSION 2>/dev/null || echo 0.0.0)"

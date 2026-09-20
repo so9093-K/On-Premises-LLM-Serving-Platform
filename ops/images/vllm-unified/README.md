@@ -42,8 +42,9 @@ runtime 또는 local build의 override로 해석하지 않는다. 기존 `.env`�
 `make sync-env`가 제거한다. Main Model profile이 명시적으로 다른 image를 선택해야 할 때는
 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`가 그 profile-specific override를 소유한다.
 
-원격 shared artifact promotion의 canonical input은 `VLLM_UNIFIED_IMAGE_TO_DEPLOY`다.
-Registry publish와 원격 적용은 특정 CI provider의 책임으로 저장소에 고정하지 않는다.
+Registry publish 결과를 운영에 사용할 때는 immutable `name@sha256:...` digest를
+target host의 persistent `VLLM_IMAGE`에 명시적으로 pin한 뒤 canonical lifecycle로
+수렴시킨다. Publish/transport automation은 repository runtime authority가 아니다.
 
 기본 base image와 호환성 pin은 `configs/vllm_unified_build.yaml`에서 읽는다. 검증용
 base 교체가 필요한 경우에만 그 빌드 한 번에 한정해 immutable digest를 넘긴다.
@@ -66,8 +67,8 @@ If the runtime can't decode an advertised modality, the switch fails and rolls
 back — 12B never goes live half-capable.
 
 
-> Migration: deployment input `AUDIO_VLLM_IMAGE_TO_DEPLOY`는 제거됐다.
-> 기존 persistent `AUDIO_VLLM_IMAGE`만 값 손실 방지를 위해 migration 대상으로 남으며
-> `make sync-env`가 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`로 이동한다. 원격 image preflight는
-> 임시 env 복사본을 먼저 sync한 canonical key만 읽으며, deploy helper의 legacy direct read는
-> 제거됐다. 신규 자동화에서는 legacy key를 사용하지 않는다.
+> Migration: deployment-time `AUDIO_VLLM_IMAGE_TO_DEPLOY`와
+> `VLLM_UNIFIED_IMAGE_TO_DEPLOY` 입력은 remote release state machine 제거와 함께 active
+> contract에서 사라졌다. 기존 persistent `AUDIO_VLLM_IMAGE`만 값 손실 방지를 위해
+> migration 대상으로 남으며 `make sync-env`가
+> `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`로 이동한다.

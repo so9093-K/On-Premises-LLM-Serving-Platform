@@ -25,7 +25,7 @@ ADR 채택 당시에는 실제 크리덴셜(HF_TOKEN, API 키, ADMIN_API_KEY, GR
   - `deprecated` — 가리킬 대상 자체가 없어진 키(참조하는 코드가 사라졌거나, 값이 남아 있는 것 자체가 위험한 경우).
 - `validate_env_contract.py`가 같은 목록으로 "등록된 키가 `.env*.example`에 다시 등장하지 않았는지"를 검증한다. 제거와 검증이 한 소스를 공유하므로, 등록과 템플릿이 갈라져 "validate는 통과하는데 sync-env는 매번 지우는" 상태가 생기지 않는다.
 - 등록된 키는 그 키를 소비하는 쪽에서도 `.env`를 읽지 않아야 한다. 지우는 쪽과 읽는 쪽이 어긋나면 제거가 무의미하다(예: `RISK_VLLM_BASE_IMAGE`는 프로세스 환경변수 override만 받는다).
-- **"템플릿에 없는 키"는 제거 기준이 아니다.** 배포 서버 `.env`에는 템플릿에 존재한 적 없는 서버 전용 설정(`MAIN_MODEL_STATE_PATH` 등)이 정상적으로 들어 있고, 원격 release 적용 경로가 이미지 참조 갱신 직후 `sync-env`를 호출하므로 그 기준을 쓰면 배포할 때마다 운영 설정이 사라진다.
+- **"템플릿에 없는 키"는 제거 기준이 아니다.** host `.env`에는 템플릿에 존재한 적 없는 host 전용 설정(`MAIN_MODEL_STATE_PATH` 등)이 정상적으로 들어 있을 수 있다. 그 기준을 제거 조건으로 쓰면 `sync-env` 실행 때 운영 설정이 사라진다.
 - Operator-owned 기존 값은 보존하고 시크릿을 재생성하지 않는다. 단, `configs/recommended_images.yaml`에서 `reference_policy: immutable_upstream`으로 선언한 third-party image env key는 repository-owned projection이므로 `sync-env`가 canonical digest로 갱신한다. Platform/vLLM처럼 project-built image reference는 기존 값을 보존한다.
 - `--env-file <path>` 옵션으로 프로젝트 루트 밖의 `.env`(별도 배포 디렉터리 등)도 대상으로 지정할 수 있다.
 - `--dry-run`으로 실제 변경 없이 추가·제거 대상 키를 미리 확인할 수 있다.
@@ -35,16 +35,17 @@ ADR 채택 당시에는 실제 크리덴셜(HF_TOKEN, API 키, ADMIN_API_KEY, GR
 [ADR-0023](0023-local-lifecycle-command-boundaries.md)에 따라 제거됐고 `make setup`은
 기존 `.env`를 강제 재생성하지 않고 target 소유 필드만 동기화한다.
 
-현재 provider-neutral 원격 적용 스크립트(`scripts/deploy/apply_remote_release.sh`)는 `.env`
-이미지 참조 업데이트 직후 `make sync-env`를 호출해 서버 `.env`에 신규 템플릿 키를
-자동 반영한다. 과거 provider-specific wrapper는 제거됐다.
+2026-09-20 [ADR-0037](0037-local-lifecycle-deployment-authority.md)에서 repository-owned
+remote release state machine을 제거했다. `.env` 동기화는 이제 `make setup` /
+`make sync-env`의 host-local lifecycle 책임이며, 이 ADR의 비파괴 보존 원칙은 그대로
+유효하다.
 
 ## Consequences
 
 | Positive | Negative |
 |---|---|
 | `git pull` 이후 크리덴셜 재생성 없이 `.env` 최신화 가능 | 신규 키 기본값이 환경에 맞지 않으면 운영자가 수동으로 수정해야 한다 |
-| 원격 배포 시 서버 `.env` 크리덴셜 보존 + upstream infrastructure image digest 수렴 | `removed_keys`와 repository-managed image policy 관리가 필요하다 |
+| host `.env` 크리덴셜 보존 + upstream infrastructure image digest 수렴 | `removed_keys`와 repository-managed image policy 관리가 필요하다 |
 | target setup 재실행 시 EXPOSURE_MODE 설정이 초기화되지 않음 | |
 | `--env-file`로 외부 `.env` 동기화 가능 | |
 
@@ -54,11 +55,9 @@ ADR 채택 당시에는 실제 크리덴셜(HF_TOKEN, API 키, ADMIN_API_KEY, GR
 |---|---|
 | `git pull` 이후 `.env` 키 동기화 | `make sync-env` |
 | 동기화 대상 확인 (미리보기) | `.venv/bin/python scripts/config/setup_env.py --sync-env --dry-run` |
-| 배포 디렉터리 `.env` 동기화 | `setup_env.py --sync-env --env-file /opt/acl-ai-gateway/.env` |
+| 별도 host 경로의 `.env` 동기화 | `setup_env.py --sync-env --env-file /opt/acl-ai-gateway/.env` |
 | target setup 재실행 시 EXPOSURE_MODE 유지 | `make setup` — 기존 `.env`의 비소유 필드 보존 |
 
-원격 release 적용 경로에서는 `apply_remote_release.sh`가 자동으로 `make sync-env`를
-호출하므로 별도 수동 개입이 없다.
 
 ## Migration notes
 

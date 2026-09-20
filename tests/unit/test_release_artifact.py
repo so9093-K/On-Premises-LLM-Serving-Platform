@@ -110,7 +110,7 @@ def test_dirty_tracked_source_is_explicit_and_manifest_freezes_bytes(tmp_path: P
         materialize(source, tmp_path / "release", manifest)
 
 
-def test_remote_style_verification_detects_payload_tampering(tmp_path: Path) -> None:
+def test_materialized_verification_detects_payload_tampering(tmp_path: Path) -> None:
     source = _source_repo(tmp_path)
     manifest = build_manifest(source, version="1.2.3")
     release = tmp_path / "release"
@@ -121,16 +121,9 @@ def test_remote_style_verification_detects_payload_tampering(tmp_path: Path) -> 
         verify_materialized(release)
 
 
-def test_package_and_remote_deploy_share_one_materializer() -> None:
+def test_package_uses_canonical_release_materializer() -> None:
     root = Path(__file__).resolve().parents[2]
     package_script = (root / "scripts/build/package_release.sh").read_text(encoding="utf-8")
-    deploy_script = (root / "scripts/deploy/deploy_compose_release.sh").read_text(
-        encoding="utf-8"
-    )
 
     assert "scripts/release/release_artifact.py materialize" in package_script
-    assert "scripts/release/release_artifact.py materialize" in deploy_script
-    assert "release_artifact.py\" verify" in deploy_script
     assert "git ls-files" not in package_script
-    assert "git ls-files" not in deploy_script
-    assert "--exclude \".github" not in deploy_script

@@ -28,10 +28,10 @@ Client / Application
    GPU Resource
         │
         ▼
-Validation / Deployment / Monitoring
+Validation / Lifecycle / Monitoring
 ```
 
-모델 구성, runtime, GPU budget, 배포와 관측을 하나의 프로젝트 안에서 함께 관리하는 구조를 사용한다.
+모델 구성, runtime, GPU budget, target lifecycle과 관측을 하나의 프로젝트 안에서 함께 관리하는 구조를 사용한다.
 
 ## 1.2 전체 아키텍처
 
@@ -186,7 +186,7 @@ Runtime Flags
 | **Exposure** | `configs/exposure_profiles.yaml` | Host publish 여부와 외부 노출 범위 설정 |
 | **Authentication** | `configs/auth_profiles.yaml` | API 인증 방식과 인증 profile 설정 |
 | **Monitoring** | `configs/monitoring.yaml` | Metrics, logs, dashboard 관련 관측성 설정 |
-| **Deploy Profile** | `configs/deploy_profiles.yaml` | compose-up/full 배포의 초기 Runtime 구성 정의 |
+| **Deploy Profile** | `configs/deploy_profiles.yaml` | full-stack compose-up의 초기 Runtime 구성 정의 |
 
 설정 간 우선순위와 생성 artifact는 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 다룬다.
 

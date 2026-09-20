@@ -21,7 +21,7 @@
 | Main Model Profile | Main Model의 model revision, Runtime image, command, capability와 request policy 조합. | `configs/main_model_profiles.yaml` |
 | Public Model Alias | client가 실제 profile과 무관하게 고정적으로 사용하는 model 이름. | `local-main` |
 | Deployment Target | platform/backend/lifecycle ownership 조합을 선택하는 안정 설정 ID. | `DEPLOYMENT_TARGET` |
-| Runtime Startup Profile | 배포 직후 non-main Model Runtime의 초기 시작 상태를 정의하는 preset. | `configs/deploy_profiles.yaml` |
+| Runtime Startup Profile | full-stack 기동 직후 non-main Model Runtime의 초기 시작 상태를 정의하는 preset. | `configs/deploy_profiles.yaml` |
 | Access Profile | local/private/edge처럼 사용자가 선택하는 접근 의도. | `ACCESS_PROFILE` |
 | Desired State | Control Plane이 수렴시키려는 Runtime 상태. | `desired_state` |
 | Observed State | 실제 container/Runtime에서 관측한 상태. | `observed_runtime`, `container_status` |
@@ -34,7 +34,7 @@
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |
 | Image Digest | Registry의 Container Image 내용을 고유하게 식별하는 `sha256` 값. | `image@sha256:...` |
-| Release | 배포할 소스, 설정, Runtime 정보를 독립된 디렉터리에 준비한 배포 단위. | release directory |
+| Release Artifact | source/config을 deterministic payload와 manifest로 고정한 전달·감사 artifact. Runtime state authority는 아니다. | `RELEASE_MANIFEST.json` |
 | Source of Truth | 특정 설정이나 계약의 기준이 되는 코드 또는 설정 파일. | 영역별 canonical config |
 | Generated Artifact | Source of Truth에서 스크립트가 생성하는 Runtime/Compose/OpenAPI 관련 파일. | generated files |
 
@@ -139,7 +139,7 @@
 
 - 모델 실행 profile: [6. 모델 운영](./06_model_operations.md)
 - API 계약: [API Reference](./reference/api_reference.md)
-- 자동화·배포: [9. 자동화 경계](./09_cicd.md), [10. 배포](./10_deployment.md)
+- 자동화·lifecycle: [9. 자동화 경계](./09_cicd.md), [10. 배포](./10_deployment.md)
 
 ---
 
@@ -157,10 +157,9 @@
 | Compose | `ops/compose/` | full-stack Container topology와 Compose 구성 |
 | Runtime Image | `ops/images/` | Platform에서 사용하는 Runtime Image 정의 |
 | Monitoring | `ops/prometheus/`, `ops/grafana/`, `ops/loki/`, `ops/alloy/` | Metrics / Logs 수집과 Dashboard 구성 |
+| Platform Lifecycle | `scripts/platform_cli.py` | target-aware setup/build/prepare/up/status/down 조합 |
 | Build Script | `scripts/build/` | Container Image build와 release package 생성 |
 | Compose Script | `scripts/compose/` | Compose 실행, 구성 확인, diagnostics |
-| Deployment Script | `scripts/deploy/deploy_compose_release.sh` | Provider-neutral 원격 Release 적용·복구 |
-| Remote Release Executor | `scripts/deploy/apply_remote_release.sh` | Candidate 검증, Compose 수렴, Readiness와 Rollback |
 | Validation Script | `scripts/validation/` | 정적 검증과 Runtime 검증 |
 | Operations Script | `scripts/ops/` | Readiness, smoke test 등 운영 확인 |
 | Runtime 검증 산출물 | `reports/runtime/` | `make runtime-validate`가 생성하는 JSON·Markdown 결과. 저장소가 소유하지 않는 실행 산출물이다 |

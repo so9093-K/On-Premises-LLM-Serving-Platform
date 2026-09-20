@@ -38,7 +38,6 @@ make down
 | `build/` | bootstrap, image build, package, Python/version checks |
 | `compose/` | full-stack compose preflight, up, diagnostics, compose validation |
 | `config/` | `.env` 생성 |
-| `deploy/` | CI provider와 독립적인 원격 release 적용·복구 |
 | `models/` | model registry CLI, vLLM command rendering, HF/unified image checks |
 | `ops/` | start/stop/status/ready/smoke/reset/clean 같은 운영 명령 |
 | `runtime/` | target 고유 native runtime 환경·모델·process lifecycle |
@@ -57,16 +56,13 @@ make down
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
 | `build/build_platform_image.sh` | Platform Dockerfile build·image import smoke 경로다. source revision/state와 target platform을 image label 및 로그에 남긴다. |
 | `build/build_vllm_unified_image.sh` | Unified vLLM Docker build 경로다. `vllm_unified_build.yaml`의 target/base/pin을 사용하며 native Linux amd64 Docker daemon만 허용한다. |
-| `deploy/deploy_compose_release.sh` | 명시적 image digest와 대상 정보를 받아 tracked source를 원격 release로 적용하고 readiness 실패 시 복구한다. 특정 CI provider 변수에 의존하지 않는다. |
-| `deploy/apply_remote_release.sh` | staged release 안에서 실행되는 서비스 수렴·readiness·rollback state machine이다. 호출자가 직접 조립하지 않는다. |
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |
 | `auth/auth_plan.py` / `auth/auth_apply.py` | secret을 출력하지 않고 auth profile 변경 계획을 보여주거나 managed auth flag만 적용한다. |
 | `validation/validate_contracts.py` | OpenAPI refs, generated OpenAPI schema injection, JSON Schema, config, release hygiene 정책을 검증한다. |
 | `validation/run_test.sh` | Python 버전과 test 환경을 고정하고 unit/contract test를 실행한다. |
 | `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`(생성)와 `validation/governance/versioning.py`(검증)가 같은 표를 읽으므로 두 목록이 갈라질 수 없다. |
 | `lib/project_image_ownership.sh` | 로컬 build image의 ownership label과 legacy local repository 이름을 build/reset에 공통 제공한다. |
-| `lib/gateway_runtime_state.sh` | 배포와 `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 공통 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
-| `compose/compose_service_diff.py` | 두 Release의 렌더된 Compose 정의를 비교해 실제로 변경된 서비스만 출력한다. Release 절대경로 차이는 제거한다. |
+| `lib/gateway_runtime_state.sh` | `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
 | `build/reset_version.py` | 프로젝트 버전을 `lib/version_refs.py`가 선언한 모든 자리에 한 번에 반영한다. 선언된 자리가 파일에서 사라졌으면 조용히 넘기지 않고 실패한다. |
 | `build/check_python.py` | 현재 interpreter가 `>=3.12,<3.14`인지 fail-fast로 확인한다. |
 | `ops/up_services.sh` | 로컬 app-only Gateway/Risk Signal Service를 실행하고 `/health`를 기다린다. |

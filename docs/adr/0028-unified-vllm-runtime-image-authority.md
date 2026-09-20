@@ -4,6 +4,8 @@
 
 Accepted
 
+- Refined by: [ADR-0037](./0037-local-lifecycle-deployment-authority.md)
+
 ## Context
 
 26B/12B Main Model profile, embedding, embedding-ko, risk-prompt는 2026-07-24부터
@@ -32,9 +34,10 @@ retired key다. 기존 `.env`에 남아 있으면 env lifecycle이 제거하며 
 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`는 Main Model profile-specific image override 계약을 소유한다. profile이
 별도 image를 지정하지 않으면 shared `VLLM_IMAGE`를 사용한다.
 
-shared artifact의 deployment-time promotion authority는
-`VLLM_UNIFIED_IMAGE_TO_DEPLOY`다. deployment compatibility input이 존재하더라도 persistent
-runtime image authority를 새로 만들지 않는다.
+Shared artifact를 실제 host에서 활성화할 때도 persistent runtime authority는
+`VLLM_IMAGE`다. Registry publish 결과를 사용하려면 immutable `name@sha256:...` digest를
+해당 host의 `VLLM_IMAGE`에 명시적으로 pin하고 canonical lifecycle로 수렴시킨다.
+별도 deployment-time promotion authority는 두지 않는다.
 
 향후 특정 runtime에 별도 image authority가 필요하다면 env override를 먼저 추가하지 않는다.
 독립 build artifact, qualification, promotion, rollback lifecycle이 실제로 필요한 경우 그
@@ -53,9 +56,8 @@ artifact boundary와 함께 새 authority를 정의한다.
 ## Operational impact
 
 - shared vLLM artifact의 현재 persistent ref는 `VLLM_IMAGE`에서 확인한다.
-- shared image promotion은 `VLLM_UNIFIED_IMAGE_TO_DEPLOY`에 immutable registry digest를
-  제공한다.
-- image promotion input이 없는 full deploy는 현재 persistent pin을 유지한다.
+- publish된 artifact를 사용하려면 immutable registry digest를 `VLLM_IMAGE`에 명시적으로 pin한다.
+- `make build`은 operator가 지정한 registry digest를 외부 immutable input으로 보고 덮어쓰지 않는다.
 - `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`는 Main Model profile override로 독립적으로 해석한다.
 
 ## Related
@@ -73,10 +75,7 @@ artifact boundary와 함께 새 authority를 정의한다.
 2026-09-18 terminology audit에서 `AUDIO_VLLM_IMAGE`는 실제 역할보다 좁은 이름으로 판정했다.
 이 값은 audio 전용 artifact가 아니라 Main Model profile-specific vLLM image override다.
 canonical key는 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`이다. deployment-time
-`AUDIO_VLLM_IMAGE_TO_DEPLOY` alias는 제거했다. persistent `AUDIO_VLLM_IMAGE`는 기존
-배포 `.env`의 값을 잃지 않고 `make sync-env`로 옮기기 위한 migration debt로만 남긴다.
-이 값은 신규 실행 계약이 아니다. 원격 full deploy는 persistent `.env` 복사본을 먼저
-`sync-env`로 canonicalize한 뒤 runtime image preflight를 계산하며,
-`deploy_resolve_runtime_image_plan`의 `AUDIO_VLLM_IMAGE` direct read는 제거했다.
-실제 persistent key는 image pull 성공 후 `.env` backup과 rollback trap을 준비한 다음,
-image promotion보다 먼저 실행되는 `make sync-env` 단계에서 canonical key로 이관된다.
+`AUDIO_VLLM_IMAGE_TO_DEPLOY` alias는 제거했고, remote release state machine 제거와 함께
+`VLLM_UNIFIED_IMAGE_TO_DEPLOY` / `MAIN_MODEL_VLLM_IMAGE_OVERRIDE_TO_DEPLOY`도 active
+contract가 아니다. persistent `AUDIO_VLLM_IMAGE`만 기존 `.env` 값을 잃지 않고
+`make sync-env`로 canonical key에 이관하기 위한 migration debt로 남긴다.

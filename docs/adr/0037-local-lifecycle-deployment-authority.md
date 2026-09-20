@@ -1,0 +1,144 @@
+# ADR-0037: Local lifecycle owns deployment; remove the remote release state machine
+
+- Status: Accepted
+- Date: 2026-09-20
+- Refines: [ADR-0013](./0013-env-lifecycle-non-destructive-sync.md), [ADR-0023](./0023-local-lifecycle-command-boundaries.md), [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md)
+
+## Context
+
+The repository accumulated a second deployment authority around
+`scripts/deploy/deploy_compose_release.sh` and `scripts/deploy/apply_remote_release.sh`.
+
+That path owned remote transport, `rolling/full` mode selection, immutable release directories,
+`current/runtime-current` symlink switching, target `.env` mutation, runtime image promotion,
+changed-service calculation, readiness and automatic release rollback.
+
+The platform has since converged on a different operating model:
+
+- target-aware local lifecycle: `make setup → build → prepare → up/status/down`
+- Runtime Controller for non-main runtime mutations
+- Main Model Control for Main Model switching and rollback
+- Configuration Plan/Apply/Verify semantics
+- deterministic release packaging as an artifact concern
+- qualification evidence as a separate validation concern
+
+Keeping a remote release state machine in parallel means every new runtime policy has to be
+implemented twice: once in the current host/control-plane lifecycle and again in remote deployment
+convergence/rollback. That duplicates authority and makes runtime behavior depend on transport.
+
+## Decision
+
+### 1. The canonical deployment lifecycle is the target-aware local lifecycle
+
+For repository-owned targets, deployment state is applied from the host checkout/workspace through:
+
+```text
+make setup
+make build
+make prepare
+make up
+make status
+make down
+```
+
+`make up` owns full-stack composition and readiness for the selected target. Runtime and Main
+Model mutations after startup are owned by their Control Plane APIs, not by a separate release
+executor.
+
+Remote access may invoke the same commands through an external transport such as SSH, but this
+repository no longer owns a distinct remote deployment protocol or state machine.
+
+### 2. Remove remote release transport and rollback authority
+
+The following concepts are retired as active deployment contracts:
+
+- repository-owned remote source transfer
+- `rolling` vs `full` deploy modes
+- `DEPLOY_PATH/releases/<id>`
+- `current` / `runtime-current` release symlink switching
+- deployment-time image promotion inputs
+- changed-service calculation against a previous release tree
+- remote release `.env` backup/restore orchestration
+- release-directory rollback state machine
+- repository-owned SSH deployment policy
+
+Component rollback remains where it has current semantic ownership:
+
+- Main Model Control restores last-known-good Main Model state when switching fails.
+- Runtime Control applies reviewed runtime transition plans.
+- Configuration mutation uses its reviewed plan/history contract.
+- Host/source rollback is an operator/source-control action followed by the same canonical local
+  lifecycle and verification.
+
+### 3. Keep deterministic release artifacts independent of deployment
+
+`scripts/release/release_artifact.py` and `make package` remain.
+
+Their contract is artifact identity and reproducibility:
+
+- resolve tracked release payload
+- write a deterministic manifest
+- materialize package contents
+- verify the materialized bytes
+
+A release package is not a deployment state machine. External automation may transport or archive
+it without gaining authority over runtime convergence semantics.
+
+### 4. Keep image build authority independent of deployment
+
+Unified vLLM build inputs remain governed independently of deployment. The canonical repository
+source manifest moves to `scripts/lib/vllm_unified_image.sh`, alongside the shared vLLM image
+authority.
+
+The source manifest exists to protect build reproducibility and Dockerfile COPY coverage, not to
+compare remote release directories.
+
+Published immutable registry digests remain valid operator inputs. Local lifecycle preserves
+registry-digest images instead of rebuilding them.
+
+### 5. Runtime startup state remains a local lifecycle concern
+
+`configs/deploy_profiles.yaml` and `RUNTIME_STARTUP_PROFILE` continue to describe which
+secondary runtimes are initially deferred by `compose-up`.
+
+The current `DEPLOY_*` naming used internally for that one-shot startup directive is not evidence
+that a remote deploy architecture still exists. It is compatibility debt and is intentionally
+renamed in a follow-up change so this removal can be reviewed independently from runtime-state file
+migration.
+
+### 6. Platform bootstrap keeps `release_id` nullable for compatibility
+
+The Control Plane bootstrap v4 schema currently exposes `platform.release_id`. Removing that field
+would be a bootstrap contract break unrelated to deployment authority.
+
+The field remains nullable for v4. Once remote release identity is gone, the repository does not
+invent a replacement meaning for it. A future bootstrap version may remove or replace it explicitly.
+
+## Consequences
+
+- New runtime features no longer need an `apply_remote_release.sh` implementation.
+- Deployment behavior has one repository-owned lifecycle instead of local plus remote state machines.
+- Release packaging remains useful for reproducibility, distribution and audit.
+- External automation can run the canonical lifecycle remotely without duplicating platform policy.
+- Remote automatic release rollback is removed; rollback remains component-specific or
+  source-control/operator driven.
+- The next cleanup removes deployment-specific names from the runtime startup directive.
+- Prompt Injection Detector resource-aware topology can then be implemented against one effective
+  runtime lifecycle instead of local and remote convergence paths.
+
+## Removed implementation
+
+- `scripts/deploy/deploy_compose_release.sh`
+- `scripts/deploy/apply_remote_release.sh`
+- `scripts/deploy/runtime-bin/python3.12`
+- `scripts/lib/deploy_request_policy.sh`
+- `scripts/lib/deploy_env.sh`
+- remote-only parts of `scripts/lib/deploy_recreate_policy.sh`
+
+## Non-goals
+
+- Removing `make package` or release manifests
+- Removing immutable image digests
+- Replacing external infrastructure/orchestration tools
+- Adding a new cluster scheduler
+- Changing Runtime Controller or Main Model Control mutation semantics in this decision
