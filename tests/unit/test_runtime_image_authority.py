@@ -10,8 +10,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_CONTEXT = ROOT / "scripts" / "lib" / "compose_context.sh"
-DEPLOY_ENV = ROOT / "scripts" / "lib" / "deploy_env.sh"
-APPLY_REMOTE_RELEASE = ROOT / "scripts" / "deploy" / "apply_remote_release.sh"
 COMPOSE_FILE = ROOT / "ops" / "compose" / "full-stack.private-network.yaml"
 
 
@@ -21,8 +19,6 @@ def _bash(command: str) -> subprocess.CompletedProcess[str]:
         "VLLM_IMAGE",
         "EMBEDDING_KO_VLLM_IMAGE",
         "RISK_VLLM_IMAGE",
-        "VLLM_UNIFIED_IMAGE_TO_DEPLOY",
-        "MAIN_MODEL_VLLM_IMAGE_OVERRIDE_TO_DEPLOY",
     ):
         process_env.pop(key, None)
     return subprocess.run(
@@ -60,48 +56,3 @@ def test_compose_context_does_not_materialize_retired_runtime_image_keys(tmp_pat
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == "|"
-
-
-def test_remote_preflight_uses_one_shared_vllm_image_identity() -> None:
-    deploy_env = DEPLOY_ENV.read_text(encoding="utf-8")
-    remote_apply = APPLY_REMOTE_RELEASE.read_text(encoding="utf-8")
-
-    assert "EMBEDDING_KO_VLLM_IMAGE_EFFECTIVE" not in deploy_env
-    assert "RISK_VLLM_IMAGE_EFFECTIVE" not in deploy_env
-    assert "AUDIO_VLLM_IMAGE" not in deploy_env
-    assert 'make sync-env ENV_FILE="${PREFLIGHT_ENV_FILE}"' in remote_apply
-    assert remote_apply.index('make sync-env ENV_FILE="${PREFLIGHT_ENV_FILE}"') < remote_apply.index(
-        "deploy_resolve_runtime_image_plan"
-    )
-    assert remote_apply.index('make sync-env ENV_FILE="${COMPOSE_ENV_FILE}"') < remote_apply.index(
-        "deploy_apply_runtime_image_promotions"
-    )
-    assert "EMBEDDING_KO_VLLM_IMAGE_EFFECTIVE" not in remote_apply
-    assert "RISK_VLLM_IMAGE_EFFECTIVE" not in remote_apply
-    assert remote_apply.count(
-        'pull_required_runtime_image "shared vLLM" "${VLLM_IMAGE_EFFECTIVE}"'
-    ) == 1
-    assert "EMBEDDING_KO_VLLM_IMAGE_PROMOTION" not in remote_apply
-    assert "RISK_VLLM_IMAGE_PROMOTION" not in remote_apply
-
-
-def test_remote_promotion_updates_only_shared_and_profile_override_pins(tmp_path: Path) -> None:
-    env_file = tmp_path / ".env"
-    env_file.write_text(
-        "VLLM_IMAGE=registry.example.com/vllm@sha256:old\n"
-        "MAIN_MODEL_VLLM_IMAGE_OVERRIDE=\n",
-        encoding="utf-8",
-    )
-    result = _bash(
-        f"source {shlex.quote(str(DEPLOY_ENV))}; "
-        f"COMPOSE_ENV_FILE={shlex.quote(str(env_file))}; COMPOSE_EXPORTED_KEYS=(); "
-        "VLLM_UNIFIED_IMAGE_TO_DEPLOY=registry.example.com/vllm@sha256:new; "
-        "deploy_resolve_runtime_image_plan; deploy_apply_runtime_image_promotions; "
-        f"cat {shlex.quote(str(env_file))}"
-    )
-    assert result.returncode == 0, result.stderr
-    persisted = result.stdout.splitlines()
-    assert "VLLM_IMAGE=registry.example.com/vllm@sha256:new" in persisted
-    assert "MAIN_MODEL_VLLM_IMAGE_OVERRIDE=registry.example.com/vllm@sha256:new" in persisted
-    assert not any(line.startswith("EMBEDDING_KO_VLLM_IMAGE=") for line in persisted)
-    assert not any(line.startswith("RISK_VLLM_IMAGE=") for line in persisted)

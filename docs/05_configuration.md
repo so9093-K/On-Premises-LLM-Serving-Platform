@@ -61,7 +61,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | GPU resource budget | `configs/gpu_budgets.yaml` | runtime별 GPU budget과 admission 기준 정의 |
 | Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env, exposure category 정의 |
 | Exposure mode | `configs/exposure_profiles.yaml` | 어떤 서비스를 host에 publish할지 정의 |
-| Runtime Startup Profile | `configs/deploy_profiles.yaml` | compose-up/full deploy 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
+| Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
 | Authentication profile | `configs/auth_profiles.yaml` | `AUTH_MODE`별 인증·관리 endpoint 보호 정책 정의 |
 | Environment example contract | `configs/env_contract.yaml` | `.env` 예시 파일에 포함할 키 정의 |
 | Monitoring 설정 | `configs/monitoring.yaml` | Prometheus scrape와 live metric 검증 기준 정의 |
@@ -86,9 +86,9 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 
 | 층위 | 기준 | 역할 |
 |---|---|---|
-| 선언 정책 | `configs/`, 코드, Compose, CI | 다음 실행·배포에서 적용할 값과 계약 |
+| 선언 정책 | `configs/`, 코드, Compose, CI | 다음 lifecycle 실행에서 적용할 값과 계약 |
 | 생성물 | `.runtime/`, generated Compose/OpenAPI 등 | 선언 정책을 바탕으로 만든 projection. 원본 정책이 아님 |
-| 실제 운영 상태 | 배포 image digest, boot log, `nvidia-smi`, vLLM `/metrics` | 현재 배포되어 실제로 동작하는 사실 |
+| 실제 운영 상태 | 실행 image digest, boot log, `nvidia-smi`, vLLM `/metrics` | 현재 host에서 실제로 동작하는 사실 |
 | 문서 | `docs/` | 기준 파일·절차·결정 배경을 연결하는 안내 |
 
 ADR과 resource 문서는 결정 이유와 검증 이력을 보존한다. 이 문서의 표 또는 과거 실측값보다 현재 설정과 실제 운영 상태를 우선한다.
@@ -302,7 +302,7 @@ Exposure Profile
 
 ## 5.7 Runtime Startup Profile
 
-`configs/deploy_profiles.yaml`은 compose-up과 full deploy 이후 non-main Model Runtime의 초기 운영 상태를 정의한다. profile을 명시하지 않으면 `default_profile: main_only`가 적용되어 embedding 계열과 Prompt Injection 모델은 컨테이너만 생성되고 시작되지 않는다. Risk Signal Service와 PII·Secret 검사 경로는 그대로 유지된다.
+`configs/deploy_profiles.yaml`은 compose-up 이후 non-main Model Runtime의 초기 운영 상태를 정의한다. profile을 명시하지 않으면 `default_profile: main_only`가 적용되어 embedding 계열과 Prompt Injection 모델은 컨테이너만 생성되고 시작되지 않는다. Risk Signal Service와 PII·Secret 검사 경로는 그대로 유지된다.
 
 현재 control 대상은 다음과 같다.
 
@@ -421,9 +421,8 @@ Runtime Controller endpoint도 `RUNTIME_CONTROLLER_URL`만 실행 계약으로 �
 두 경로의 layout과 일반 기본값은 각 template이 소유한다. Compose image 기본값과 env key mapping은
 `configs/recommended_images.yaml`이 소유한다. Platform/vLLM project-built image는 operator/local build 값을
 보존하고, `immutable_upstream` third-party image는 최초 생성과 `sync-env`에서 같은 pinned digest로 수렴한다.
-원격 release 적용은 동기화된 `.env`의 third-party image ref가 immutable digest인지 서비스 변경 전에 다시 검증한다.
-수동 Compose 실행에서 private mirror가 필요한 경우 shell environment로 image env key를 override할 수 있지만,
-managed remote release는 target `.env`를 다시 export하므로 repository-pinned projection을 사용한다.
+private mirror가 필요한 경우에는 명시적 process environment override를 사용할 수 있지만,
+persistent `.env`의 repository-managed upstream image projection은 canonical digest를 유지한다.
 
 ```bash
 make init-env-local

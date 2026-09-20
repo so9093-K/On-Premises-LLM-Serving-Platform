@@ -62,7 +62,6 @@ class RuntimeStateStore:
         *,
         controllable_keys: set[str] | frozenset[str] | None = None,
         deferred_keys: Iterable[str] = (),
-        activated_keys: Iterable[str] = (),
         release_id: str = "",
     ) -> None:
         self._lock = asyncio.Lock()
@@ -129,7 +128,6 @@ class RuntimeStateStore:
         if not recovered_corrupt_state:
             self._apply_deploy_directive(
                 deferred_keys,
-                activated_keys,
                 release_id,
                 had_persisted_state=had_persisted_state,
             )
@@ -137,7 +135,6 @@ class RuntimeStateStore:
     def _apply_deploy_directive(
         self,
         deferred_keys: Iterable[str],
-        activated_keys: Iterable[str],
         release_id: str,
         *,
         had_persisted_state: bool,
@@ -155,10 +152,7 @@ class RuntimeStateStore:
         재시작 한 번에 다시 꺼진다. 같은 릴리스에서는 파일에 남은 상태가 이긴다.
         """
         stop_keys = [k for k in deferred_keys if k in self.controllable_keys]
-        start_keys = [
-            k for k in activated_keys if k in self.controllable_keys and k not in stop_keys
-        ]
-        if not stop_keys and not start_keys:
+        if not stop_keys:
             return
         if release_id:
             if release_id == self._applied_release_id:
@@ -174,14 +168,6 @@ class RuntimeStateStore:
             self._records[key] = RuntimeStateRecord(
                 RuntimeState.stopped,
                 reason="deferred_at_deploy",
-                source="deploy",
-                updated_at=now,
-            )
-        # 롤백이 되살린 런타임을 desired state에서도 되돌린다.
-        for key in start_keys:
-            self._records[key] = RuntimeStateRecord(
-                RuntimeState.active,
-                reason="restored_at_rollback",
                 source="deploy",
                 updated_at=now,
             )

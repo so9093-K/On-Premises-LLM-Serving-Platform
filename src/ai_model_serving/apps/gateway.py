@@ -84,7 +84,6 @@ class GatewayClients:
             state_path,
             controllable_keys=settings.controllable_runtime_keys,
             deferred_keys=_runtime_directive("DEPLOY_DEFERRED_RUNTIMES"),
-            activated_keys=_runtime_directive("DEPLOY_ACTIVE_RUNTIMES"),
             release_id=settings.deploy_release_id,
         )
         self.runtime_transition_history = RuntimeTransitionHistoryStore(

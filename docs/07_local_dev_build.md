@@ -104,8 +104,9 @@ make app-check
 
 같은 Dockerfile과 build script를 공유하는 것은 입력 해석을 맞추기 위한 것이다. 로컬의
 수정된 working tree나 arm64 image ID가 clean Linux amd64 운영 후보와 byte-identical하다는
-뜻은 아니다. Registry publish 자동화는 현재 정의하지 않으며, 실제 원격 배포 identity는
-publish 결과의 immutable registry digest가 소유한다.
+뜻은 아니다. Registry publish 자동화는 현재 정의하지 않으며, publish 결과의 immutable
+registry digest는 외부 artifact identity로 사용할 수 있다. 해당 digest를 실제 host에서
+사용하려면 persistent image pin을 명시적으로 갱신한 뒤 canonical lifecycle로 수렴시킨다.
 
 ### Dependency lock 갱신
 
@@ -449,7 +450,8 @@ registry publish는 현재 구성하지 않으며, 향후 자동화 원칙은 [9
 target-aware `make build`는 로컬에서 빌드한 Unified image tag를 Docker의 content-addressed
 `sha256:...` image ID로 해석하고, `.env`에서 그 build tag와 정확히 일치하는 unified
 image 값만 고정한다. 운영자가 별도로 지정한 image ref는 추측해서 덮어쓰지 않는다.
-원격 배포는 이 로컬 ID 대신 publish된 registry의 `name@sha256:...` digest를 사용한다.
+다른 host나 외부 automation에서 같은 artifact를 사용하려면 publish된 registry의
+`name@sha256:...` digest를 persistent image pin으로 사용한다.
 
 ### 반복 개발과 재빌드
 
@@ -605,7 +607,7 @@ make compose-logs
 | 모델 운영 | [6. 모델 운영](./06_model_operations.md) | Main Model start / stop / switch |
 | 테스트 | [8. 테스트와 검증](./08_testing_validation.md) | validate, test, runtime validation |
 | 자동화 경계 | [9. 자동화 경계](./09_cicd.md) | 현재 자동 검증과 미래 publish·deploy 연결 원칙 |
-| 배포 | [10. 배포](./10_deployment.md) | release artifact 배포와 rollback |
+| 배포 | [10. 배포](./10_deployment.md) | target lifecycle, image pin과 component rollback |
 | Make entry point | `Makefile` | 로컬 개발·빌드 명령 |
 | Platform image | `Dockerfile` | application / control-plane image |
 | Platform build script | `scripts/build/build_platform_image.sh` | Provider-neutral Platform build |

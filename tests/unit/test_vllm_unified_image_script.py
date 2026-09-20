@@ -95,6 +95,19 @@ def test_vllm_version_is_an_explicit_build_compatibility_pin():
     assert result.stdout.strip() == "0.25.1"
 
 
+def test_vllm_unified_source_manifest_is_owned_by_image_helper():
+    root = Path(__file__).resolve().parents[2]
+    result = run_bash(
+        root,
+        'source scripts/lib/vllm_unified_image.sh; vllm_unified_image_source_paths',
+    )
+    assert result.returncode == 0, result.stderr
+    paths = result.stdout.splitlines()
+    assert "ops/images/vllm-unified/Dockerfile" in paths
+    assert "scripts/build/build_vllm_unified_image.sh" in paths
+    assert len(paths) == len(set(paths))
+
+
 def test_vllm_unified_dockerfile_verifies_and_labels_engine_version():
     root = Path(__file__).resolve().parents[2]
     dockerfile = (root / "ops/images/vllm-unified/Dockerfile").read_text(encoding="utf-8")

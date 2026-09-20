@@ -38,7 +38,7 @@
 | **Main Model Profile** | Main Model의 model revision, runtime image, command, capability와 request policy 조합 | `configs/main_model_profiles.yaml` |
 | **Public Model Alias** | client가 고정적으로 사용하는 model 이름 | `local-main` |
 | **Deployment Target** | platform/backend/lifecycle ownership 조합을 고르는 안정 설정 ID | `DEPLOYMENT_TARGET` |
-| **Runtime Startup Profile** | 배포 직후 어떤 non-main runtime을 시작 상태로 둘지 정하는 preset | `RUNTIME_STARTUP_PROFILE`, `configs/deploy_profiles.yaml` |
+| **Runtime Startup Profile** | full-stack 기동 직후 어떤 non-main runtime을 시작 상태로 둘지 정하는 preset | `RUNTIME_STARTUP_PROFILE`, `configs/deploy_profiles.yaml` |
 | **Access Profile** | 사용자가 선택하는 접근 의도(local/private/edge) | `ACCESS_PROFILE` |
 | **Desired State** | Control Plane이 수렴시키려는 runtime 상태 | `desired_state` |
 | **Observed State** | 실제 container/runtime에서 관측한 상태 | `observed_runtime`, `container_status` |
@@ -63,7 +63,7 @@
 
 ### Process inputs
 
-- `RUNTIME_STARTUP_PROFILE`이 로컬 compose-up과 원격 full deploy의 유일한 startup profile input이다.
+- `RUNTIME_STARTUP_PROFILE`이 full-stack compose-up의 유일한 startup profile input이다.
 - `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process alias는 제거됐다.
 - `PACKAGE_NAME`은 release ZIP 파일명을 바꾸는 packaging process override이며 Runtime `.env` key가 아니다.
 

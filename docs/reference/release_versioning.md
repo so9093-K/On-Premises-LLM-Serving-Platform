@@ -14,7 +14,7 @@
 | Platform / Unified vLLM 로컬 기본 image tag | `version_manifest.json`, `.env.compose.example`, `configs/recommended_images.yaml` | 예 |
 | Third-party upstream image digest | `configs/recommended_images.yaml` | 아니오 |
 | Config schema version | 각 `configs/*.yaml`의 `version` | 아니오 |
-| Project-built runtime image digest | publish 결과와 배포 대상 `.env` | 아니오 |
+| Project-built runtime image digest | publish 결과와 target host `.env` | 아니오 |
 
 `VERSION`은 package와 project-built image의 사람이 읽는 로컬 기본 tag 기준이다. Project-built 운영 image의 identity는 publish 결과 digest가 소유하고, third-party upstream image는 `configs/recommended_images.yaml`의 pinned manifest digest가 소유한다. config schema version은 package version과 독립적이며 해당 config의 구조가 바뀔 때만 변경한다.
 
@@ -56,7 +56,7 @@ Third-party upstream digest는 version reset 대상이 아니며 해당 upstream
 
 ## Release Package와 canonical manifest
 
-배포용 source package는 필요할 때만 만든다.
+Release source package는 배포 transport와 무관하게 필요할 때만 만든다.
 
 ```bash
 make validate
@@ -75,14 +75,13 @@ Release payload의 Source of Truth는 `scripts/release/release_artifact.py`가 �
 기록한다. `RELEASE_PROVENANCE.json`은 기존 consumer를 위한 compatibility projection이며
 manifest에서 파생될 뿐 별도의 release identity를 소유하지 않는다.
 
-`make package`와 `scripts/deploy/deploy_compose_release.sh`는 둘 다 같은 resolver와
-materializer를 호출한다. Package는 materialized tree를 deterministic ZIP transport로
-감싸고, remote deploy는 같은 tree를 전송한 뒤 대상 host에서 manifest를 다시 검증한다.
-GitHub Actions도 별도 packaging 규칙을 갖지 않고 로컬과 같은 `make package`를 실행한다.
+`make package`는 `scripts/release/release_artifact.py`의 resolver/materializer를
+직접 사용한다. Package는 materialized tree를 deterministic ZIP transport로 감쌀 뿐,
+Runtime state나 target host를 변경하지 않는다. GitHub Actions도 별도 packaging 규칙을
+갖지 않고 같은 `make package`를 실행한다.
 
-로컬 packaging은 개발 중 검증을 위해 tracked dirty tree도 허용한다. 이 경우 manifest의
+Packaging은 개발 중 검증을 위해 tracked dirty tree도 허용한다. 이 경우 manifest의
 `source.tracked_state`가 `dirty`로 기록되고 실제 file hash가 artifact identity를 고정한다.
-반면 원격 운영 배포는 기존 정책대로 tracked working tree가 clean한 경우만 허용한다.
 Untracked file은 release 입력이 아니므로 manifest payload와 `tracked_state`에 영향을 주지
 않는다. 따라서 cache/report/개인 메모가 checkout에 존재해도 동일 tracked source에서
 release payload identity가 달라지지 않는다.
@@ -92,4 +91,4 @@ release payload identity가 달라지지 않는다.
 - **Payload reproducibility**: 같은 tracked release input은 OS와 transport에 관계없이 같은 path/mode/size/hash 집합과 `payload_sha256`을 가져야 한다.
 - **Archive reproducibility**: ZIP writer는 정렬된 entry, 고정 timestamp, Git에서 파생한 0644/0755 mode와 고정 compression level을 사용해 host filesystem metadata가 결과에 섞이지 않게 한다.
 
-Image build·publish와 immutable digest 전달의 경계는 [9. 자동화 경계](../09_cicd.md), 대상 서버 적용과 rollback은 [10. 배포](../10_deployment.md)를 따른다.
+Image build·publish와 immutable digest 전달의 경계는 [9. 자동화 경계](../09_cicd.md), target lifecycle과 component rollback은 [10. 배포](../10_deployment.md)를 따른다.

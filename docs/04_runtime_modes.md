@@ -547,7 +547,7 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 | Base Compose topology   | `ops/compose/full-stack.private-network.yaml` | 전체 서비스의 기본 컨테이너 구성과 연결 관계 정의        |
 | Service / port registry | `configs/services.yaml`                       | 서비스 이름, 포트, bind 정보 등 서비스 메타데이터 정의  |
 | Exposure profile        | `configs/exposure_profiles.yaml`              | 서비스별 host port 공개 범위 정의             |
-| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | compose-up/full 배포 시 활성화할 non-main Model Runtime 조합 정의 |
+| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack compose-up 시 활성화할 non-main Model Runtime 조합 정의 |
 | Model runtime           | `configs/model_serving.yaml`                  | 모델 runtime 연결, 제한값 및 serving 정책 정의  |
 | Main Model profile      | `configs/main_model_profiles.yaml`            | Main Model별 runtime 및 실행 profile 정의 |
 | GPU budget              | `configs/gpu_budgets.yaml`                    | GPU별 runtime 자원 사용 한도 정의            |

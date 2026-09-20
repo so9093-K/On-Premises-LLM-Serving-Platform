@@ -75,27 +75,6 @@ def test_deploy_directive_applies_once_per_release(tmp_path):
     assert payload["applied_release_id"] == "release-2"
 
 
-def test_rollback_directive_reactivates_previously_running_runtime(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    deployed = RuntimeStateStore(
-        path,
-        controllable_keys={"prompt_injection_detector"},
-        deferred_keys=("prompt_injection_detector",),
-        release_id="failed-release",
-    )
-    assert asyncio.run(deployed.get("prompt_injection_detector")) == RuntimeState.stopped
-
-    restored = RuntimeStateStore(
-        path,
-        controllable_keys={"prompt_injection_detector"},
-        activated_keys=("prompt_injection_detector",),
-        release_id="previous-release",
-    )
-    record = asyncio.run(restored.all_records())["prompt_injection_detector"]
-    assert record.state == RuntimeState.active
-    assert record.reason == "restored_at_rollback"
-    assert record.source == "deploy"
-
 
 def test_runtime_state_store_reads_legacy_v1_and_ignores_unknown_keys(tmp_path):
     path = tmp_path / "runtime-state.json"
@@ -290,22 +269,6 @@ def test_runtime_state_store_quarantines_malformed_json_and_persists_safe_state(
     assert asyncio.run(store.get("embedding")) == RuntimeState.stopped
     assert json.loads(path.read_text(encoding="utf-8"))["states"]["embedding"]["state"] == "stopped"
 
-
-def test_corruption_recovery_wins_over_deploy_activation(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    path.write_text("{broken", encoding="utf-8")
-
-    store = RuntimeStateStore(
-        path,
-        controllable_keys={"prompt_injection_detector"},
-        activated_keys=("prompt_injection_detector",),
-        release_id="release-after-corruption",
-    )
-
-    record = asyncio.run(store.all_records())["prompt_injection_detector"]
-    assert record.state == RuntimeState.stopped
-    assert record.source == "recovery"
-    assert record.reason == "state_recovery_required"
 
 
 def test_runtime_state_store_honors_explicit_empty_controllable_keys(tmp_path):

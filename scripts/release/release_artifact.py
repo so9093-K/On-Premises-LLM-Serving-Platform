@@ -84,8 +84,8 @@ def _tracked_source_state(root: Path) -> str:
 
 
 def _safe_env_examples(root: Path) -> set[str]:
-    # Remote verification intentionally stays stdlib-only. YAML is only needed while
-    # resolving release inputs from a source checkout.
+    # Materialized artifact verification intentionally stays stdlib-only. YAML is only
+    # needed while resolving release inputs from a source checkout.
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - development environment owns PyYAML

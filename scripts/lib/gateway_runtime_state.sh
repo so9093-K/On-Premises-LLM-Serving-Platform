@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# 배포와 compose-up이 Gateway의 desired state(runtime-state.json)를 다루는 방법을
-# 한 곳에 모은다. 두 경로가 같은 규칙을 각자 구현하면 조용히 갈라진다.
+# compose-up이 Gateway의 desired state(runtime-state.json)를 초기화하는 방법을
+# 한 곳에 모은다.
 #
-# 이 파일의 writer는 Gateway 하나다. 배포는 어떤 런타임을 정지 상태로 둘지 env로
-# 전달만 하고, 기록은 Gateway가 기동 시 한 번 수행한다.
+# 이 파일의 writer는 Gateway 하나다. compose-up은 어떤 런타임을 정지 상태로 둘지
+# env directive로 전달만 하고, 기록은 Gateway가 기동 시 한 번 수행한다.
 
 # 상태 파일이 놓이는 호스트 경로. compose 파일의 gateway bind mount 원본과 같아야
 # 한다(ops/compose/full-stack.private-network.yaml의 `../../.runtime/gateway`).
-# 배포에서는 release 디렉터리의 `.runtime`이 배포 루트로 symlink되어 같은 곳을 가리킨다.
 GATEWAY_RUNTIME_DIR_RELPATH=".runtime/gateway"
 REQUEST_EVENT_LOG_DIR_RELPATH=".runtime/request-events"
 
@@ -56,9 +55,9 @@ ensure_gateway_runtime_dir() {
 # Gateway는 콤마로 구분된 runtime key 목록을 읽는다. 형식을 호출부마다 다시 만들면
 # 한쪽만 바뀌었을 때 지시가 조용히 무시되므로 여기서만 만든다.
 #
-# release id는 재적용을 막는 토큰이다. 같은 id로 컨테이너가 재시작되면 Gateway는
-# 지시를 다시 적용하지 않고 파일에 남은 운영자 상태를 따른다. 빈 값을 넘기면 이미
-# 정해진 id(배포에서는 .env의 DEPLOY_RELEASE_ID)를 그대로 둔다.
+# 현재 호환 이름인 release id는 실제로 startup directive의 재적용을 막는 토큰이다.
+# 같은 id로 컨테이너가 재시작되면 Gateway는 지시를 다시 적용하지 않고 파일에 남은
+# 운영자 상태를 따른다. 이 naming debt는 별도 migration에서 정리한다.
 export_deferred_runtime_directive() {
   local release_id="$1"
   shift
@@ -76,16 +75,3 @@ export_deferred_runtime_directive() {
   fi
 }
 
-# 롤백 전용. 롤백은 배포 직전에 돌고 있던 런타임을 다시 띄우는데, 실패한 배포의
-# Gateway가 이미 desired state를 stopped로 새겨 뒀을 수 있다. 그대로 두면
-# 컨테이너는 떠 있는데 Gateway만 정지로 알고 라우팅을 거부한다 -- 실제로 발생했다.
-# 복원된 .env의 이전 release id가 재적용을 열어주므로 여기서 되돌린다.
-export_runtime_restore_directive() {
-  local joined=""
-  if (($#)); then
-    printf -v joined '%s,' "$@"
-    joined="${joined%,}"
-    echo "[runtime-state] runtime restore directive: ${joined}"
-  fi
-  export DEPLOY_ACTIVE_RUNTIMES="${joined}"
-}

@@ -110,10 +110,9 @@ def test_setup_env_force_removes_registered_env_overrides(tmp_path):
 def test_sync_env_removes_only_registered_keys_and_keeps_server_only_settings(tmp_path):
     """sync-env의 제거 기준은 "등록된 키"이지 "템플릿에 없는 키"가 아니다.
 
-    deploy_compose_release.sh가 이미지 참조 갱신 직후 이 경로를 호출하므로, 제거
-    기준이 템플릿 유무로 바뀌면 배포 서버에만 존재하는 운영 설정(상태 파일 경로 등)이
-    배포할 때마다 사라진다. 등록된 키는 지우고 나머지 값은 건드리지 않는다는 두 방향을
-    함께 고정한다.
+    host .env에는 템플릿에 존재하지 않는 운영 설정(상태 파일 경로 등)이 정상적으로
+    존재할 수 있다. 제거 기준이 템플릿 유무로 바뀌면 sync-env 실행 때 그 값이
+    사라진다. 등록된 키는 지우고 나머지 값은 건드리지 않는다는 두 방향을 함께 고정한다.
     """
     out = tmp_path / '.env'
     out.write_text(
