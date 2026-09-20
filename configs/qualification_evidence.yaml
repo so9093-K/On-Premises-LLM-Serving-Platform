@@ -100,3 +100,49 @@ records:
     source:
       path: configs/main_model_profiles.yaml
       note: qwen2.5-omni-7b-thinker description의 2026-08-14 boot/canary/Gateway contract 실측 기록
+
+  20260920T062516Z-gemma4-e4b-it-e887dd85fa3d:
+    kind: qualified_run
+    subject:
+      type: main_model_profile
+      profile_id: gemma4-e4b-it
+      model_id: google/gemma-4-E4B-it
+      revision: ee0ef6023621cff504d758262d4e04895a5af4a2
+      resource_variant: rtx4090-24gb
+    deployment_target: linux-nvidia-dynamic
+    capabilities:
+    - text
+    - image
+    - audio
+    - video
+    result: passed
+    validated_at: '2026-09-20T06:25:16.471839+00:00'
+    runtime:
+      engine: vllm
+      version: 0.25.1
+      image_digest: sha256:e887dd85fa3d680d13d0b53347043e1e83ea7eb4ee9f2300238333bebf502048
+    checks:
+    - id: main_model.chat.audio
+      status: passed
+    - id: main_model.chat.image
+      status: passed
+    - id: main_model.chat.text
+      status: passed
+    - id: main_model.chat.video
+      status: passed
+    - id: main_model.gateway.models
+      status: passed
+    - id: main_model.runtime.models
+      status: passed
+    hardware:
+      gpu: NVIDIA GeForce RTX 4090
+      driver_version: 580.178.04
+    observations:
+      runtime_report_started_at: '2026-09-20T06:25:10.133104+00:00'
+      runtime_image_ref: ghcr.io/so9093-k/ai-model-serving-vllm-unified@sha256:e887dd85fa3d680d13d0b53347043e1e83ea7eb4ee9f2300238333bebf502048
+      runtime_image_id: sha256:e887dd85fa3d680d13d0b53347043e1e83ea7eb4ee9f2300238333bebf502048
+      gpu_uuid: GPU-63e00169-0b82-d9c7-9322-b9855caa9747
+      gpu_memory_total_mib: 24564
+    source:
+      path: evidence/qualification/runs/20260920T062516Z-gemma4-e4b-it-e887dd85fa3d.json
+      note: reviewed live qualification receipt
