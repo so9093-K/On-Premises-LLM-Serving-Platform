@@ -41,6 +41,7 @@ runtime_override_example_keys:
       - PROFILE_LOCKED
       - STATIC_PROFILE
       - GPU_MEMORY_UTILIZATION
+      - RESOURCE_VARIANT
       - SWITCH_IDEMPOTENCY_TTL_SECONDS
   embedding:
     env_prefix: EMBEDDING

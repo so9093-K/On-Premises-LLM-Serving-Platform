@@ -161,6 +161,24 @@ class MainModelCatalog:
     default_profile: str
     runtime: dict[str, Any]
     profiles: dict[str, MainModelProfile]
+    # 이 host가 선택한 resource variant다. None이면 host가 reference 자원 정책을
+    # 쓴다는 뜻이고, 그때는 모든 profile이 자기 catalog 값으로 기동한다.
+    resource_variant: str | None = None
+
+    def unsupported_host_variant(self, profile_id: str) -> str | None:
+        """profile이 이 host의 resource variant를 지원하지 않으면 그 variant id를 반환한다.
+
+        host가 특정 GPU class를 선언했는데 profile이 그 class의 자원 정책을 갖고
+        있지 않다면, 그 profile에 대해 우리가 아는 것은 reference host 값뿐이다.
+        더 작은 GPU에서 그 값으로 기동을 시도하는 것은 검증된 적 없는 동작이므로
+        선택 자체를 거부한다.
+        """
+        if self.resource_variant is None:
+            return None
+        profile = self.profiles.get(profile_id)
+        if profile is None or profile.resource_variant == self.resource_variant:
+            return None
+        return self.resource_variant
 
 
 def _parse_gpu_fraction(command: list[str]) -> float:
@@ -567,7 +585,9 @@ def load_main_model_catalog(
         )
     if default_profile not in profiles:
         raise MainModelConfigurationError("default_profile must reference a configured profile")
-    return MainModelCatalog(public_model, default_profile, dict(runtime), profiles)
+    return MainModelCatalog(
+        public_model, default_profile, dict(runtime), profiles, resource_variant
+    )
 
 
 def resolve_boot_profile(
@@ -580,14 +600,26 @@ def resolve_boot_profile(
     configured = configured_profile or catalog.default_profile
     if configured not in catalog.profiles:
         raise MainModelConfigurationError(f"unknown MAIN_MODEL_BOOT_PROFILE: {configured}")
+
+    def _require_host_variant(profile_id: str, label: str) -> None:
+        unsupported = catalog.unsupported_host_variant(profile_id)
+        if unsupported is not None:
+            raise MainModelConfigurationError(
+                f"{label} {profile_id} does not declare a resource policy for this "
+                f"host's {unsupported} GPU class"
+            )
+
     if locked:
+        _require_host_variant(configured, "MAIN_MODEL_BOOT_PROFILE")
         return configured
     if persisted_profile:
         if persisted_profile not in catalog.profiles:
             raise MainModelConfigurationError(
                 f"persisted active profile is not configured: {persisted_profile}"
             )
+        _require_host_variant(persisted_profile, "persisted active profile")
         return persisted_profile
+    _require_host_variant(configured, "MAIN_MODEL_BOOT_PROFILE")
     return configured
 
 
@@ -1008,6 +1040,18 @@ class MainModelManager:
             raise MainModelSwitchError(
                 "MODEL_PROFILE_INCOMPATIBLE",
                 "the selected model is incompatible with the current deployment",
+                status_code=422,
+            )
+        # host가 GPU class를 선언했는데 profile에 그 class의 자원 정책이 없으면
+        # 전환을 거부한다. boot reconcile도 이 경로를 지나며, confirm_unverified는
+        # qualification 축의 확인이지 자원 정책의 확인이 아니므로 이 검사를 우회하지
+        # 못한다.
+        unsupported_variant = self.catalog.unsupported_host_variant(profile_id)
+        if unsupported_variant is not None:
+            raise MainModelSwitchError(
+                "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED",
+                "the selected model does not declare a resource policy for this host's "
+                f"{unsupported_variant} GPU class",
                 status_code=422,
             )
         if qualification != "verified" and not confirm_unverified:
