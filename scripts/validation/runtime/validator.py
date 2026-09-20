@@ -182,7 +182,7 @@ class RuntimeValidator:
                 self.safe_check(
                     "monitoring-scrape",
                     f"{key} metrics",
-                    lambda key=key, base=base: self.live_checks.scrape_metrics(key, base, vllm_metrics),
+                    lambda key=key, base=base: self.live_checks.scrape_vllm_metrics(key, base, vllm_metrics),
                 )
         self.safe_check("monitoring-scrape", "prometheus active targets", self.live_checks.check_prometheus_targets)
         self.safe_check("grafana-dashboard-render", "grafana api health", self.live_checks.check_grafana_health)

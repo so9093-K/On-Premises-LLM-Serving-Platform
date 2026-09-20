@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Runtime validation의 vLLM metric probe가 OpenAI API base(`/v1`)에 `/metrics`를 덧붙여 `/v1/metrics`를 호출하던 경로를 바로잡았다. vLLM model API와 metric endpoint를 분리해 live validation이 실제 `/metrics`를 검사한다.
+
 - Prompt Injection Detector Runtime(`kakaocorp/kanana-safeguard-prompt-2.1b`)을 비활성화했다. `/v1/risk/detectors/prompt/assessments`는 `409 DETECTOR_DISABLED`로 응답하고 `prompt_attack` family의 A1·A2 signal은 제공되지 않는다. Risk feature 자체는 유지된다 — PII와 Secret detector는 Risk Signal Service in-process 구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`, `/v1/risk/assessments` aggregate가 그대로 동작한다(aggregate는 활성 detector만 순차 처리한다). 이 runtime은 더 이상 Runtime Startup Profile의 control 대상이 아니며 Prometheus scrape 대상과 `/v1/models` 공개 목록에서도 빠진다. RTX 4090 24GB에서 Main Model과 공존시킬 수 없다는 것이 실측으로 확인됐고(약 3.05 GiB 필요, 가용량 미달), GPU budget을 host별로 나눠 갖는 수단이 아직 없어 전역으로 끈다. 다시 켜려면 `configs/model_serving.yaml`의 runtime·detector registry와 `configs/runtime_topology.yaml`의 lifecycle binding을 함께 `enabled: true`로 되돌린다.
 
 - `GET /admin/main-model`의 `observed_runtime`이 Docker inspect에서 실제 container image ref/image ID와 Unified vLLM engine version label을 함께 반환한다. 설정값과 실행 중인 artifact를 구분해 qualification이 실제 runtime fingerprint를 사용할 수 있으며, version label이 없는 기존 image는 값을 추측하지 않고 `null`로 관측한다.

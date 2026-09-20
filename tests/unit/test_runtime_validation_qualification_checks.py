@@ -52,6 +52,10 @@ class _Http:
             1,
         )
 
+    def text(self, url: str, **kwargs):
+        self.calls.append(("GET", url, None))
+        return 200, "vllm:requests_running 0\n", 1
+
 
 def _checks() -> tuple[LiveRuntimeChecks, _Http]:
     config = SimpleNamespace(
@@ -121,3 +125,16 @@ def test_media_canaries_emit_stable_ids_and_use_checked_in_data_fixtures() -> No
     assert audio_part["input_audio"]["data"]
     assert video_part["type"] == "video_url"
     assert video_part["video_url"]["url"].startswith("data:video/mp4;base64,")
+
+
+def test_vllm_metrics_use_app_root_not_openai_v1_prefix() -> None:
+    checks, http = _checks()
+
+    result = checks.scrape_vllm_metrics(
+        "main_llm",
+        "http://main/v1",
+        ["vllm:requests_running"],
+    )
+
+    assert result.passed
+    assert http.calls[-1][1] == "http://main/metrics"

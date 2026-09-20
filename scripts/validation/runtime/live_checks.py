@@ -635,6 +635,19 @@ class LiveRuntimeChecks:
         ok = status == 200 and not missing
         return CheckResult(category, f"{service} metrics", "pass" if ok else "fail", latency, details={"present": present, "missing": missing})
 
+    def scrape_vllm_metrics(self, service: str, api_base_url: str, required: list[str]) -> CheckResult:
+        """vLLM의 OpenAI API base와 sibling인 /metrics를 검사한다.
+
+        Runtime validation의 vLLM base는 /v1/models 같은 OpenAI API 호출을 위해
+        /v1까지 포함한다. vLLM metrics는 /v1/metrics가 아니라 같은 app root의
+        /metrics에 있으므로 두 endpoint를 같은 문자열 덧붙이기로 취급하지 않는다.
+        """
+        api_base = api_base_url.rstrip("/")
+        if not api_base.endswith("/v1"):
+            raise ValueError(f"vLLM API base must end with /v1: {api_base_url!r}")
+        metrics_base = api_base[:-3]
+        return self.scrape_metrics(service, metrics_base, required)
+
     def check_prometheus_targets(self) -> CheckResult:
         status, body, latency = self.http.json("GET", f"{self.prometheus_base}/api/v1/targets")
         active = body.get("data", {}).get("activeTargets", []) if isinstance(body, dict) else []
