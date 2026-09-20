@@ -3693,7 +3693,6 @@ paths:
           enum:
           - embedding
           - embedding_ko
-          - prompt_injection_detector
           - main
           title: Service Key
         description: GET /admin/runtimes가 반환하는 service_key.
@@ -4038,7 +4037,6 @@ paths:
           enum:
           - embedding
           - embedding_ko
-          - prompt_injection_detector
           - main
           title: Service Key
         description: GET /admin/runtimes가 반환하는 service_key.
@@ -4336,10 +4334,10 @@ paths:
         - `last_operation` — 가장 최근 전환 작업 요약(`status`, `stage`, `error`).
 
         - `observed_runtime` — Docker inspect 결과(`container_state`, `health`, `profile_id`,
-        `image_ref`, `image_id`, `image_digest`, `runtime_engine`, `observed_at`). ledger와 어긋나면 drift이며,
-        `image_digest`는 registry/distribution digest이며 Docker local `image_id`와 구분합니다. digest를
-        단일하게 관측할 수 없으면 추측하지 않고 `null`로 반환합니다. image label에 engine version이 없으면
-        이를 추측하지 않고 `runtime_engine.version=null`로 반환합니다.
+        `image_ref`, `image_id`, `image_digest`, `runtime_engine`, `observed_at`).
+        ledger와 어긋나면 drift이며, `image_digest`는 registry/distribution digest이며 Docker
+        local `image_id`와 구분합니다. digest를 단일하게 관측할 수 없으면 추측하지 않고 `null`로 반환합니다. image
+        label에 engine version이 없으면 이를 추측하지 않고 `runtime_engine.version=null`로 반환합니다.
 
 
         Docker 관측은 이 라우트에서만 수행합니다. 요청 경로(`/v1/chat/completions`, `/v1/models`)는 ledger만
@@ -4642,8 +4640,8 @@ paths:
         - `profile` — `GET /admin/main-model/profiles`가 반환한 ID만 허용합니다. 그 외 필드(model
         id, command 등)는 `422`로 거부되며 임의 실행 인자를 넣을 수 없습니다.
 
-        - `confirm_unverified` — 기술적으로 전환 가능한 프로필의 `qualification.status`가
-        `unverified`일 때 필요합니다. `compatibility.status=incompatible`인 프로필은 전환할 수 없습니다.
+        - `confirm_unverified` — 기술적으로 전환 가능한 프로필의 `qualification.status`가 `unverified`일
+        때 필요합니다. `compatibility.status=incompatible`인 프로필은 전환할 수 없습니다.
 
         - `request_id` — 선택적 멱등 키입니다. 진행 중이거나 방금 끝난 동일 작업이 있으면 새 전환을 시작하지 않고 그 작업을
         반환하며 응답에 `reused: true`로 표시합니다(재시도 안전용이라 일정 시간 뒤 만료됩니다). 매번 새 전환을 원하면 고유한
@@ -5121,12 +5119,7 @@ tags:
     |
 
     | `local-embed-ko` | `text` | `embeddings`, `retrieval_rerank`, `retrieval_score`
-    |
-
-    | `risk-prompt` | `text` | `risk.prompt_attack_signal` |
-
-
-    - `risk-prompt`는 조정 가능한 파라미터가 없습니다. `max_tokens=1`, `temperature=0`으로 고정입니다.'
+    |'
 - name: Chat
   description: 'OpenAI 호환 chat completions API입니다. Gateway는 요청을 모델 런타임으로 넘기기 전에 모델
     이름, 입력 종류, 요청 출력 한도, 허용 파라미터, 구조화 출력 스키마를 직접 검사합니다. 입력과 출력의 정확한 합은 실제 tokenizer와
