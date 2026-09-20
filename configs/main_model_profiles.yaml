@@ -296,6 +296,44 @@ profiles:
     # any_whitespace stuck state가 E4B에서만 그대로 재현됐다 -- 자유 string 필드가
     # 있는 json_schema 요청이 값 생성 뒤 `\n  `만 max_tokens까지 반복했다.
     - '{"backend":"xgrammar","disable_any_whitespace":true,"enable_in_reasoning":false}'
+    # Host class별 resource policy다. 위 command는 reference host(RTX 6000 Ada 48GB)의
+    # 실측값이고, VRAM이 다른 host는 이 profile을 복제하지 않고 자원 knob만 덮어쓴다.
+    # model/revision/capabilities/gateway 계약은 variant가 바꿀 수 없다.
+    #
+    # 왜 필요한가: GPU budget은 VRAM 총량 대비 *비율*로 선언되는데, 그 비율이 덮어야
+    # 하는 것(weight, CUDA context, prefill activation workspace, reserve)은 *절대량*이다.
+    # 그래서 48GB에서 정한 비율은 24GB로 그대로 이전되지 않는다.
+    resource_variants:
+      rtx4090-24gb:
+        display_name: NVIDIA GeForce RTX 4090 24GB
+        # 2026-09-19 RTX 4090(24,564 MiB, driver 580.178.04, vLLM 0.25.1) 실측.
+        # weight 15.23 GiB는 고정이므로 24GB에서 남는 예산은 prefill workspace와 KV가
+        # 나눠 갖는다. batched를 키우면 workspace가 KV를 그대로 잠식한다:
+        #
+        #   batched   KV 가용     KV token   65,000 기동
+        #    4,096    2.12 GiB    117,849    성공 (여유 29%)
+        #    8,192    1.69 GiB     82,686    성공 (여유 3%)
+        #   16,384    0.78 GiB          -    실패
+        #   50,000         -           -     실패 (최초 OOM 보고)
+        #
+        # vLLM은 65,000 token 시퀀스 하나를 받기 위해 최소 1.64 GiB KV를 요구한다.
+        # 8,192는 여유가 3%뿐이라 운영 계약으로 쓰지 않는다. 4,096을 선택한다.
+        #
+        # max_model_len 65,000, max_num_seqs 4, gpu_memory_utilization 0.76은
+        # 48GB 값 그대로 기동·동작한다. seqs는 boot 메모리에 거의 영향이 없고
+        # (4,096에서 seqs 1과 4의 KV가 동일한 117,849), 24GB에서 실제로 달라지는
+        # 값은 batched 하나뿐이다. chunked prefill이 긴 prompt를 4,096 chunk로
+        # 쪼개므로 65,000 context는 그대로 서빙된다.
+        #
+        # 부하 검증(동일 image·revision, 격리 runtime): 단일 47,209 token 6.0초,
+        # 4-way 동시 27,700 token x 4(KV pool 포화) 전건 성공, 4-way 동시
+        # 47,300 token x 4(1.6배 초과 구독) 전건 성공. OOM 0건, preemption 0건,
+        # GPU peak 19,781 MiB / 24,564 MiB. 초과 구독은 실패가 아니라 queue
+        # 대기로 나타났다(26초 -> 56초).
+        #
+        # 범위: Main Model 격리 실측이다. 이 host에서 embedding 2종과 risk
+        # detector를 함께 상주시키는 구성은 아직 검증하지 않았다.
+        max_num_batched_tokens: 4096
     gateway_policy:
       # 12B가 13000을 고른 방식(단일 스트림 52 tok/s로 300초 안에 250초)을 E4B 실측으로
       # 다시 계산한 값이다. E4B는 단일 79~82 tok/s, 동시 2건에서도 73 tok/s로 저하가 8%뿐이라

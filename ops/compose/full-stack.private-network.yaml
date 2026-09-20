@@ -438,6 +438,9 @@ services:
       MAIN_MODEL_PROFILE_LOCKED: ${MAIN_MODEL_PROFILE_LOCKED:-false}
       # Optional per-host override for the main model's --gpu-memory-utilization.
       MAIN_MODEL_GPU_MEMORY_UTILIZATION: ${MAIN_MODEL_GPU_MEMORY_UTILIZATION:-}
+      # Selects this host's GPU-class resource policy from a profile's
+      # resource_variants. Empty means the profile's reference-host values.
+      MAIN_MODEL_RESOURCE_VARIANT: ${MAIN_MODEL_RESOURCE_VARIANT:-}
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
