@@ -24,11 +24,14 @@ from scripts.qualification.status_eligibility import eligible_qualified_run_ids 
 @dataclass(frozen=True)
 class StatusPromotionPlan:
     profile_id: str
+    deployment_target: str
     from_status: str
     to_status: str
     qualified_run_ids: list[str]
     profiles_digest: str
     evidence_digest: str
+    deployment_targets_digest: str
+    qualification_checks_digest: str
     plan_digest: str
 
 
@@ -40,22 +43,40 @@ def _read_yaml(path: Path) -> object:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def build_plan(profile_id: str, *, root: Path = ROOT) -> StatusPromotionPlan:
+def build_plan(
+    profile_id: str,
+    deployment_target: str,
+    *,
+    root: Path = ROOT,
+) -> StatusPromotionPlan:
+    target_id = str(deployment_target or "").strip()
     profiles_path = root / "configs/main_model_profiles.yaml"
     evidence_path = root / "configs/qualification_evidence.yaml"
     profiles = _read_yaml(profiles_path)
     evidence = _read_yaml(evidence_path)
-    targets = _read_yaml(root / "configs/deployment_targets.yaml")
-    checks = _read_yaml(root / "configs/qualification_checks.yaml")
+    targets_path = root / "configs/deployment_targets.yaml"
+    checks_path = root / "configs/qualification_checks.yaml"
+    targets = _read_yaml(targets_path)
+    checks = _read_yaml(checks_path)
 
-    record_ids = eligible_qualified_run_ids(profile_id, evidence, profiles, targets, checks)
+    record_ids = eligible_qualified_run_ids(
+        profile_id,
+        target_id,
+        evidence,
+        profiles,
+        targets,
+        checks,
+    )
     payload: dict[str, Any] = {
         "profile_id": profile_id,
+        "deployment_target": target_id,
         "from_status": "unverified",
         "to_status": "verified",
         "qualified_run_ids": record_ids,
         "profiles_digest": _sha256(profiles_path),
         "evidence_digest": _sha256(evidence_path),
+        "deployment_targets_digest": _sha256(targets_path),
+        "qualification_checks_digest": _sha256(checks_path),
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -84,8 +105,14 @@ def _promoted_profiles_text(text: str, profile_id: str) -> str:
     return text[: match.start("body")] + promoted_body + text[match.end("body") :]
 
 
-def apply_plan(profile_id: str, confirm: str, *, root: Path = ROOT) -> StatusPromotionPlan:
-    plan = build_plan(profile_id, root=root)
+def apply_plan(
+    profile_id: str,
+    deployment_target: str,
+    confirm: str,
+    *,
+    root: Path = ROOT,
+) -> StatusPromotionPlan:
+    plan = build_plan(profile_id, deployment_target, root=root)
     if confirm != plan.plan_digest:
         raise ValueError("reviewed promotion plan no longer matches current repository state")
 
@@ -114,6 +141,11 @@ def main() -> None:
         description="Plan or apply an ADR-0033 qualification status promotion."
     )
     parser.add_argument("--profile", required=True, help="Main Model profile id")
+    parser.add_argument(
+        "--target",
+        required=True,
+        help="Deployment target whose qualified_run evidence is reviewed",
+    )
     parser.add_argument("--apply", action="store_true", help="apply the reviewed promotion")
     parser.add_argument("--confirm", help="exact reviewed plan_digest required by --apply")
     args = parser.parse_args()
@@ -121,11 +153,11 @@ def main() -> None:
     if args.apply:
         if not args.confirm:
             parser.error("--apply requires --confirm <plan_digest>")
-        plan = apply_plan(args.profile, args.confirm)
+        plan = apply_plan(args.profile, args.target, args.confirm)
     else:
         if args.confirm:
             parser.error("--confirm is only valid with --apply")
-        plan = build_plan(args.profile)
+        plan = build_plan(args.profile, args.target)
     print(json.dumps(asdict(plan), sort_keys=True))
 
 

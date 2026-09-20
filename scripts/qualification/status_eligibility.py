@@ -19,18 +19,40 @@ from scripts.validation.governance.qualification import (  # noqa: E402
 
 def eligible_qualified_run_ids(
     profile_id: str,
+    deployment_target: str,
     evidence_document: object,
     profiles_document: object,
     deployment_targets_document: object,
     qualification_checks_document: object,
 ) -> list[str]:
-    """Return current qualified_run evidence eligible for an explicit status promotion."""
+    """Return qualified_run evidence eligible for promotion on one deployment target.
+
+    resource_variant는 evidence provenance지만 profile-level qualification promotion의
+    gate가 아니다. 같은 profile contract를 현재 deployment target에서 검증한
+    qualified_run이면 reference/override resource policy 차이만으로 배제하지 않는다.
+    """
     validate_qualification_evidence_document(
         evidence_document,
         profiles_document,
         deployment_targets_document,
         qualification_checks_document,
     )
+
+    target_id = str(deployment_target or "").strip()
+    if not target_id:
+        raise SystemExit("deployment target must be non-empty for status promotion")
+    if not isinstance(deployment_targets_document, dict):
+        raise SystemExit("deployment_targets.yaml must be a mapping")
+    targets = deployment_targets_document.get("targets")
+    if not isinstance(targets, dict) or target_id not in targets:
+        raise SystemExit(f"unknown deployment target {target_id!r}")
+    target = targets[target_id]
+    if not isinstance(target, dict):
+        raise SystemExit(f"deployment target {target_id!r} must be a mapping")
+    if target.get("main_profile_catalog") != "configs/main_model_profiles.yaml":
+        raise SystemExit(
+            f"deployment target {target_id!r} does not use configs/main_model_profiles.yaml"
+        )
 
     if not isinstance(profiles_document, dict):
         raise SystemExit("main_model_profiles.yaml must be a mapping")
@@ -78,6 +100,7 @@ def eligible_qualified_run_ids(
             and subject.get("profile_id") == profile_id
             and subject.get("model_id") == expected_model_id
             and subject.get("revision") == expected_revision
+            and raw_record.get("deployment_target") == target_id
             and set(str(item) for item in raw_record.get("capabilities", []))
             == expected_capabilities
         ):
@@ -86,18 +109,25 @@ def eligible_qualified_run_ids(
     if not matches:
         raise SystemExit(
             f"main model profile {profile_id!r} has no current qualified_run "
-            "eligible for verified promotion"
+            f"eligible for verified promotion on deployment target {target_id!r}"
         )
     return sorted(matches)
 
 
-def check_profile(profile_id: str) -> dict[str, Any]:
+def check_profile(profile_id: str, deployment_target: str) -> dict[str, Any]:
     evidence = read_yaml("configs/qualification_evidence.yaml")
     profiles = read_yaml("configs/main_model_profiles.yaml")
     targets = read_yaml("configs/deployment_targets.yaml")
     checks = read_yaml("configs/qualification_checks.yaml")
-    record_ids = eligible_qualified_run_ids(profile_id, evidence, profiles, targets, checks)
-    return {"profile_id": profile_id, "eligible": True, "qualified_run_ids": record_ids}
+    record_ids = eligible_qualified_run_ids(
+        profile_id, deployment_target, evidence, profiles, targets, checks
+    )
+    return {
+        "profile_id": profile_id,
+        "deployment_target": deployment_target,
+        "eligible": True,
+        "qualified_run_ids": record_ids,
+    }
 
 
 def main() -> None:
@@ -108,8 +138,9 @@ def main() -> None:
         )
     )
     parser.add_argument("--profile", required=True, help="Main Model profile id")
+    parser.add_argument("--target", required=True, help="Deployment target id")
     args = parser.parse_args()
-    print(json.dumps(check_profile(args.profile), sort_keys=True))
+    print(json.dumps(check_profile(args.profile, args.target), sort_keys=True))
 
 
 if __name__ == "__main__":

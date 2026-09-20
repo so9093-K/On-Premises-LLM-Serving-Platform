@@ -19,9 +19,13 @@ def _make_dry_run(*args: str) -> str:
 
 
 def test_status_promotion_make_defaults_to_plan_only() -> None:
-    output = _make_dry_run("PROFILE=profile-under-review")
+    output = _make_dry_run(
+        "PROFILE=profile-under-review",
+        "TARGET=linux-nvidia-dynamic",
+    )
 
     assert "scripts/qualification/status_promotion.py --profile \"profile-under-review\"" in output
+    assert '--target "linux-nvidia-dynamic"' in output
     assert "--apply" not in output
     assert "--confirm" not in output
 
@@ -29,9 +33,11 @@ def test_status_promotion_make_defaults_to_plan_only() -> None:
 def test_status_promotion_make_apply_forwards_exact_reviewed_digest() -> None:
     output = _make_dry_run(
         "PROFILE=profile-under-review",
+        "TARGET=linux-nvidia-dynamic",
         "APPLY=1",
         "CONFIRM=reviewed-plan-digest",
     )
 
     assert "scripts/qualification/status_promotion.py --profile \"profile-under-review\"" in output
+    assert '--target "linux-nvidia-dynamic"' in output
     assert "--apply --confirm \"reviewed-plan-digest\"" in output
