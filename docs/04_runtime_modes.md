@@ -472,20 +472,22 @@ Main Model vLLM
 
 ### non-main Model Runtime
 
-Embedding과 Prompt Injection Detector Runtime은 Runtime Startup Profile에 따라 active 또는 deferred 상태로 운영할 수 있다.
+Embedding Runtime은 Runtime Startup Profile에 따라 active 또는 deferred 상태로 운영할 수 있다.
 
 현재 non-main Model Runtime control 대상은 다음과 같다.
 
 - `embedding`
 - `embedding_ko`
-- `prompt_injection_detector`
+
+Prompt Injection Detector Runtime은 현재 비활성이라 control 대상이 아니다. 근거는
+[9. Prompt Injection Detector Runtime 비활성](#prompt-injection-detector-runtime-비활성)을 본다.
 
 대표 profile은 다음과 같다.
 
 | Runtime Startup Profile | 실행 상태 |
 |---|---|
-| `main_only` (기본) | Main Model 중심, non-main Model Runtime deferred |
-| `retrieval_ready` | Main + embedding 계열 준비, Prompt Injection deferred |
+| `main_only` (기본) | Main Model 중심, embedding 계열 deferred |
+| `retrieval_ready` | Main + embedding 계열 모두 준비 |
 
 Runtime Startup Profile과 Exposure Profile의 역할은 다르다.
 
@@ -554,3 +556,20 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 
 
 각 설정의 우선순위와 변경 반영 범위는 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 이어서 설명한다.
+
+## Prompt Injection Detector Runtime 비활성
+
+`prompt_injection_detector` runtime은 현재 어느 deployment target에서도 기동하지 않는다.
+`configs/model_serving.yaml`의 runtime과 detector registry, `configs/runtime_topology.yaml`의
+lifecycle binding이 모두 `enabled: false`다.
+
+이 runtime을 24GB GPU에서 Main Model과 함께 상주시킬 수 없다는 것이 RTX 4090 실측으로
+확인됐다. weight 1.42 GiB에 비KV overhead가 붙어 2.04 GiB가 바닥값이고, 계약된 8192
+context의 KV 1.0 GiB까지 더하면 약 3.05 GiB가 필요한데, Main Model과 embedding 두 종이
+상주한 뒤 남는 가용량은 그에 못 미친다. GPU budget을 host별로 나눠 갖는 수단이 아직 없어
+전역으로 끈다.
+
+Risk feature 자체는 유지된다. PII와 Secret detector는 Risk Signal Service in-process
+구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`,
+`/v1/risk/assessments` aggregate가 그대로 동작한다. 빠지는 것은 `prompt_attack` family의
+A1·A2 signal이다.

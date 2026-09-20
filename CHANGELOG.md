@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Prompt Injection Detector Runtime(`kakaocorp/kanana-safeguard-prompt-2.1b`)을 비활성화했다. `/v1/risk/detectors/prompt/assessments`는 `409 DETECTOR_DISABLED`로 응답하고 `prompt_attack` family의 A1·A2 signal은 제공되지 않는다. Risk feature 자체는 유지된다 — PII와 Secret detector는 Risk Signal Service in-process 구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`, `/v1/risk/assessments` aggregate가 그대로 동작한다(aggregate는 활성 detector만 순차 처리한다). 이 runtime은 더 이상 Runtime Startup Profile의 control 대상이 아니며 Prometheus scrape 대상과 `/v1/models` 공개 목록에서도 빠진다. RTX 4090 24GB에서 Main Model과 공존시킬 수 없다는 것이 실측으로 확인됐고(약 3.05 GiB 필요, 가용량 미달), GPU budget을 host별로 나눠 갖는 수단이 아직 없어 전역으로 끈다. 다시 켜려면 `configs/model_serving.yaml`의 runtime·detector registry와 `configs/runtime_topology.yaml`의 lifecycle binding을 함께 `enabled: true`로 되돌린다.
+
 - `GET /admin/main-model`의 `observed_runtime`이 Docker inspect에서 실제 container image ref/image ID와 Unified vLLM engine version label을 함께 반환한다. 설정값과 실행 중인 artifact를 구분해 qualification이 실제 runtime fingerprint를 사용할 수 있으며, version label이 없는 기존 image는 값을 추측하지 않고 `null`로 관측한다.
 
 - Unified vLLM build contract가 engine version을 `configs/vllm_unified_build.yaml`에서 명시적으로 소유한다. Image build는 해당 vLLM 버전을 실제 base 환경에서 검증하고 `ai_model_serving.vllm_version` label로 남겨, qualification evidence가 문서 주석이나 tag를 추측하지 않고 runtime engine version을 연결할 수 있게 했다.

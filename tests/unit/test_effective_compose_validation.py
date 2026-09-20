@@ -42,10 +42,13 @@ def test_effective_main_uses_persisted_or_locked_profile(tmp_path, locked):
     validator.validate_alignment(effective_compose=effective, boot_override=boot)
 
 
-@pytest.mark.parametrize("utilization", ["0.70", "0.80"])
+# prompt injection detector runtime이 빠지면서 그 0.065가 공용 budget으로 돌아왔다.
+# 남은 상주 runtime은 embedding 0.04와 embedding-ko 0.06뿐이라, main override가
+# avoid_above 0.93을 넘기려면 0.83보다 커야 한다.
+@pytest.mark.parametrize("utilization", ["0.70", "0.85"])
 def test_main_host_override_is_counted_in_total_budget(tmp_path, utilization):
     _, boot, effective = boot_config(tmp_path, utilization=utilization)
-    if utilization == "0.80":
+    if utilization == "0.85":
         with pytest.raises(SystemExit, match="total configured gpu_memory_utilization"):
             validator.validate_alignment(effective_compose=effective, boot_override=boot)
     else:

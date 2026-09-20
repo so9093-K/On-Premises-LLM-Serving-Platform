@@ -139,6 +139,12 @@ models:
       max_truncate_prompt_tokens: 2048
       max_embedding_batch_size: 16
   prompt_injection_detector:
+    # 이 runtime은 현재 어느 target에서도 기동하지 않는다. 24GB GPU에서 Main Model과
+    # 공존시킬 수 없다는 것이 실측으로 확인됐고(weight 1.42 GiB + 비KV overhead 0.62 GiB =
+    # 2.04 GiB 바닥값, 8192 context에 KV 1.0 GiB 추가), GPU budget을 host별로 나눠 갖는
+    # 수단이 아직 없어 전역으로 끈다. enabled=false인 runtime은 runtime service 목록,
+    # Gateway 노출, runtime validation 대상에서 모두 빠진다.
+    enabled: false
     name: kakaocorp/kanana-safeguard-prompt-2.1b
     revision: 167d74d4706b236580b0e48318337c7ac6ba7848
     served_model_name: risk-prompt
@@ -202,7 +208,11 @@ risk_signal_service:
       - D5
     prompt:
       type: vllm
-      enabled: true
+      # 위 prompt_injection_detector runtime과 같은 이유로 비활성이다. 두 flag는 축이
+      # 다르다 -- 여기는 Risk Signal Service가 이 detector를 계약에 포함하는지이고,
+      # models 쪽은 vLLM runtime service를 띄우는지다. 하나만 끄면 서비스가 존재하지
+      # 않는 detector를 계속 호출한다.
+      enabled: false
       route: /v1/risk/detectors/prompt/assessments
       service_key: prompt_injection_detector
       source_model: risk-prompt

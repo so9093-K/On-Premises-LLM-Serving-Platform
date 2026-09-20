@@ -379,7 +379,7 @@ def test_runtime_state_store_writes_reason_metadata(tmp_path):
 
     asyncio.run(
         store.set(
-            "prompt_injection_detector",
+            "embedding_ko",
             RuntimeState.stopped,
             reason="operator_stop_requested",
             source="runtime_control",
@@ -387,7 +387,7 @@ def test_runtime_state_store_writes_reason_metadata(tmp_path):
     )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    record = payload["states"]["prompt_injection_detector"]
+    record = payload["states"]["embedding_ko"]
     assert record["state"] == "stopped"
     assert record["reason"] == "operator_stop_requested"
     assert record["source"] == "runtime_control"
