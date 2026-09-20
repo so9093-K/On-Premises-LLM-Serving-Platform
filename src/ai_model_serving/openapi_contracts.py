@@ -205,6 +205,57 @@ def _resolve_internal_refs(value: Any, *, root: dict[str, Any]) -> Any:
     return value
 
 
+def _narrow_tool_choice_schema(
+    properties: dict[str, Any],
+    policies: "Sequence[dict[str, Any]]",
+) -> None:
+    allowed: set[str] = set()
+    allow_named = False
+    exposed = False
+    for policy in policies:
+        request_policy = policy.get("request_parameter_policy")
+        if not isinstance(request_policy, dict):
+            continue
+        supported = request_policy.get("supported_parameters", [])
+        if not isinstance(supported, list) or "tool_choice" not in supported:
+            continue
+        tool_policy = request_policy.get("tool_calling")
+        if not isinstance(tool_policy, dict) or tool_policy.get("enabled") is not True:
+            continue
+        choice_policy = tool_policy.get("tool_choice")
+        if not isinstance(choice_policy, dict):
+            continue
+        exposed = True
+        allowed.update(
+            str(value)
+            for value in choice_policy.get("allowed", [])
+            if isinstance(value, str)
+        )
+        allow_named = allow_named or choice_policy.get("allow_named") is True
+
+    if not exposed:
+        properties.pop("tool_choice", None)
+        return
+    target = properties.get("tool_choice")
+    variants = target.get("oneOf") if isinstance(target, dict) else None
+    if not isinstance(variants, list):
+        return
+    narrowed: list[dict[str, Any]] = []
+    for variant in variants:
+        if not isinstance(variant, dict):
+            continue
+        if variant.get("type") == "string" and allowed:
+            item = copy.deepcopy(variant)
+            item["enum"] = sorted(allowed)
+            narrowed.append(item)
+        elif variant.get("type") == "object" and allow_named:
+            narrowed.append(copy.deepcopy(variant))
+    if narrowed:
+        target["oneOf"] = narrowed
+    else:
+        properties.pop("tool_choice", None)
+
+
 def narrow_chat_request_schema(
     schema: dict[str, Any], policies: "Sequence[dict[str, Any]] | None"
 ) -> dict[str, Any]:
@@ -255,6 +306,7 @@ def narrow_chat_request_schema(
     )
     if any_tools:
         set_bound("tools", "maxItems", tools_ceiling)
+        _narrow_tool_choice_schema(properties, policies)
     # 도구 호출을 지원하는 프로필이 하나도 없을 때만 속성을 없앤다. 하나라도 지원하면
     # 남겨야 한다 -- 지원 프로필이 활성일 때 스펙이 그 요청을 거부하면 안 된다.
     else:
@@ -300,6 +352,7 @@ def narrow_responses_request_schema(
         limits = [v for v in limits if isinstance(v, int) and not isinstance(v, bool) and v > 0]
         if limits and isinstance(properties.get("tools"), dict):
             properties["tools"]["maxItems"] = max(limits)
+        _narrow_tool_choice_schema(properties, policies)
     else:
         for name in ("tools", "tool_choice", "parallel_tool_calls"):
             properties.pop(name, None)

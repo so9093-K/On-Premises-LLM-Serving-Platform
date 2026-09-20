@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Gemma4 tool calling의 공개 계약을 실제 vLLM 0.25.1 실측 범위로 좁혔다. Main Model profile의 `tool_calling.tool_choice`가 허용 문자열 값과 named choice 여부를 소유하며, 현재 Linux/CUDA Gemma profile은 `auto`와 `none`만 공개한다. `required`와 named forced choice는 Gemma4 parser가 강제 호출 계약을 안정적으로 지키지 못해 Gateway가 upstream 호출 전에 `422`로 거부한다. 기존 `required_single` 요청 재작성 우회는 제거했다. Responses API도 요청한 tool choice, 제공된 tool 이름, `parallel_tool_calls=false`를 upstream output에서 검증한다.
+
 - Runtime validation의 vLLM metric probe가 OpenAI API base(`/v1`)에 `/metrics`를 덧붙여 `/v1/metrics`를 호출하던 경로를 바로잡았다. vLLM model API와 metric endpoint를 분리해 live validation이 실제 `/metrics`를 검사한다.
 
 - Prompt Injection Detector Runtime(`kakaocorp/kanana-safeguard-prompt-2.1b`)을 비활성화했다. `/v1/risk/detectors/prompt/assessments`는 `409 DETECTOR_DISABLED`로 응답하고 `prompt_attack` family의 A1·A2 signal은 제공되지 않는다. Risk feature 자체는 유지된다 — PII와 Secret detector는 Risk Signal Service in-process 구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`, `/v1/risk/assessments` aggregate가 그대로 동작한다(aggregate는 활성 detector만 순차 처리한다). 이 runtime은 더 이상 Runtime Startup Profile의 control 대상이 아니며 Prometheus scrape 대상과 `/v1/models` 공개 목록에서도 빠진다. RTX 4090 24GB에서 Main Model과 공존시킬 수 없다는 것이 실측으로 확인됐고(약 3.05 GiB 필요, 가용량 미달), GPU budget을 host별로 나눠 갖는 수단이 아직 없어 전역으로 끈다. 다시 켜려면 `configs/model_serving.yaml`의 runtime·detector registry와 `configs/runtime_topology.yaml`의 lifecycle binding을 함께 `enabled: true`로 되돌린다.

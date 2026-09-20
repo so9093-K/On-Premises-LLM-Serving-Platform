@@ -260,6 +260,18 @@ def test_gateway_accepts_bounded_tool_calling_when_enabled():
     # 맡기지 않고 false로 고정한다.
     assert clients.main_llm.last_payload["parallel_tool_calls"] is False
 
+    clients.main_llm.post_response = {
+        "id": "chatcmpl_text",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "local-main",
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
+    }
+    none_choice = {**payload, "tool_choice": "none"}
+    assert client.post(
+        "/v1/chat/completions", headers=auth_headers(), json=none_choice
+    ).status_code == 200
+
     parallel = dict(payload)
     parallel["parallel_tool_calls"] = True
     response = client.post("/v1/chat/completions", headers=auth_headers(), json=parallel)
@@ -422,16 +434,6 @@ def test_gateway_allows_advanced_combinations_and_models_projection():
         "tool_choice": "auto",
     }
     assert client.post("/v1/chat/completions", headers=auth_headers(), json=base).status_code == 200
-    named = {**base, "tool_choice": {"type": "function", "function": {"name": "get_weather"}}}
-    assert client.post("/v1/chat/completions", headers=auth_headers(), json=named).status_code == 200
-    # vLLM은 named tool_choice 경로에서만 tool_calls를 반환하면서 finish_reason=stop을
-    # 쓴다. Gateway는 응답을 사후 교정하지 않고 upstream 요청을 의미가 같은 "required +
-    # 선택된 tool 하나"로 정규화한다. 응답을 고치는 방식은 streaming relay가 chunk를
-    # 파싱하지 않아 덮을 수 없고, 요청 정규화는 두 경로가 같은 seam을 쓴다.
-    assert clients.main_llm.last_payload["tool_choice"] == "required"
-    assert [t["function"]["name"] for t in clients.main_llm.last_payload["tools"]] == ["get_weather"]
-    assert clients.main_llm.last_payload["parallel_tool_calls"] is False
-    # auto는 정규화 대상이 아니다.
     assert client.post("/v1/chat/completions", headers=auth_headers(), json=base).status_code == 200
     assert clients.main_llm.last_payload["tool_choice"] == "auto"
 
@@ -452,7 +454,24 @@ def test_gateway_allows_advanced_combinations_and_models_projection():
         "model": "local-main",
         "choices": [{"index": 0, "message": {"role": "assistant", "content": "no call"}, "finish_reason": "stop"}],
     }
-    assert client.post("/v1/chat/completions", headers=auth_headers(), json={**base, "tool_choice": "required"}).status_code == 502
+    required = client.post(
+        "/v1/chat/completions",
+        headers=auth_headers(),
+        json={**base, "tool_choice": "required"},
+    )
+    assert required.status_code == 422
+    assert required.json()["error"]["param"] == "tool_choice"
+
+    named = client.post(
+        "/v1/chat/completions",
+        headers=auth_headers(),
+        json={
+            **base,
+            "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
+        },
+    )
+    assert named.status_code == 422
+    assert named.json()["error"]["param"] == "tool_choice"
 
     clients.main_llm.post_response = {
         "id": "chatcmpl_tool",

@@ -116,6 +116,106 @@ def test_responses_function_tools_default_parallel_calls_to_profile_policy():
     assert clients.main_llm.last_payload["parallel_tool_calls"] is False
     assert response.json()["output"][0]["type"] == "function_call"
 
+    tools = [{
+        "type": "function",
+        "name": "get_weather",
+        "description": "날씨 조회",
+        "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+    }]
+    for forced_choice in [
+        "required",
+        {"type": "function", "name": "get_weather"},
+    ]:
+        clients.main_llm.last_path = None
+        rejected = client.post(
+            "/v1/responses",
+            headers=auth_headers(),
+            json={
+                "model": "local-main",
+                "input": "서울 날씨",
+                "tools": tools,
+                "tool_choice": forced_choice,
+            },
+        )
+        assert rejected.status_code == 422
+        assert rejected.json()["error"]["param"] == "tool_choice"
+        assert clients.main_llm.last_path is None
+
+    clients.main_llm.post_response = _response_body()
+    none = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={
+            "model": "local-main",
+            "input": "서울 날씨",
+            "tools": tools,
+            "tool_choice": "none",
+        },
+    )
+    assert none.status_code == 200
+
+    clients.main_llm.post_response = _response_body(output=[{
+        "id": "fc_bad",
+        "type": "function_call",
+        "call_id": "call_bad",
+        "name": "get_weather",
+        "arguments": "{}",
+        "status": "completed",
+    }])
+    violated_none = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={
+            "model": "local-main",
+            "input": "서울 날씨",
+            "tools": tools,
+            "tool_choice": "none",
+        },
+    )
+    assert violated_none.status_code == 502
+
+
+def test_responses_rejects_unadvertised_or_parallel_upstream_tool_calls():
+    clients = FakeGatewayClients()
+    client = TestClient(create_gateway_app(tool_calling_settings(), clients))
+    tools = [{
+        "type": "function",
+        "name": "get_weather",
+        "parameters": {"type": "object", "properties": {}},
+    }]
+
+    clients.main_llm.post_response = _response_body(output=[{
+        "id": "fc_1",
+        "type": "function_call",
+        "call_id": "call_1",
+        "name": "unknown",
+        "arguments": "{}",
+        "status": "completed",
+    }])
+    unknown = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "local-main", "input": "weather", "tools": tools},
+    )
+    assert unknown.status_code == 502
+
+    clients.main_llm.post_response = _response_body(output=[
+        {
+            "id": "fc_1", "type": "function_call", "call_id": "call_1",
+            "name": "get_weather", "arguments": "{}", "status": "completed",
+        },
+        {
+            "id": "fc_2", "type": "function_call", "call_id": "call_2",
+            "name": "get_weather", "arguments": "{}", "status": "completed",
+        },
+    ])
+    parallel = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "local-main", "input": "weather", "tools": tools},
+    )
+    assert parallel.status_code == 502
+
 
 def test_responses_supports_self_contained_previous_output_and_tool_continuation():
     clients = FakeGatewayClients()

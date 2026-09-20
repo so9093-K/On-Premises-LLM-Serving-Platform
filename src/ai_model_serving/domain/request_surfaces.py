@@ -16,6 +16,17 @@ def chat_request_parameter_surface(policy: dict[str, Any], *, max_output_tokens:
     reasoning_policy = policy.get("reasoning", {}) if isinstance(policy.get("reasoning", {}), dict) else {}
     max_tools = int(tool_policy.get("max_tools", 16))
     parallel_tools_enabled = tool_policy.get("allow_parallel_tool_calls") is True
+    tool_choice_policy = (
+        tool_policy.get("tool_choice", {})
+        if isinstance(tool_policy.get("tool_choice", {}), dict)
+        else {}
+    )
+    tool_choice_allowed = [
+        str(value)
+        for value in tool_choice_policy.get("allowed", [])
+        if isinstance(value, str)
+    ]
+    allow_named_tool_choice = tool_choice_policy.get("allow_named") is True
     max_n = int(policy.get("max_n", 1))
     definitions: dict[str, dict[str, Any]] = {
         "temperature": {"type": "number", "min": 0, "max": 2},
@@ -39,7 +50,11 @@ def chat_request_parameter_surface(policy: dict[str, Any], *, max_output_tokens:
         "stream": {"type": "boolean"},
         "stream_options": {"type": "object", "properties": {"include_usage": {"type": "boolean"}}, "additional_properties": False},
         "tools": {"type": "array", "min_items": 1, "max_items": max_tools},
-        "tool_choice": {"type": "string_or_function_choice", "allowed": ["auto", "none", "required"]},
+        "tool_choice": {
+            "type": "string_or_function_choice",
+            "allowed": tool_choice_allowed,
+            "allow_named": allow_named_tool_choice,
+        },
         "parallel_tool_calls": {"type": "boolean", "const": parallel_tools_enabled},
         "reasoning": {
             "type": "boolean",

@@ -8,9 +8,11 @@ from contextlib import aclosing
 from typing import Any
 
 from ..contracts.responses import (
+    ResponsesToolExpectations,
     normalize_responses_request_for_runtime,
     project_responses_response,
     project_responses_stream_event,
+    responses_tool_expectations,
     validate_responses_request,
 )
 from ..errors import ServiceError
@@ -42,7 +44,7 @@ class ResponsesService:
         *,
         active_modalities: tuple[str, ...] | None,
         gateway_policy: dict[str, Any] | None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], ResponsesToolExpectations]:
         endpoint = self.gateway.main_llm_endpoint(gateway_policy, active_modalities)
         validated = validate_responses_request(
             payload,
@@ -56,7 +58,8 @@ class ResponsesService:
             allowed_image_mime_types=endpoint.allowed_image_mime_types,
             request_parameter_policy=endpoint.request_parameter_policy,
         )
-        return normalize_responses_request_for_runtime(validated, endpoint.request_parameter_policy)
+        upstream = normalize_responses_request_for_runtime(validated, endpoint.request_parameter_policy)
+        return upstream, responses_tool_expectations(upstream)
 
     async def create_response(
         self,
@@ -65,7 +68,7 @@ class ResponsesService:
         active_modalities: tuple[str, ...] | None = None,
         gateway_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        upstream = self._validated_payload(
+        upstream, expectations = self._validated_payload(
             payload, active_modalities=active_modalities, gateway_policy=gateway_policy
         )
         target = self.settings.runtime("main_llm").logical_id
@@ -76,7 +79,9 @@ class ResponsesService:
                 timeout=self.settings.gateway_timeout_seconds,
             )
             return project_responses_response(
-                response, expected_model=self.settings.runtime("main_llm").model
+                response,
+                expected_model=self.settings.runtime("main_llm").model,
+                expectations=expectations,
             )
         except TimeoutError as exc:
             self.metrics.record_upstream_error(target, "GATEWAY_TIMEOUT")
@@ -98,7 +103,7 @@ class ResponsesService:
         active_modalities: tuple[str, ...] | None = None,
         gateway_policy: dict[str, Any] | None = None,
     ) -> AsyncIterator[bytes]:
-        upstream_payload = self._validated_payload(
+        upstream_payload, expectations = self._validated_payload(
             payload, active_modalities=active_modalities, gateway_policy=gateway_policy
         )
         start = time.monotonic()
@@ -109,9 +114,21 @@ class ResponsesService:
             self.metrics.record_upstream_error(target, exc.operational_code)
             self.metrics.record_streaming_error(target, exc.operational_code, "admission")
             raise
-        return self._relay(upstream, target=target, start=start)
+        return self._relay(
+            upstream,
+            target=target,
+            start=start,
+            expectations=expectations,
+        )
 
-    async def _relay(self, upstream: Any, *, target: str, start: float) -> AsyncIterator[bytes]:
+    async def _relay(
+        self,
+        upstream: Any,
+        *,
+        target: str,
+        start: float,
+        expectations: ResponsesToolExpectations,
+    ) -> AsyncIterator[bytes]:
         runtime_config = self.runtime_configuration.snapshot()
         chunk_count = 0
         byte_count = 0
@@ -176,7 +193,9 @@ class ResponsesService:
                                 usage = raw_response["usage"]
                                 self.metrics.record_streaming_usage_event(target)
                         projected = project_responses_stream_event(
-                            event, expected_model=self.settings.runtime("main_llm").model
+                            event,
+                            expected_model=self.settings.runtime("main_llm").model,
+                            expectations=expectations,
                         )
                         emitted.append(
                             "data: "

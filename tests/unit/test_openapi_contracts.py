@@ -14,7 +14,12 @@ from ai_model_serving.apps.gateway import create_gateway_app
 from ai_model_serving.apps.risk_signal_service import create_risk_signal_service_app
 from ai_model_serving.api_examples import GATEWAY_CHAT_REQUEST_EXAMPLES, GATEWAY_RESPONSES_REQUEST_EXAMPLES
 from ai_model_serving.api_code_samples import GATEWAY_CHAT_CODE_SAMPLES, GATEWAY_RESPONSES_CODE_SAMPLES
-from ai_model_serving.openapi_contracts import install_contract_openapi, load_contract_schema
+from ai_model_serving.openapi_contracts import (
+    install_contract_openapi,
+    load_contract_schema,
+    narrow_chat_request_schema,
+    narrow_responses_request_schema,
+)
 
 from tests.unit.gateway.helpers import FakeGatewayClients, settings as gateway_settings
 from tests.support.risk_signal_service import FakeRiskClients, settings as risk_settings
@@ -140,3 +145,33 @@ def test_generated_openapi_uses_common_error_schema_for_server_failures():
         for path in paths:
             responses = doc["paths"][path]["post"]["responses"]
             assert responses["500"]["content"]["application/json"]["schema"]["title"] == "CommonErrorResponse"
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "narrower"),
+    [
+        ("chat_completion_request.schema.json", narrow_chat_request_schema),
+        ("responses_request.schema.json", narrow_responses_request_schema),
+    ],
+)
+def test_generation_openapi_projects_profile_tool_choice_subset(schema_name, narrower):
+    schema = load_contract_schema(schema_name)
+    policy = {
+        "request_parameter_policy": {
+            "supported_parameters": ["tools", "tool_choice", "parallel_tool_calls"],
+            "tool_calling": {
+                "enabled": True,
+                "max_tools": 64,
+                "allow_parallel_tool_calls": False,
+                "tool_choice": {
+                    "allowed": ["auto", "none"],
+                    "allow_named": False,
+                },
+            },
+        },
+    }
+
+    narrowed = narrower(schema, [policy])
+    assert narrowed["properties"]["tool_choice"]["oneOf"] == [
+        {"type": "string", "enum": ["auto", "none"]}
+    ]

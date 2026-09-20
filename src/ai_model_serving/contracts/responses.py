@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from ..errors import ServiceError
@@ -25,6 +26,38 @@ _ALLOWED_TOP_LEVEL = {
 }
 _ALLOWED_MESSAGE_ROLES = {"user", "assistant", "system", "developer"}
 _RESPONSE_STATUS = {"completed", "in_progress", "incomplete", "failed", "queued", "cancelled"}
+
+
+@dataclass(frozen=True)
+class ResponsesToolExpectations:
+    allowed_tool_names: frozenset[str]
+    tool_choice: str | None
+    tool_choice_name: str | None
+    parallel_tool_calls: bool
+
+
+def responses_tool_expectations(payload: dict[str, Any]) -> ResponsesToolExpectations:
+    tools = payload.get("tools")
+    names = frozenset(
+        tool["name"]
+        for tool in tools or []
+        if isinstance(tool, dict) and isinstance(tool.get("name"), str)
+    )
+    choice = payload.get("tool_choice")
+    choice_name = None
+    if isinstance(choice, dict):
+        choice_name = choice.get("name") if isinstance(choice.get("name"), str) else None
+        mode = "named"
+    elif isinstance(choice, str):
+        mode = choice
+    else:
+        mode = "auto" if names else None
+    return ResponsesToolExpectations(
+        allowed_tool_names=names,
+        tool_choice=mode,
+        tool_choice_name=choice_name,
+        parallel_tool_calls=payload.get("parallel_tool_calls", True) is True,
+    )
 
 
 def _error(param: str, message: str) -> ServiceError:
@@ -191,12 +224,36 @@ def _validate_input(
 def _validate_tools(payload: dict[str, Any], policy: dict[str, Any] | None) -> None:
     tools = payload.get("tools")
     tool_policy = _chat_policy(policy).get("tool_calling", {})
-    if tools is None:
-        if "tool_choice" in payload and payload["tool_choice"] != "none":
-            raise _error("tool_choice", "tool_choice requires tools unless it is 'none'.")
+    enabled = isinstance(tool_policy, dict) and tool_policy.get("enabled") is True
+    if not enabled:
+        for field in ("tools", "tool_choice", "parallel_tool_calls"):
+            if field in payload:
+                raise _error(field, f"{field} is not enabled for the active main model profile.")
         return
-    if not isinstance(tool_policy, dict) or tool_policy.get("enabled") is not True:
-        raise _error("tools", "Function tools are not enabled for the active main model profile.")
+
+    choice_policy = tool_policy.get("tool_choice", {})
+    allowed_choices = {
+        str(value)
+        for value in choice_policy.get("allowed", [])
+        if isinstance(choice_policy, dict) and isinstance(value, str)
+    }
+    allow_named = isinstance(choice_policy, dict) and choice_policy.get("allow_named") is True
+
+    if tools is None:
+        if "parallel_tool_calls" in payload:
+            raise _error("parallel_tool_calls", "parallel_tool_calls requires tools.")
+        if "tool_choice" not in payload:
+            return
+        choice = payload["tool_choice"]
+        if isinstance(choice, str):
+            if choice not in allowed_choices:
+                raise _error("tool_choice", f"tool_choice={choice!r} is not enabled for this model.")
+            if choice == "none":
+                return
+        elif not allow_named:
+            raise _error("tool_choice", "named function tool_choice is not enabled for this model.")
+        raise _error("tool_choice", "tool_choice requires tools unless it is 'none'.")
+
     max_tools = int(tool_policy.get("max_tools", 64))
     if not isinstance(tools, list) or not tools or len(tools) > max_tools:
         raise _error("tools", f"tools must be a non-empty array with at most {max_tools} entries.")
@@ -221,9 +278,11 @@ def _validate_tools(payload: dict[str, Any], policy: dict[str, Any] | None) -> N
 
     choice = payload.get("tool_choice", "auto")
     if isinstance(choice, str):
-        if choice not in {"auto", "none", "required"}:
-            raise _error("tool_choice", "tool_choice must be auto, none, required, or a named function choice.")
+        if choice not in allowed_choices:
+            raise _error("tool_choice", f"tool_choice={choice!r} is not enabled for this model.")
     elif isinstance(choice, dict):
+        if not allow_named:
+            raise _error("tool_choice", "named function tool_choice is not enabled for this model.")
         reject_unknown_fields(choice, {"type", "name"}, "tool_choice")
         if choice.get("type") != "function":
             raise _error("tool_choice.type", "Named tool_choice.type must be function.")
@@ -231,7 +290,7 @@ def _validate_tools(payload: dict[str, Any], policy: dict[str, Any] | None) -> N
         if name not in names:
             raise _error("tool_choice.name", f"tool_choice names unknown function {name!r}.")
     else:
-        raise _error("tool_choice", "tool_choice must be a string or object.")
+        raise _error("tool_choice", "tool_choice must be an enabled string value or named function choice.")
 
     if "parallel_tool_calls" in payload:
         value = payload["parallel_tool_calls"]
@@ -239,7 +298,6 @@ def _validate_tools(payload: dict[str, Any], policy: dict[str, Any] | None) -> N
             raise _error("parallel_tool_calls", "parallel_tool_calls must be boolean.")
         if value and tool_policy.get("allow_parallel_tool_calls") is not True:
             raise _error("parallel_tool_calls", "parallel_tool_calls=true is not enabled for this model.")
-
 
 def _validate_text_config(payload: dict[str, Any], policy: dict[str, Any] | None) -> None:
     if "text" not in payload:
@@ -392,7 +450,52 @@ def _project_output_item(item: Any) -> dict[str, Any] | None:
     return projected
 
 
-def project_responses_response(response: Any, *, expected_model: str) -> dict[str, Any]:
+def _validate_response_tool_contract(
+    output: list[dict[str, Any]],
+    *,
+    status: str,
+    expectations: ResponsesToolExpectations,
+) -> None:
+    calls = [item for item in output if item.get("type") == "function_call"]
+    names = [item.get("name") for item in calls]
+    if calls and (
+        not expectations.allowed_tool_names
+        or any(name not in expectations.allowed_tool_names for name in names)
+    ):
+        raise ServiceError(
+            "UPSTREAM_RESPONSE_INVALID",
+            "Responses upstream emitted a function call that was not provided in tools.",
+        )
+    if expectations.tool_choice == "none" and calls:
+        raise ServiceError(
+            "UPSTREAM_RESPONSE_INVALID",
+            "Responses upstream emitted function_call output for tool_choice=none.",
+        )
+    if expectations.tool_choice_name is not None and any(
+        name != expectations.tool_choice_name for name in names
+    ):
+        raise ServiceError(
+            "UPSTREAM_RESPONSE_INVALID",
+            "Responses upstream did not honor the named tool_choice.",
+        )
+    if not expectations.parallel_tool_calls and len(calls) > 1:
+        raise ServiceError(
+            "UPSTREAM_RESPONSE_INVALID",
+            "Responses upstream emitted parallel function calls when parallel_tool_calls=false.",
+        )
+    if status == "completed" and expectations.tool_choice in {"required", "named"} and not calls:
+        raise ServiceError(
+            "UPSTREAM_RESPONSE_INVALID",
+            f"Responses upstream emitted no function call for tool_choice={expectations.tool_choice}.",
+        )
+
+
+def project_responses_response(
+    response: Any,
+    *,
+    expected_model: str,
+    expectations: ResponsesToolExpectations | None = None,
+) -> dict[str, Any]:
     if not isinstance(response, dict):
         raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Responses upstream returned a non-object response.")
     if response.get("object") != "response":
@@ -408,6 +511,12 @@ def project_responses_response(response: Any, *, expected_model: str) -> dict[st
     projected_output = [p for raw in output if (p := _project_output_item(raw)) is not None]
     if len(projected_output) != len(output):
         raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Responses upstream emitted an unsupported output item type.")
+    if expectations is not None:
+        _validate_response_tool_contract(
+            projected_output,
+            status=str(status),
+            expectations=expectations,
+        )
     allowed = {
         "id", "created_at", "error", "incomplete_details", "instructions", "metadata", "model", "object",
         "output", "parallel_tool_calls", "temperature", "tool_choice", "tools", "top_p", "background",
@@ -419,7 +528,12 @@ def project_responses_response(response: Any, *, expected_model: str) -> dict[st
     return projected
 
 
-def project_responses_stream_event(event: Any, *, expected_model: str) -> dict[str, Any]:
+def project_responses_stream_event(
+    event: Any,
+    *,
+    expected_model: str,
+    expectations: ResponsesToolExpectations | None = None,
+) -> dict[str, Any]:
     if not isinstance(event, dict):
         raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Responses stream event must be an object.")
     event_type = event.get("type")
@@ -431,12 +545,22 @@ def project_responses_stream_event(event: Any, *, expected_model: str) -> dict[s
     }
     projected = {key: value for key, value in event.items() if key in allowed_common}
     if isinstance(projected.get("response"), dict):
-        projected["response"] = project_responses_response(projected["response"], expected_model=expected_model)
+        projected["response"] = project_responses_response(
+            projected["response"],
+            expected_model=expected_model,
+            expectations=expectations,
+        )
     if isinstance(projected.get("item"), dict):
         item = _project_output_item(projected["item"])
         if item is None:
             raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Responses stream emitted an unsupported output item type.")
         projected["item"] = item
+        if expectations is not None and item.get("type") == "function_call":
+            _validate_response_tool_contract(
+                [item],
+                status="in_progress",
+                expectations=expectations,
+            )
     if isinstance(projected.get("part"), dict):
         part = _project_content_part(projected["part"])
         if part is None:

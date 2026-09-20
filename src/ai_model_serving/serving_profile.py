@@ -8,8 +8,7 @@ from .configuration import load_yaml_mapping
 from .main_model.profile_state import validate_profile_state
 
 
-NAMED_TOOL_CHOICE_UPSTREAM_REQUIRED_SINGLE = "required_single"
-_NAMED_TOOL_CHOICE_UPSTREAM_MODES = frozenset({NAMED_TOOL_CHOICE_UPSTREAM_REQUIRED_SINGLE})
+_TOOL_CHOICE_STRING_VALUES = frozenset({"auto", "none", "required"})
 
 
 @dataclass(frozen=True)
@@ -57,12 +56,31 @@ def load_main_serving_catalog(path: Path) -> MainServingCatalog:
                 "gateway_policy.request_parameter_policy"
             )
         tool_policy = request_policy.get("tool_calling")
-        if isinstance(tool_policy, dict) and "named_tool_choice_upstream" in tool_policy:
-            mode = tool_policy["named_tool_choice_upstream"]
-            if tool_policy.get("enabled") is not True or mode not in _NAMED_TOOL_CHOICE_UPSTREAM_MODES:
+        if isinstance(tool_policy, dict) and tool_policy.get("enabled") is True:
+            choice_policy = tool_policy.get("tool_choice")
+            if not isinstance(choice_policy, dict):
+                raise RuntimeError(
+                    f"main serving profile {profile_id!r} must declare "
+                    "tool_calling.tool_choice policy"
+                )
+            allowed = choice_policy.get("allowed")
+            if (
+                not isinstance(allowed, list)
+                or any(
+                    not isinstance(value, str) or value not in _TOOL_CHOICE_STRING_VALUES
+                    for value in allowed
+                )
+                or len(set(allowed)) != len(allowed)
+                or "auto" not in allowed
+            ):
                 raise RuntimeError(
                     f"main serving profile {profile_id!r} has invalid "
-                    f"named_tool_choice_upstream: {mode!r}"
+                    f"tool_calling.tool_choice.allowed: {allowed!r}"
+                )
+            if not isinstance(choice_policy.get("allow_named"), bool):
+                raise RuntimeError(
+                    f"main serving profile {profile_id!r} must declare boolean "
+                    "tool_calling.tool_choice.allow_named"
                 )
         try:
             profile_state = validate_profile_state(

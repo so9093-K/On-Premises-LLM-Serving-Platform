@@ -38,13 +38,27 @@ def _validate_tools(tools: Any, *, max_tools: int = 64) -> None:
             raise _validation_error(f"tools[{index}].function.strict", f"tools[{index}].function.strict must be boolean when provided.")
 
 
-def _validate_tool_choice(value: Any) -> None:
+def _validate_tool_choice(
+    value: Any,
+    *,
+    allowed: frozenset[str],
+    allow_named: bool,
+) -> None:
     if isinstance(value, str):
-        if value in {"auto", "none", "required"}:
+        if value in allowed:
             return
-        raise _validation_error("tool_choice", "tool_choice must be auto, none, required, or a function choice object.")
+        enabled = ", ".join(sorted(allowed)) or "none"
+        raise _validation_error(
+            "tool_choice",
+            f"tool_choice string value is not enabled for this model; allowed values: {enabled}.",
+        )
+    if not allow_named:
+        raise _validation_error(
+            "tool_choice",
+            "named function tool_choice is not enabled for this model.",
+        )
     if not isinstance(value, dict) or value.get("type") != "function":
-        raise _validation_error("tool_choice", "tool_choice must be auto, none, required, or a function choice object.")
+        raise _validation_error("tool_choice", "tool_choice must be an enabled string value or a function choice object.")
     reject_unknown_fields(value, {"type", "function"}, "tool_choice")
     function = value.get("function")
     if not isinstance(function, dict):
@@ -52,7 +66,6 @@ def _validate_tool_choice(value: Any) -> None:
     reject_unknown_fields(function, {"name"}, "tool_choice.function")
     if not isinstance(function.get("name"), str) or not function["name"].strip():
         raise _validation_error("tool_choice.function.name", "tool_choice.function.name must be a non-empty string.")
-
 
 def _tool_names(tools: Any) -> set[str]:
     if not isinstance(tools, list):
