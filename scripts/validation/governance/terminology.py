@@ -71,7 +71,11 @@ def _active_identifier_paths(root: Path) -> list[Path]:
     paths: set[Path] = set()
     for pattern in patterns:
         paths.update(path for path in root.glob(pattern) if path.is_file())
-    return sorted(paths)
+    # 현재형 configuration reference도 active identifier contract에 포함한다.
+    # ADR/CHANGELOG/history 전체를 금지하지 않고, operator가 지금 읽는 설정 문서만
+    # canonical namespace를 강제한다.
+    paths.add(root / "docs" / "05_configuration.md")
+    return sorted(path for path in paths if path.is_file())
 
 
 def terminology_violations(root: Path = ROOT) -> list[str]:

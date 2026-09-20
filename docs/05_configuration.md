@@ -185,7 +185,7 @@ Gateway와 Risk Signal Service가 runtime을 사용하는 방식을 정의한다
 model_serving.yaml
 ├─ models
 ├─ embedding_profiles
-├─ risk_adapter
+├─ risk_signal_service
 ├─ timeouts
 ├─ operational_limits
 ├─ streaming
