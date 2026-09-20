@@ -298,14 +298,22 @@ def build_candidate_receipt(
     }
     observations = {key: value for key, value in observations.items() if value not in (None, "")}
 
+    subject: dict[str, Any] = {
+        "type": "main_model_profile",
+        "profile_id": profile_id,
+        "model_id": model_id,
+        "revision": revision,
+    }
+    # 같은 profile을 다른 host class의 자원 정책으로 서빙했다면 그것은 다른 증거다.
+    # base(reference host) 정책으로 서빙한 run은 이 key를 갖지 않으므로, 기존
+    # record 형태는 그대로 유지된다.
+    active_variant = active.get("resource_variant")
+    if isinstance(active_variant, str) and active_variant.strip():
+        subject["resource_variant"] = active_variant.strip()
+
     record: dict[str, Any] = {
         "kind": "qualified_run",
-        "subject": {
-            "type": "main_model_profile",
-            "profile_id": profile_id,
-            "model_id": model_id,
-            "revision": revision,
-        },
+        "subject": subject,
         "deployment_target": deployment_target,
         "capabilities": capabilities,
         "result": result,
