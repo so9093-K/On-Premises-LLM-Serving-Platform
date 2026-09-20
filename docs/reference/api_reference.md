@@ -259,7 +259,7 @@ curl "$GATEWAY_URL/v1/models" \
 | `stream` | boolean | N | `true` / `false` | SSE streaming |
 | `stream_options` | object | N | `stream=true`일 때만 | `include_usage` 지원 |
 | `tools` | array | N | Runtime policy 최대 64개 | Function tool 정의 |
-| `tool_choice` | string / object | N | `auto`, `none`, `required`, function choice | Tool 선택 방식 |
+| `tool_choice` | string / object | N | 활성 profile의 `/v1/models[].request_parameters.tool_choice` 기준 | Tool 선택 방식. 현재 Linux/CUDA Gemma profile은 `auto`, `none`만 허용하고 named choice는 비활성 |
 | `parallel_tool_calls` | boolean | N | 활성 profile 정책 | `false`인 profile에서는 생략해도 upstream에 `false`로 고정 |
 | `reasoning` | boolean | N | 활성 profile 기본값 | Gateway 공통 필드. vLLM의 chat template kwarg 또는 MLX의 `enable_thinking`으로 변환 |
 | `response_format` | object | N | `text`, `json_object`, `json_schema` | 출력 형식. `json_schema`의 `integer`/`number`에는 `minimum`·`maximum`을, 자유 `string`에는 `maxLength` 또는 `pattern`을 넣는다 — 경계가 없으면 문법상 값이 무한히 이어져 `max_tokens`에서 잘리고 `UPSTREAM_RESPONSE_INVALID`가 된다 ([vLLM #40080](https://github.com/vllm-project/vllm/issues/40080)). |
@@ -506,7 +506,7 @@ streaming timeout은 Gateway admission queue, vLLM read timeout, reverse proxy i
 
 Tool calling은 활성 profile이 `/v1/models`에 `tools`를 공개할 때만 사용할 수 있다. 현재 Linux/CUDA Gemma profile의 제한은 `max_tools=64`이며 macOS/MLX profile은 qualification되지 않은 tool 기능을 공개하지 않는다.
 
-Tool 호출을 선택한 응답은 `message.tool_calls`를 포함할 수 있다. `tool_choice=required`나 함수 지정 객체는 실제 응답에도 적용되며, `parallel_tool_calls=false`에서는 한 번에 하나의 호출만 허용한다.
+Tool 호출을 선택한 응답은 `message.tool_calls`를 포함할 수 있다. 현재 Linux/CUDA Gemma profile은 vLLM 0.25.1 Gemma4 parser의 forced-choice 실측 실패 때문에 `tool_choice=required`와 named function choice를 공개하지 않으며, 보내면 `422 VALIDATION_ERROR`다. `auto`와 `none`은 허용하고, `parallel_tool_calls=false`에서는 한 번에 하나의 호출만 허용한다. 정확한 현재 값은 `/v1/models[].request_parameters.tool_choice`를 따른다.
 
 ```json
 {

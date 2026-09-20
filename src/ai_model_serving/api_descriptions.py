@@ -226,6 +226,7 @@ def chat_operation_detail(settings: AppSettings) -> str:
 
     tool_calling = parameters.get("tool_calling") or {}
     if tool_calling:
+        tool_choice = _main_model_parameter(settings, "tool_choice")
         lines += [
             "",
             "### 도구 호출 (tools)",
@@ -234,10 +235,9 @@ def chat_operation_detail(settings: AppSettings) -> str:
             "— 비활성 프로필에서는 `tools`를 보내면 거부됩니다.",
             f"- `parallel_tool_calls` 허용: `{str(tool_calling.get('allow_parallel_tool_calls', False)).lower()}` "
             "— 허용되지 않으면 `true`를 보낼 수 없습니다.",
-            f"- `tool_choice`: {_codes(_main_model_parameter(settings, 'tool_choice').get('allowed'))} "
-            "또는 함수 지정 객체.",
-            "- `required`와 함수 지정 choice는 응답에서도 실제 호출 여부·함수 이름을 확인합니다. "
-            "병렬 호출 비허용 프로필은 생략한 `parallel_tool_calls`도 upstream에 `false`로 고정합니다.",
+            f"- `tool_choice` 문자열 허용값: {_codes(tool_choice.get('allowed'))}.",
+            f"- named function choice 허용: `{str(tool_choice.get('allow_named', False)).lower()}`.",
+            "- 병렬 호출 비허용 프로필은 생략한 `parallel_tool_calls`도 upstream에 `false`로 고정합니다.",
             "- 프로필이 tool calling을 지원하지 않으면 `/v1/models`의 capability 목록에서 "
             "`chat.completions.tools`가 빠집니다.",
         ]

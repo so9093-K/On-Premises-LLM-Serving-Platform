@@ -103,7 +103,8 @@
           }
         }
       ],
-      "x-openai-compatibility": "narrowed"
+      "x-openai-compatibility": "narrowed",
+      "x-compatibility-note": "허용 문자열 값과 named function choice 여부는 활성 Main Model profile의 /v1/models[].request_parameters.tool_choice를 따른다."
     },
     "parallel_tool_calls": {
       "type": "boolean",
