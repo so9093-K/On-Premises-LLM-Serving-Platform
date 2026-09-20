@@ -304,9 +304,9 @@ def build_candidate_receipt(
         "model_id": model_id,
         "revision": revision,
     }
-    # 같은 profile을 다른 host class의 자원 정책으로 서빙했다면 그것은 다른 증거다.
-    # base(reference host) 정책으로 서빙한 run은 이 key를 갖지 않으므로, 기존
-    # record 형태는 그대로 유지된다.
+    # 같은 profile에 다른 resource-policy override를 실제 적용했다면 그 정책을
+    # evidence provenance에 남긴다. reference policy run은 이 key를 갖지 않는다.
+    # variant의 존재 여부는 GPU 제품 지원 여부를 판정하는 allowlist가 아니다.
     active_variant = active.get("resource_variant")
     if isinstance(active_variant, str) and active_variant.strip():
         subject["resource_variant"] = active_variant.strip()

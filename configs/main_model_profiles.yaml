@@ -294,9 +294,10 @@ profiles:
     # any_whitespace stuck state가 E4B에서만 그대로 재현됐다 -- 자유 string 필드가
     # 있는 json_schema 요청이 값 생성 뒤 `\n  `만 max_tokens까지 반복했다.
     - '{"backend":"xgrammar","disable_any_whitespace":true,"enable_in_reasoning":false}'
-    # Host class별 resource policy다. 위 command는 reference host(RTX 6000 Ada 48GB)의
-    # 실측값이고, VRAM이 다른 host는 이 profile을 복제하지 않고 자원 knob만 덮어쓴다.
-    # model/revision/capabilities/gateway 계약은 variant가 바꿀 수 없다.
+    # Reference policy가 맞지 않는 host에서만 쓰는 명시적 resource-policy override다.
+    # 위 command는 RTX 6000 Ada 48GB에서 실측한 reference policy이고, 새 GPU 제품명이
+    # 보였다는 이유만으로 variant를 추가하지 않는다. 실제 자원 조건 때문에 다른 knob가
+    # 필요할 때만 덮어쓴다. model/revision/capabilities/gateway 계약은 바꿀 수 없다.
     #
     # 왜 필요한가: GPU budget은 VRAM 총량 대비 *비율*로 선언되는데, 그 비율이 덮어야
     # 하는 것(weight, CUDA context, prefill activation workspace, reserve)은 *절대량*이다.

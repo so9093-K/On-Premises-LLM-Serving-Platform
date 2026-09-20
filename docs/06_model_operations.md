@@ -116,7 +116,8 @@ Main Model Profile
    ├─ GPU utilization
    ├─ modality capability
    ├─ compatibility status
-   └─ qualification status
+   ├─ qualification status
+   └─ resource policy (reference / explicit override)
 ```
 
 Profile의 Source of Truth는 `configs/main_model_profiles.yaml`이다.
@@ -157,6 +158,16 @@ Main Model Profile은 기술 호환성과 실제 검증 수준을 별도 축으�
 전환 가능 여부는 Compatibility가 결정한다. `incompatible`은 전환할 수 없고, 그 외 전환 가능한
 profile에서 Qualification이 `verified`가 아니면 switch 요청에 `confirm_unverified=true`가 필요하다.
 
+여기서 Qualification은 **GPU 제품 지원 목록이 아니다.** 현재 GPU 제품명에 대한 직접
+qualification record가 없다는 사실만으로 hardware가 unsupported가 되지 않는다. 실제 실행 가능성은
+Deployment/Runtime Compatibility와 GPU resource admission, 그리고 start/apply 뒤 runtime validation이
+판단한다. GPU 이름·UUID·driver·memory는 관측 및 evidence provenance이며 primary admission key가 아니다.
+
+새 GPU가 들어왔을 때 reference resource policy를 충족하면 별도 GPU-specific variant나 재qualification
+없이 같은 profile을 시도할 수 있다. reference policy가 실제로 맞지 않을 때만 검토된
+`resource_variant` override를 추가한다. 세부 원칙은
+[ADR-0035](./adr/0035-capability-based-hardware-admission-and-transparent-operations.md)를 따른다.
+
 ### Qualification Evidence
 
 `verified`는 상태 문자열만으로 끝나지 않는다. Main Model의 machine-readable 검증 근거는
@@ -175,6 +186,10 @@ Docker local image ID는 distribution digest의 대체값이 아니다. 새 `qua
 Stable check ID와 capability별 필수 check는 `configs/qualification_checks.yaml`이 소유하며,
 passed run에서 필수 check의 skip/fail은 허용하지 않는다. 세부 정책은
 [ADR-0032](./adr/0032-qualification-evidence-v1.md)를 따른다.
+
+Evidence의 hardware fingerprint는 **어디에서 실제로 검증했는지**를 정직하게 남기는 provenance다.
+특정 GPU 이름의 direct evidence가 없다는 이유만으로 실행을 막거나 같은 profile을 다시
+qualification하지 않는다. Profile evidence와 현재 host의 resource feasibility는 서로 다른 판단이다.
 
 ### Profile Lock
 
@@ -299,6 +314,11 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 | `failed` | target 전환 실패, 필요 시 이전 정상 profile로 복구 완료 |
 | `rollback_failed` | target 전환과 이전 profile 복구가 모두 실패 |
 
+`status`와 `stage`는 같은 의미가 아니다. 진행 중에는 둘이 같은 값을 사용할 수 있지만,
+terminal failure에서는 `status=failed`를 결과로 기록하면서 `stage`에는 실제 실패가 발생한
+단계(예: `preparing`, `draining`, `starting`, `validating`)를 보존한다. 따라서 운영자는
+오류 문자열만 읽지 않고 **어느 단계에서 멈췄는지**를 먼저 확인할 수 있다.
+
 전환이 완료되면 Gateway readiness와 실제 Chat 응답을 확인한다.
 
 ```bash
@@ -364,6 +384,12 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 | `infeasible` | 현재 budget으로 실행 불가 | profile 또는 runtime 구성 조정 |
 
 Profile switch에서 자원이 부족하면 필요한 runtime stop plan을 확인한 뒤 자원 구성을 조정하고 다시 전환한다.
+
+새 hardware에서는 먼저 실제 GPU/resource 상태를 관측하고 reference policy의 feasibility를 판단한다.
+제품명이 catalog에 없다는 이유로 거부하지 않는다. 다만 운영자가
+`MAIN_MODEL_RESOURCE_VARIANT`를 명시적으로 선택한 경우에는 그 override를 선언하지 않은 profile이
+reference policy로 조용히 fallback하지 않도록 fail-closed한다. 이것은 hardware allowlist가 아니라
+잘못된 자원 정책 적용을 막는 안전장치다.
 
 Runtime start에서는 `force=true`를 사용해 admission planner가 선택한 낮은 priority runtime을 정지하고 공간을 확보할 수 있다.
 

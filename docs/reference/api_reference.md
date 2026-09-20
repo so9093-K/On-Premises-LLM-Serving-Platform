@@ -1654,6 +1654,11 @@ rollback_failed
 }
 ```
 
+`status`는 operation의 현재/최종 결과이고 `stage`는 controller가 실제로 수행 중이거나 실패한
+단계를 나타낸다. 예를 들어 runtime validation에서 실패한 뒤 이전 profile 복구에 성공하면
+`status=failed`, `stage=validating`으로 남는다. 이 구분은 실패 원인을 로그 문자열에만
+의존하지 않고 단계 수준에서 확인하기 위한 operation evidence다.
+
 `completed`, `failed`, `rollback_failed` 중 하나에 도달할 때까지 polling할 수 있다.
 
 ---

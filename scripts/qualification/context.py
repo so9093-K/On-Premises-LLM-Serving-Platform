@@ -45,10 +45,9 @@ def qualification_context_from_main_model_status(
     else:
         raise QualificationContextError("last_operation must be a mapping or null")
 
-    # 같은 profile이라도 host class마다 자원 정책이 다르므로, 어떤 resource variant로
-    # 서빙 중이었는지가 증거 identity의 일부다. 이 값이 없으면 "gemma4-e4b-it가
-    # linux-nvidia-dynamic에서 통과했다"는 기록이 어떤 자원 정책에서 나온 것인지
-    # 말하지 못하고, 48GB reference 값으로 읽힌다.
+    # 같은 profile이라도 실제로 다른 resource-policy override를 적용했다면
+    # 어떤 정책에서 검증했는지 evidence provenance에 남겨야 한다. 이 값은 hardware
+    # support allowlist가 아니며, None은 profile의 reference policy로 실행했다는 뜻이다.
     raw_variant = active.get("resource_variant")
     if raw_variant is None:
         resource_variant = None

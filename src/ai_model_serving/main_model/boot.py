@@ -46,9 +46,9 @@ def render_boot_override(
         catalog_path,
         gpu_memory_utilization_override=gpu_util_override_from_mapping(env),
         # Compose가 main runtime을 띄울 때 쓰는 command는 이 override가 소유한다.
-        # host의 resource variant를 여기서 반영하지 않으면, Runtime Controller가
-        # 아는 자원 정책과 Compose가 실제로 기동하는 자원 정책이 갈라진다 --
-        # host가 GPU class를 선언해도 부팅은 reference host 값으로 일어난다.
+        # 운영자가 명시적으로 선택한 resource-policy override를 여기서 반영하지 않으면
+        # Runtime Controller가 아는 자원 정책과 Compose가 실제로 기동하는 정책이
+        # 갈라진다. GPU 제품명 자체가 override 선택 기준인 것은 아니다.
         resource_variant=resource_variant_from_mapping(env),
         env=env,
     )

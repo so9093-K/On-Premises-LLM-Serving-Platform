@@ -314,6 +314,7 @@ def test_failed_switch_rolls_back_without_silent_success(tmp_path):
 
     operation_id = asyncio.run(run())
     assert manager.operation(operation_id)["status"] == "failed"
+    assert manager.operation(operation_id)["stage"] == "validating"
     assert backend.replaced == [
         "gemma4-12b-unified-fp8",
         "gemma4-26b-a4b-fp8",
@@ -347,6 +348,7 @@ def test_drain_failure_preserves_current_runtime_without_replace(tmp_path):
 
     operation_id = asyncio.run(run())
     assert manager.operation(operation_id)["status"] == "failed"
+    assert manager.operation(operation_id)["stage"] == "draining"
     assert backend.replaced == []
     assert manager.snapshot()["active_profile"]["id"] == "gemma4-26b-a4b-fp8"
     assert manager.snapshot()["gate"] == "open"
@@ -377,6 +379,7 @@ def test_cache_prepare_failure_keeps_current_runtime_and_gate_open(tmp_path):
 
     operation_id = asyncio.run(run())
     assert manager.operation(operation_id)["status"] == "failed"
+    assert manager.operation(operation_id)["stage"] == "preparing"
     assert manager.operation(operation_id)["error"] == "cache prepare failed"
     assert backend.prepared == ["gemma4-12b-unified-fp8"]
     assert backend.replaced == []
@@ -1046,25 +1049,25 @@ def test_resource_variant_is_recorded_on_the_profile_snapshot() -> None:
     assert "rtx4090-24gb" in base.public_view()["resource_variants"]
 
 
-def test_profiles_without_the_selected_variant_are_not_selectable_on_this_host() -> None:
-    # host가 GPU class를 선언했는데 profile에 그 class의 자원 정책이 없으면, 그
-    # profile에 대해 우리가 아는 값은 reference host 것뿐이다. 24GB host에서 26B는
-    # weight만 25.8 GiB라 reference 값으로 전환하면 그대로 OOM 경로가 된다.
+def test_profiles_without_the_selected_resource_override_are_not_selectable() -> None:
+    # 명시적으로 24GB용 resource-policy override를 선택한 host에서는 그 override가
+    # 없는 profile이 reference 정책으로 조용히 fallback하면 안 된다. 이 검사는 GPU
+    # 제품 allowlist가 아니라 operator가 선택한 자원 정책의 fail-closed 경계다.
     loaded = _variant_catalog("rtx4090-24gb")
     assert loaded.resource_variant == "rtx4090-24gb"
-    assert loaded.unsupported_host_variant("gemma4-e4b-it") is None
+    assert loaded.missing_selected_resource_policy("gemma4-e4b-it") is None
     for profile_id in ("gemma4-12b-unified-fp8", "gemma4-26b-a4b-fp8"):
-        assert loaded.unsupported_host_variant(profile_id) == "rtx4090-24gb"
+        assert loaded.missing_selected_resource_policy(profile_id) == "rtx4090-24gb"
 
 
 def test_reference_host_leaves_every_profile_selectable() -> None:
     loaded = _variant_catalog(None)
     assert loaded.resource_variant is None
     for profile_id in loaded.profiles:
-        assert loaded.unsupported_host_variant(profile_id) is None
+        assert loaded.missing_selected_resource_policy(profile_id) is None
 
 
-def test_switch_to_a_profile_without_this_hosts_variant_is_refused(tmp_path) -> None:
+def test_switch_without_the_selected_resource_override_is_refused(tmp_path) -> None:
     loaded = _variant_catalog("rtx4090-24gb")
     loaded.runtime["drain_timeout_seconds"] = 0
     store = MainModelStateStore(tmp_path / "state.json", "gemma4-e4b-it")
@@ -1074,7 +1077,7 @@ def test_switch_to_a_profile_without_this_hosts_variant_is_refused(tmp_path) -> 
     assert error.value.code == "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED"
 
 
-def test_host_variant_refusal_is_not_bypassed_by_unverified_confirmation(tmp_path) -> None:
+def test_resource_override_refusal_is_not_bypassed_by_unverified_confirmation(tmp_path) -> None:
     # confirm_unverified는 qualification 축의 확인이지 자원 정책의 확인이 아니다.
     # boot reconcile이 이 flag를 켜고 같은 경로를 지나므로, 여기서 우회가 되면
     # 재기동만으로 reference 자원 정책이 이 host에 다시 적용된다.
@@ -1089,7 +1092,7 @@ def test_host_variant_refusal_is_not_bypassed_by_unverified_confirmation(tmp_pat
     assert error.value.code == "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED"
 
 
-def test_boot_refuses_a_profile_without_this_hosts_variant() -> None:
+def test_boot_refuses_a_profile_without_the_selected_resource_override() -> None:
     loaded = _variant_catalog("rtx4090-24gb")
     # default_profile(12B)은 이 host의 자원 정책을 선언하지 않으므로 boot에서 걸린다.
     with pytest.raises(MainModelConfigurationError):
@@ -1121,7 +1124,7 @@ def test_unknown_resource_variant_fails_instead_of_booting_reference_values() ->
 
 
 def test_gpu_util_env_override_still_wins_over_a_variant() -> None:
-    # variant는 catalog가 소유한 검토된 host class 정책이고,
+    # variant는 catalog가 소유한 검토된 resource policy이고,
     # MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일 호스트용 escape hatch다.
     # 후자가 항상 마지막 발언권을 갖고, vram_fraction도 그 값을 따라간다.
     tuned = _variant_catalog("rtx4090-24gb", gpu_memory_utilization_override=0.8)

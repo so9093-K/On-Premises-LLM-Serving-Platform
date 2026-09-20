@@ -288,9 +288,9 @@ def _validate_record(
             raise SystemExit(
                 f"qualification evidence {record_id!r}.subject.{key} must be non-empty"
             )
-    # resource_variant는 선택 field다. reference host의 자원 정책으로 검증한 run은
-    # 이 key가 없고, host class별 variant로 검증한 run만 그 id를 남긴다. 다만
-    # 존재한다면 profile의 실제 선언과 대조할 수 있는 값이어야 한다.
+    # resource_variant는 선택 field다. reference policy로 검증한 run은 이 key가
+    # 없고, 실제 resource-policy override를 적용한 run만 그 id를 provenance로 남긴다.
+    # 이 값은 GPU 지원 allowlist가 아니지만, 존재한다면 profile 선언과 일치해야 한다.
     if "resource_variant" in subject and not _non_empty_string(subject.get("resource_variant")):
         raise SystemExit(
             f"qualification evidence {record_id!r}.subject.resource_variant must be "

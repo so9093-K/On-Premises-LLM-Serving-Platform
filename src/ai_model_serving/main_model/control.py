@@ -161,17 +161,18 @@ class MainModelCatalog:
     default_profile: str
     runtime: dict[str, Any]
     profiles: dict[str, MainModelProfile]
-    # 이 host가 선택한 resource variant다. None이면 host가 reference 자원 정책을
-    # 쓴다는 뜻이고, 그때는 모든 profile이 자기 catalog 값으로 기동한다.
+    # 운영자가 이 host에 명시적으로 선택한 resource-policy override다.
+    # None이면 GPU 제품명이 알려졌다는 뜻이 아니라 profile의 reference 자원 정책을
+    # 그대로 사용한다는 뜻이다. variant는 hardware allowlist가 아니다.
     resource_variant: str | None = None
 
-    def unsupported_host_variant(self, profile_id: str) -> str | None:
-        """profile이 이 host의 resource variant를 지원하지 않으면 그 variant id를 반환한다.
+    def missing_selected_resource_policy(self, profile_id: str) -> str | None:
+        """선택된 resource-policy override를 profile이 선언하지 않으면 그 id를 반환한다.
 
-        host가 특정 GPU class를 선언했는데 profile이 그 class의 자원 정책을 갖고
-        있지 않다면, 그 profile에 대해 우리가 아는 것은 reference host 값뿐이다.
-        더 작은 GPU에서 그 값으로 기동을 시도하는 것은 검증된 적 없는 동작이므로
-        선택 자체를 거부한다.
+        이 검사는 GPU 제품 지원 여부를 판단하지 않는다. 운영자가 명시적으로
+        MAIN_MODEL_RESOURCE_VARIANT를 선택했다는 것은 reference 정책이 이 host에
+        적합하지 않다는 의도를 표현한 것이므로, 해당 override가 없는 profile에서
+        reference 정책으로 조용히 fallback하는 것만 막는다.
         """
         if self.resource_variant is None:
             return None
@@ -213,11 +214,11 @@ def gpu_util_override_from_mapping(mapping: dict[str, str]) -> float | None:
     return value
 
 
-# Host class별 runtime resource policy. catalog의 command는 reference host의
-# 실측값이고, VRAM이 다른 host는 그 profile을 복제하는 대신 여기서 자원 knob만
-# 덮어쓴다. model/revision/capabilities/gateway 정책은 변하지 않으므로 profile은
-# 계속 하나의 identity다 -- 달라지는 것은 그 identity를 이 host에서 어떤 자원
-# 정책으로 서빙하는가 뿐이다.
+# 필요한 host에서만 쓰는 명시적 runtime resource-policy override다. catalog의
+# command는 reference policy이고, 그 정책이 맞지 않는 host는 profile을 복제하지
+# 않고 여기서 자원 knob만 덮어쓴다. 새 GPU 제품명이 보였다는 이유만으로 variant를
+# 만들 필요는 없다. model/revision/capabilities/gateway 정책은 변하지 않으므로
+# profile은 계속 하나의 identity다 -- 달라지는 것은 자원 정책뿐이다.
 #
 # 이 경계가 필요한 이유는 GPU budget이 VRAM 총량 대비 *비율*로 표현되는 반면,
 # 그 비율이 덮어야 하는 것(weight, CUDA context, prefill activation workspace,
@@ -466,8 +467,8 @@ def load_main_model_catalog(
             public_model,
             *command,
         ]
-        # Host class의 resource variant를 먼저 반영한다. variant는 catalog가 소유한
-        # 검토된 자원 정책이고, 그 뒤의 MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일
+        # 명시적으로 선택된 resource-policy override를 먼저 반영한다. variant는
+        # catalog가 소유한 검토된 자원 정책이고, 그 뒤의 MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일
         # 호스트용 escape hatch이므로 더 나중에 적용해 항상 마지막 발언권을 갖는다.
         declared_variants = _parse_resource_variants(str(profile_id), item.get("resource_variants"))
         applied_variant: str | None = None
@@ -572,9 +573,10 @@ def load_main_model_catalog(
             resource_variant=applied_variant,
             resource_variants=tuple(sorted(declared_variants)),
         )
-    # 선택된 variant를 아무 profile도 선언하지 않았다면 오타이거나 잘못된 host
-    # 설정이다. 조용히 reference host 값으로 부팅시키지 않는다 -- 그 침묵이 바로
-    # 48GB 자원 정책이 24GB GPU에서 그대로 기동을 시도하게 만드는 경로다.
+    # 운영자가 명시적으로 고른 override를 아무 profile도 선언하지 않았다면
+    # 오타이거나 잘못된 host 설정이다. 이 검사는 새 GPU 제품을 거부하는 allowlist가
+    # 아니라, 선택한 override가 적용되지 않은 채 reference 정책으로 조용히
+    # fallback하는 것을 막는 설정 안전장치다.
     if resource_variant is not None and not any(
         resource_variant in profile.resource_variants for profile in profiles.values()
     ):
@@ -601,25 +603,25 @@ def resolve_boot_profile(
     if configured not in catalog.profiles:
         raise MainModelConfigurationError(f"unknown MAIN_MODEL_BOOT_PROFILE: {configured}")
 
-    def _require_host_variant(profile_id: str, label: str) -> None:
-        unsupported = catalog.unsupported_host_variant(profile_id)
-        if unsupported is not None:
+    def _require_selected_resource_policy(profile_id: str, label: str) -> None:
+        missing_policy = catalog.missing_selected_resource_policy(profile_id)
+        if missing_policy is not None:
             raise MainModelConfigurationError(
-                f"{label} {profile_id} does not declare a resource policy for this "
-                f"host's {unsupported} GPU class"
+                f"{label} {profile_id} does not declare the explicitly selected "
+                f"resource policy override {missing_policy}; refusing reference-policy fallback"
             )
 
     if locked:
-        _require_host_variant(configured, "MAIN_MODEL_BOOT_PROFILE")
+        _require_selected_resource_policy(configured, "MAIN_MODEL_BOOT_PROFILE")
         return configured
     if persisted_profile:
         if persisted_profile not in catalog.profiles:
             raise MainModelConfigurationError(
                 f"persisted active profile is not configured: {persisted_profile}"
             )
-        _require_host_variant(persisted_profile, "persisted active profile")
+        _require_selected_resource_policy(persisted_profile, "persisted active profile")
         return persisted_profile
-    _require_host_variant(configured, "MAIN_MODEL_BOOT_PROFILE")
+    _require_selected_resource_policy(configured, "MAIN_MODEL_BOOT_PROFILE")
     return configured
 
 
@@ -1042,16 +1044,16 @@ class MainModelManager:
                 "the selected model is incompatible with the current deployment",
                 status_code=422,
             )
-        # host가 GPU class를 선언했는데 profile에 그 class의 자원 정책이 없으면
-        # 전환을 거부한다. boot reconcile도 이 경로를 지나며, confirm_unverified는
-        # qualification 축의 확인이지 자원 정책의 확인이 아니므로 이 검사를 우회하지
-        # 못한다.
-        unsupported_variant = self.catalog.unsupported_host_variant(profile_id)
-        if unsupported_variant is not None:
+        # 운영자가 명시적으로 resource-policy override를 선택했으면 그 override가
+        # 없는 profile에서 reference 정책으로 조용히 fallback하지 않는다. 이것은 GPU
+        # 제품 allowlist가 아니며, confirm_unverified(qualification evidence 확인)와도
+        # 별개의 자원 정책 안전장치다.
+        missing_policy = self.catalog.missing_selected_resource_policy(profile_id)
+        if missing_policy is not None:
             raise MainModelSwitchError(
                 "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED",
-                "the selected model does not declare a resource policy for this host's "
-                f"{unsupported_variant} GPU class",
+                "the selected profile does not declare the explicitly selected resource "
+                f"policy override {missing_policy}; refusing reference-policy fallback",
                 status_code=422,
             )
         if qualification != "verified" and not confirm_unverified:
@@ -1145,7 +1147,21 @@ class MainModelManager:
             if not operation_started:
                 lock_context.__exit__(None, None, None)
 
-    def _set_operation(self, operation_id: str, status: str, **fields: Any) -> None:
+    def _set_operation(
+        self,
+        operation_id: str,
+        status: str,
+        *,
+        stage: str | None = None,
+        **fields: Any,
+    ) -> None:
+        """Operation status와 실제 controller stage를 별도 의미로 기록한다.
+
+        진행 중에는 status/stage가 같은 값을 사용한다. Terminal failure에서는 status는
+        failed이지만 stage는 실패가 실제 발생한 preparing/draining/starting/validating
+        단계를 보존할 수 있다. 이 구분이 없으면 운영자는 실패 결과만 보고 원인을 좁힐
+        수 없고, API의 failed example(status=failed, stage=validating)과도 어긋난다.
+        """
         def mutate(state: dict[str, Any]) -> None:
             target = None
             for item in state.get("operations", []):
@@ -1154,7 +1170,12 @@ class MainModelManager:
                     break
             if target is None:
                 raise MainModelStateError(f"operation disappeared: {operation_id}")
-            target.update(status=status, stage=status, updated_at=time.time(), **fields)
+            target.update(
+                status=status,
+                stage=stage if stage is not None else status,
+                updated_at=time.time(),
+                **fields,
+            )
             state["last_operation"] = target
         self.state_store.update(mutate)
 
@@ -1227,8 +1248,16 @@ class MainModelManager:
             self._set_operation(operation_id, "validating")
             await self._validate_and_record(target)
         except Exception as exc:
+            failed_stage = str(
+                (self._operation_record(operation_id) or {}).get("stage") or "failed"
+            )
             if not entered_replace_phase:
-                self._set_operation(operation_id, "failed", error=str(exc))
+                self._set_operation(
+                    operation_id,
+                    "failed",
+                    stage=failed_stage,
+                    error=str(exc),
+                )
                 if previous_id:
                     self.state_store.update(
                         lambda state: state.update(
@@ -1262,7 +1291,12 @@ class MainModelManager:
                         rollback_failed=True,
                     )
                     return
-            self._set_operation(operation_id, "failed", error=str(exc))
+            self._set_operation(
+                operation_id,
+                "failed",
+                stage=failed_stage,
+                error=str(exc),
+            )
             if previous_id:
                 def reopen(state: dict[str, Any]) -> None:
                     state["active_profile"] = previous_id

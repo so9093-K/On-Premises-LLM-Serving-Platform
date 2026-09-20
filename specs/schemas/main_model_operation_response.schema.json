@@ -39,6 +39,7 @@
     },
     "status": {
       "type": "string",
+      "description": "Operation lifecycle/result. Terminal values are completed, failed, and rollback_failed.",
       "enum": [
         "pending",
         "preparing",
@@ -54,6 +55,7 @@
     },
     "stage": {
       "type": "string",
+      "description": "Controller execution stage. On terminal failure this preserves the stage where the target transition failed, so status=failed may coexist with stage=preparing/draining/starting/validating.",
       "enum": [
         "pending",
         "preparing",
