@@ -90,6 +90,24 @@ def test_setup_env_preserves_operator_values_on_force_but_rotates_generated_secr
     assert 'API_KEYS=old-secret' not in text
 
 
+def test_sync_env_removes_legacy_deploy_release_id_without_replacement(tmp_path):
+    out = tmp_path / ".env"
+    out.write_text(
+        "BUILD_PROFILE=compose\n"
+        "DEPLOY_RELEASE_ID=old-release-token\n"
+        "MAIN_MODEL_STATE_PATH=/tmp/main-model-state.json\n",
+        encoding="utf-8",
+    )
+
+    rc = setup_env.main(["--sync-env", "--env-file", str(out)])
+
+    assert rc == 0
+    values = setup_env.read_env_values(out)
+    assert "DEPLOY_RELEASE_ID" not in values
+    assert "RUNTIME_STARTUP_GENERATION" not in values
+    assert values["MAIN_MODEL_STATE_PATH"] == "/tmp/main-model-state.json"
+
+
 def test_setup_env_force_removes_registered_env_overrides(tmp_path):
     # yaml이 소유하는 운영 한도에 오래된 .env 값이 남으면 yaml 변경을 조용히
     # 가릴 수 있다. --force 경로도 sync 경로와 같은 목록을 지우는지만 본다.

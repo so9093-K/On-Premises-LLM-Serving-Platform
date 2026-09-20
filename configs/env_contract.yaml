@@ -151,7 +151,6 @@ service_env_projections:
       - MAIN_MODEL_CIRCUIT_BREAKER_FAILURE_THRESHOLD
       - MAIN_MODEL_CIRCUIT_BREAKER_RESET_SECONDS
       - MAIN_MODEL_STATIC_PROFILE
-      - DEPLOY_RELEASE_ID
       - LOG_REQUEST_RESPONSE_BODY
 
 # ── 이름이 바뀐 persistent key ────────────────────────────────────────────
@@ -201,12 +200,14 @@ value_migrations:
 # `make sync-env`(scripts/config/setup_env.py)가 기존 .env에서 지우는 키이자,
 # 위 예시 파일에 다시 등장하면 안 되는 키다. 값은 지우는 이유다.
 #
-# 제거 기준을 "템플릿에 없는 키"로 삼지 않는 것이 ADR-0013의 핵심이다 -- 배포
-# 서버 .env에는 템플릿에 존재한 적 없는 서버 전용 설정(MAIN_MODEL_STATE_PATH 등)이
-# 정상적으로 들어있고, 배포 스크립트가 이미지 참조 갱신 직후 sync-env를 호출하기
-# 때문에 그 기준을 쓰면 배포할 때마다 운영 설정이 사라진다. 그래서 지울 키는
-# 여기에 명시적으로 등록한다.
+# 제거 기준을 "템플릿에 없는 키"로 삼지 않는 것이 ADR-0013의 핵심이다. host .env에는
+# 템플릿에 존재한 적 없는 host 전용 설정(MAIN_MODEL_STATE_PATH 등)이 정상적으로 들어갈 수
+# 있으므로, 지울 키는 여기에 명시적으로 등록한다.
 removed_keys:
+  DEPLOY_RELEASE_ID: >-
+    제거된 remote release identity와 startup directive를 한 이름으로 표현하던 legacy persistent key다.
+    Runtime startup generation은 compose-up이 process environment로 매 실행 생성하므로 persistent
+    .env로 이관하지 않고 제거한다.
   PACKAGE_NAME: >-
     release ZIP 이름을 바꾸는 package_release.sh process override다. Runtime .env 계약이 아니므로
     persistent env에서는 제거한다. 필요하면 package 명령 실행 시 process env로 지정한다.

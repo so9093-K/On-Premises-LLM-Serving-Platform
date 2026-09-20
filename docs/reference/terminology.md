@@ -63,7 +63,9 @@
 
 ### Process inputs
 
-- `RUNTIME_STARTUP_PROFILE`이 full-stack compose-up의 유일한 startup profile input이다.
+- `RUNTIME_STARTUP_PROFILE`이 full-stack compose-up의 유일한 operator-facing startup profile input이다.
+- `RUNTIME_STARTUP_DEFERRED_KEYS`와 `RUNTIME_STARTUP_GENERATION`은 compose-up이 Gateway에 전달하는 내부 one-shot directive이며 persistent `.env` key가 아니다.
+- `DEPLOY_RELEASE_ID`는 제거된 remote release/startup naming debt이며 `make sync-env`가 기존 persistent `.env`에서 제거한다.
 - `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process alias는 제거됐다.
 - `PACKAGE_NAME`은 release ZIP 파일명을 바꾸는 packaging process override이며 Runtime `.env` key가 아니다.
 

@@ -17,7 +17,7 @@ REQUEST_EVENT_LOG_DIR_RELPATH=".runtime/request-events"
 # 아무 관계가 없다. 그래서 "누가 먼저 만들었나"가 소유권을 결정해 버린다:
 #
 #   - compose가 먼저 닿으면 Docker가 root 소유로 만든다 -> 컨테이너가 못 쓴다.
-#   - 배포 사용자가 먼저 만들면 그 사용자 소유가 된다 -> 역시 컨테이너가 못 쓴다.
+#   - host 사용자가 먼저 만들면 그 사용자 소유가 된다 -> 역시 컨테이너가 못 쓴다.
 #
 # 존재 여부만 확인하면 이미 잘못된 소유권으로 굳은 디렉터리를 그대로 통과시킨다.
 # 그래서 매번 소유권까지 단언한다. uid는 하드코딩하지 않고 이미지에게 직접 묻는다
@@ -52,26 +52,23 @@ ensure_gateway_runtime_dir() {
   ensure_platform_runtime_dir "$@"
 }
 
-# Gateway는 콤마로 구분된 runtime key 목록을 읽는다. 형식을 호출부마다 다시 만들면
-# 한쪽만 바뀌었을 때 지시가 조용히 무시되므로 여기서만 만든다.
-#
-# 현재 호환 이름인 release id는 실제로 startup directive의 재적용을 막는 토큰이다.
-# 같은 id로 컨테이너가 재시작되면 Gateway는 지시를 다시 적용하지 않고 파일에 남은
-# 운영자 상태를 따른다. 이 naming debt는 별도 migration에서 정리한다.
-export_deferred_runtime_directive() {
-  local release_id="$1"
+# Gateway는 콤마로 구분된 runtime key 목록과 startup generation을 읽는다.
+# generation은 compose-up 한 번의 startup policy 적용을 식별하는 내부 토큰이며
+# operator가 persistent .env에서 관리하는 release/version 값이 아니다.
+export_runtime_startup_directive() {
+  local startup_generation="$1"
   shift
   local joined=""
   if (($#)); then
     printf -v joined '%s,' "$@"
     joined="${joined%,}"
   fi
-  export DEPLOY_DEFERRED_RUNTIMES="${joined}"
-  if [[ -n "${release_id}" ]]; then
-    export DEPLOY_RELEASE_ID="${release_id}"
+  export RUNTIME_STARTUP_DEFERRED_KEYS="${joined}"
+  if [[ -n "${startup_generation}" ]]; then
+    export RUNTIME_STARTUP_GENERATION="${startup_generation}"
   fi
   if [[ -n "${joined}" ]]; then
-    echo "[runtime-state] deferred runtime directive: ${joined}"
+    echo "[runtime-state] startup deferred runtimes: ${joined}"
   fi
 }
 

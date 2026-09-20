@@ -138,7 +138,7 @@ def build_control_plane_bootstrap_projection(
     target = settings.deployment_target
     return ControlPlaneBootstrapProjection(
         platform_version=settings.project_version,
-        release_id=settings.deploy_release_id or None,
+        release_id=None,
         deployment_target=target.target_id,
         deployment_display_name=target.display_name,
         deployment_platform=target.platform,

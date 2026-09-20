@@ -7,7 +7,7 @@ import pytest
 from ai_model_serving.services.runtime_state import RuntimeStateStore, RuntimeStateStoreError
 
 
-def test_deploy_directive_fails_startup_when_persistence_is_unavailable(
+def test_startup_directive_fails_startup_when_persistence_is_unavailable(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = tmp_path / "runtime-state.json"
@@ -19,13 +19,13 @@ def test_deploy_directive_fails_startup_when_persistence_is_unavailable(
 
     with pytest.raises(
         RuntimeStateStoreError,
-        match="failed to persist runtime desired state deploy directive",
+        match="failed to persist runtime desired state startup directive",
     ):
         RuntimeStateStore(
             path,
             controllable_keys={"prompt_injection_detector"},
             deferred_keys=("prompt_injection_detector",),
-            release_id="release-1",
+            startup_generation="startup-1",
         )
 
 

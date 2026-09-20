@@ -83,8 +83,8 @@ class GatewayClients:
         self.runtime_state = RuntimeStateStore(
             state_path,
             controllable_keys=settings.controllable_runtime_keys,
-            deferred_keys=_runtime_directive("DEPLOY_DEFERRED_RUNTIMES"),
-            release_id=settings.deploy_release_id,
+            deferred_keys=_runtime_directive("RUNTIME_STARTUP_DEFERRED_KEYS"),
+            startup_generation=settings.runtime_startup_generation,
         )
         self.runtime_transition_history = RuntimeTransitionHistoryStore(
             runtime_transition_history_path()
@@ -196,11 +196,9 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
     api_dependencies = [Depends(auth)] if settings.security.api_key_required else []
     admin_dependencies = build_admin_dependencies(settings)
 
-    _release = settings.deploy_release_id
-    _version = f"{settings.project_version} ({_release[:8]})" if _release else settings.project_version
     app = create_service_app(
         title="AI Model Serving Gateway",
-        version=_version,
+        version=settings.project_version,
         description=gateway_description(settings),
         settings=settings,
         tags_metadata=gateway_tags_metadata(settings),

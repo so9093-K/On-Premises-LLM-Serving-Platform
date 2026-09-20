@@ -28,7 +28,6 @@ def _secured_settings(auth_mode: str):
             admin_api_key_required=True,
             admin_api_keys=frozenset({"admin-key"}),
         ),
-        deploy_release_id="release-2026-09-14",
     )
 
 
@@ -58,7 +57,7 @@ def test_bootstrap_is_public_even_when_admin_api_requires_bearer(monkeypatch) ->
 def test_local_bootstrap_projects_safe_links_and_never_serializes_secrets(monkeypatch) -> None:
     monkeypatch.setenv("ACCESS_PROFILE", "local")
     monkeypatch.setenv("GRAFANA_PORT", "9511")
-    cfg = replace(settings(), deploy_release_id="release-local")
+    cfg = replace(settings(), runtime_startup_generation="compose-up-123")
     client = TestClient(create_gateway_app(cfg, FakeGatewayClients()))
 
     response = client.get("/admin/control-plane/bootstrap")
@@ -66,7 +65,8 @@ def test_local_bootstrap_projects_safe_links_and_never_serializes_secrets(monkey
     assert response.status_code == 200
     body = response.json()
     Draft202012Validator(SCHEMA).validate(body)
-    assert body["platform"] == {"version": "0.1.0", "release_id": "release-local"}
+    assert body["platform"] == {"version": "0.1.0", "release_id": None}
+    assert client.get("/openapi.json").json()["info"]["version"] == "0.1.0"
     assert body["access"]["profile"] == "local"
     assert body["links"]["docs"] == "/docs"
     assert body["links"]["openapi"] == "/openapi.json"
