@@ -70,8 +70,27 @@ catalog를 읽는 모든 경로에서 즉시 드러나야 한다.
 `MAIN_MODEL_RESOURCE_VARIANT`가 이 host의 GPU class를 고른다. 비어 있으면 profile의
 reference host 값으로 기동한다.
 
-선언되지 않은 id를 지정하면 **기동이 실패한다.** 조용히 reference 값으로 되돌아가지 않는다.
-그 침묵이 바로 48GB 자원 정책이 24GB GPU에서 그대로 기동을 시도하게 만드는 경로다.
+Fail-closed는 두 층위에서 성립한다.
+
+- 어떤 profile도 그 id를 선언하지 않으면 catalog 로드가 실패한다(오타 방지).
+- host가 GPU class를 선언했는데 **개별 profile**이 그 class의 자원 정책을 갖고 있지
+  않으면, 그 profile은 이 host에서 선택 가능한 대상이 아니다. boot 해석과 switch 요청이
+  모두 거부하며, switch는 `MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED`로 응답한다.
+
+두 번째가 없으면 host variant는 실질적으로 fail-closed가 아니다. `rtx4090-24gb`를 선언한
+profile만 4090 값으로 기동하고 나머지는 reference 값으로 남아, 전환 한 번으로 24GB GPU에
+48GB 자원 정책이 그대로 적용된다. weight만 25.8 GiB인 26B profile에서 이는 곧바로 OOM
+경로다.
+
+`confirm_unverified`는 qualification 축의 확인이지 자원 정책의 확인이 아니므로 이 거부를
+우회하지 못한다. boot reconcile이 그 flag를 켜고 같은 경로를 지나기 때문에, 우회가 가능하면
+재기동만으로 reference 정책이 다시 적용된다.
+
+운영상 결과: host가 variant를 선언하면 그 class를 지원하는 profile만 부팅 대상이 된다.
+`default_profile`이 해당 class를 선언하지 않는 host는 `MAIN_MODEL_BOOT_PROFILE`로 지원되는
+profile을 명시해야 한다. 이전 host 설정에서 넘어온 persisted active profile이 지원 대상이
+아닌 경우에도 catalog에서 사라진 profile과 같은 방식으로 기동이 멈춘다 — 운영자가 의도를
+다시 말하기 전까지 검증된 적 없는 자원 정책으로 기동하지 않는다.
 
 variant가 적용된 뒤에도 `MAIN_MODEL_GPU_MEMORY_UTILIZATION`이 마지막 발언권을 갖는다.
 variant는 catalog가 소유한 검토된 host class 정책이고, 그 env는 단일 호스트용 escape hatch다.
@@ -98,7 +117,8 @@ variant가 `max_model_len`을 옮기면 catalog loader가 같은 값을
 
 - 같은 model/revision을 서로 다른 VRAM class에서 서빙해도 profile identity는 하나로 유지된다.
 - 24GB용 증거와 48GB용 증거가 evidence 수준에서 구분된다.
-- `resource_variants`를 선언하지 않은 profile과 기존 evidence record는 변화가 없다.
+- Host가 variant를 선언하지 않으면(비어 있으면) 모든 profile이 종전과 같이 선택 가능하다.
+  기존 evidence record도 변화가 없다.
 - host class별 값은 여전히 실측으로만 채운다. variant는 측정 결과를 적을 자리를 만들 뿐,
   값을 추론하지 않는다.
 
