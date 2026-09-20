@@ -25,6 +25,8 @@ class ContractMainModelSidecar:
         "gateway_policy": {},
         "runtime_image": "registry.example/vllm@sha256:" + "0" * 64,
         "vram_fraction": 0.76,
+        "resource_variant": None,
+        "resource_variants": ["rtx4090-24gb"],
     }
 
     async def main_model(self, *, observed: bool = True):
@@ -118,3 +120,12 @@ def test_main_model_operation_contract_excludes_internal_controller_state() -> N
     assert "recovered_after_restart" in schema["required"]
     assert "previous_gate" not in schema["properties"]
     assert "boot_reconcile" not in schema["properties"]
+
+
+def test_main_model_profile_contract_exposes_resource_policy_without_hardware_allowlist_semantics() -> None:
+    schema = load_contract_schema("main_model_profile.schema.json")
+    properties = schema["properties"]
+    assert "resource_variant" in properties
+    assert "resource_variants" in properties
+    assert "hardware support verdict" in properties["resource_variant"]["description"]
+    assert "supported-GPU allowlist" in properties["resource_variants"]["description"]

@@ -456,6 +456,10 @@ def _runtime_control_tag_description(settings: AppSettings) -> str:
         lines.append(f"| `{stage}` | {stage_meanings.get(stage, '')} |")
     lines += [
         "",
+        "`status`는 작업의 결과를, `stage`는 controller의 실제 진행/실패 지점을 나타냅니다. "
+        "따라서 validation 실패 후 이전 프로필 복구에 성공하면 `status=failed`, `stage=validating`처럼 "
+        "terminal 결과와 실패 지점이 함께 남습니다.",
+        "",
         "`stopping` 이후는 이전 런타임이 이미 해체된 뒤라, 실패하면 `gate`를 그냥 다시 여는 대신 이전 프로필로 "
         "rollback합니다. rollback까지 실패하면 `rollback_failed`로 남고 이때만 수동 개입이 필요합니다.",
     ]

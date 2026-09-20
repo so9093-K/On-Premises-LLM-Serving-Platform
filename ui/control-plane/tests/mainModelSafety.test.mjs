@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import {
   isMainModelOperationTerminal,
+  mainModelOperationProgress,
+  mainModelOperationStagePresentation,
   mainModelProfileRequiresConfirmation,
+  mainModelResourcePolicyLabel,
   mainModelProfileSwitchable,
   mainModelSwitchRequest,
 } from '../src/mainModelSafety.ts';
@@ -25,6 +28,8 @@ function profile(
     gateway_policy: {},
     runtime_image: 'registry.example/model@sha256:' + 'b'.repeat(64),
     vram_fraction: 0.5,
+    resource_variant: null,
+    resource_variants: [],
     active: false,
     ...overrides,
   };
@@ -64,4 +69,57 @@ test('switch request carries qualification confirmation and terminal states', ()
   assert.equal(isMainModelOperationTerminal({ status: 'completed' }), true);
   assert.equal(isMainModelOperationTerminal({ status: 'failed' }), true);
   assert.equal(isMainModelOperationTerminal({ status: 'rollback_failed' }), true);
+});
+
+
+test('resource policy is separate from hardware support and qualification evidence', () => {
+  assert.equal(mainModelResourcePolicyLabel(profile()), 'Reference policy');
+  assert.equal(
+    mainModelResourcePolicyLabel(profile('compatible', 'verified', {
+      resource_variant: 'rtx4090-24gb',
+      resource_variants: ['rtx4090-24gb'],
+    })),
+    'Override · rtx4090-24gb',
+  );
+});
+
+test('operation stages expose operator-facing progress meaning', () => {
+  const preparing = mainModelOperationProgress({ status: 'preparing', stage: 'preparing' });
+  assert.deepEqual(
+    preparing.map((item) => [item.stage, item.state]),
+    [
+      ['pending', 'complete'],
+      ['preparing', 'current'],
+      ['draining', 'pending'],
+      ['stopping', 'pending'],
+      ['starting', 'pending'],
+      ['validating', 'pending'],
+    ],
+  );
+  assert.equal(
+    mainModelOperationStagePresentation('validating').description.includes('canary'),
+    true,
+  );
+  assert.deepEqual(
+    mainModelOperationProgress({ status: 'rolling_back', stage: 'rolling_back' })
+      .map((item) => [item.stage, item.state]),
+    [['rolling_back', 'current']],
+  );
+  assert.deepEqual(
+    mainModelOperationProgress({ status: 'failed', stage: 'validating' })
+      .map((item) => [item.stage, item.state]),
+    [
+      ['pending', 'complete'],
+      ['preparing', 'complete'],
+      ['draining', 'complete'],
+      ['stopping', 'complete'],
+      ['starting', 'complete'],
+      ['validating', 'failed'],
+    ],
+  );
+  assert.equal(
+    mainModelOperationProgress({ status: 'completed', stage: 'completed' })
+      .every((item) => item.state === 'complete'),
+    true,
+  );
 });

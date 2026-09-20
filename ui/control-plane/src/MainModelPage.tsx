@@ -7,13 +7,17 @@ import {
   fetchMainModelOperation,
   fetchMainModelProfiles,
   switchMainModel,
+  type MainModelOperationResponse,
   type MainModelProfile,
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import {
   isMainModelOperationTerminal,
+  mainModelOperationProgress,
+  mainModelOperationStagePresentation,
   mainModelProfileRequiresConfirmation,
   mainModelProfileSwitchable,
+  mainModelResourcePolicyLabel,
   mainModelSwitchRequest,
 } from './mainModelSafety';
 
@@ -43,8 +47,8 @@ function qualificationVariant(status: string): 'green' | 'orange' | 'grey' {
 }
 
 function qualificationLabel(status: string): string {
-  if (status === 'verified') return 'Verified';
-  if (status === 'unverified') return 'Unverified · confirmation required';
+  if (status === 'verified') return 'Evidence verified';
+  if (status === 'unverified') return 'Evidence not verified · confirmation required';
   return status;
 }
 
@@ -53,6 +57,38 @@ function operationVariant(status: string): 'success' | 'warning' | 'danger' | 'i
   if (status === 'failed') return 'warning';
   if (status === 'rollback_failed') return 'danger';
   return 'info';
+}
+
+function OperationProgress({ operation }: { operation: MainModelOperationResponse }) {
+  const presentation = mainModelOperationStagePresentation(operation.stage);
+  const steps = mainModelOperationProgress(operation);
+  return (
+    <>
+      <Alert isInline variant={operationVariant(operation.status)} title={presentation.label}>
+        <p>{presentation.description}</p>
+        {operation.error ? <p><strong>오류:</strong> {operation.error}</p> : null}
+        {operation.rollback_error ? <p><strong>복구 오류:</strong> {operation.rollback_error}</p> : null}
+      </Alert>
+      <ol className="operation-progress" aria-label="Main Model 전환 진행 단계">
+        {steps.map((step) => (
+          <li key={step.stage} data-state={step.state}>
+            <span className="operation-progress-marker" aria-hidden="true" />
+            <div>
+              <strong>{step.label}</strong>
+              <small>{step.description}</small>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <dl className="facts operation-facts">
+        <dt>Operation ID</dt><dd><code>{operation.id}</code></dd>
+        <dt>Requested profile</dt><dd>{operation.requested_profile}</dd>
+        <dt>Previous profile</dt><dd>{operation.previous_profile ?? '—'}</dd>
+        <dt>Controller status</dt><dd>{operation.status}</dd>
+        <dt>Current stage</dt><dd>{presentation.label} <code>({operation.stage})</code></dd>
+      </dl>
+    </>
+  );
 }
 
 export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
@@ -157,7 +193,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
       <div className="page-heading">
         <div>
           <h1>Main Model</h1>
-          <p>프로필의 검증 상태와 입력 capability를 확인한 뒤 Main Model 전환을 요청하고 진행 상태를 추적합니다. Runtime 시작·정지는 Runtimes 화면에서 수행합니다.</p>
+          <p>Compatibility와 GPU resource admission이 실행 가능성을 판단하고, Profile evidence는 검증 근거를 표시합니다. 전환 중에는 Controller의 실제 stage를 단계별로 추적합니다.</p>
         </div>
         <Button
           variant="secondary"
@@ -183,12 +219,19 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
       ) : null}
       {actionError ? <Alert isInline variant="danger" title="Main Model 전환 요청에 실패했습니다.">{actionError}</Alert> : null}
 
+      <Alert isInline variant="info" title="Hardware support와 Profile evidence는 별개입니다.">
+        새 GPU 제품명에 대한 직접 qualification record가 없다는 이유만으로 unsupported가 되지 않습니다.
+        실행 가능성은 Compatibility, GPU resource admission과 runtime validation이 판단하며,
+        resource variant는 reference policy가 맞지 않을 때만 사용하는 명시적 override입니다.
+      </Alert>
+
       <Card>
         <CardTitle>Current control state</CardTitle>
         <CardBody>
           <dl className="facts">
             <dt>Public model alias</dt><dd>{status.public_model}</dd>
             <dt>Active profile</dt><dd>{active?.display_name ?? '—'}{active ? ` (${active.id})` : ''}</dd>
+            <dt>Active resource policy</dt><dd>{active ? mainModelResourcePolicyLabel(active) : '—'}</dd>
             <dt>Gate</dt><dd><Label color={status.gate === 'open' ? 'green' : 'orange'}>{status.gate}</Label></dd>
             <dt>Runtime state</dt><dd>{status.runtime_state}</dd>
             <dt>Boot profile</dt><dd>{status.boot_profile}</dd>
@@ -205,7 +248,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
-                <tr><th>Profile</th><th>Compatibility</th><th>Qualification</th><th>Inputs</th><th>VRAM</th><th>State</th><th>Action</th></tr>
+                <tr><th>Profile</th><th>Compatibility</th><th>Profile evidence</th><th>Resource policy</th><th>Inputs</th><th>VRAM</th><th>State</th><th>Action</th></tr>
               </thead>
               <tbody>
                 {profiles.map((profile) => {
@@ -215,6 +258,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
                       <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code></td>
                       <td><Label color={compatibilityVariant(profile.compatibility.status)}>{compatibilityLabel(profile.compatibility.status)}</Label></td>
                       <td><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></td>
+                      <td>{mainModelResourcePolicyLabel(profile)}</td>
                       <td>{profile.capabilities.deployed_input.join(', ')}</td>
                       <td>{profile.vram_fraction.toFixed(2)}</td>
                       <td>{profile.active ? <Label color="green">active</Label> : 'available'}</td>
@@ -248,19 +292,21 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
               <dt>Upstream</dt><dd>{reviewProfile.upstream_model_id}</dd>
               <dt>Revision</dt><dd><code>{reviewProfile.revision}</code></dd>
               <dt>Compatibility</dt><dd>{compatibilityLabel(reviewProfile.compatibility.status)}</dd>
-              <dt>Qualification</dt><dd>{qualificationLabel(reviewProfile.qualification.status)}</dd>
+              <dt>Profile evidence</dt><dd>{qualificationLabel(reviewProfile.qualification.status)}</dd>
+              <dt>Resource policy</dt><dd>{mainModelResourcePolicyLabel(reviewProfile)}</dd>
               <dt>Inputs</dt><dd>{reviewProfile.capabilities.deployed_input.join(', ')}</dd>
               <dt>VRAM fraction</dt><dd>{reviewProfile.vram_fraction.toFixed(2)}</dd>
             </dl>
             {requiresConfirmation ? (
-              <Alert isInline variant="warning" title="추가 확인이 필요한 프로필입니다.">
+              <Alert isInline variant="warning" title="Profile evidence 확인이 필요합니다.">
+                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 profile의 repository-governed qualification evidence가 verified 상태가 아님을 확인하는 절차입니다.</p>
                 <label>
                   <input
                     type="checkbox"
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.currentTarget.checked)}
                   />{' '}
-                  이 프로필의 qualification이 현재 배포에서 verified가 아님을 확인했습니다.
+                  Profile evidence 상태를 확인했고 전환을 진행합니다.
                 </label>
               </Alert>
             ) : null}
@@ -285,20 +331,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
             ) : operationQuery.isError ? (
               <Alert isInline variant="danger" title="전환 상태를 불러오지 못했습니다.">{apiErrorMessage(operationQuery.error)}</Alert>
             ) : operationQuery.data ? (
-              <>
-                <Alert isInline variant={operationVariant(operationQuery.data.status)} title={`Operation ${operationQuery.data.status}`}>
-                  stage: {operationQuery.data.stage}
-                  {operationQuery.data.error ? ` · ${operationQuery.data.error}` : ''}
-                  {operationQuery.data.rollback_error ? ` · rollback: ${operationQuery.data.rollback_error}` : ''}
-                </Alert>
-                <dl className="facts">
-                  <dt>Operation ID</dt><dd><code>{operationQuery.data.id}</code></dd>
-                  <dt>Requested profile</dt><dd>{operationQuery.data.requested_profile}</dd>
-                  <dt>Previous profile</dt><dd>{operationQuery.data.previous_profile ?? '—'}</dd>
-                  <dt>Status</dt><dd>{operationQuery.data.status}</dd>
-                  <dt>Stage</dt><dd>{operationQuery.data.stage}</dd>
-                </dl>
-              </>
+              <OperationProgress operation={operationQuery.data} />
             ) : null}
           </CardBody>
         </Card>
@@ -310,7 +343,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
               <dt>Operation ID</dt><dd><code>{status.last_operation.id}</code></dd>
               <dt>Requested profile</dt><dd>{status.last_operation.requested_profile}</dd>
               <dt>Status</dt><dd>{status.last_operation.status}</dd>
-              <dt>Stage</dt><dd>{status.last_operation.stage}</dd>
+              <dt>Stage</dt><dd>{mainModelOperationStagePresentation(status.last_operation.stage).label} <code>({status.last_operation.stage})</code></dd>
             </dl>
           </CardBody>
         </Card>
