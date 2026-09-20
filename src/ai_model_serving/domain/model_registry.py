@@ -73,7 +73,14 @@ class ModelRegistry:
                     capabilities=capabilities_tuple,
                     request_parameters=request_parameters,
                     fixed_parameters=fixed_parameters,
-                    public_enabled=listing.get("enabled", True) is True,
+                    # 공개 목록은 catalog의 gateway_listing과 serving runtime의 활성
+                    # 여부를 함께 본다. runtime이 비활성인 model을 목록에 남기면
+                    # Gateway가 띄우지도 않은 runtime을 광고하고, 그 목록을 기준으로
+                    # 삼는 검증은 존재하지 않는 model을 계속 요구한다.
+                    public_enabled=(
+                        listing.get("enabled", True) is True
+                        and serving_cfg.get("enabled", True) is True
+                    ),
                     serving_key=serving_key,
                     port=int(serving_cfg["port"]) if "port" in serving_cfg else None,
                     endpoint_path=str(runtime.get("endpoint", runtime.get("internal_endpoint", runtime.get("public_adapter_endpoint", ""))) or "") or None,
