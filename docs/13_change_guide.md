@@ -67,7 +67,7 @@ Runtime 적용 / 배포
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
 | 네트워크 / 노출 | Exposure profile, Compose | Host 공개 범위 | Compose + full-stack |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
-| 자동화 경계 | `.github/workflows/`, `scripts/build/`, `scripts/deploy/` | GitHub app·contract 검증과 provider-neutral build·deploy 진입점 | `make check` + 변경한 진입점 확인 |
+| 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/` | GitHub app·contract 검증과 provider-neutral build·local lifecycle 진입점 | `make check` + 변경한 진입점 확인 |
 
 ---
 
@@ -425,7 +425,7 @@ make exposure-plan MODE=<private_network|master_open>
 
 ### Base Compose
 
-`ops/compose/full-stack.private-network.yaml` 변경은 배포 시 Runtime 구성 변경으로 처리된다. Rolling 요청에 이 파일 변경이 포함되면 배포 스크립트가 Full 배포로 전환한다.
+`ops/compose/full-stack.private-network.yaml` 변경은 선택 target의 Compose topology 변경이다. `make compose-config`로 effective 구성을 확인하고 실제 적용 시 canonical `make up`과 readiness까지 검증한다.
 
 실행 구조와 네트워크는 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
 
@@ -483,8 +483,9 @@ make runtime-validate
 
 - `.github/workflows/`
 - `scripts/validation/`
+- `scripts/platform_cli.py`
 - `scripts/build/`
-- `scripts/deploy/`
+- `scripts/ops/`
 
 ```text
 Workflow / Script
@@ -512,10 +513,10 @@ make check
 make build
 ```
 
-배포 스크립트 변경은 Rolling / Full 결정, Release 활성화, 변경 서비스 계산, Runtime Profile
-적용, Readiness와 복구 흐름에 영향을 줄 수 있다. 대상 환경 검증은 [10. 배포](./10_deployment.md)의
-완료 기준까지 이어진다. 단순 문서나 GitHub app/contract workflow 변경 때문에 GPU 배포
-회귀를 반복하지 않는다.
+`scripts/platform_cli.py`나 lifecycle/ops helper 변경은 target resolution과
+`setup/build/prepare/up/status/down`의 canonical local lifecycle, readiness에 영향을 줄 수 있다.
+대상 환경 검증은 [10. 배포](./10_deployment.md)의 완료 기준까지 이어진다. 단순 문서나
+GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 않는다.
 
 ---
 
@@ -593,7 +594,7 @@ make runtime-validate
 | Exposure | `exposure_profiles.yaml` | Compose override 재생성 + validate | effective port 확인 |
 | Dashboard | Dashboard JSON | `make validate` | Grafana / runtime validation |
 | Workflow | `.github/workflows/` | GitHub 문법 + `make check` | 해당 workflow |
-| Deploy logic | `scripts/deploy/` + deploy policy | validate | Release 배포 + readiness |
+| Lifecycle logic | `scripts/platform_cli.py`, `scripts/ops/` | validate | 선택 target lifecycle + readiness |
 
 ### 주요 명령
 

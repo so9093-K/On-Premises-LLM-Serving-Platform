@@ -624,7 +624,7 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 | Main Model profile | `configs/main_model_profiles.yaml` | model, revision, image, vLLM command, capability, Gateway 요청 정책, compatibility 정의 |
 | GPU budget | `configs/gpu_budgets.yaml` | GPU admission ceiling과 runtime resource policy 정의 |
 | Runtime serving policy | `configs/model_serving.yaml` | Gateway runtime 연결, timeout, admission 정의 |
-| Runtime Startup Profile | `configs/deploy_profiles.yaml` | compose-up/full 배포 후 non-main Model Runtime 초기 deferred 구성 정의 |
+| Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 non-main Model Runtime 초기 deferred 구성 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
 | Compose topology | `ops/compose/full-stack.private-network.yaml` | Main / non-main Model Runtime container 기본 topology 정의 |
 | Main Model state | `.runtime/main-model/main-model-state.json` 또는 deployment state path | active profile, gate, runtime state, switch operation 기록 |
