@@ -63,7 +63,7 @@ Runtime 적용 / 배포
 | 모델 정책·제한값 | `configs/model_serving.yaml` | Gateway + 모델 정책 | 생성 파일 + 정적 검증 |
 | Main Model Profile | `configs/main_model_profiles.yaml` | Main Model Runtime | Profile + 모델 전환 검증 |
 | 모델 추가·제거 | Model Registry 관련 설정 | API 목록, Runtime, 모니터링 | `make validate` + full-stack |
-| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | Unified Image + Runtime 검증 |
+| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | `make validate` + Unified Image + bounded Runtime 검증 |
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
 | 네트워크 / 노출 | Exposure profile, Compose | Host 공개 범위 | Compose + full-stack |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
@@ -335,6 +335,8 @@ Unified vLLM Image는 Main Model, Embedding, Korean Embedding, Prompt Injection 
 ```text
 Dockerfile / Patch / Compatibility
               ↓
+Security posture review + make validate
+              ↓
 Unified vLLM Image Build
               ↓
 새 Image Digest
@@ -343,8 +345,14 @@ Runtime 적용
               ↓
 Readiness
               ↓
-GPU / Inference Validation
+Bounded engine/runtime canary
 ```
+
+`compatibility_pins.vllm`을 변경하면
+[ vLLM 보안 노출 경계](./reference/vllm_security_posture.md)의 Security review contract도
+같은 변경에서 갱신해야 한다. `make validate`가 두 pin의 drift를 막는다. 이 review는
+Gateway mitigation을 upstream patch로 오인하지 않기 위한 경계이며, GPU 제품별 support
+matrix나 profile requalification을 만들지 않는다.
 
 로컬 Build:
 

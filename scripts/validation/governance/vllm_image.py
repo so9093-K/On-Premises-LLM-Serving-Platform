@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
+from datetime import date
 from pathlib import PurePosixPath
 
-from .common import ROOT
+from .common import ROOT, read_yaml
 
 
 _DOCKERFILE = ROOT / "ops/images/vllm-unified/Dockerfile"
+_SECURITY_POSTURE = ROOT / "docs/reference/vllm_security_posture.md"
+_SECURITY_REVIEW_PATTERN = re.compile(
+    r"^> Security review contract: `engine=(?P<engine>[^`\s]+)`, "
+    r"`reviewed_at=(?P<reviewed_at>\d{4}-\d{2}-\d{2})`\.$",
+    re.MULTILINE,
+)
 _REQUIRED_MANIFEST_ENTRIES = {
     ".dockerignore",
     "ops/images/vllm-unified/Dockerfile",
@@ -144,6 +152,49 @@ def _declared_source_manifest() -> list[str]:
         if not (ROOT / path).is_file():
             raise SystemExit(f"unified vLLM source manifest path is not a file: {raw}")
     return paths
+
+
+def _read_security_posture() -> str:
+    return _SECURITY_POSTURE.read_text(encoding="utf-8")
+
+
+def validate_vllm_security_posture_review() -> None:
+    """Fail closed when the engine pin moves without an explicit security re-review."""
+
+    build = read_yaml("configs/vllm_unified_build.yaml")
+    try:
+        engine_pin = str(build["compatibility_pins"]["vllm"]).strip()
+    except (KeyError, TypeError) as exc:
+        raise SystemExit(
+            "configs/vllm_unified_build.yaml must declare compatibility_pins.vllm"
+        ) from exc
+    if not engine_pin:
+        raise SystemExit("compatibility_pins.vllm must not be empty")
+
+    posture = _read_security_posture()
+    matches = list(_SECURITY_REVIEW_PATTERN.finditer(posture))
+    if len(matches) != 1:
+        raise SystemExit(
+            "vLLM security posture must contain exactly one review contract line: "
+            "> Security review contract: `engine=<pin>`, "
+            "`reviewed_at=YYYY-MM-DD`."
+        )
+
+    reviewed_engine = matches[0].group("engine")
+    reviewed_at = matches[0].group("reviewed_at")
+    try:
+        date.fromisoformat(reviewed_at)
+    except ValueError as exc:
+        raise SystemExit(
+            f"vLLM security posture reviewed_at must be a valid ISO date: {reviewed_at}"
+        ) from exc
+
+    if reviewed_engine != engine_pin:
+        raise SystemExit(
+            "vLLM security posture review is stale: "
+            f"build pin={engine_pin}, reviewed engine={reviewed_engine}. "
+            "Re-evaluate advisory reachability and update the review contract in the same change."
+        )
 
 
 def validate_vllm_unified_build_inputs() -> None:

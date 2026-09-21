@@ -4,6 +4,12 @@
 **이 플랫폼의 실제 API/Exposure 계약에 투영**한다. upstream 취약점 목록을 복제하는 문서가 아니라,
 어떤 입력이 Gateway를 통과해 runtime에 도달하는지와 어떤 경우 Gateway를 우회하는지를 기록한다.
 
+> Security review contract: `engine=0.25.1`, `reviewed_at=2026-09-21`.
+
+위 한 줄은 engine pin과 이 문서의 advisory reachability 검토가 같은 변경에서 갱신됐음을
+`make validate`가 확인하는 machine-readable review boundary다. 단순 버전 문자열 동기화가
+아니며, pin이 바뀌면 아래 Gateway/direct-runtime exposure를 다시 검토한 뒤 갱신한다.
+
 검토 기준일은 **2026-09-21**이다. 현재 Unified vLLM build input은
 `configs/vllm_unified_build.yaml`의 `vllm: 0.25.1`을 사용한다. Upstream advisory의
 affected/patched range가 바뀌거나 runtime pin이 변경되면 이 문서의 reachability를 다시 검토한다.
