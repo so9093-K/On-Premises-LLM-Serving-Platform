@@ -32,6 +32,8 @@ class _Http:
                             "object": "model",
                             "created": 1,
                             "owned_by": "local",
+                            "backend": "vllm",
+                            "capabilities": ["chat.completions"],
                             "input_modalities": ["text", "image", "audio", "video"],
                             "request_parameters": {},
                             "request_limits": {},
