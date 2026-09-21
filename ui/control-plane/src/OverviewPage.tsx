@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
+import { Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -9,6 +9,7 @@ import {
   type RuntimeListResponse,
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
 
 type OverviewPageProps = {
   bootstrap: BootstrapResponse;
@@ -50,6 +51,24 @@ function featureLabel(feature: string): string {
     gpu_admission: 'GPU admission',
   };
   return labels[feature] ?? feature;
+}
+
+function signalColor(tone: OverviewSignalTone): 'blue' | 'orange' | 'red' {
+  if (tone === 'danger') return 'red';
+  if (tone === 'warning') return 'orange';
+  return 'blue';
+}
+
+function mainModelSummary(
+  enabled: boolean,
+  pending: boolean,
+  mainModel: ReturnType<typeof fetchMainModel> extends Promise<infer T> ? T | undefined : never,
+): string {
+  if (!enabled) return 'externally managed';
+  if (pending) return 'checking';
+  if (!mainModel) return 'unavailable';
+  if (mainModel.runtime_state === 'stopped') return 'stopped';
+  return `${mainModel.gate} · ${mainModel.observed_runtime?.status ?? 'not observed'}`;
 }
 
 export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageProps) {
@@ -95,6 +114,23 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const unavailableTopology = topology.filter((item) => !item.available);
   const budget = runtimesQuery.data?.budget;
   const mainModel = mainModelQuery.data;
+  const mainModelSignals = mainModelOverviewSignals(mainModel);
+  const attentionSignals = mainModelSignals.filter((signal) => signal.tone !== 'info');
+  const informationalSignals = mainModelSignals.filter((signal) => signal.tone === 'info');
+  const checking = (
+    (runtimeControlEnabled && runtimesQuery.isPending)
+    || (modelSwitchingEnabled && mainModelQuery.isPending)
+  );
+  const hasAttention = (
+    runtimesQuery.isError
+    || mainModelQuery.isError
+    || attentionSignals.length > 0
+  );
+  const operatorStatus = checking
+    ? { label: 'Checking current state', color: 'blue' as const }
+    : hasAttention
+      ? { label: 'Review current state', color: 'orange' as const }
+      : { label: 'No current action indicated', color: 'green' as const };
 
   return (
     <section className="overview-page">
@@ -108,28 +144,92 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         </Button>
       </div>
 
-      {runtimesQuery.isError ? (
-        <Alert isInline variant="warning" title="Runtime 상태를 조회하지 못했습니다.">
-          {apiErrorMessage(runtimesQuery.error)}
-        </Alert>
-      ) : null}
-      {mainModelQuery.isError ? (
-        <Alert isInline variant="warning" title="Main Model 상태를 조회하지 못했습니다.">
-          {apiErrorMessage(mainModelQuery.error)}
-        </Alert>
-      ) : null}
+      <div className="overview-priority-grid">
+        <Card className="overview-status-card">
+          <CardTitle>Operator status</CardTitle>
+          <CardBody>
+            <div className="overview-status-heading">
+              <Label color={operatorStatus.color}>{operatorStatus.label}</Label>
+              <strong>현재 Control Plane 신호를 기준으로 판단합니다.</strong>
+            </div>
+            <p className="overview-muted">
+              이 요약은 전체 서비스 SLO나 `/ready` 결과를 대신하지 않습니다. 현재 제어 상태에서 운영자가 바로 확인할 항목이 있는지만 보여줍니다.
+            </p>
+            <dl className="facts overview-status-facts">
+              <dt>Main Model</dt>
+              <dd>{mainModelSummary(modelSwitchingEnabled, mainModelQuery.isPending, mainModel)}</dd>
+              <dt>Runtimes</dt>
+              <dd>{runtimeControlEnabled ? `${runtimeStateCount(runtimes, 'active')} active · ${runtimeStateCount(runtimes, 'starting')} starting` : 'externally managed'}</dd>
+              <dt>Configuration</dt>
+              <dd>{bootstrap.configuration.write_available ? 'write available' : 'read-only / unavailable'}</dd>
+            </dl>
+          </CardBody>
+        </Card>
 
-      {unavailableTopology.length ? (
-        <Alert
-          isInline
-          variant="info"
-          title={`${unavailableTopology.length}개 Runtime이 현재 resource policy에서 unavailable합니다.`}
-        >
-          장애나 GPU 지원 판정이 아니라 effective topology의 정책 상태입니다. Runtimes에서 제외 이유를 확인할 수 있습니다.
-        </Alert>
-      ) : null}
+        <Card>
+          <CardTitle>Needs attention</CardTitle>
+          <CardBody>
+            <div className="overview-signal-list">
+              {runtimesQuery.isError ? (
+                <div className="overview-signal">
+                  <Label color="orange">Runtime</Label>
+                  <div>
+                    <strong>Runtime 상태를 조회하지 못했습니다.</strong>
+                    <small>{apiErrorMessage(runtimesQuery.error)}</small>
+                  </div>
+                </div>
+              ) : null}
+              {mainModelQuery.isError ? (
+                <div className="overview-signal">
+                  <Label color="orange">Main Model</Label>
+                  <div>
+                    <strong>Main Model 상태를 조회하지 못했습니다.</strong>
+                    <small>{apiErrorMessage(mainModelQuery.error)}</small>
+                  </div>
+                </div>
+              ) : null}
+              {attentionSignals.map((signal) => (
+                <div className="overview-signal" key={signal.key}>
+                  <Label color={signalColor(signal.tone)}>{signal.tone}</Label>
+                  <div>
+                    <strong>{signal.title}</strong>
+                    <small>{signal.detail}</small>
+                  </div>
+                </div>
+              ))}
+              {!hasAttention && !checking ? (
+                <p className="overview-no-attention">현재 Control Plane 신호에서 즉시 조치가 필요한 항목은 없습니다.</p>
+              ) : null}
+              {checking ? (
+                <div className="inline-loading">
+                  <Spinner size="md" aria-label="Overview current state loading" />
+                  현재 상태를 확인하는 중입니다.
+                </div>
+              ) : null}
+            </div>
 
-      <div className="page-grid overview-grid">
+            {(informationalSignals.length > 0 || unavailableTopology.length > 0 || !bootstrap.configuration.write_available) ? (
+              <div className="overview-policy-notices">
+                <strong>Policy / informational</strong>
+                {informationalSignals.map((signal) => (
+                  <p key={signal.key}>{signal.title} {signal.detail}</p>
+                ))}
+                {unavailableTopology.length ? (
+                  <p>
+                    {unavailableTopology.length}개 Runtime이 현재 resource policy의 composition constraint로 unavailable합니다.
+                    장애나 GPU 지원 판정이 아닙니다.
+                  </p>
+                ) : null}
+                {!bootstrap.configuration.write_available ? (
+                  <p>현재 target에서는 Configuration write가 unavailable합니다. 읽기 상태 자체의 오류를 뜻하지 않습니다.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="page-grid overview-primary-grid">
         <Card>
           <CardTitle>Main Model</CardTitle>
           <CardBody>
@@ -199,6 +299,9 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           </CardBody>
         </Card>
 
+      </div>
+
+      <div className="page-grid overview-secondary-grid">
         <Card>
           <CardTitle>Runtime environment & access</CardTitle>
           <CardBody>
