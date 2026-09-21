@@ -5,6 +5,7 @@ import {
   isMainModelOperationTerminal,
   mainModelOperationProgress,
   mainModelOperationStagePresentation,
+  mainModelProfileImpact,
   mainModelProfileRequiresConfirmation,
   mainModelResourcePolicyLabel,
   mainModelProfileSwitchable,
@@ -81,6 +82,41 @@ test('resource policy is separate from hardware support and qualification eviden
     })),
     'Override · rtx4090-24gb',
   );
+});
+
+test('profile impact compares operator-visible switch differences without inferring hardware support', () => {
+  const current = profile('compatible', 'verified', {
+    capabilities: { deployed_input: ['text', 'image', 'audio'] },
+    vram_fraction: 0.5,
+  });
+  const target = profile('unknown', 'unverified', {
+    capabilities: { deployed_input: ['text', 'image', 'video'] },
+    resource_variant: 'rtx4090-24gb',
+    vram_fraction: 0.62,
+  });
+
+  assert.deepEqual(mainModelProfileImpact(current, target), {
+    addedInputs: ['video'],
+    removedInputs: ['audio'],
+    resourcePolicyChanged: true,
+    vramFractionDelta: 0.12,
+    compatibilityChanged: true,
+    qualificationChanged: true,
+  });
+});
+
+test('profile impact reports an unchanged operator contract when visible fields match', () => {
+  const current = profile();
+  const target = profile();
+
+  assert.deepEqual(mainModelProfileImpact(current, target), {
+    addedInputs: [],
+    removedInputs: [],
+    resourcePolicyChanged: false,
+    vramFractionDelta: 0,
+    compatibilityChanged: false,
+    qualificationChanged: false,
+  });
 });
 
 test('operation stages expose operator-facing progress meaning', () => {

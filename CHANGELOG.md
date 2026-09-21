@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Control Plane Main Model switch review가 후보 profile의 속성만 반복하지 않고 현재 active profile과 target의 Compatibility, Profile evidence, resource policy, deployed input, VRAM fraction을 나란히 비교한다. Input capability 추가/제거와 resource-policy 변화는 전환 전에 별도 impact로 표시하며, 비교 결과를 GPU 제품 지원 판정으로 재해석하지 않는다.
+
 - Control Plane Activity를 Runtime/Main Model/Configuration별 독립 테이블에서 시간순 통합 timeline으로 바꿨다. 세 backend operation source는 authority와 persistence를 그대로 유지하고 Console이 read-only projection만 구성한다. Source filter, status/stage, operation evidence detail을 한 흐름에서 볼 수 있으며 한 source 조회가 실패해도 나머지 activity는 계속 표시한다.
 
 - Control Plane이 effective topology의 unavailable Runtime을 숨기지 않는다. Overview는 현재 resource policy에서 제외된 Runtime 수를 정보성 상태로 요약하고, Runtimes 화면은 별도 read-only 영역에서 stable reason과 resource policy를 설명한다. Unavailable 항목에는 Start/Stop action을 제공하지 않으며 GPU 제품의 지원/미지원 상태로 표현하지 않는다.

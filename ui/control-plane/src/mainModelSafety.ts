@@ -123,6 +123,40 @@ export function mainModelResourcePolicyLabel(
     : 'Reference policy';
 }
 
+type MainModelComparableProfile = {
+  compatibility: { status: string };
+  qualification: { status: string };
+  capabilities: { deployed_input: readonly string[] };
+  resource_variant?: string | null;
+  vram_fraction: number;
+};
+
+export type MainModelProfileImpact = {
+  addedInputs: string[];
+  removedInputs: string[];
+  resourcePolicyChanged: boolean;
+  vramFractionDelta: number;
+  compatibilityChanged: boolean;
+  qualificationChanged: boolean;
+};
+
+export function mainModelProfileImpact(
+  current: MainModelComparableProfile,
+  target: MainModelComparableProfile,
+): MainModelProfileImpact {
+  const currentInputs = new Set(current.capabilities.deployed_input);
+  const targetInputs = new Set(target.capabilities.deployed_input);
+  return {
+    addedInputs: target.capabilities.deployed_input.filter((item) => !currentInputs.has(item)),
+    removedInputs: current.capabilities.deployed_input.filter((item) => !targetInputs.has(item)),
+    resourcePolicyChanged:
+      mainModelResourcePolicyLabel(current) !== mainModelResourcePolicyLabel(target),
+    vramFractionDelta: target.vram_fraction - current.vram_fraction,
+    compatibilityChanged: current.compatibility.status !== target.compatibility.status,
+    qualificationChanged: current.qualification.status !== target.qualification.status,
+  };
+}
+
 export function mainModelProfileRequiresConfirmation(profile: MainModelProfile): boolean {
   return profile.qualification.status !== 'verified';
 }
