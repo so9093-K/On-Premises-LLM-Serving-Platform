@@ -2,13 +2,13 @@ images:
   platform:
     env_key: PLATFORM_IMAGE
     reference_policy: local_build
-    default: ai-model-serving-platform:0.0.1
+    default: ai-model-serving-platform:0.1.0
     purpose: 이 저장소에서 빌드하는 Gateway와 Risk Signal Service 애플리케이션 이미지.
     source: 로컬 Docker 빌드
   vllm:
     env_key: VLLM_IMAGE
     reference_policy: local_build
-    default: ai-model-serving-vllm-unified:0.0.1
+    default: ai-model-serving-vllm-unified:0.1.0
     purpose: 선택 가능한 Main LLM profile과 embedding, embedding-ko, risk-prompt를 위한
       vLLM OpenAI 호환 runtime. 하나의 이미지에 두 patch 집합을 포함하며, 필요 없는 모델에서는
       해당 patch가 동작하지 않는다. 2026-07-24에 기존 vllm-gemma4-audio와 risk-vllm-kanana

@@ -1,6 +1,6 @@
 [project]
 name = "ai-model-serving-platform"
-version = "0.0.1"
+version = "0.1.0"
 description = "Gateway-centered vLLM AI model serving platform with chat, embedding, and risk signal APIs."
 readme = "README.md"
 license = "Apache-2.0"

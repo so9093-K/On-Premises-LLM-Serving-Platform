@@ -4,253 +4,35 @@
 
 ## [Unreleased]
 
+현재 0.1.0 이후의 미출시 변경이 없다.
+
+## [0.1.0] - 2026-09-21
+
+0.0.1 이후 누적된 개발 상태를 현재 운영 계약 기준으로 정리한 첫 Control Plane baseline이다. 중간 개발 단계에서 도입됐다가 제거되거나 의미가 바뀐 상태는 릴리스 노트에 재현하지 않고 최종 계약만 기록한다.
+
 ### Added
 
-- Main Model profile이 선택적 `resource_variants`로 검토된 runtime resource-policy override를 선언한다. 같은 model/revision을 자원 조건이 다른 host에서 서빙할 때 profile을 복제하지 않고 자원 knob(`max_model_len`, `max_num_seqs`, `max_num_batched_tokens`, `gpu_memory_utilization`)만 덮으며, model identity·capability·Gateway 계약은 profile이 계속 소유한다. Operator가 `MAIN_MODEL_RESOURCE_VARIANT`를 명시하면 해당 override를 선언하지 않은 profile은 reference policy로 조용히 fallback하지 않고 boot/switch가 fail-closed한다. 이는 GPU 제품 지원 allowlist가 아니라 명시적으로 선택한 자원 정책의 fallback 방지 경계다. 적용된 variant는 active profile snapshot과 `qualified_run`의 `subject.resource_variant`에 기록되어 서로 다른 자원 정책에서 나온 증거가 섞이지 않는다. `gemma4-e4b-it`에는 RTX 4090 24GB 실측으로 필요한 override(`rtx4090-24gb`)를 포함한다. ([ADR-0034](docs/adr/0034-main-model-host-resource-variant.md), [ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
-
-- Gateway에 `POST /v1/responses`를 추가했다. `local-main`의 active profile/admission을 Chat Completions와 공유하면서 item 기반 input/output, function tool continuation, `text.format` structured output, profile-backed `reasoning.effort`, typed SSE streaming을 제공한다. Gateway 계약은 stateless이며 이전 output item과 tool result를 다음 `input`에 포함해 대화를 이어간다. server-side response storage와 `previous_response_id`는 이 surface가 소유하지 않는다.
-- Gateway가 `/admin/console/`에서 first-party Control Plane Console의 generated asset을 same-origin으로 제공하는 foundation을 추가했다. Console은 docs enable flag와 독립적으로 제공되고 Bootstrap capability를 먼저 소비하며, 보호된 profile의 Admin key는 브라우저 메모리에만 유지한다. Frontend source는 OpenAPI-derived TypeScript type과 deterministic checked-in dist를 사용하고 production runtime에는 Node/npm을 포함하지 않는다.
-
-- macOS·Ubuntu 개발 환경을 위한 `make setup-dev`와 `make doctor-dev`, GitHub Actions 검증 workflow를 추가했다. app/contract 진입점에서는 Python을 확인하고 운영 shell helper용 Bash는 doctor에서 별도 진단한다. 기존 `.env`와 runtime state는 유지하며 GPU 런타임 검증과는 별도다.
-
-- OpenAI 표준 요청 필드를 chat·embedding API에서 받는다. `max_completion_tokens`(OpenAI가 `max_tokens`를 대체한 이름, 같은 한도를 가리키며 upstream 전에 `max_tokens`로 접힌다 — 두 이름을 함께 보내면 422), `developer` 역할(`system`을 대체한 이름, chat template이 동일하게 처리), `user` 식별자(형식만 검증하고 런타임에는 전달하지 않는다). 이전에는 셋 다 `422 VALIDATION_ERROR`라 표준 클라이언트를 그대로 붙일 수 없었다.
-- embedding `encoding_format`에 `base64`를 추가했다(응답은 little-endian float32 배열을 인코딩한 문자열). openai-python은 numpy가 설치되어 있으면 이 형식을 기본으로 요청하므로, 형식을 지정하지 않은 공식 SDK 호출이 422로 막히던 경로가 해소된다. 차원 검사는 float일 때와 동일하게 적용된다.
-- `/v1/models` 항목에 OpenAI model object가 요구하는 `created`(Gateway 프로세스 기동 시각, 프로세스 안에서 고정)와 `owned_by`를 추가했다. 업스트림 vLLM은 두 필드를 반환하는데 Gateway 목록에만 빠져 있었다.
-- 에러 응답에 `error.param`(OpenAI 호환)을 추가했다. 검증 오류 시 문제 필드 경로를 담아, 클라이언트가 message를 파싱하지 않고 오류 출처를 구분할 수 있다 — 잘못된 출력 스펙은 `response_format`/`response_format.json_schema`, 잘못된 입력 데이터 포맷은 `input_audio.format`/`image_url`/`video_url`. 두 오류가 모두 `VALIDATION_ERROR 422`라 코드만으로는 구분되지 않던 피드백을 해소한다. 필드 범위가 아닌 오류에서는 생략되어 기존 응답과 호환된다.
-- 에러 code의 의미와 운영 조치를 설명하는 `configs/error_catalog.yaml`을 추가했다.
-  HTTP status·retryable의 런타임 권위는 `errors.py`의 `ERROR_DEFINITIONS`이며 contract
-  검사가 양쪽 code 집합 일치를 고정한다.
-- `Qwen/Qwen2.5-Omni-7B` Thinker profile을 추가하고 `verified`로 승격했다. Gateway에서 text/image/audio/video 입력→text 응답, media boot canary·rollback, structured output, logprobs, logit bias와 streaming 계약을 실제 런타임으로 검증했다. tool calling은 안정적인 parser/template 경로가 없어 비활성이고, 음성 출력은 이번 플랫폼 범위에 포함하지 않는다.
+- OpenAI 호환 Gateway가 Chat Completions, Responses, Embeddings를 제공하고 Retrieval과 Risk Signal API를 함께 노출한다. Main Model profile의 capability에 따라 multimodal input, structured output, reasoning, tool calling 등 지원 표면을 명시적으로 제한한다.
+- Linux/NVIDIA의 unified vLLM runtime과 macOS/Apple Silicon의 MLX-VLM static target을 포함한 target-aware local lifecycle(`make setup/build/prepare/up/status/down`)을 제공한다.
+- Runtime, Main Model, Configuration 변경을 Plan → Review → Apply → Verify 흐름으로 제어하며 operation history와 rollback/recovery evidence를 보존한다.
+- same-origin first-party Control Plane Console이 Overview, Runtime Control, Main Model switching, Configuration, Activity를 제공한다. Activity는 각 backend journal의 authority를 유지한 채 최근 operation을 시간순 read-only projection으로 통합한다.
+- Main Model qualification evidence, stable qualification check registry, reviewed promotion과 immutable `qualified_run` provenance를 제공한다.
+- Prometheus/Grafana/Loki 기반 운영 관측과 runtime validation, deterministic release package, Linux/macOS CI 검증을 제공한다.
 
 ### Changed
 
-- Control Plane Activity를 Runtime/Main Model/Configuration별 독립 테이블에서 시간순 통합 timeline으로 바꿨다. 세 backend operation source는 authority와 persistence를 그대로 유지하고 Console이 read-only projection만 구성한다. Source filter, status/stage, operation evidence detail을 한 흐름에서 볼 수 있으며 한 source 조회가 실패해도 나머지 activity는 계속 표시한다.
-
-- Control Plane이 effective topology의 unavailable Runtime을 숨기지 않는다. Overview는 현재 resource policy에서 제외된 Runtime 수를 정보성 상태로 요약하고, Runtimes 화면은 별도 read-only 영역에서 stable reason과 resource policy를 설명한다. Unavailable 항목에는 Start/Stop action을 제공하지 않으며 GPU 제품의 지원/미지원 상태로 표현하지 않는다.
-
-- `GET /admin/runtimes`가 실제 제어 대상인 `runtimes`와 별도로 read-only `topology` projection을 반환한다. 선택된 Main resource policy의 composition constraint로 제어 대상에서 빠진 Runtime도 `available=false`, stable reason code, `main_resource_variant`와 함께 설명할 수 있으며, 이 projection은 해당 Runtime을 start/readiness/public-model 집합에 다시 추가하지 않는다. Resource-policy unavailable은 GPU 제품 지원 여부를 뜻하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md))
-
-- Prompt Injection Detector Runtime의 전역 비활성화를 resource-aware effective topology로 대체했다. 선언상 runtime/detector는 다시 활성 상태이며 reference Main resource policy에서는 Runtime Startup Profile과 Runtime Control 대상이 된다. RTX 4090 24GB 실측에서 공존 불가가 확인된 `rtx4090-24gb` Main resource-policy override가 선택된 동안에는 `configs/runtime_topology.yaml`의 composition constraint가 detector를 effective topology에서 제외한다. Gateway `/v1/models`, Risk Signal Service detector registry, Runtime Controller, compose-up/deferred 계산, smoke/runtime validation이 같은 projection을 사용하며 GPU 제품명 자체를 support allowlist로 취급하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md)) checked-in model-list JSON Schema는 target-neutral model/capability union만 제한하고 Main-only 목록도 허용하며, 현재 target에서 요구되는 정확한 model 집합은 live runtime validation이 검증한다.
-
-- Remote release 제거 뒤 남아 있던 Runtime Startup 내부 이름을 정리했다. `DEPLOY_DEFERRED_RUNTIMES` / `DEPLOY_RELEASE_ID`는 `RUNTIME_STARTUP_DEFERRED_KEYS` / `RUNTIME_STARTUP_GENERATION`으로 직접 cutover하고 operator `.env`에서 제거한다. `runtime-state.json`은 schema v3의 `applied_startup_generation`을 사용하며 schema v1/v2의 desired state와 `applied_release_id`를 원자적으로 이관한다. Control Plane bootstrap v4의 nullable `platform.release_id`에는 startup generation을 새 의미로 투영하지 않는다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
-
-- Repository-owned deployment authority를 target-aware local lifecycle(`make setup/build/prepare/up/status/down`)로 수렴하고, 별도 remote release transport·`rolling/full` mode·release symlink·자동 rollback state machine을 제거했다. `make package`와 deterministic release manifest는 artifact/reproducibility 계약으로 유지하며 Runtime/Main Model rollback은 각 Control Plane component가 소유한다. Unified vLLM build-input manifest는 deployment helper가 아니라 `scripts/lib/vllm_unified_image.sh`가 소유한다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
-
-- Qualification evidence의 immutable history와 current profile eligibility를 분리했다. GPU 제품·UUID·driver·resource policy·검증 시각은 run provenance로 유지하며 그 차이만으로 profile-level requalification을 요구하지 않는다. Model/revision/capability, Main Model target, 현재 required check가 current evidence match를 소유한다. Qualification check registry가 확장되면 과거 receipt를 수정하지 않고 보존하되 새 required check가 없는 run은 current verified/status-promotion 근거에서 제외한다. ([ADR-0036](docs/adr/0036-qualification-evidence-reuse-and-invalidation.md))
-
-- Main Model `qualification.status` 승격 plan이 검토 대상 deployment target을 명시적으로 포함하고, 해당 target의 `qualified_run`만 eligibility 근거로 사용한다. Plan digest는 profile/evidence뿐 아니라 `deployment_targets.yaml`과 qualification check registry에도 묶여 review 뒤 계약 drift를 fail-closed한다. `resource_variant`는 evidence provenance로 유지하며 같은 target 안에서 GPU/resource override 차이만으로 profile-level promotion을 막지 않는다. ([ADR-0033](docs/adr/0033-qualification-status-promotion-contract.md), [ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
-
-- Main Model hardware admission과 qualification evidence의 의미를 분리했다. GPU 제품명·UUID·driver는 관측/evidence provenance이며 hardware allowlist가 아니다. 직접 GPU evidence가 없다는 이유만으로 unsupported가 되거나 재qualification을 요구하지 않으며, 실행 가능성은 deployment/runtime compatibility와 GPU resource admission, runtime validation이 판단한다. `resource_variant`는 reference policy가 실제로 맞지 않을 때만 쓰는 명시적 resource-policy override로 정의하고 기존 `rtx4090-24gb` ID와 명시적 override의 fail-closed fallback 방지는 유지한다. Control Plane은 profile evidence와 hardware support를 별개로 설명하고 switch stage를 운영자용 진행 의미로 표시한다. ([ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
-
-- Gemma4 tool calling의 공개 계약을 실제 vLLM 0.25.1 실측 범위로 좁혔다. Main Model profile의 `tool_calling.tool_choice`가 허용 문자열 값과 named choice 여부를 소유하며, 현재 Linux/CUDA Gemma profile은 `auto`와 `none`만 공개한다. `required`와 named forced choice는 Gemma4 parser가 강제 호출 계약을 안정적으로 지키지 못해 Gateway가 upstream 호출 전에 `422`로 거부한다. 기존 `required_single` 요청 재작성 우회는 제거했다. Responses API도 요청한 tool choice, 제공된 tool 이름, `parallel_tool_calls=false`를 upstream output에서 검증한다.
-
-- Runtime validation의 vLLM metric probe가 OpenAI API base(`/v1`)에 `/metrics`를 덧붙여 `/v1/metrics`를 호출하던 경로를 바로잡았다. vLLM model API와 metric endpoint를 분리해 live validation이 실제 `/metrics`를 검사한다.
-
-- Prompt Injection Detector Runtime(`kakaocorp/kanana-safeguard-prompt-2.1b`)을 비활성화했다. `/v1/risk/detectors/prompt/assessments`는 `409 DETECTOR_DISABLED`로 응답하고 `prompt_attack` family의 A1·A2 signal은 제공되지 않는다. Risk feature 자체는 유지된다 — PII와 Secret detector는 Risk Signal Service in-process 구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`, `/v1/risk/assessments` aggregate가 그대로 동작한다(aggregate는 활성 detector만 순차 처리한다). 이 runtime은 더 이상 Runtime Startup Profile의 control 대상이 아니며 Prometheus scrape 대상과 `/v1/models` 공개 목록에서도 빠진다. RTX 4090 24GB에서 Main Model과 공존시킬 수 없다는 것이 실측으로 확인됐고(약 3.05 GiB 필요, 가용량 미달), GPU budget을 host별로 나눠 갖는 수단이 아직 없어 전역으로 끈다. 다시 켜려면 `configs/model_serving.yaml`의 runtime·detector registry와 `configs/runtime_topology.yaml`의 lifecycle binding을 함께 `enabled: true`로 되돌린다.
-
-- `GET /admin/main-model`의 `observed_runtime`이 Docker inspect에서 실제 container image ref/image ID와 Unified vLLM engine version label을 함께 반환한다. 설정값과 실행 중인 artifact를 구분해 qualification이 실제 runtime fingerprint를 사용할 수 있으며, version label이 없는 기존 image는 값을 추측하지 않고 `null`로 관측한다.
-
-- Unified vLLM build contract가 engine version을 `configs/vllm_unified_build.yaml`에서 명시적으로 소유한다. Image build는 해당 vLLM 버전을 실제 base 환경에서 검증하고 `ai_model_serving.vllm_version` label로 남겨, qualification evidence가 문서 주석이나 tag를 추측하지 않고 runtime engine version을 연결할 수 있게 했다.
-
-- Runtime validation이 Main Model qualification용 stable check ID를 report에 기록하고, active profile이 image/audio/video 입력을 공개하면 switch-time과 동일한 checked-in media fixture로 실제 chat canary를 실행한다. 이 결과는 후속 `qualified_run` producer가 `configs/qualification_checks.yaml`과 대조할 수 있다.
-
-- Main Model Qualification에 stable check registry를 추가했다. `configs/qualification_checks.yaml`이 capability별 required check를 소유하고, 새 `qualified_run`은 `{id, status}` check 결과를 기록한다. passed evidence에서 required check가 누락되거나 `failed`/`skipped`이면 CI가 fail-closed한다. ([ADR-0032](docs/adr/0032-qualification-evidence-v1.md))
-
-- Prompt Injection Detector의 service-registry/Compose identity를 `prompt_injection_detector_runtime` / `prompt-injection-detector-runtime`로 수렴했다. 기존 `PROMPT_INJECTION_DETECTOR_BASE_URL=http://risk-prompt-vllm:9403/v1` 기본값은 `make sync-env`가 새 DNS로 정확히 이관하며, 다른 operator-owned URL은 보존한다. public model alias `risk-prompt`는 유지한다.
-
-- Prompt Injection Detector의 내부 runtime/config key를 `risk_prompt`에서 `prompt_injection_detector`로 수렴했다. 기존 persistent runtime desired-state의 `risk_prompt` 상태는 canonical key로 원자적으로 이관해 운영자의 active/stopped 의도를 보존한다. public model alias `risk-prompt`와 Compose service `risk-prompt-vllm`은 이번 단계에서 유지한다.
-
-- Prompt Injection Detector의 operator 환경변수 namespace를 `PROMPT_INJECTION_DETECTOR_*`로 수렴했다. 기존 `RISK_PROMPT_*`와 `RISK_PROMPT_VLLM_*` 값은 `make sync-env` migration 입력으로만 유지하며 runtime은 canonical key만 읽는다. public model alias `risk-prompt`, Compose service `risk-prompt-vllm`, 내부 runtime key `risk_prompt`는 이번 단계에서 바꾸지 않는다.
-
-- Runtime transition Apply를 Configuration mutation과 같은 reviewed-plan 계약으로 수렴했다. `PATCH /admin/runtimes/{service_key}`는 이제 Plan에서 받은 `plan_digest`를 필수로 요구하고, Runtime Controller도 mutation 직전 GPU budget lock 안에서 같은 plan을 재계산해 digest drift를 fail-closed한다. 초기 compatibility 기간의 digest 없는 Apply 경로는 제거했다. ([ADR-0027](docs/adr/0027-control-plane-runtime-configuration-and-console-boundary.md))
-
-- Risk Signal Service의 active service identity를 `risk-adapter`에서 `risk-signal-service`로 수렴했다. Compose/DNS, health payload, metrics/logging identity, Prometheus job, Grafana query, runtime validation과 OpenAPI artifact(`openapi.risk-signal-service.yaml`)가 같은 이름을 사용한다. Python/config/env의 `risk_adapter` / `RISK_ADAPTER_*` namespace는 별도 migration으로 남긴다.
-
-- Deployment Target `control_mode`의 `sidecar` 값을 제거하고 `runtime_controller`로 수렴했다. Control Plane Bootstrap은 이 breaking contract를 명시하기 위해 v4로 올라가며, `static` target은 기존 의미를 유지한다. ([ADR-0020](docs/adr/0020-runtime-control-and-deployment-targets.md))
-
-- Runtime Controller의 active service identifier를 `admin-sidecar` / `admin_sidecar`에서 `runtime-controller` / `runtime_controller`로 수렴했다. Compose service와 DNS, Gateway `RUNTIME_CONTROLLER_URL`, rolling deploy, Docker socket boundary test, telemetry service key와 current 운영 문서가 모두 같은 identifier를 사용한다. historical ADR/CHANGELOG의 당시 명칭만 기록으로 남긴다.
-
-- Main Model/Runtime Controller 환경변수 rename migration을 실행 계약에서 종료했다. Runtime, boot override, benchmark, preflight, service env projection은 `MAIN_MODEL_*`와 `RUNTIME_CONTROLLER_URL`만 읽으며, `MAIN_LLM_*`와 `ADMIN_SIDECAR_URL`은 `make sync-env`가 기존 persistent `.env`를 canonical key로 옮길 때만 인식한다. Main Model host bind/port도 `MAIN_MODEL_VLLM_*`만 사용한다. ([ADR-0030](docs/adr/0030-target-architecture-state-and-artifact-boundary.md))
-
-- Deployment Target 상태 계약을 canonical 두 축으로 수렴하고 Control Plane Bootstrap을 v3로 올렸다. `validation_status` legacy projection과 parser를 제거했으며, `implementation_status`가 구현 여부를, `qualification_status`가 검증 근거를 각각 소유한다. ([ADR-0020](docs/adr/0020-runtime-control-and-deployment-targets.md), [ADR-0030](docs/adr/0030-target-architecture-state-and-artifact-boundary.md))
-
-- Main Model Admin API의 상태 계약을 canonical 두 축으로 수렴했다. `compatibility.status`는 이제 `compatible / incompatible / unknown`만 반환하고, 실제 검증 수준은 `qualification.status`가 소유한다. migration용 `technical_status`와 `verified / likely / unverified` legacy compatibility projection, 이를 유지하던 변환 코드와 전용 테스트를 제거했다. ([ADR-0030](docs/adr/0030-target-architecture-state-and-artifact-boundary.md))
-
-- Main Model `verified` qualification을 machine-readable evidence와 연결했다. `configs/qualification_evidence.yaml`이 검증 record를 소유하고, CI는 현재 profile의 model ID/revision/deployed capability와 일치하는 passed evidence가 없으면 실패한다. 기존 검증은 누락 fingerprint를 추측하지 않는 `legacy_backfill`로 이관하고, 새 `qualified_run`은 검증 시각·runtime engine/version·resolved image digest·GPU·driver와 수행한 named checks를 필수로 기록한다. ([ADR-0032](docs/adr/0032-qualification-evidence-v1.md))
-
-- 새 Main Model `qualified_run`은 Docker local image ID와 구분되는 registry/distribution image digest를 사용하고, repository가 소유하는 `evidence/qualification/runs/*.json` receipt를 durable source로 사용한다. Runtime validation의 `reports/runtime/` 산출물은 계속 임시 실행 결과이며, receipt와 qualification catalog record가 다르면 validation이 fail-closed한다.
-
-- `make qualification-candidate REPORT=<runtime-validation.json>`가 stable qualification checks와 검증 시작/종료 시점의 Main Model identity·Deployment Target·NVIDIA GPU UUID/driver snapshot을 사용해 reviewable `qualified_run` receipt candidate를 생성한다. producer는 report 중간 profile/operation/hardware drift, 다른 host에서 복사된 report, required check 누락·unknown check·불완전 fingerprint에서 fail-closed하며 repository evidence나 profile status를 자동 변경하지 않는다.
-
-- 기존 qualification evidence promotion을 reviewed plan/apply 계약으로 강화했다. passed `reports/qualification/` candidate만 대상으로 candidate 내용과 현재 catalog hash를 묶은 `plan_digest`를 출력하고, apply 시 같은 digest를 exact confirm해야 한다. 적용 직전 plan을 재계산하고 staged repository validator를 통과한 뒤 receipt/catalog를 원자 교체하며 profile `qualification.status`는 자동 변경하지 않는다.
-
-- Runtime Controller endpoint 환경변수를 `RUNTIME_CONTROLLER_URL`로 수렴했다. 기존 `ADMIN_SIDECAR_URL`은 read/sync compatibility alias로 유지하며, 양쪽에 서로 다른 값이 있으면 fail-closed한다. Compose service ID `admin-sidecar`와 Python client/module 이름은 이번 단계에서 변경하지 않는다.
-
-- 사용자-facing 서비스 용어를 `Runtime Controller`와 `Risk Signal Service`로 수렴했다. API 오류·OpenAPI 설명/예제·CLI help·설정 help에서 `Admin Sidecar`/`Risk Adapter` 표시명을 제거하고, `admin-sidecar`, `risk_adapter`, `ADMIN_SIDECAR_URL` 같은 compatibility/internal identifier는 실제 식별자를 가리킬 때만 유지한다. 중앙 terminology governance가 이 surface까지 검사한다. ([Canonical Terminology](docs/reference/terminology.md))
-
-- Runtime Controller의 Docker lifecycle authority를 현재 Compose project에 fail-closed로 제한했다. 모든 container lookup은 project+service label을 함께 사용하고 daemon 응답 label을 다시 검증하며, project 누락·cross-project 결과·중복 container를 거부한다. Docker socket은 계속 Runtime Controller에만 mount되고 host port는 열지 않으며, `:ro` mount를 Docker API read-only 권한으로 간주하지 않는다. ([ADR-0031](docs/adr/0031-runtime-controller-docker-authority-boundary.md))
-
-- Main Model operator 환경변수 namespace를 `MAIN_MODEL_*`로 수렴했다. 기존 `MAIN_LLM_*`는 read/sync compatibility alias로 유지하며 `make sync-env`가 값을 손실 없이 canonical key로 이관한다. `MAIN_LLM_MODEL`은 실제 의미에 맞게 `MAIN_MODEL_ALIAS`로 바뀌고, canonical/legacy 양쪽에 서로 다른 값이 있으면 fail-closed한다. 내부 service key `main_llm`과 Compose service ID `main-llm-vllm`은 이번 migration 범위에 포함하지 않는다. ([ADR-0030](docs/adr/0030-target-architecture-state-and-artifact-boundary.md))
-
-- shared vLLM runtime artifact의 persistent image authority를 `VLLM_IMAGE` 하나로 수렴했다. 기존 `EMBEDDING_KO_VLLM_IMAGE`와 `RISK_VLLM_IMAGE`는 retired key이며 `make sync-env`와 `setup_env.py --force`가 기존 `.env`에서 제거한다. Main Model profile 전용 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`는 별도 override 계약으로 유지하고, publish된 shared artifact는 immutable digest를 persistent `VLLM_IMAGE`에 명시적으로 pin한다. 기존 `AUDIO_VLLM_IMAGE`는 migration compatibility alias다. ([ADR-0028](docs/adr/0028-unified-vllm-runtime-image-authority.md), [ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
-
-- 신규 환경의 접근 UX를 `ACCESS_PROFILE=local|private|edge`로 단순화했다. `make setup
-  ACCESS=...`이 기존 auth/exposure/service Source of Truth에서 안전한 조합을 resolve하며,
-  기본 `local`은 Gateway와 Grafana를 loopback에만 공개한다. `ACCESS_PROFILE`이 없는 기존
-  Ubuntu `.env`는 자동 이관하지 않고, 명시적 전환도 plan 후 `CONFIRM=access`에서만
-  원자적으로 적용한다. `master_open`과 기존 auth/exposure 도구는 Advanced/legacy
-  호환 경로로 유지한다. ([ADR-0025](docs/adr/0025-user-access-profiles-and-legacy-migration.md))
-
-- 오류 계약과 내부 진단을 분리했다. `UPSTREAM_SCHEMA_ERROR`는 응답 구조·model ID
-  오류인 `UPSTREAM_RESPONSE_INVALID`와 생성 JSON 오류인 `STRUCTURED_OUTPUT_INVALID`로
-  나뉜다. 공개 `PARSE_ERROR`는 전자로 통합하되 Risk `system_signals`의 동명 신호는
-  유지한다. 미사용 `RUNTIME_NOT_READY`를 제거하고 `DETECTOR_DISABLED`는 410 → 409,
-  잘못된 method는 `METHOD_NOT_ALLOWED` 405와 `Allow` 헤더로 반환한다.
-- 잘못된 upstream 최상위 JSON 형식을 사용자 입력 오류 422로 오분류하던 경로와
-  Chat Sidecar 거부 처리의 오류 변환 import 누락을 수정했다. 해석 불가능한 요청
-  `$ref`는 추론 전에 422로 거부한다.
-- 공개 `error.debug`·`X-Error-Message`를 제거했다. 클라이언트는 `code`·`param`·`details`와
-  request ID를, 운영자는 같은 ID의 요청 로그 `diagnostic_code`·원인 요약을 사용한다.
-  SSE 오류도 HTTP 200과 함께 스트림 종료 후 기록하며 Request Log Explorer에서 조회한다.
-  기존 `upstream_errors_total`의 이름·label 키는 유지하고 `code` 값은 운영 분류를
-  사용한다(`UPSTREAM_AUTH_FAILED`, `UPSTREAM_HTTP_ERROR`, `GATEWAY_TIMEOUT` 등).
-  구조화 출력 재시도는 `UPSTREAM_SCHEMA_ERROR_RETRIED` → `STRUCTURED_OUTPUT_RETRIED`,
-  스트림 한도 지표는 chunk/byte 원인별로 구분한다. 특정 code를 필터링하던 알림은 갱신해야 한다.
-  ([ADR-0024](docs/adr/0024-public-errors-and-operational-diagnostics.md))
-
-- 로컬 lifecycle을 target-aware `make setup → build → prepare → up/status/down`으로
-  정리했다. `build/rebuild`는 선택 target의 저장소 소유 image, `prepare`는 선택 Main
-  Model만 담당한다. checkout 전체 종료는 `.env`와 project name에 독립적인 `down-all`,
-  전체 초기화는 plan/확인 방식의 `reset`으로 분리했다. 책임이 겹치던 `first-run`,
-  `build_all.sh`, `clean-dry-run`, `clean-all`, app-only `start/stop` alias는 제거했다.
-
-- Gateway/Risk Adapter 요청 이벤트를 Docker LogPath 수집에서 앱 소유 JSONL로 분리했다. Linux full-stack과 macOS Metal static이 같은 Loki Request Log Explorer를 사용하며, Docker manifest는 vLLM·컨테이너 장애 진단에만 남는다. ([ADR-0022](docs/adr/0022-application-request-event-ownership.md))
-
-- Secondary Runtime 기본 프로필을 `main_only`로 변경해 compose-up과 full 배포에서 Main Model만 처음 준비한다. Embedding·Korean Embedding·Prompt Risk는 컨테이너만 생성하고 기존 Admin Runtime API로 필요할 때 시작한다. Retrieval을 즉시 제공할 환경은 `retrieval_ready`를 명시하며 Risk Adapter와 로컬 PII·Secret 검사는 유지된다.
-- Compose preflight가 실제 기동과 같은 main-model boot override를 검사하도록 수정했다. 저장된 프로필과 메인 GPU host override를 기본 모델 설정으로 잘못 비교하지 않으며, 보조 모델 정합성·GPU 예산·인증·노출 정책은 유지한다.
-- Sidecar admission이 소비하지 않던 `EMBEDDING_KO_GPU_MEMORY_UTILIZATION` 환경변수를 Compose 예시와 command에서 제거했다. 한국어 embedding GPU 예산은 `configs/model_serving.yaml`의 `0.06`을 command와 admission의 공통 기준으로 사용하며 기본 동작은 바뀌지 않는다.
-- Python dependency 관리를 Platform root와 독립 MLX runtime의 `pyproject.toml` + `uv.lock`으로 정리했다. OS 이름으로 나뉜 requirements 파일, pip-tools 생성 스크립트와 lock 내용을 다시 파싱하던 validator를 제거하고 실제 설치·image build가 `--locked`로 stale lock을 거부한다.
-- `configs/recommended_images.yaml`이 container image의 env key와 reference policy를 소유한다. Platform/Unified vLLM은 project-built 로컬 기본 tag를 유지하고, DCGM Exporter·Prometheus·Grafana·cAdvisor·Loki·Alloy는 검증된 multi-arch manifest digest로 고정한다. `make validate`가 immutable upstream ref와 `.env.compose.example` projection drift를 검사한다.
-
-- 사용자에게 아무 영향이 없던 profile `request_parameter_policy.combinations` 정책을 제거했다. 검증기는 `mode: reject`만 거부하는데 어떤 profile도 그 값을 쓰지 않아(`capability_gate`/`allow`뿐) 모든 조합이 항상 허용되고 있었다. `canary_required`·`default` 키는 어디서도 읽히지 않았다. 실제 조합 허용 여부는 바뀌지 않는다.
-
-- 모든 Gemma 4 main-model profile(26B, 12B Unified, E4B)의 vLLM vision token budget을 `max_soft_tokens=1120`으로 올렸다. 허용되는 최대 image detail 예산을 공통 적용하되, Gateway의 image/video 픽셀·바이트 제한은 decode 보호 경계로 유지한다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-
-- `local-main` 외부 alias를 유지하면서 Gemma 4 26B A4B FP8과 Gemma 4 12B Unified FP8 중 하나를 선택하는 메인 모델 프로필 제어를 추가했다. `GET /admin/main-model`, `GET /admin/main-model/profiles`, `POST /admin/main-model/switch`, operation 조회 API를 제공하며, 전환 상태와 마지막 정상 프로필을 atomic state file에 영속화한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md))
-- 메인 모델 전환에 drain, container recreate, health, `/v1/models`, 실제 text canary, last-known-good rollback 절차를 추가했다. 활성 프로필, 고정 model revision/runtime image, request gate, 전환·rollback 결과는 Gateway Prometheus metric으로 확인할 수 있다. 12B는 현재 고정 revision과 pinned derived runtime image 기준 1차 검증을 완료해 compatibility를 `verified`로 제공하며, audio/video 제품 입력은 active profile의 `deployed_input`과 media boot canary 통과 여부로 gate한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md), [ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- 단일 GPU에서 메인·보조 모델의 VRAM을 단일 예산으로 보고 모든 모델 로드를 admission으로 통합했다. 비용은 정적 `gpu_memory_utilization` 합, 천장은 `configs/gpu_budgets.yaml`의 `avoid_above`(현재 0.93)이며 메인도 참가자(non-evictable)다. 초과 시 거부 + 축출 계획을 `409`로 반환하고 `force`로 자동 축출하며, 축출 순서는 `resource_control.criticality` 기반(임베딩 → risk, 메인 보존)이다. `GET /admin/runtimes`·`GET /gpu-budget`에 예산 스냅샷을 노출한다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- 메인 프로필별 런타임 이미지 오버라이드(`profile.image`)를 추가했다. 미지정 시 공용 `runtime.image`를 상속하며 digest-pin 필수다. 런타임 능력(예: 오디오 디코드 라이브러리)이 프로필을 따라오므로, 12B만 오디오 이미지를 핀하고 26B는 base 이미지를 그대로 둘 수 있다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- `vllm-unified` derived 런타임 이미지가 12B Unified의 **이미지·오디오·비디오 입력**을 active-profile-gated 기능으로 제공한다. stock `gemma4-unified-cu129` base에서 12B는 이미지 요청에 pad-only 출력, 오디오는 멀티모달 warmup 크래시였다(텍스트만 정상). 2026-06-25 라이브에서 두 상류 버그로 규명했다 — 비전 투영 `vision_embedder.patch_dense`가 양자화 `ignore` 리스트의 HF 이름(`model.vision_embedder.patch_dense`)과 vLLM 내부 이름(`vision_embedder.patch_dense`) 불일치로 FP8 오양자화되고, vLLM이 요구하는 `feature_extractor.fft_length`가 transformers FE에 없다. `apply_gemma4_multimodal_patches.py`가 두 패치를 적용하고(상류 레이아웃에 assert), runtime image는 `soundfile`/`librosa`와 PyAV 기반 container decode stack을 더한다. 이미지는 `make build-vllm-unified-image`로 빌드하고 외부 publish 결과의 immutable digest를 target host의 persistent image pin으로 사용한다. 12B 프로필은 `image: ${MAIN_MODEL_VLLM_IMAGE_OVERRIDE}`로 그 digest를 사용하며, switch 시 AAC-in-MP4 `input_audio`와 MP4 `video_url` media boot canaries가 런타임 디코드를 검증해 실패하면 롤백하므로 12B가 half-capable로 라이브되지 않는다. 두 패치는 상류 버그이므로 머지 후 제거 대상이다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- 한국 전화번호(휴대폰 `01x-`, 서울 `02-`, 지역 `0[3-9]x-`)를 PII Protection detector가 D2 신호로 감지한다. 기존에 Presidio English recognizer가 한국 번호 포맷을 안정적으로 인식하지 못해 누락되던 케이스다.
-- Anthropic API 키(`sk-ant-...`) 패턴을 Secret Exposure detector가 D4 신호로 감지한다. 이전에는 고엔트로피 generic candidate로만 잡혔다.
-- `make sync-env` — `git pull` 이후 `.env`를 템플릿과 동기화한다. 누락 키를 추가하고 `REMOVED_ENV_KEYS` 등록 키만 제거하며, 크리덴셜·서버 전용 설정·project-built image ref는 보존한다. `immutable_upstream` third-party image env key는 `configs/recommended_images.yaml`의 pinned digest로 수렴하며 시크릿은 재생성하지 않는다. ([ADR-0013](docs/adr/0013-env-lifecycle-non-destructive-sync.md))
-- `setup_env.py --env-file <path>` — `--sync-env` 실행 시 프로젝트 루트가 아닌 다른 경로의 `.env`를 대상으로 지정할 수 있다. 별도 배포 디렉터리의 `.env` 동기화에 사용한다.
-- 업스트림 admission 대기열 초과(`QUEUE_TIMEOUT`)와 circuit breaker 개방(`CIRCUIT_OPEN`) 503 응답에 `Retry-After` 헤더를 추가했다. `QUEUE_TIMEOUT`은 고정 5초, `CIRCUIT_OPEN`은 실제 남은 cooldown 시간을 반환한다. 이전에는 클라이언트가 재시도 시점을 추측해야 했다.
-- `GET /admin/main-model`이 마지막 검증 control-plane 상태(`active_profile`, `runtime_state`)와 조회 시점 Docker 관측값(`observed_runtime`)을 함께 반환하도록 변경했다. 컨테이너 상태·health·관측 profile을 구분해 표시하므로, 저장된 전환 이력만 보고 현재 서비스 가능 상태로 오인하지 않는다.
-- Main Model switch-time canary가 HTTP 성공만 확인하던 경로를 보완해, 기대 model ID와 Chat Completion 응답 구조까지 검증하도록 했다. 잘못된 completion은 전환 실패·rollback 대상이 된다.
-- Qwen2.5-Omni-7B Thinker profile의 동시 실행 상한을 `1 → 4`, Gateway `max_output_tokens`를 `2,048 → 13,000`으로 조정했다. 32K context에서 실측 KV cache(209,536 tokens, full-context 6.39 seq)와 Gateway admission(4), Gateway 경유 13,000-token 생성(217.09초, HTTP 200) 및 4개 동시 멀티모달 요청(running=4, waiting=0)을 근거로 했다.
-- Gemma4의 `reasoning=true + response_format=json_schema` 조합에서 커스텀 chat template의 `<|think|>` 뒤 개행을 native template과 일치시켰다. vLLM 기본 경로대로 `enable_in_reasoning=false`를 유지해 reasoning 종료 뒤에만 최종 JSON schema grammar를 적용한다. 실제 동일 요청에서 이 경로는 정상 종료했고, thinking 단계부터 grammar를 적용한 경로는 장시간 생성·불완전 JSON을 보였다.
-- `local-embed`이 실제로 지원하지 않는 matryoshka dimensions(128/256/512)를 API 계약에서 제거했다. Gateway는 기본 768만 호환성 입력으로 허용하고 upstream에는 전달하지 않는다.
-- Main Model 전환·재시작 과정의 실패를 무시하던 structured-output/tool-calling 사전 요청과 전용 테스트를 제거했다. 전환 검증은 health, 모델 식별, text, 활성 프로필의 media canary처럼 실패 시 실제로 전환을 막아야 하는 계약만 확인한다.
-- Main Model의 요청 한도, 허용 입력, request parameter policy, runtime feature를 `model_serving.yaml`의 기본값에서 각 `main_model_profiles.yaml` profile의 `gateway_policy`로 이관했다. Gateway 요청 검증과 `/v1/models`의 `input_modalities`·`request_parameters`는 활성 profile을 따른다. 공통 endpoint, timeout, admission만 `model_serving.yaml`에 남긴다.
-- 생성 OpenAPI의 각 에러 응답이 endpoint에서 실제 발생하는 code만 status별로 노출하고,
-  description에 의미·retryable을 함께 보여주도록 했다. Endpoint별 code는
-  `api/endpoint_spec.py`, status·retryable은 `errors.py`에서 파생되며
-  `specs/openapi.*.yaml`도 같은 runtime 문서에서 생성한다.
-- Main LLM 부팅 정책을 locked profile → 마지막 성공 active profile → 설치 기본 profile 순으로 정의했다. 기본 profile은 기존 26B이며 `MAIN_LLM_PROFILE_LOCKED=true` 배포에서는 Runtime Control 변경을 거절한다. 전환 중 신규 chat 요청은 `503`과 `Retry-After`를 반환하고 rollback까지 실패하면 fail-closed 상태를 유지한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md))
-- 메인 모델 `gpu_memory_utilization`을 `MAIN_LLM_GPU_MEMORY_UTILIZATION`(optional, (0,1])로 호스트별 오버라이드할 수 있게 했다. 카탈로그 값은 기준 호스트 기본값이며, override는 런타임 command와 admission 비용(`vram_fraction`)에 동시 반영되어 둘이 어긋나지 않는다. fraction은 호스트 VRAM 비율이므로 더 작은 GPU는 더 큰 값을 설정한다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- vLLM 이미지를 `gemma4-0505-cu129`(custom feature-branch 빌드)에서 `gemma4-unified-cu129`(vLLM main 기반, 2026-06-03)로 교체했다. `gemma4-0505-cu129`는 `StructuredOutputsConfig.disable_any_whitespace` 필드를 지원하지 않아 컨테이너가 exit code 2로 종료됐다. `gemma4-unified-cu129`에서 `Gemma4ForCausalLM` 아키텍처 지원 및 신규 API 적용을 확인했다. ([ADR-0016](docs/adr/0016-xgrammar-disable-any-whitespace.md))
-- Main LLM runtime target을 `gpu_memory_utilization=0.76`, `max_model_len=20000`, `max_num_batched_tokens=20000`, `optimization_level=3`로 정렬했다. ModelRegistry projection, compose validation, model card, catalog, docs, tests가 같은 runtime policy를 검증한다. FP8 Dynamic checkpoint와 `kv_cache_dtype=fp8_e5m2` 조합은 현재 runtime image에서 boot 단계에서 거부되어 active target에서 제외했다. ([ADR-0015](docs/adr/0015-main-llm-20k-o3-runtime-target.md))
-- Vision/media 입력 한도를 Gemma 4 SigLIP2와 multimodal payload 기준으로 상향했다: `max_image_bytes` 750,000 → 7,000,000, `max_image_pixels` 1,048,576 → 6,422,528, `max_request_body_bytes` 1,250,000 → 100,000,000. Video profile 활성 시 decoded video는 50,000,000 bytes까지 허용한다. 한도 source-of-truth는 config와 contract 테스트가 cross-config 일치를 동적으로 검증한다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-- `max_image_bytes`를 7,000,000 → 25,000,000으로, `max_image_pixels`를 6,422,528 → 12,845,056으로 재상향했다. 동시에 ADR-0014의 "8타일 × 896² 아키텍처 상한" 근거가 부정확했음을 정정했다 — 공식 Hugging Face `transformers` Gemma4 문서 기준 실제로는 `max_soft_tokens`(70~1120, 기본 280) 토큰 예산 기반 동적 리사이즈이며, 최대 예산(1120)에서도 실사용 픽셀은 ~2.6M다. `max_image_pixels`는 모델이 실제로 그 해상도를 쓰는지가 아니라 디코드 비용/이미지 폭탄(decompression bomb) 방지가 진짜 목적이므로, 이 기준으로 재평가해 12,845,056(여전히 통상적 사진 해상도 수준이며 decompression-bomb 시나리오보다 몇 자릿수 작음)으로 올렸다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-- `max_video_frame_pixels`를 6,422,528 → 12,845,056으로(프레임도 동일 이미지 프로세서를 거치므로 이미지와 같은 근거), `max_video_frames`를 32 → 60으로 올렸다. Google 공식 개발자 문서 기준 Gemma 4는 최대 60초 클립을 1fps까지 처리하도록 설계되어 있어(60초 @ 1fps = 60프레임), 기존 32는 이 설계 지점보다 낮았다. 다만 비디오는 이미지와 달리 `프레임 수 × 프레임당 픽셀`이 요청당 곱셈으로 작용해 최악 전처리량이 약 3.75배 늘어나므로, 실사용 패턴을 관찰하며 필요시 재조정한다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-- `video/gif`의 프레임 수 상한이 실제로는 재생시간이 아니라 GIF 인코딩 fps에 좌우되는 버그를 고쳤다 — 짧아도 fps가 높으면 부당하게 거부되던 문제. `_gif_metadata`가 Graphic Control Extension의 delay를 합산해 실제 재생시간을 계산하도록 확장하고, 신규 `max_video_duration_seconds`(60초)를 1차 기준으로, 프레임 수는 `60초 × 30fps = 1800`을 degenerate 인코딩 방지용 보조 상한으로 삼는다. `video/jpeg` frame sequence는 타이밍 메타데이터가 없어 기존처럼 `max_video_frames`(60)를 그대로 적용한다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-- Vision 이미지 포맷 파서 선택을 MIME type 기반에서 magic bytes sequential detection으로 변경했다. MIME type allowlist(`image/jpeg`, `image/png`, `image/webp`) 검사는 유지되지만, 파서는 MIME type 선언과 무관하게 실제 바이트로 포맷을 판단한다. MIME type을 잘못 선언한 클라이언트의 불필요한 422가 제거된다. ([ADR-0014](docs/adr/0014-image-validation-policy.md))
-- 공통 error code 계약에 `DETECTOR_DISABLED`, `STREAM_LIMIT_EXCEEDED`를 반영했다.
-  비활성 detector는 현재 상태 충돌인 409로 전달하고, stream limit은 HTTP status가
-  아닌 이미 시작된 SSE의 종료 이벤트로만 사용한다.
-- retrieval 내부 embedding 호출이 `truncate_prompt_tokens`를 전달하도록 정리했다. 확인되지 않은 `truncation_side`는 silent no-op 대신 422 validation error로 처리한다.
-- non-local `local_open`/`custom`/`internal_trusted` auth profile과 production `SKIP_PREFLIGHT=1` 경로의 운영 hard-fail 조건을 강화했다.
-- 운영 배포 동작 변경 없이 retrieval contract의 project root 탐색 의존을 runtime settings에서 분리했다.
-- Grafana 운영 대시보드 UX를 Serving Home 중심 drill-down으로 정리했다. API/Risk/Runtime 상세 패널은 collapsed row로 내리고, idle 상태의 실패류 패널은 scrape가 살아 있으면 0으로 읽히도록 보정했다. Risk는 A1/A2 detection을 명시 카드로 분리하고 중복 Risk Types 상세 그래프를 제거했으며, Dashboard contract는 `configs/monitoring.yaml`에서 선언해 validator가 검증한다.
-- Model Runtime Deep Dive와 API Delay Details에 평균 응답 시간 패널을 추가했다. 평균은 histogram `_sum/_count` 기반으로 `$window`를 따르며, 기존 p95 패널은 tail latency 확인용으로 유지한다.
-- GPU Capacity and OOM Risk, Serving Home, Model Runtime Deep Dive의 token throughput 단위를 `tok/s`로 고치고, container CPU는 percentage가 아니라 `vLLM container CPU cores used`로 표시한다.
-- ADR canonical 위치를 `docs/adr/`로 통합하고 root `adr/`는 더 이상 사용하지 않는다.
-- `request_validation_rejections_total`의 `reason` 라벨이 image/audio/video 요청 거부를 bytes·pixels·mime·frames·duration 단위로 세분화하도록 `validation_reason()`을 확장했다(이전엔 video/audio 거부가 전부 `request`로 뭉뚱그려 집계됨). Usage Today 대시보드의 "Rejected Requests" 패널을 단일 합계에서 reason별 breakdown으로 바꾸고, `upstream_errors_total`을 target·code별로 보여주는 "Upstream Errors by Code" 패널을 신규 추가했다.
-- 12B(`gemma4-12b-unified-fp8`) 프로필의 `--max-model-len`/`--max-num-batched-tokens`를 20000 → 50000으로 올렸다. `--max-num-seqs`(2)·`--gpu-memory-utilization`(0.76)은 그대로 두고 실제 배포 서버에서 boot/health/`/metrics` 검증까지 완료했다. profiling이 커진 배치만큼 activation 메모리를 더 확보하면서 KV cache pool(`num_gpu_blocks`)이 20707→16638로 줄어, 엔진 VRAM 사용량은 오히려 35.2GiB→30.2GiB로 감소했다. ([ADR-0015](docs/adr/0015-main-llm-20k-o3-runtime-target.md))
-
-### Fixed
-
-- 배포가 지정한 deferred runtime이 반영되지 않은 채 배포가 성공으로 끝나던 문제를 고쳤다. `runtime-state.json`은 gateway 컨테이너의 non-root 사용자가 쓰는 마운트인데 배포 실행 계정도 같은 파일을 쓰려 했고, 이미지 UID와 호스트 UID 사이에는 아무 관계가 없어 어느 쪽이 먼저 만들었느냐가 소유권을 결정했다. 반대쪽의 쓰기 실패는 조용히 넘어갔다. 이제 이 파일의 writer는 Gateway 하나이며, 배포는 정지 상태로 둘 런타임 목록만 환경변수로 전달하고 기록은 Gateway가 기동 시 한 번 수행한다. 같은 릴리스에서 컨테이너가 재시작될 때는 Admin Runtime API로 바꿔 둔 상태가 유지된다.
-- `ensure_gateway_runtime_dir`가 디렉터리의 존재 여부만 확인해, 이미 잘못된 소유권으로 만들어진 디렉터리는 그대로 통과시키던 문제를 고쳤다. compose가 먼저 닿아 root 소유로 생성되면 gateway가 영구히 쓰지 못했다. 이제 배포와 `compose-up` 모두 매번 소유권까지 단언하며, UID는 고정값 대신 플랫폼 이미지에 직접 질의한다.
-- deferred Runtime 생성에 지원되지 않는 `compose create --no-deps`를 사용하던 경로를 `compose up --no-deps --no-start`로 교체하고 실제 변경 전 dry-run을 추가했다. Compose 파일 변경 시 전체 서비스를 재생성하던 판정은 렌더된 서비스 정의 비교로 좁혀, 영향받지 않은 GPU Runtime을 다시 띄우지 않는다. 조회 실패와 컨테이너 부재를 구분하고 롤백 미복원 항목도 배포 로그에 남긴다.
-
-- `setup-dev`를 외부 virtual environment 안에서 실행할 때 선택된 Python과 `venv`가 실제 사용하는 base interpreter의 minor가 달라도 잘못된 `.venv`를 만들 수 있던 문제를 막았다. 기존 `.venv` 재사용은 선택 interpreter를 기준으로 유지하고, 신규 생성만 base interpreter를 명시적으로 확인·사용한 뒤 생성 결과를 재검증한다. 호스트 Python에 따라 달라지던 개발 환경 테스트 fixture도 실제 생성·재사용 경계를 검증하도록 바꿨다.
-- GitHub macOS ARM64 runner에 배포되지 않은 exact Python `3.12.13`을 요청해 app/contract workflow가 setup 단계에서 실패하던 문제를 수정했다. Cross-platform CI는 portable `3.12` minor를 사용하고, Linux 운영 image의 exact patch는 기존 Dockerfile digest pin으로 유지한다. 소비자가 없던 `.env`의 `PYTHON_VERSION` 복제값도 제거했다.
-- `docs/reference/api_reference.md`의 `max_tokens` 한도가 활성 profile과 무관한 고정값(`1`–`13000`)으로 적혀 있어 지금 라이브와 어긋나던 문제를 고쳤다. profile마다 `max_output_tokens`가 13000/13000/**15000**/13000으로 달라 어떤 단일 숫자도 옳을 수 없고, 운영자는 런타임에 profile을 전환한다. Gateway가 `/v1/models`의 `request_parameters.max_tokens.max`로 활성값을 이미 공개하므로 그쪽을 가리키도록 바꿨다.
-- `validate_risk_response()`의 docstring이 손으로 쓴 검사의 이유를 "jsonschema를 runtime 의존으로 추가하지 않기 위해"라고 설명하고 있었으나, jsonschema는 이미 Platform runtime 의존이고 retrieval 계약은 실제로 그것으로 검증한다. 사실에 맞는 이유로 교체했다.
-- Risk prompt 길이 초과 오류 메시지가 `MAX_RISK_PROMPT_LENGTH` 상수 대신 숫자를 하드코딩하고 있어, 상수를 바꾸면 메시지가 사실과 달라지던 문제를 고쳤다.
-- Gateway 요청 경로가 chat 요청·`/v1/models`마다 admin-sidecar를 통해 Docker inspect를 유발하던 문제를 고쳤다. gate와 active profile은 control-plane ledger에만 있는데도 sidecar의 관측 경로(Docker `list`+`inspect` 2회)를 거쳐, 모든 추론 요청이 Docker daemon에 직렬로 묶여 있었다 — daemon이 흔들리면 런타임이 정상이어도 전체 chat이 `MAIN_MODEL_CONTROL_UNAVAILABLE`로 떨어졌다. sidecar `GET /main-model`에 `observed=false`(ledger 전용)를 추가하고, ledger 필드만 쓰는 4개 경로(chat, `/v1/models`, `/admin/runtimes`, metric projection)를 그쪽으로 옮겼다. `GET /admin/main-model`은 `observed_runtime`을 계속 포함한다.
-- `SidecarClient`가 호출마다 새 `AsyncClient`를 만들어 chat 요청 하나당 TCP 연결이 하나씩 새로 열리던 문제를 고쳤다. `VLLMClient`와 동일하게 client 하나를 재사용하고 timeout은 요청 단위로 지정한다. 아울러 sidecar가 실제로 오류 상태를 반환한 경우와 sidecar에 닿지도 못한 경우가 같은 메시지로 뭉뚱그려지던 것을 status code가 남도록 고쳤다.
-- main-model in-flight 집계의 해제 지점이 chat 핸들러 분기마다 손으로 흩어져 있던 것을 `AsyncExitStack`으로 통합했다(streaming은 `pop_all()`로 응답 generator에 소유권을 넘긴다). 해제를 한 곳이라도 빠뜨리면 집계가 0으로 내려가지 않아 모델 전환이 drain 타임아웃으로 실패한다.
-- `MainModelInFlight.track()`을 generator 기반 context manager에서 클래스형으로 바꿨다. `@asynccontextmanager`는 종료 시 파이썬 레벨에서 `exc.__traceback__`을 대입하는데, `ServiceError`가 frozen dataclass라 그 대입이 `FrozenInstanceError`로 터지면서 원래 오류를 가렸다.
-- `make sync-env`가 폐기된 키를 실제로는 제거하지 않던 문제를 고쳤다. YAML 소유 키만 제거 대상이라 템플릿에서 사라진 키는 영구히 남았고, 그 결과 배포 서버 `.env`에 Alloy로 교체된 뒤의 `PROMTAIL_IMAGE`와 부팅 실패로 폐기된 base 이미지를 가리키는 `RISK_VLLM_BASE_IMAGE`가 남아 있었다. 제거 대상과 사유를 `configs/env_contract.yaml`의 `removed_keys`(`reason: yaml_owned | deprecated`)로 선언하고, `setup_env.py`가 그 목록을 읽어 제거하며, `validate_env_contract.py`가 같은 목록으로 "등록된 키가 `.env*.example`에 다시 등장하지 않았는지"를 검증한다 — 제거와 검증이 한 소스를 공유한다. "템플릿에 없는 키"를 기준으로 삼으면 배포 서버에만 존재하는 운영 설정(`MAIN_MODEL_STATE_PATH` 등)이 배포마다 삭제되므로 ADR-0013의 비파괴 원칙은 그대로 유지한다. ([ADR-0013](docs/adr/0013-env-lifecycle-non-destructive-sync.md))
-- vLLM unified 이미지의 base override를 `.env`에서 읽지 않고 프로세스 환경변수로만 받도록 바꾸고, immutable digest가 아니면 빌드를 즉시 중단한다. 기존에는 오래된 태그가 `.env`에 남아 있는 것만으로 `configs/vllm_unified_build.yaml`의 canonical digest가 조용히 무시되어, 경고 없이 고장난 base 위에 이미지를 쌓을 수 있었다. base를 영속 파일에 두는 것 자체가 원인이었으므로 override는 그 빌드 한 번에만 적용된다.
-- CHANGELOG의 `[Unreleased]`에서 실제로는 존재하지 않는 산출물(`docs/specs/error_reference.md`, `docs/manifest.yaml`)을 가리키던 항목과 중복된 `### Changed` 헤딩을 정리했다.
-
-- 메인 모델 전환/재배포 직후 `response_format: json_schema` 요청에서 xgrammar 제약 디코딩 Triton 커널(`apply_token_bitmask_inplace_kernel`)이 JIT 컴파일되는 게 배포 로그로 관측되어, `DockerMainModelBackend.validate()`의 text canary 직후 best-effort 구조화 출력 웜업 호출을 추가했다(실패해도 전환을 롤백시키지 않음). `validate()`는 명시적 전환·boot reconcile·중단 복구 세 경로 모두에서 호출되므로 이 한 곳으로 세 경로가 함께 커버된다. 이 fix는 로그에서 관측된 JIT 이벤트에 대한 예방 조치이며, 별도로 신고된 CSO classifier 타임아웃 사고(원인: 프롬프트-스키마 필드 불일치로 인한 evidence 배열 무한 반복, `finish_reason: length`로 재현 확인)와는 무관하다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- 위 구조화 출력 웜업이 admin-sidecar 프로세스 재시작(`initialize()`) 경로에서만 돌고, compose가 main-llm-vllm 컨테이너만 recreate하는 배포 경로(예: `main_model_profiles.yaml` 변경으로 인한 rolling→full 자동 승격)는 admin-sidecar를 안 건드려 웜업을 놓치는 잔여 gap이 있었다. `scripts/ops/ready_full.sh`의 `warm_inference_paths_best_effort()`에 동일한 `response_format: json_schema` best-effort 웜업 호출을 추가해 이 배포 경로를 커버했다. 문서가 대안으로 제시했던 "`make ready-full` 수동 실행" 우회법은 이 fix 이전엔 실제로 구조화 출력을 전혀 데우지 않아 틀린 정보였는데, 이제 사실이 됐다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- main-llm-vllm이 admin-sidecar 제어 API를 거치지 않고 재시작되는 경우(예: 운영자의 수동 `docker restart`)를 admin-sidecar가 영영 감지하지 못해 구조화 출력/미디어 웜업이 계속 빠지던 근본 gap을 수정했다. admin-sidecar에 10초 간격 reconciliation 루프(`reconcile_if_restarted()`)를 추가해, 컨테이너의 Docker `State.StartedAt`을 마지막으로 `validate()`했던 값과 비교하고 drift가 감지되면 gate를 닫지 않은 채로 `validate()`를 다시 돈다(재검증 자체는 수 초 내로 끝나므로 poll 간격만큼 트래픽을 막을 필요가 없다고 판단; tick당 비용이 미미해 간격은 짧게 잡았다). 진행 중인 전환·복구 작업과는 기존 락으로 자동 직렬화된다. `validate()`에는 tool-calling(`--enable-auto-tool-choice --tool-call-parser gemma4`)에 대한 best-effort 웜업도 함께 추가했다 — json_schema 웜업과 같은 Triton JIT 커널을 공유할 가능성이 있어 이미 중복일 수도 있지만, 별개 이벤트인지 확인된 바 없어 안전하게 추가했다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- `HTTPException` 기반 응답이 401이 아니면 무조건 `code: VALIDATION_ERROR`로 나가 status와 code가 모순되던 문제를 수정했다(예: 404가 `VALIDATION_ERROR`, 503이 `VALIDATION_ERROR`). `errors.py`의 `STATUS_DEFAULT_CODE`로 status에 맞는 code(404→`NOT_FOUND`, 403→`FORBIDDEN`, 503→`MODEL_UNAVAILABLE` 등)를 매핑한다. pydantic 검증 오류 메시지의 `body.` 위치 접두사도 제거해 필드명만 노출한다.
-- json_schema/tool-calling 웜업 호출이 `response.raise_for_status()`를 부르지 않아 4xx/5xx 응답도 조용히 "성공"으로 넘어가던 버그를 수정했다. 4xx는 보통 요청 검증 단계에서 막혀 정작 예열하려던 bitmask 커널까지 못 가므로, 웜업이 됐다고 착각한 채 아무 로그도 안 남는 상황이 가능했다. 두 호출 모두 `raise_for_status()`를 추가하고(non-fatal 정책은 유지) 실패 시 경고 로그가 실제로 찍히는 회귀 테스트를 추가했다. reconciliation 루프의 재시작~재웜업 노출 창 설명도 "gate 폐쇄로 줄어드는 수 초"와 "poll 간격을 포함한 전체 노출 창(최대 10초+α)"을 뭉뚱그려 쓰던 걸 정정했다. `apply_token_bitmask_inplace_kernel`이 V1 model runner에서 예열되지 않는 근본 원인도 boot 로그(`Using V2 Model Runner` 로그 부재 + `jit_monitor` 타임스탬프)로 직접 재확인해 이전 "미확인" 표기를 정정했다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- `apply_token_bitmask_inplace_kernel`이 V1 model runner에서 예열되지 않던 upstream 제약을 반영해 공유 vLLM base를 `v0.25.1-cu129`로 올렸다. 12B는 V2 runner에서 구조화 출력 요청 후 해당 커널의 추가 JIT가 없음을 확인했고, Prompt Risk도 같은 base와 실제 운영 command로 GPU 부팅·추론을 검증했다. 검증 근거 없이 만들었던 별도 audio base와 임시 image prune 조치는 제거하고 `VLLM_BASE_IMAGE` 하나로 통합했으며, `configs/recommended_images.yaml`도 같은 base digest로 맞췄다. MoE 26B의 구조화 출력 웜업 우회는 별도 제약이라 유지한다. ([ADR-0018](docs/adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md))
-- 구조화 출력(`response_format: json_schema`/`json_object`) 요청이 업스트림에서 잘려 `UPSTREAM_SCHEMA_ERROR`로 판정되면 Gateway가 즉시 1회 재시도하도록 `GatewayService.create_chat_completion`을 수정했다. 실 GPU에서 프로필 전환 직후 실제 요청 크기(긴 prompt·수천 토큰 출력)를 재현해보니, 기존 부팅 웜업 canary(`docker_main_model_backend.py`)가 `max_tokens` 16 안팎의 극소 shape로만 돌아 `apply_token_bitmask_inplace_kernel`을 포함한 Triton 커널이 실제 트래픽 규모의 shape에서는 여전히 처음 요청에서 JIT 컴파일됐다(`jit_monitor` 로그로 직접 확인; 동일 shape의 다음 요청부터는 재발 안 함). 요청마다 스키마·크기가 임의로 달라질 수 있어 모든 shape를 웜업으로 미리 커버할 수 없으므로, 스키마 내용과 무관하게 통하는 방어선으로 감지 후 재시도를 택했다(감지 자체는 기존 `validate_chat_response`의 JSON 파싱·schema 검증을 그대로 사용하며 새로 만들지 않았다). 재시도는 구조화 출력 요청에만 적용되고, 배포된 `REQUEST_TIMEOUT_SECONDS`(175: 305초)가 이미 2회 왕복(각 최대 `MAIN_LLM_TIMEOUT_SECONDS` 120초)을 감당할 여유가 있어 타임아웃 조정은 불필요했다. 이 재시도는 잘린 응답이 호출자에게 그대로 도달하는 것만 막을 뿐, JIT 자체가 매 콜드스타트마다 한 번은 발생하는 현상은 여전히 남아 있다 — 모든 shape를 예열로 미리 없애는 건 스키마·프롬프트 크기가 요청마다 임의로 달라져 범위를 정할 수 없는 문제라 시도하지 않았다.
-- `json_schema` structured output 요청에서 whitespace가 `max_tokens`까지 반복 생성되던 버그를 수정했다. xgrammar의 `any_whitespace` 기능이 중첩 배열 닫는 `]` 이후 `}` 전이를 막아 stuck state에 진입하던 문제다(vLLM PR #12744, #15316). non-stream 요청은 502 `UPSTREAM_SCHEMA_ERROR`, stream 요청은 200이지만 invalid JSON으로 나타났다. `StructuredOutputsConfig`의 `disable_any_whitespace: true` 필드로 해결했다. ([ADR-0016](docs/adr/0016-xgrammar-disable-any-whitespace.md))
-- Main LLM `max_output_tokens`를 4096 → 8192로 상향했다. 복잡한 JSON Schema를 사용하는 structured output 요청이 `finish_reason: length`로 잘려 `UPSTREAM_SCHEMA_ERROR` 502를 유발하던 문제다. configs, model card, OpenAPI spec, JSON Schema, test 6개 파일에 분산된 하드코딩을 일괄 반영했다.
-- `make validate` 중 OpenAPI contract 검증이 `ADMIN_API_KEY_REQUIRED` 미설정 환경에서 admin endpoint의 401 응답을 누락 감지하던 문제를 수정했다. validator가 strict auth env를 임시 적용해 spec을 생성한 후 복원한다.
-- `MAX_REQUEST_BODY_BYTES`를 `.env` 템플릿에서 제거하고 `configs/model_serving.yaml`(`operational_limits.max_request_body_bytes`)을 단일 source-of-truth로 일원화했다. 배포 시 `.env`는 rsync에서 제외되는 영속 파일이고 env가 yaml보다 우선이라, 템플릿에 중복으로 박힌 값이 yaml을 가린 채 갱신되지 않아 `/opt/acl-ai-gateway/.env`가 여러 릴리스에 걸쳐 1.25MB에 고정돼 있었다(실제 이미지·오디오·비디오 요청이 body 단계에서 413으로 차단). 다른 사이즈 한도(`max_image/audio/video_bytes`, `max_retrieval_documents`)와 동일하게 yaml 전용으로 정렬했고, `MAX_REQUEST_BODY_BYTES`를 `setup_env.py`의 `YAML_OWNED_ENV_KEYS`에 추가해 `make sync-env`(배포)가 기존 `.env`에서 해당 키를 제거하도록 했다. `settings.py`는 명시적 env override는 비상 수단으로 계속 존중한다. 이로써 기존의 STALE 화이트리스트 마이그레이션(`normalize_request_body_limit`) 기제는 불필요해져 삭제했다.
-- 미디어 base64 검증이 개행·공백 포함 base64를 `422`로 거부하던 문제를 수정했다. 게이트가 `base64.b64decode(validate=True)`를 공백 정규화 없이 호출해, `base64 file.m4a`(CLI 기본 76칸 wrap)·MIME 인코더 출력 같은 정상 페이로드가 downstream(vLLM)은 받아들이는데도 게이트에서 먼저 차단됐다(`input_audio.data must contain valid base64.`). 공유 헬퍼 `_decode_media_base64`가 ASCII 공백만 관용하고 알파벳·패딩은 엄격히 유지(`validate=True`)하도록 image_url·input_audio·video 4개 디코드 지점에 적용했다. 패딩 누락·invalid 문자는 여전히 거부한다. 또한 `input_audio.data`에 `data:` URL 접두사가 들어오면(필드 형태 오용) 모호한 base64 에러 대신 `input_audio.data must be raw base64 (no data: URL prefix).`로 구체적 안내한다.
-
-### Removed
-
-
-- `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process-input alias 및 이를 정규화하던 shell helper/test를 제거했다. full-stack compose-up은 `RUNTIME_STARTUP_PROFILE`만 사용한다.
-- `scripts/validation/governance/model_config.py`에 남아 있던 호출되지 않는 옛 `validate_configuration_schema()` 구현을 제거했다. 현재 governance CLI는 `governance/configuration_plane.py`의 validator만 사용하며, 이 경로는 production schema validator를 재사용하고 repository default와 public retrieval contract까지 함께 교차 검증한다.
-- Runtime Controller Python rename의 migration-only shim을 제거했다. `services.sidecar_client`와 `apps.admin_sidecar`는 더 이상 import surface가 아니며, production/test 코드는 `runtime_controller_client`와 `apps.runtime_controller`를 직접 사용한다. Compose service ID `admin-sidecar`와 operator env compatibility는 별도 계약으로 유지한다.
-- 오디오·비디오의 magic byte 라벨 일치 검사(`_audio_format_matches`, `_video_format_matches`)와 그 부수물을 제거했다. 실제 런타임으로 확인한 결과 (1) 런타임은 컨테이너를 스스로 감지해 `format`이 틀려도 정상 처리하고, (2) 쓰레기 바이트는 0.0초에 HTTP 400으로 거부한다. 즉 이 검사는 막는 것이 없고, 잘못 라벨링했지만 정상 처리될 요청에 422를 낼 뿐이었다 — 이 프로젝트가 이미지에서 이미 제거하기로 결정한 바로 그 실패 양상이다([ADR-0014](docs/adr/0014-image-validation-policy.md)). JPEG 프레임 경로의 호출은 바로 다음 두 줄의 차원 검사와 중복이었다.
-- 위 검사만을 위해 존재하던 `SNIFFABLE_AUDIO_FORMATS`·`SNIFFABLE_VIDEO_MIME_TYPES` 상수와, "config 허용 목록을 이 집합의 부분집합으로 유지하라"는 수동 규율, 그리고 그 규율을 지키던 테스트 2개를 함께 제거했다. 매처가 사라지면서 제약 자체가 없어졌다.
-- 제거된 동작을 검증하던 테스트 4개(`test_audio_magic_must_match_declared_format`, `test_avi_video_container_rejected_when_magic_does_not_match`, sniffable 검사 2개)를 제거했다.
-
-**유지한 것**: 이미지 차원 파서 8종과 `max_image_pixels`는 그대로 둔다. 런타임에 직접 확인한 결과 55KB PNG가 1,600만 픽셀로 풀리는 요청을 **런타임은 HTTP 200으로 수용**하고 Gateway만 거부한다 — decompression bomb에 대한 유일한 방어이며, 차원을 읽지 못하면 거부하는 fail-closed 구조라 파서 내부의 경계 검사도 방어의 일부다. GIF의 `_gif_metadata`(재생시간·프레임·픽셀 한도 구동)와 모든 크기·개수 한도, 프로필 capability 허용 목록도 유지한다.
-- `runtime_features` 설정 블록과 그것을 나르던 코드 5개 계층을 전부 제거했다. `configs/main_model_profiles.yaml`의 `gateway_policy.runtime_features`(3개 프로필, 32줄)와 `configs/model_serving.yaml`의 동명 블록이 `settings_parts/runtime_endpoints.py` → `RuntimeEndpoint.runtime_features` 필드 → `gateway_service._main_llm_endpoint` 합성 → `normalize_chat_request_for_runtime` 인자로 전달된 뒤, 그 함수 첫 줄의 `del runtime_features`로 버려지고 있었다. `main_model/control.py`는 이 값이 object인지 **검증까지** 하고 있어 필수처럼 보였다. 실제 vLLM 동작(`--tool-call-parser`, `--reasoning-parser`, `--auto-tool-choice`, `--prefix-caching`, `--hash-algo`, `--xgrammar`)은 전부 프로필의 `command` 리스트가 결정하므로, 이 블록은 그 명령을 구조화된 형태로 중복 기술한 것이었고 둘의 일치를 보장하는 장치도 없었다. 제거 후 OpenAPI 스냅샷은 동일하다.
-- `configs/main_model_profiles.yaml`에서 정의만 되고 참조되지 않던 YAML anchor 2개(`&gemma4_runtime_features`, `&gemma4_request_parameter_policy`)를 제거했다.
-- `ServiceError`의 `status_code` 인자를 호출 지점에서 제거하고
-  `ERROR_DEFINITIONS[code]`에서 유도하도록 바꿨다. 동일한 값을 손으로 반복하던 인자였고
-  `retryable`과 같은 형태의 잉여였다.
-- 위 변경으로 도달 불가능해진 `exc.status_code or 500` 폴백 3곳(`upstream.py`, `retrieval_service.py` 2곳)을 제거했다. property가 항상 int를 반환한다.
-- `EndpointSpec`에서 프로덕션이 읽지 않는 필드(`service`, `auth`, `exposure`,
-  `status_code`, `lifecycle`)를 제거했다. 제거된 Siren route metadata도 active endpoint
-  목록에서 삭제했으며, endpoint별 schema와 공개 오류 code만 유지한다.
-- `tests/unit/test_endpoint_spec.py`를 제거했다. 인증 정책 테스트처럼 보였지만 실제 인증은 라우터에 주입되는 `api_dependencies`/`admin_dependencies`가 결정하며, 이 테스트는 아무도 읽지 않는 `spec.auth`가 역시 아무도 읽지 않는 `spec.exposure`/`path`와 일관되는지만 확인하고 있었다. 제거 전에 `spec.auth`와 실제 dependency 배선을 대조해 15개 endpoint 전부 일치함을 확인했고, 제거 후 OpenAPI 스냅샷도 동일하다.
-- `ServiceError`와 직접 오류 응답 생성의 `retryable`·`status_code` 인자를 제거하고
-  `ERROR_DEFINITIONS[code]`에서 유도하도록 바꿨다. 호출자가 같은 code에 서로 다른
-  transport 의미를 입력할 수 없으며, YAML catalog는 의미·조치만 담당한다.
-- 카탈로그의 "동일 code라도 상황에 따라 다를 수 있다"는 단서를 제거했다. 225개 호출 지점 측정에서 그런 경우가 없었고, 그 문구가 216번의 손수 반복을 정당화하고 있었다.
-- upstream이 보낸 platform error envelope의 `retryable`을 그대로 전파하던 경로를 끊었다. envelope 형태 검증에는 계속 쓰지만, 값은 우리 카탈로그 기준으로 결정한다 — upstream이 같은 code에 다른 값을 실어도 Gateway 계약이 흔들리지 않는다.
-- `EntitySpan.source` 필드와 그 값을 쓰던 dedup 정렬 tiebreaker(`0 if span.source == "custom" else 1`)를 제거했다. `EntitySpan`은 한 곳에서 `source="custom"` 고정으로만 생성되므로 tiebreaker는 언제나 같은 값을 냈고, 필드 자체가 아무 정보도 담지 않았다. Presidio 2차 recognizer가 제거될 때 남은 잔재다.
-- PII/Secret detector 테스트에서 private helper를 직접 부르던 두 계층(`_run_custom_span_recognizers`, `_categories_from_summaries`, `_scan_text`, `_build_categories`, `_shannon_entropy`)을 제거하고, entity→D-code 매핑을 공개 `assess()` 경유 parametrize 테스트로 통합했다. 같은 것을 세 계층에서 검증하면서 정작 "패턴은 잡히는데 code가 안 붙는" 조합은 아무도 보지 않았고, 이제 명명 패턴 10종과 generic 후보까지 실제 응답 계약으로 확인한다. 테스트 15개가 줄었고 두 detector 모듈의 라인 커버리지는 그대로다(129/105줄).
-- `_shannon_entropy()`의 빈 문자열 가드를 제거했다. 호출자가 `{32,}` 매치만 넘겨 도달할 수 없고, 도달하더라도 빈 `Counter`에 대한 합이 그대로 0이라 동작이 같다. 이 가드를 커버하려고 쓰인 테스트가 가드를 살려두고 있었다.
-- 도달 불가능한 `_retrieval_request_parameters()`(76줄)와 `_RETRIEVAL_CAPABILITIES` 분기를 제거했다. retrieval 능력을 선언한 모델(`local-embed`, `local-embed-ko`)이 모두 `embeddings`도 함께 선언하고 `embeddings` 분기가 먼저 반환하므로, 카탈로그의 어떤 모델도 이 경로에 도달할 수 없었다(ADR-0010대로 이 플랫폼의 retrieval은 embedding 기반이라 앞으로도 그렇다).
-- 검증 전용 helper `gpu_budget_status()`를 production 패키지 최상위(`registry_projection_drift.py`)에서 유일한 호출자인 `governance_validation/model_config.py`로 옮기고 모듈을 삭제했다. 모듈명이 실제 동작(GPU 예산 상태 계산)과 달랐고, 함수 안에서 지역 import되는 production 모듈이었다.
-- 호출되지 않는 `MainModelRuntimeBackend.is_running()`을 Protocol 선언·Docker 구현·테스트 fake까지 함께 제거했다. Protocol에 있어서 필수처럼 보였지만 실제 lifecycle은 `observe_runtime()`/`observed_started_at()`만 사용한다.
-- 호출되지 않는 `RuntimeStateStore.sync()`를 제거했다. docstring이 "sidecar start/stop 반환 후"라는 존재하지 않는 사용처를 설명하고 있었다.
-- 테스트만 호출하던 `RuntimeStateStore.all()`을 제거했다. 프로덕션 경로는 `all_records()`만 쓴다.
-- `check_python.py`의 `--strict-recommended` 플래그와 `ALLOW_NON_RECOMMENDED_PYTHON` 환경변수를 제거했다. 이 스크립트를 호출하는 9개 진입점 중 이 플래그를 넘기는 곳이 없었다.
-- `STRICT_PYTHON_VERSION` 환경변수와 `validate_python_compatibility()`의 실행 interpreter 재검사를 제거했다. 전자는 자기 구현 외에 어디에서도 참조되지 않았고, 후자는 모든 진입점에서 먼저 실행되는 `check_python.py`와 같은 정책을 두 곳에 두는 중복이었다. `.python-version` 파일 검사는 유지한다.
+- Hardware admission은 GPU 제품 allowlist가 아니라 deployment/runtime compatibility, resource feasibility, profile contract와 post-apply runtime validation을 기준으로 한다. GPU 제품명·UUID·driver는 evidence provenance이며 새 GPU 관측만으로 profile requalification을 요구하지 않는다.
+- Main Model `resource_variant`는 GPU 분류가 아니라 reference resource policy가 실제 host에 맞지 않을 때 선택하는 reviewed override로 제한한다. `configs/runtime_topology.yaml`의 composition constraint는 선택된 resource policy와 공존할 수 없는 non-main Model Runtime만 effective topology에서 제외한다.
+- Prompt Injection Detector는 reference Main resource policy에서는 정상 Runtime Control 대상이며, `rtx4090-24gb` policy에서만 reviewed composition constraint로 unavailable하다. PII/Secret local detector와 aggregate Risk API는 해당 상태에서도 유지된다.
+- Repository-owned deployment authority를 local lifecycle로 수렴하고 remote release transport, rolling/full release mode, release symlink와 중복 rollback state machine을 제거했다. Runtime/Main Model/Configuration rollback은 각 Control Plane component가 소유한다.
+- vLLM engine/runtime artifact identity와 Docker image ref/image ID/distribution digest의 의미를 분리하고, qualification evidence가 실제 runtime provenance를 기록하도록 정리했다.
+- Control Plane은 effective topology에서 unavailable한 Runtime을 숨기지 않고 resource-policy 상태와 이유를 설명하며, unavailable 항목을 제어 surface나 GPU support 판정으로 재해석하지 않는다.
 
 ### Security
 
-- Gateway에는 Docker socket을 추가하지 않고, 내부 Admin Sidecar만 allowlist된 profile ID를 고정 model ID, revision, image digest, vLLM command로 변환하도록 했다. 관리 요청으로 임의 image, command, environment, Compose path를 주입할 수 없으며 Gateway와 Sidecar 사이에는 내부 service token을 사용한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md))
+- Access Profile(`local|private|edge`)과 Admin/internal service authentication 경계를 명시하고, Gateway에는 Docker socket을 제공하지 않는다. Runtime lifecycle 권한은 내부 Runtime Controller가 제한된 contract로 소유한다.
+- 이미지·오디오·비디오 입력은 Gateway에서 scheme/format, decoded byte, image pixel, video frame/duration 등 profile-backed 한도를 검증한 뒤 upstream runtime으로 전달한다.
+- vLLM security advisory exposure를 Gateway의 실제 request surface와 대조하는 posture 문서와 regression contract를 유지한다. Engine 버전 변경이나 security patch는 GPU 제품별 support matrix가 아니라 bounded runtime regression lane으로 검증한다.
 
 ## [0.0.1] - 2026-05-20
 

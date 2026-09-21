@@ -52,7 +52,7 @@ info:
     '
   contact:
     name: AI Model Serving Platform 운영
-  version: 0.0.1
+  version: 0.1.0
 paths:
   /health:
     get:
