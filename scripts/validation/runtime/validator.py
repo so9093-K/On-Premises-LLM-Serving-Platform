@@ -110,9 +110,14 @@ class RuntimeValidator:
             self.safe_check("vllm-runtime", f"{key} /models", lambda key=key, base=base: self.live_checks.check_vllm_models(key, base))
         detectors = self.model_serving.get("risk_signal_service", {}).get("detectors", {})
         for key, detector in detectors.items():
-            if detector.get("enabled", True) is True:
-                route = str(detector.get("route", f"/v1/risk/detectors/{key}/assessments"))
-                self.safe_check("risk-signal-service-runtime", f"{key} assessment", lambda route=route, key=key: self.live_checks.check_risk_endpoint(route, f"{key} assessment", key))
+            if detector.get("enabled", True) is not True:
+                continue
+            detector_type = str(detector.get("type", "vllm"))
+            service_key = str(detector.get("service_key", ""))
+            if detector_type != "local" and service_key not in self.vllm_bases:
+                continue
+            route = str(detector.get("route", f"/v1/risk/detectors/{key}/assessments"))
+            self.safe_check("risk-signal-service-runtime", f"{key} assessment", lambda route=route, key=key: self.live_checks.check_risk_endpoint(route, f"{key} assessment", key))
         self.safe_check("risk-signal-service-runtime", "aggregate assessment", lambda: self.live_checks.check_risk_endpoint("/v1/risk/assessments", "aggregate assessment"))
         self.safe_check("risk-signal-service-runtime", "detector latency at contract limit", self.live_checks.check_risk_latency_under_load)
         self.safe_check("vllm-runtime", "chat", self.live_checks.check_chat)

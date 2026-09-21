@@ -194,7 +194,10 @@ class LiveRuntimeChecks:
         status, body, latency = self.http.json("GET", f"{self.gateway_base}/v1/models")
         models = body.get("data", [])
         ids = {item.get("id") for item in models if isinstance(item, dict)}
-        expected = set(self.registry.public_logical_ids())
+        expected = {
+            self.registry.runtime_service(key).served_model_name
+            for key in self.vllm_bases
+        }
         ok = status == 200 and expected.issubset(ids)
         # 선언한 응답 계약을 배포본 응답에 실제로 적용한다.
         # specs의 x-response-contract-schema는 OpenAPI 문서를 만들 때만 쓰이고

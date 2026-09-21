@@ -7,6 +7,7 @@ from typing import Any
 
 from ai_model_serving.configuration import load_yaml_mapping
 from ai_model_serving.domain import ModelRegistry
+from ai_model_serving.runtime_topology import load_runtime_topology
 from scripts.lib.process_env import load_dotenv
 from scripts.lib.service_endpoint import published_base_url, service_base_url
 
@@ -62,6 +63,13 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
     monitoring = load_yaml_mapping(root / "configs/monitoring.yaml")
     services = load_yaml_mapping(root / "configs/services.yaml")["services"]
     registry = ModelRegistry(model_catalog, model_serving)
+    main_resource_variant = os.getenv("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+    topology = load_runtime_topology(
+        root, main_resource_variant=main_resource_variant
+    )
+    enabled_runtime_keys = {
+        key for key, binding in topology.bindings_by_key.items() if binding.enabled
+    }
     services_by_compose_name = {
         str(service["compose_service"]): service
         for service in services.values()
@@ -109,6 +117,7 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
                 runtime_base(service),
             )
             for service in registry.iter_runtime_services()
+            if service.service_key in enabled_runtime_keys
         },
         model_serving=model_serving,
         model_catalog=model_catalog,
