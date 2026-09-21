@@ -1,6 +1,6 @@
 # On-Premises LLM Serving Platform
 
-GPU 기반 AI 모델을 **OpenAI-compatible API**로 제공하고, Chat Completions, Responses, Embedding, Retrieval, Risk Detection, 모델 운영, 관측과 배포를 하나의 플랫폼에서 관리한다.
+온프레미스 AI 모델을 **OpenAI-compatible API**로 제공하고, Chat Completions, Responses, Embedding, Retrieval, Risk Detection, 모델 운영, 관측과 배포를 하나의 플랫폼에서 관리한다.
 
 외부 애플리케이션은 Gateway를 통해 모델 기능을 사용한다. 모델 실행 환경은 Linux/NVIDIA의
 vLLM 또는 Apple Silicon의 MLX-VLM을 사용하며, 실행 target에 맞는 lifecycle은 같은 로컬
@@ -12,7 +12,7 @@ vLLM 또는 Apple Silicon의 MLX-VLM을 사용하며, 실행 target에 맞는 li
 - 한국어 Retrieval
 - Prompt 위험 탐지 / PII·Secret 위험 탐지
 - Main Model 시작·중지·전환
-- GPU 기반 vLLM 모델 실행
+- Linux/NVIDIA vLLM 및 Apple Silicon MLX-VLM 기반 Main Model 실행
 - Prometheus / Grafana / Loki 기반 관측
 - 재현 가능한 애플리케이션 검증, 이미지 빌드와 GPU 배포
 
