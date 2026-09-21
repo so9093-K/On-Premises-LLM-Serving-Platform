@@ -531,7 +531,7 @@ passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make ready-full` |
 | Platform `Dockerfile` / dependency | `make build-image` | image 실행 후 readiness |
-| Unified vLLM Dockerfile / compatibility / patch | Unified vLLM image build | full-stack → runtime validation |
+| Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
 | Release packaging logic | `make validate` → `make test` → `make package` | package artifact 확인 |
 
@@ -556,6 +556,13 @@ make ready-full
 ```bash
 make runtime-validate
 ```
+
+vLLM engine pin 변경은 runtime 실측 전에 정적 계약부터 확인한다. `make validate`는
+`configs/vllm_unified_build.yaml`의 current vLLM pin과
+`docs/reference/vllm_security_posture.md`의 Security review contract가 일치하는지 확인한다.
+Pin만 바꾸고 advisory reachability 재검토를 누락하면 정적 검증에서 fail-closed한다.
+이 검사는 새 GPU qualification을 요구하지 않으며, 실제 engine artifact 확인은 이후의
+Unified image build와 bounded runtime canary가 소유한다.
 
 이 표는 “모든 명령을 항상 실행하는 규칙”보다 **변경 영향에 맞는 검증 범위를 선택하는 기준**으로 사용한다.
 
