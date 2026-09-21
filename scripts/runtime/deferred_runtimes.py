@@ -73,9 +73,15 @@ def resolve_deferred_runtimes(
             key = key_by_service[item]
             service = item
         elif ignore_unavailable and item in topology.bindings_by_key:
-            # Startup Profile은 target-neutral 선언이다. 현재 Main resource policy가
-            # runtime을 effective topology에서 제거했다면 defer할 대상도 아니다.
-            continue
+            binding = topology.bindings_by_key[item]
+            if not binding.enabled and binding.unavailable_with_main_resource_variants:
+                # Startup Profile은 target-neutral 선언이다. 현재 Main resource policy가
+                # 이 runtime을 effective topology에서 제거했다면 defer할 대상도 아니다.
+                continue
+            valid = sorted(set(service_by_key) | set(key_by_service))
+            raise SystemExit(
+                f"unknown or unavailable deferred runtime: {item}; valid values: {', '.join(valid)}"
+            )
         else:
             valid = sorted(set(service_by_key) | set(key_by_service))
             raise SystemExit(

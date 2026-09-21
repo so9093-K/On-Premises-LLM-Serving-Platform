@@ -44,6 +44,11 @@ The same effective topology must feed Gateway settings and `/v1/models`, Risk Si
 detector enablement, Runtime Controller controllability/admission inputs, Gateway desired-state
 keys, compose-up disabled/deferred resolution, smoke checks, and live runtime validation.
 
+The checked-in `model_list_response.schema.json` remains deployment-target neutral: its model IDs
+and capability values are the union that this build may expose, while the array permits the Main-only
+shape used by static targets and resource-constrained projections. Runtime validation, not the static
+schema, owns the exact model set required by the current effective topology.
+
 For the current measured case, `prompt_injection_detector` is declared active and controllable but
 lists `rtx4090-24gb` as unavailable. Reference policy therefore restores the Prompt Injection
 Detector, while the 24GB override preserves the safe PII/Secret-only risk path.

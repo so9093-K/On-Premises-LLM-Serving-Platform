@@ -5,11 +5,16 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/runtime/deferred_runtimes.py"
 DISABLED_SCRIPT = ROOT / "scripts/runtime/disabled_runtime_services.py"
+
+from ai_model_serving.runtime_topology import load_runtime_topology
+from scripts.runtime.deferred_runtimes import resolve_deferred_runtimes
 
 
 def run_script(*args: str) -> subprocess.CompletedProcess[str]:
@@ -92,3 +97,14 @@ def test_startup_profile_ignores_runtime_unavailable_under_resource_policy():
         "services": ["embedding-vllm", "embedding-ko-vllm"],
         "profile": "main_only",
     }
+
+
+def test_profile_resolution_does_not_hide_known_noncontrollable_runtime():
+    topology = load_runtime_topology(ROOT)
+
+    with pytest.raises(SystemExit, match="unknown or unavailable deferred runtime"):
+        resolve_deferred_runtimes(
+            topology,
+            "main_llm",
+            ignore_unavailable=True,
+        )
