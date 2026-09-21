@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
 from ai_model_serving.services.runtime_state import RuntimeState
+from ai_model_serving.settings_parts.types import RuntimeTopologyStatus
 from .helpers import FakeGatewayClients, TestClient, create_gateway_app, settings
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -40,6 +42,42 @@ def test_runtime_list_matches_checked_in_response_contract():
 
     assert response.status_code == 200
     _validate("runtime_list_response.schema.json", response.json())
+
+
+def test_runtime_list_projects_unavailable_effective_topology():
+    cfg = replace(
+        settings(),
+        runtime_topology_status=(
+            RuntimeTopologyStatus(
+                service_key="prompt_injection_detector",
+                service_id="prompt_injection_detector_runtime",
+                features=("risk",),
+                available=False,
+                controllable=False,
+                reason_code="MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT",
+                main_resource_variant="rtx4090-24gb",
+            ),
+        ),
+    )
+    clients = FakeGatewayClients()
+    client = TestClient(create_gateway_app(cfg, clients))
+
+    response = client.get("/admin/runtimes")
+
+    assert response.status_code == 200
+    body = response.json()
+    _validate("runtime_list_response.schema.json", body)
+    assert body["topology"] == [
+        {
+            "service_key": "prompt_injection_detector",
+            "service_id": "prompt_injection_detector_runtime",
+            "features": ["risk"],
+            "available": False,
+            "controllable": False,
+            "reason_code": "MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT",
+            "main_resource_variant": "rtx4090-24gb",
+        }
+    ]
 
 
 def test_runtime_apply_matches_checked_in_response_contract():

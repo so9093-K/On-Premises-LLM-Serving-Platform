@@ -38,7 +38,11 @@ is produced by applying the explicitly selected `MAIN_MODEL_RESOURCE_VARIANT`:
 - startup profiles may remain target-neutral; unavailable entries are ignored when resolving a
   profile, while direct attempts to name an unavailable runtime fail closed;
 - a remaining runtime may not depend on a prerequisite removed by the projection;
-- referenced resource-variant IDs must exist in the Main Model profile catalog.
+- referenced resource-variant IDs must exist in the Main Model profile catalog;
+- operator-facing read projections may retain a constrained declared runtime as unavailable with a
+  stable resource-policy reason, but that projection must not re-add it to controllable/start,
+  readiness, detector, or public-model sets. The reason identifies the selected resource policy,
+  not a GPU support classification.
 
 The same effective topology must feed Gateway settings and `/v1/models`, Risk Signal Service
 detector enablement, Runtime Controller controllability/admission inputs, Gateway desired-state

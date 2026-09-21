@@ -95,6 +95,19 @@ class RiskDetectorSettings:
 
 
 @dataclass(frozen=True)
+class RuntimeTopologyStatus:
+    """Browser/operator-safe effective runtime topology projection."""
+
+    service_key: str
+    service_id: str
+    features: tuple[str, ...]
+    available: bool
+    controllable: bool
+    reason_code: str | None = None
+    main_resource_variant: str | None = None
+
+
+@dataclass(frozen=True)
 class AppSettings:
     app_env: str
     project_version: str
@@ -110,6 +123,10 @@ class AppSettings:
     # /ready가 의존성 이름으로 쓴다. 코드에서 문자열을 조립하면(예전엔
     # f"{key}_vllm"이었다) 선언된 식별자와 조용히 갈라진다.
     runtime_service_ids: dict[str, str] = field(default_factory=dict)
+    # Control API의 service-key 집합과 분리된 read-only effective topology다.
+    # Resource-policy 때문에 제어 목록에서 빠진 runtime도 unavailable reason과 함께
+    # operator surface에 남길 수 있다.
+    runtime_topology_status: tuple[RuntimeTopologyStatus, ...] = ()
     risk_detectors: tuple[RiskDetectorSettings, ...] = ()
     aggregate_detector_order: tuple[str, ...] = ()
     # Runtime Controller 없이 Gateway를 단독 실행할 때 사용할 default profile의 정책이다.

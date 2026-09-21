@@ -42,6 +42,35 @@
         "used": {"type": "number"},
         "free": {"type": "number"}
       }
+    },
+    "topology": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "service_key",
+          "service_id",
+          "features",
+          "available",
+          "controllable",
+          "reason_code",
+          "main_resource_variant"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "service_key": {"type": "string", "minLength": 1},
+          "service_id": {"type": "string", "minLength": 1},
+          "features": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "available": {"type": "boolean"},
+          "controllable": {"type": "boolean"},
+          "reason_code": {"type": ["string", "null"]},
+          "main_resource_variant": {"type": ["string", "null"]}
+        }
+      }
     }
   }
 }

@@ -1406,7 +1406,12 @@ Admin API는 runtime 상태와 Main Model profile을 제어한다.
 
 ### 8.1 GET `/admin/runtimes`
 
-현재 vLLM runtime 상태와 GPU budget을 조회한다.
+현재 vLLM runtime 상태와 GPU budget, 그리고 현재 resource policy가 적용된 effective runtime topology를 조회한다.
+
+`runtimes`는 실제 Runtime Control 대상과 Main Model의 현재 상태를 반환한다. `topology`는
+별도의 read-only projection으로, resource-policy composition constraint 때문에 control/start 대상에서
+제외된 runtime도 `available=false`와 이유를 유지한다. 이 unavailable 상태는 GPU 제품의
+지원/미지원 판정이 아니다.
 
 ```bash
 curl "$GATEWAY_URL/admin/runtimes" \
@@ -1449,9 +1454,38 @@ curl "$GATEWAY_URL/admin/runtimes" \
     "ceiling": 0.93,
     "used": 0.925,
     "free": 0.005
-  }
+  },
+  "topology": [
+    {
+      "service_key": "prompt_injection_detector",
+      "service_id": "prompt_injection_detector_runtime",
+      "features": ["risk"],
+      "available": true,
+      "controllable": true,
+      "reason_code": null,
+      "main_resource_variant": null
+    }
+  ]
 }
 ```
+
+예를 들어 `rtx4090-24gb` Main resource policy에서 Prompt Injection Detector는
+`runtimes` 제어 목록에서 빠지지만 `topology`에는 다음처럼 남는다.
+
+```json
+{
+  "service_key": "prompt_injection_detector",
+  "service_id": "prompt_injection_detector_runtime",
+  "features": ["risk"],
+  "available": false,
+  "controllable": false,
+  "reason_code": "MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT",
+  "main_resource_variant": "rtx4090-24gb"
+}
+```
+
+`MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT`는 선택된 Main resource-policy override와
+해당 non-main Model Runtime의 공존 제약을 뜻한다. GPU 제품 자체의 support allowlist가 아니다.
 
 Runtime state:
 

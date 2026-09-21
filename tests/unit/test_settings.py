@@ -120,6 +120,15 @@ def test_main_resource_variant_projects_prompt_detector_out_of_effective_setting
     assert "prompt_injection_detector" not in settings.runtime_endpoints
     assert "prompt_injection_detector" not in settings.controllable_runtime_keys
     assert "prompt_injection_detector" not in settings.required_runtime_keys
+    topology = {item.service_key: item for item in settings.runtime_topology_status}
+    prompt_topology = topology["prompt_injection_detector"]
+    assert prompt_topology.available is False
+    assert prompt_topology.controllable is False
+    assert prompt_topology.reason_code == "MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT"
+    assert prompt_topology.main_resource_variant == "rtx4090-24gb"
+    assert topology["embedding"].available is True
+    assert topology["embedding"].reason_code is None
+
     prompt = next(detector for detector in settings.risk_detectors if detector.key == "prompt")
     assert prompt.enabled is False
     assert "risk-prompt" not in {item["id"] for item in settings.public_models}

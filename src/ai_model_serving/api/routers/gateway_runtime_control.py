@@ -566,7 +566,21 @@ def build_router(
                 "gate": main_model.get("gate"),
                 "active_profile": active_profile.get("id"),
             })
-        body: dict[str, Any] = {"runtimes": runtimes}
+        body: dict[str, Any] = {
+            "runtimes": runtimes,
+            "topology": [
+                {
+                    "service_key": item.service_key,
+                    "service_id": item.service_id,
+                    "features": list(item.features),
+                    "available": item.available,
+                    "controllable": item.controllable,
+                    "reason_code": item.reason_code,
+                    "main_resource_variant": item.main_resource_variant,
+                }
+                for item in settings.runtime_topology_status
+            ],
+        }
         if budget is not None:
             body["budget"] = {
                 "ceiling": budget.get("ceiling"),

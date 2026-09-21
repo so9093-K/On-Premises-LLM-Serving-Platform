@@ -24,6 +24,8 @@
 
 ### Changed
 
+- `GET /admin/runtimes`가 실제 제어 대상인 `runtimes`와 별도로 read-only `topology` projection을 반환한다. 선택된 Main resource policy의 composition constraint로 제어 대상에서 빠진 Runtime도 `available=false`, stable reason code, `main_resource_variant`와 함께 설명할 수 있으며, 이 projection은 해당 Runtime을 start/readiness/public-model 집합에 다시 추가하지 않는다. Resource-policy unavailable은 GPU 제품 지원 여부를 뜻하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md))
+
 - Prompt Injection Detector Runtime의 전역 비활성화를 resource-aware effective topology로 대체했다. 선언상 runtime/detector는 다시 활성 상태이며 reference Main resource policy에서는 Runtime Startup Profile과 Runtime Control 대상이 된다. RTX 4090 24GB 실측에서 공존 불가가 확인된 `rtx4090-24gb` Main resource-policy override가 선택된 동안에는 `configs/runtime_topology.yaml`의 composition constraint가 detector를 effective topology에서 제외한다. Gateway `/v1/models`, Risk Signal Service detector registry, Runtime Controller, compose-up/deferred 계산, smoke/runtime validation이 같은 projection을 사용하며 GPU 제품명 자체를 support allowlist로 취급하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md)) checked-in model-list JSON Schema는 target-neutral model/capability union만 제한하고 Main-only 목록도 허용하며, 현재 target에서 요구되는 정확한 model 집합은 live runtime validation이 검증한다.
 
 - Remote release 제거 뒤 남아 있던 Runtime Startup 내부 이름을 정리했다. `DEPLOY_DEFERRED_RUNTIMES` / `DEPLOY_RELEASE_ID`는 `RUNTIME_STARTUP_DEFERRED_KEYS` / `RUNTIME_STARTUP_GENERATION`으로 직접 cutover하고 operator `.env`에서 제거한다. `runtime-state.json`은 schema v3의 `applied_startup_generation`을 사용하며 schema v1/v2의 desired state와 `applied_release_id`를 원자적으로 이관한다. Control Plane bootstrap v4의 nullable `platform.release_id`에는 startup generation을 새 의미로 투영하지 않는다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))

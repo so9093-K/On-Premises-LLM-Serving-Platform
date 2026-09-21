@@ -20,7 +20,7 @@ from .settings_parts.env import (
 )
 from .settings_parts.runtime_endpoints import build_runtime_endpoint, validate_timeout_budget
 from .settings_parts.security import build_security_settings
-from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettings, EmbeddingProfile, RiskDetectorSettings, RuntimeEndpoint, SecuritySettings
+from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettings, EmbeddingProfile, RiskDetectorSettings, RuntimeEndpoint, RuntimeTopologyStatus, SecuritySettings
 
 ROOT = _resolve_project_root()
 
@@ -315,6 +315,33 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         if deployment_target.controllable
         else frozenset()
     )
+    runtime_topology_status = tuple(
+        RuntimeTopologyStatus(
+            service_key=key,
+            service_id=binding.service_id,
+            features=tuple(sorted(binding.features)),
+            available=binding.enabled,
+            controllable=binding.controllable and deployment_target.controllable,
+            reason_code=(
+                "MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT"
+                if (
+                    main_resource_variant is not None
+                    and main_resource_variant in binding.unavailable_with_main_resource_variants
+                )
+                else None
+            ),
+            main_resource_variant=(
+                main_resource_variant
+                if (
+                    main_resource_variant is not None
+                    and main_resource_variant in binding.unavailable_with_main_resource_variants
+                )
+                else None
+            ),
+        )
+        for key, binding in sorted(runtime_topology.bindings_by_key.items())
+        if binding.features & deployment_target.features
+    )
     runtime_endpoints = _build_runtime_endpoints(
         models=models,
         timeout=vllm_timeout,
@@ -406,6 +433,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             key: binding.service_id
             for key, binding in runtime_topology.bindings_by_key.items()
         },
+        runtime_topology_status=runtime_topology_status,
         controllable_runtime_keys=controllable_runtime_keys,
         risk_detectors=risk_detectors,
         aggregate_detector_order=aggregate_detector_order,
