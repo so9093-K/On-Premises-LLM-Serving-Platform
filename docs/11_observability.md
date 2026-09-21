@@ -147,6 +147,8 @@ Request Log Explorer는 Gateway 요청과 Runtime 로그를 Loki에서 조회한
 |---|---|
 | Request ID | 특정 오류 요청의 처리 흐름 추적 |
 | Route | API별 요청 확인 |
+| Main Model Profile | Chat/Responses admission에 실제 사용한 active profile id 확인 |
+| Main Resource Variant | explicit resource-policy override가 적용된 요청만 식별. 빈 값은 reference policy이며 GPU support 판정이 아님 |
 | Status Code | 성공 요청과 오류 요청 구분 |
 | Error Code | 오류 유형별 요청 확인 |
 | Client Host | 호출 대상별 요청 확인 |
@@ -170,7 +172,9 @@ Request ID 또는 Error Code로 대상을 좁힌 뒤 관련 서비스와 Runtime
 
 ### 로그 데이터 기준
 
-운영 로그에는 request id, route, status code, latency, service, error code, token 사용량 등 진단에 필요한 정보를 기록한다. Streaming 요청은 같은 request row에 `time_to_first_chunk_ms`를 남긴다. 이 값은 이미 metric으로 측정하는 첫 SSE chunk 시점의 request-level projection이며 first token latency를 추정한 값이 아니다.
+운영 로그에는 request id, route, status code, latency, service, error code, token 사용량 등 진단에 필요한 정보를 기록한다. Chat Completions와 Responses는 request admission에 이미 사용한 Main Model control snapshot에서 `main_model_profile`과 explicit override인 경우의 `main_resource_variant`만 request row에 추가한다. 새 Runtime Controller 조회는 하지 않으며 profile catalog, GPU product/UUID, qualification provenance를 로그에 복사하지 않는다. `main_resource_variant`가 없는 요청은 reference resource policy이므로 합성 문자열을 만들지 않고 필드를 비운다.
+
+Streaming 요청은 같은 request row에 `time_to_first_chunk_ms`를 남긴다. 이 값은 이미 metric으로 측정하는 첫 SSE chunk 시점의 request-level projection이며 first token latency를 추정한 값이 아니다.
 
 Gateway의 `request_id`는 애플리케이션 로그 안에서만 유효하다. 같은 요청의 runtime 로그는 `upstream_response_id`로 찾는다. Gateway가 runtime에 자기 request id를 전달하지는 않으며, 대신 runtime이 응답에 실어 보낸 생성 id를 그대로 기록해 두 로그를 잇는다.
 
