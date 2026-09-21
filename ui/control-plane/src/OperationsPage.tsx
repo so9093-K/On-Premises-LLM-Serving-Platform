@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
 
@@ -19,6 +19,22 @@ type OperationsPageProps = {
 };
 
 type LabelColor = 'blue' | 'green' | 'orange' | 'red' | 'grey';
+type ActivitySourceKey = 'runtime' | 'main-model' | 'configuration';
+type ActivityFilter = 'all' | ActivitySourceKey;
+
+type ActivityItem = {
+  key: string;
+  source: ActivitySourceKey;
+  sourceLabel: string;
+  sourceColor: LabelColor;
+  updatedAt: number;
+  title: string;
+  status: string;
+  statusColor: LabelColor;
+  phase: string;
+  detail: string;
+  metadata: Array<{ label: string; value: string }>;
+};
 
 function formatTimestamp(value: number): string {
   return new Date(value * 1000).toLocaleString('ko-KR');
@@ -49,29 +65,112 @@ function configurationStatusColor(status: ConfigurationHistoryItem['status']): L
 }
 
 function runtimeVerification(value: unknown): string {
-  if (typeof value !== 'object' || value === null) return '—';
+  if (typeof value !== 'object' || value === null) return 'verification 없음';
   const converged = (value as Record<string, unknown>).converged;
-  if (converged === true) return 'converged';
-  if (converged === false) return 'not converged';
-  return 'recorded';
+  if (converged === true) return '목표 상태로 수렴';
+  if (converged === false) return '목표 상태로 수렴하지 않음';
+  return 'verification 기록됨';
 }
 
-function mainModelFailure(operation: MainModelOperation): string {
+function mainModelFailure(operation: MainModelOperation): string | null {
   if (operation.error && operation.rollback_error) {
     return `${operation.error} · rollback: ${operation.rollback_error}`;
   }
   if (operation.error) return operation.error;
   if (operation.rollback_error) return `rollback: ${operation.rollback_error}`;
-  return '—';
+  return null;
 }
 
 function configurationVerification(item: ConfigurationHistoryItem): string {
-  if (item.verification === null) return '—';
-  return item.verification.synchronized ? 'synchronized' : 'not synchronized';
+  if (item.verification === null) return 'verification 없음';
+  return item.verification.synchronized ? 'configuration 동기화 확인' : 'configuration 동기화 불일치';
 }
 
-function SourceLoading({ label }: { label: string }) {
-  return <div className="inline-loading"><Spinner size="md" aria-label={`${label} operations loading`} /> {label} operations를 불러오는 중입니다.</div>;
+function actorText(actor: { auth_method: string; actor_id: string }): string {
+  return `${actor.actor_id} · ${actor.auth_method}`;
+}
+
+function runtimeActivity(operation: RuntimeOperation): ActivityItem {
+  const detail = [
+    runtimeVerification(operation.verification),
+    operation.force ? 'auto-stop 허용' : null,
+    operation.durable ? 'persisted evidence' : 'in-memory evidence',
+  ].filter(Boolean).join(' · ');
+
+  return {
+    key: `runtime:${operation.operation_id}`,
+    source: 'runtime',
+    sourceLabel: 'Runtime',
+    sourceColor: 'blue',
+    updatedAt: operation.updated_at,
+    title: `${operation.service_key} → ${operation.desired_state}`,
+    status: operation.status,
+    statusColor: runtimeStatusColor(operation.status),
+    phase: operation.phase,
+    detail,
+    metadata: [
+      { label: 'Operation ID', value: operation.operation_id },
+      { label: 'Request ID', value: operation.request_id },
+      { label: 'Actor', value: actorText(operation.actor) },
+      { label: 'Plan digest', value: operation.plan_digest ?? '—' },
+    ],
+  };
+}
+
+function mainModelActivity(operation: MainModelOperation): ActivityItem {
+  const failure = mainModelFailure(operation);
+  const detail = failure
+    ?? (operation.recovered_after_restart
+      ? 'process restart 뒤 runtime 재관측으로 terminal 상태를 복구했습니다.'
+      : `현재 stage: ${operation.stage}`);
+
+  return {
+    key: `main-model:${operation.id}`,
+    source: 'main-model',
+    sourceLabel: 'Main Model',
+    sourceColor: 'green',
+    updatedAt: operation.updated_at,
+    title: `${operation.previous_profile ?? 'no active profile'} → ${operation.requested_profile}`,
+    status: operation.status,
+    statusColor: mainModelStatusColor(operation.status),
+    phase: operation.stage,
+    detail,
+    metadata: [
+      { label: 'Operation ID', value: operation.id },
+      { label: 'Client request ID', value: operation.client_request_id ?? '—' },
+      { label: 'Previous profile', value: operation.previous_profile ?? '—' },
+      { label: 'Recovered after restart', value: operation.recovered_after_restart ? 'yes' : 'no' },
+    ],
+  };
+}
+
+function configurationActivity(operation: ConfigurationHistoryItem): ActivityItem {
+  const operationLabel = operation.kind === 'configuration_rollback' ? 'Rollback' : 'Apply';
+  const revision = operation.applied_revision ?? operation.candidate_revision;
+  return {
+    key: `configuration:${operation.operation_id}`,
+    source: 'configuration',
+    sourceLabel: 'Configuration',
+    sourceColor: 'grey',
+    updatedAt: operation.updated_at,
+    title: `${operationLabel}: revision ${operation.base_revision} → ${revision}`,
+    status: operation.status,
+    statusColor: configurationStatusColor(operation.status),
+    phase: operation.phase,
+    detail: `${operation.changes.length}개 change · ${configurationVerification(operation)}`,
+    metadata: [
+      { label: 'Operation ID', value: operation.operation_id },
+      { label: 'Request ID', value: operation.request_id },
+      { label: 'Actor', value: actorText(operation.actor) },
+      { label: 'Plan digest', value: operation.plan_digest },
+    ],
+  };
+}
+
+function sourceCountLabel(source: ActivitySourceKey, count: number): string {
+  if (source === 'runtime') return `Runtime ${count}`;
+  if (source === 'main-model') return `Main Model ${count}`;
+  return `Configuration ${count}`;
 }
 
 export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: OperationsPageProps) {
@@ -79,6 +178,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: Op
   const runtimeEnabled = deploymentFeatures.includes('runtime_control');
   const mainModelEnabled = deploymentFeatures.includes('model_switching');
   const pollWhileVisible = () => document.visibilityState === 'visible' ? 10_000 : false;
+  const [filter, setFilter] = useState<ActivityFilter>('all');
 
   const runtimeQuery = useQuery({
     queryKey: ['operations', 'runtime', authClass],
@@ -114,18 +214,73 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: Op
     }
   }, [configurationQuery.error, mainModelQuery.error, onUnauthorized, runtimeQuery.error]);
 
+  const activity = useMemo(() => {
+    const items: ActivityItem[] = [];
+    if (runtimeEnabled && runtimeQuery.data) {
+      items.push(...runtimeQuery.data.items.map(runtimeActivity));
+    }
+    if (mainModelEnabled && mainModelQuery.data) {
+      items.push(...mainModelQuery.data.items.map(mainModelActivity));
+    }
+    if (configurationQuery.data) {
+      items.push(...configurationQuery.data.items.map(configurationActivity));
+    }
+    return items.sort((left, right) => (
+      right.updatedAt - left.updatedAt || left.key.localeCompare(right.key)
+    ));
+  }, [
+    configurationQuery.data,
+    mainModelEnabled,
+    mainModelQuery.data,
+    runtimeEnabled,
+    runtimeQuery.data,
+  ]);
+
+  const filteredActivity = filter === 'all'
+    ? activity
+    : activity.filter((item) => item.source === filter);
+
+  const runtimeCount = runtimeEnabled ? (runtimeQuery.data?.items.length ?? 0) : 0;
+  const mainModelCount = mainModelEnabled ? (mainModelQuery.data?.items.length ?? 0) : 0;
+  const configurationCount = configurationQuery.data?.items.length ?? 0;
   const isRefreshing = (
     (runtimeEnabled && runtimeQuery.isFetching)
     || (mainModelEnabled && mainModelQuery.isFetching)
     || configurationQuery.isFetching
   );
+  const isInitialLoading = (
+    (runtimeEnabled && runtimeQuery.isPending)
+    || (mainModelEnabled && mainModelQuery.isPending)
+    || configurationQuery.isPending
+  ) && activity.length === 0;
+  const hasOlderHistory = Boolean(
+    runtimeQuery.data?.next_cursor || configurationQuery.data?.next_cursor,
+  );
+
+  const filters: Array<{ key: ActivityFilter; label: string; disabled?: boolean }> = [
+    { key: 'all', label: `All ${activity.length}` },
+    {
+      key: 'runtime',
+      label: runtimeEnabled ? sourceCountLabel('runtime', runtimeCount) : 'Runtime N/A',
+      disabled: !runtimeEnabled,
+    },
+    {
+      key: 'main-model',
+      label: mainModelEnabled ? sourceCountLabel('main-model', mainModelCount) : 'Main Model N/A',
+      disabled: !mainModelEnabled,
+    },
+    {
+      key: 'configuration',
+      label: sourceCountLabel('configuration', configurationCount),
+    },
+  ];
 
   return (
     <section className="runtime-page">
       <div className="page-heading">
         <div>
           <h1>Activity</h1>
-          <p>Runtime, Main Model, Configuration에서 발생한 최근 변경과 검증 결과를 읽기 전용으로 확인합니다.</p>
+          <p>Runtime, Main Model, Configuration의 최근 operation을 하나의 시간순 read-only projection으로 확인합니다.</p>
         </div>
         <Button
           variant="secondary"
@@ -140,114 +295,97 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: Op
         </Button>
       </div>
 
-      <Card>
-        <CardTitle>Runtime changes</CardTitle>
-        <CardBody>
-          <p className="configuration-help">Runtime 시작·중지의 최근 50개 변경 기록을 보여줍니다. Persistence에서 재시작 후에도 남는 기록인지 확인할 수 있습니다.</p>
-          {!runtimeEnabled ? (
-            <Alert isInline variant="info" title="이 배포는 Runtime Control을 제공하지 않습니다.">
-              Bootstrap capability에 `runtime_control`이 없어 Runtime change API를 호출하지 않습니다.
-            </Alert>
-          ) : runtimeQuery.isPending ? (
-            <SourceLoading label="Runtime" />
-          ) : runtimeQuery.isError ? (
-            <Alert isInline variant="danger" title="Runtime 변경 기록을 불러오지 못했습니다.">{apiErrorMessage(runtimeQuery.error)}</Alert>
-          ) : runtimeQuery.data.items.length === 0 ? (
-            <p>기록된 Runtime 변경이 없습니다.</p>
-          ) : (
-            <>
-              <div className="table-scroll">
-                <table className="runtime-table">
-                  <thead><tr><th>Updated</th><th>Runtime</th><th>Intent</th><th>Status</th><th>Verification</th><th>Persistence</th></tr></thead>
-                  <tbody>
-                    {runtimeQuery.data.items.map((operation) => (
-                      <tr key={operation.operation_id}>
-                        <td>{formatTimestamp(operation.updated_at)}<small><code>{operation.operation_id}</code></small></td>
-                        <td><strong>{operation.service_key}</strong></td>
-                        <td>{operation.desired_state}{operation.force ? ' · auto-stop allowed' : ''}</td>
-                        <td><Label color={runtimeStatusColor(operation.status)}>{operation.status}</Label><small>{operation.phase}</small></td>
-                        <td>{runtimeVerification(operation.verification)}</td>
-                        <td>{operation.durable ? 'persisted' : 'in-memory'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {runtimeQuery.data.next_cursor ? <p className="configuration-help">이 화면은 최근 변경만 표시합니다. 더 오래된 Runtime 기록은 server cursor를 통해 조회할 수 있습니다.</p> : null}
-            </>
-          )}
-        </CardBody>
-      </Card>
+      {runtimeEnabled && runtimeQuery.isError ? (
+        <Alert isInline variant="warning" title="Runtime activity를 불러오지 못했습니다.">
+          다른 source의 activity는 계속 표시합니다. {apiErrorMessage(runtimeQuery.error)}
+        </Alert>
+      ) : null}
+      {mainModelEnabled && mainModelQuery.isError ? (
+        <Alert isInline variant="warning" title="Main Model activity를 불러오지 못했습니다.">
+          다른 source의 activity는 계속 표시합니다. {apiErrorMessage(mainModelQuery.error)}
+        </Alert>
+      ) : null}
+      {configurationQuery.isError ? (
+        <Alert isInline variant="warning" title="Configuration activity를 불러오지 못했습니다.">
+          다른 source의 activity는 계속 표시합니다. {apiErrorMessage(configurationQuery.error)}
+        </Alert>
+      ) : null}
 
       <Card>
-        <CardTitle>Main Model profile changes</CardTitle>
+        <CardTitle>Recent activity</CardTitle>
         <CardBody>
-          <p className="configuration-help">최근 Main Model profile 전환의 진행 상태와 복구 결과를 보여줍니다.</p>
-          {!mainModelEnabled ? (
-            <Alert isInline variant="info" title="이 배포는 Main Model switching을 제공하지 않습니다.">
-              Bootstrap capability에 `model_switching`이 없어 Main Model change API를 호출하지 않습니다.
-            </Alert>
-          ) : mainModelQuery.isPending ? (
-            <SourceLoading label="Main Model" />
-          ) : mainModelQuery.isError ? (
-            <Alert isInline variant="danger" title="Main Model 변경 기록을 불러오지 못했습니다.">{apiErrorMessage(mainModelQuery.error)}</Alert>
-          ) : mainModelQuery.data.items.length === 0 ? (
-            <p>기록된 Main Model 전환이 없습니다.</p>
-          ) : (
-            <div className="table-scroll">
-              <table className="runtime-table">
-                <thead><tr><th>Updated</th><th>Requested profile</th><th>Previous</th><th>Status</th><th>Stage</th><th>Failure</th><th>Recovery</th></tr></thead>
-                <tbody>
-                  {mainModelQuery.data.items.map((operation) => (
-                    <tr key={operation.id}>
-                      <td>{formatTimestamp(operation.updated_at)}<small><code>{operation.id}</code></small></td>
-                      <td><strong>{operation.requested_profile}</strong></td>
-                      <td>{operation.previous_profile ?? '—'}</td>
-                      <td><Label color={mainModelStatusColor(operation.status)}>{operation.status}</Label></td>
-                      <td>{operation.stage}</td>
-                      <td>{mainModelFailure(operation)}</td>
-                      <td>{operation.recovered_after_restart ? 'recovered after restart' : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <p className="configuration-help activity-intro">
+            이 화면은 세 operation source의 최근 기록을 시간순으로 합쳐 보여줄 뿐 새 audit authority를 만들지 않습니다.
+            각 operation의 영속성, rollback, verification 의미는 원래 Runtime/Main Model/Configuration source가 계속 소유합니다.
+          </p>
+
+          <div className="activity-filters" role="group" aria-label="Activity source filter">
+            {filters.map((item) => (
+              <Button
+                key={item.key}
+                variant={filter === item.key ? 'primary' : 'secondary'}
+                isDisabled={item.disabled}
+                aria-pressed={filter === item.key}
+                onClick={() => setFilter(item.key)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
+          {isInitialLoading ? (
+            <div className="inline-loading">
+              <Spinner size="md" aria-label="Activity loading" />
+              최근 operation을 불러오는 중입니다.
             </div>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardTitle>Configuration changes</CardTitle>
-        <CardBody>
-          <p className="configuration-help">최근 Configuration 변경과 검증 결과를 보여줍니다. Rollback과 전체 기록 탐색은 Configuration 화면에서 수행합니다.</p>
-          {configurationQuery.isPending ? (
-            <SourceLoading label="Configuration" />
-          ) : configurationQuery.isError ? (
-            <Alert isInline variant="danger" title="Configuration 변경 기록을 불러오지 못했습니다.">{apiErrorMessage(configurationQuery.error)}</Alert>
-          ) : configurationQuery.data.items.length === 0 ? (
-            <p>기록된 Configuration 변경이 없습니다.</p>
+          ) : filteredActivity.length === 0 ? (
+            <p className="activity-empty">
+              {filter === 'all' ? '표시할 최근 Activity가 없습니다.' : '선택한 source에 최근 Activity가 없습니다.'}
+            </p>
           ) : (
-            <>
-              <div className="table-scroll">
-                <table className="runtime-table">
-                  <thead><tr><th>Updated</th><th>Operation</th><th>Revision</th><th>Status</th><th>Changes</th><th>Verification</th></tr></thead>
-                  <tbody>
-                    {configurationQuery.data.items.map((operation) => (
-                      <tr key={operation.operation_id}>
-                        <td>{formatTimestamp(operation.updated_at)}<small><code>{operation.operation_id}</code></small></td>
-                        <td><strong>{operation.kind === 'configuration_rollback' ? 'Rollback' : 'Apply'}</strong>{operation.target_revision === null ? null : <small>target revision {operation.target_revision}</small>}</td>
-                        <td>{operation.base_revision} → {operation.applied_revision ?? operation.candidate_revision}</td>
-                        <td><Label color={configurationStatusColor(operation.status)}>{operation.status}</Label><small>{operation.phase}</small></td>
-                        <td>{operation.changes.length}</td>
-                        <td>{configurationVerification(operation)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {configurationQuery.data.next_cursor ? <p className="configuration-help">이 화면은 최근 변경만 표시합니다. Configuration 화면에서 cursor 기반 persistent history를 계속 탐색할 수 있습니다.</p> : null}
-            </>
+            <ol className="activity-timeline">
+              {filteredActivity.map((item) => (
+                <li className="activity-timeline-item" data-tone={item.statusColor} key={item.key}>
+                  <span className="activity-timeline-marker" aria-hidden="true" />
+                  <article className="activity-event">
+                    <header className="activity-event-header">
+                      <div className="activity-event-heading">
+                        <div className="activity-event-labels">
+                          <Label color={item.sourceColor}>{item.sourceLabel}</Label>
+                          <Label color={item.statusColor}>{item.status}</Label>
+                        </div>
+                        <strong>{item.title}</strong>
+                      </div>
+                      <time dateTime={new Date(item.updatedAt * 1000).toISOString()}>
+                        {formatTimestamp(item.updatedAt)}
+                      </time>
+                    </header>
+                    <p className="activity-event-detail">
+                      <span className="activity-phase">{item.phase}</span>
+                      <span>{item.detail}</span>
+                    </p>
+                    <details className="activity-details">
+                      <summary>Operation details</summary>
+                      <dl className="facts compact-facts">
+                        {item.metadata.map((entry) => (
+                          <div className="activity-fact" key={entry.label}>
+                            <dt>{entry.label}</dt>
+                            <dd><code>{entry.value}</code></dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  </article>
+                </li>
+              ))}
+            </ol>
           )}
+
+          {hasOlderHistory ? (
+            <p className="configuration-help">
+              이 화면은 최근 기록만 합칩니다. Runtime과 Configuration의 더 오래된 durable history는 각 source의 cursor API가 계속 소유합니다.
+            </p>
+          ) : null}
         </CardBody>
       </Card>
     </section>

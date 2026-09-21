@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Control Plane Activity를 Runtime/Main Model/Configuration별 독립 테이블에서 시간순 통합 timeline으로 바꿨다. 세 backend operation source는 authority와 persistence를 그대로 유지하고 Console이 read-only projection만 구성한다. Source filter, status/stage, operation evidence detail을 한 흐름에서 볼 수 있으며 한 source 조회가 실패해도 나머지 activity는 계속 표시한다.
+
 - Control Plane이 effective topology의 unavailable Runtime을 숨기지 않는다. Overview는 현재 resource policy에서 제외된 Runtime 수를 정보성 상태로 요약하고, Runtimes 화면은 별도 read-only 영역에서 stable reason과 resource policy를 설명한다. Unavailable 항목에는 Start/Stop action을 제공하지 않으며 GPU 제품의 지원/미지원 상태로 표현하지 않는다.
 
 - `GET /admin/runtimes`가 실제 제어 대상인 `runtimes`와 별도로 read-only `topology` projection을 반환한다. 선택된 Main resource policy의 composition constraint로 제어 대상에서 빠진 Runtime도 `available=false`, stable reason code, `main_resource_variant`와 함께 설명할 수 있으며, 이 projection은 해당 Runtime을 start/readiness/public-model 집합에 다시 추가하지 않는다. Resource-policy unavailable은 GPU 제품 지원 여부를 뜻하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md))
