@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import {
   fetchMainModel,
@@ -176,6 +177,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                   <div>
                     <strong>Runtime 상태를 조회하지 못했습니다.</strong>
                     <small>{apiErrorMessage(runtimesQuery.error)}</small>
+                    <Link className="overview-inline-action" to="/runtimes">Runtimes에서 확인 →</Link>
                   </div>
                 </div>
               ) : null}
@@ -185,6 +187,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                   <div>
                     <strong>Main Model 상태를 조회하지 못했습니다.</strong>
                     <small>{apiErrorMessage(mainModelQuery.error)}</small>
+                    <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link>
                   </div>
                 </div>
               ) : null}
@@ -194,6 +197,9 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                   <div>
                     <strong>{signal.title}</strong>
                     <small>{signal.detail}</small>
+                    {modelSwitchingEnabled ? (
+                      <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -212,16 +218,25 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <div className="overview-policy-notices">
                 <strong>Policy / informational</strong>
                 {informationalSignals.map((signal) => (
-                  <p key={signal.key}>{signal.title} {signal.detail}</p>
+                  <p key={signal.key}>
+                    {signal.title} {signal.detail}
+                    {modelSwitchingEnabled ? (
+                      <> <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link></>
+                    ) : null}
+                  </p>
                 ))}
                 {unavailableTopology.length ? (
                   <p>
                     {unavailableTopology.length}개 Runtime이 현재 resource policy의 composition constraint로 unavailable합니다.
-                    장애나 GPU 지원 판정이 아닙니다.
+                    장애나 GPU 지원 판정이 아닙니다.{' '}
+                    <Link className="overview-inline-action" to="/runtimes">Runtimes에서 확인 →</Link>
                   </p>
                 ) : null}
                 {!bootstrap.configuration.write_available ? (
-                  <p>현재 target에서는 Configuration write가 unavailable합니다. 읽기 상태 자체의 오류를 뜻하지 않습니다.</p>
+                  <p>
+                    현재 target에서는 Configuration write가 unavailable합니다. 읽기 상태 자체의 오류를 뜻하지 않습니다.{' '}
+                    <Link className="overview-inline-action" to="/configuration">Configuration에서 확인 →</Link>
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -253,6 +268,11 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             ) : (
               <p className="overview-muted">Main Model 상태를 표시할 수 없습니다.</p>
             )}
+            {modelSwitchingEnabled ? (
+              <div className="overview-card-actions">
+                <Link to="/main-model">Main Model 운영으로 이동 →</Link>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
 
@@ -282,6 +302,11 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <dt>GPU free</dt><dd>{displayNumber(budget?.free)}</dd>
               </dl>
             )}
+            {runtimeControlEnabled ? (
+              <div className="overview-card-actions">
+                <Link to="/runtimes">Runtime 운영으로 이동 →</Link>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
 
@@ -296,6 +321,9 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 {bootstrap.configuration.write_available ? 'available' : 'unavailable'}
               </Label></dd>
             </dl>
+            <div className="overview-card-actions">
+              <Link to="/configuration">Configuration으로 이동 →</Link>
+            </div>
           </CardBody>
         </Card>
 
@@ -309,11 +337,18 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <dt>Environment</dt><dd>{bootstrap.deployment.display_name}</dd>
               <dt>Environment ID</dt><dd>{bootstrap.deployment.target}</dd>
               <dt>Runtime backend</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
+              <dt>Lifecycle owner</dt><dd>{bootstrap.deployment.lifecycle_owner}</dd>
+              <dt>Control mode</dt><dd>{bootstrap.deployment.control_mode}</dd>
               <dt>Implementation</dt><dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)}</dd>
               <dt>Qualification</dt><dd>{qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
               <dt>Access profile</dt><dd>{bootstrap.access.profile}</dd>
               <dt>Admin auth</dt><dd>{bootstrap.access.admin_auth_required ? 'required' : 'not required'}</dd>
             </dl>
+            <p className="overview-muted overview-ownership-note">
+              {bootstrap.deployment.lifecycle_owner === 'external'
+                ? '이 target의 Main runtime lifecycle은 외부/native owner가 관리합니다. Console은 선언된 capability 밖의 Runtime Control이나 Main Model switching을 제공하지 않습니다.'
+                : '이 target의 managed runtime lifecycle과 Main Model operation은 Platform Control Plane이 소유합니다.'}
+            </p>
           </CardBody>
         </Card>
 
@@ -326,6 +361,15 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <dt>Observability</dt><dd>{bootstrap.monitoring.available ? 'available' : 'unavailable'}</dd>
               <dt>Grafana</dt><dd>{bootstrap.monitoring.grafana_available ? 'available' : 'unavailable'}</dd>
             </dl>
+            <div className="overview-card-actions">
+              {bootstrap.links.docs ? (
+                <a href={bootstrap.links.docs} target="_blank" rel="noreferrer">API Docs에서 사용법 확인 ↗</a>
+              ) : null}
+              {bootstrap.links.grafana ? (
+                <a href={bootstrap.links.grafana} target="_blank" rel="noreferrer">Grafana에서 진단 ↗</a>
+              ) : null}
+              <Link to="/operations">Activity에서 변경 이력 확인 →</Link>
+            </div>
           </CardBody>
         </Card>
 
