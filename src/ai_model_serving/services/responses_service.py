@@ -132,7 +132,7 @@ class ResponsesService:
         runtime_config = self.runtime_configuration.snapshot()
         chunk_count = 0
         byte_count = 0
-        first_chunk_recorded = False
+        first_chunk_seconds: float | None = None
         terminal_status = "completed"
         buffer = ""
         response_id: str | None = None
@@ -157,9 +157,9 @@ class ResponsesService:
                             f"Responses stream emitted {byte_count} bytes; limit is {runtime_config.streaming_max_bytes}.",
                             diagnostic_code="STREAM_BYTE_LIMIT_EXCEEDED",
                         )
-                    if not first_chunk_recorded:
-                        first_chunk_recorded = True
-                        self.metrics.record_streaming_first_chunk(target, time.monotonic() - start)
+                    if first_chunk_seconds is None:
+                        first_chunk_seconds = time.monotonic() - start
+                        self.metrics.record_streaming_first_chunk(target, first_chunk_seconds)
                     self.metrics.record_streaming_chunk(target, len(chunk))
                     buffer += chunk.decode("utf-8", errors="ignore")
                     emitted: list[str] = []
@@ -237,4 +237,5 @@ class ResponsesService:
                 status=sanitized_stream_status(terminal_status),
                 usage=usage,
                 response_id=response_id,
+                first_chunk_seconds=first_chunk_seconds,
             )

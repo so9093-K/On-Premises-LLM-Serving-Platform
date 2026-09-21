@@ -262,7 +262,13 @@ def record_upstream_response(request: Request, response: Any) -> None:
     )
 
 
-def record_stream_completion(*, status: str, usage: Any = None, response_id: Any = None) -> None:
+def record_stream_completion(
+    *,
+    status: str,
+    usage: Any = None,
+    response_id: Any = None,
+    first_chunk_seconds: float | None = None,
+) -> None:
     """끝난 SSE relay의 종료 상태와 업스트림 식별 정보를 요청 로그에 남긴다.
 
     streaming은 handler가 반환한 뒤 generator 안에서 끝나므로 ``Request``를
@@ -270,6 +276,11 @@ def record_stream_completion(*, status: str, usage: Any = None, response_id: Any
     ``REQUEST_ERROR_CONTEXT``(= ``scope["state"]``)를 그대로 사용한다.
 
     ``usage``와 ``response_id``는 relay가 전달 중인 바이트에서 관찰한 값이다.
+    ``first_chunk_seconds``는 Prometheus ``streaming_time_to_first_chunk_seconds``
+    에 기록한 바로 그 측정값이다. 새 시계를 만들지 않고 같은 값만 request event의
+    ``stream_first_chunk_ms``로 투영한다. 이는 Gateway가 본 첫 SSE chunk 시간이며
+    token-level TTFT가 아니다.
+
     통째로 넘기지 않고 조각으로 받는 이유는 streaming에 완성된 응답 객체가
     존재하지 않기 때문이다. 채워지는 필드는 ``record_upstream_response``와
     같으므로, request_id 하나로 두 경로를 같은 방식으로 조회할 수 있다.
@@ -278,6 +289,12 @@ def record_stream_completion(*, status: str, usage: Any = None, response_id: Any
     if context is None:
         return
     context["stream_status"] = status
+    if (
+        isinstance(first_chunk_seconds, (int, float))
+        and not isinstance(first_chunk_seconds, bool)
+        and first_chunk_seconds >= 0
+    ):
+        context["stream_first_chunk_ms"] = round(first_chunk_seconds * 1000, 3)
     _apply_upstream_identity(context, usage=usage, response_id=response_id)
 
 
@@ -316,9 +333,10 @@ def safe_request_log_record(
         if value:
             record[field] = value
     # 운영 분해용 필드. queue_wait_ms는 upstream admission slot을 기다린 시간이라
-    # latency_ms에서 빼면 대기와 추론을 가를 수 있다. stream_status는 SSE relay의
-    # 종료 사유로, 정상 완료와 client 중단을 status_code=200 안에서 구분한다.
-    for field in ("queue_wait_ms", "stream_status"):
+    # latency_ms에서 빼면 대기와 추론을 가를 수 있다. stream_first_chunk_ms는
+    # aggregate streaming histogram과 같은 측정값을 요청 단위로 투영한 것이고
+    # stream_status는 SSE relay 종료 사유를 status_code=200 안에서 구분한다.
+    for field in ("queue_wait_ms", "stream_first_chunk_ms", "stream_status"):
         value = getattr(request.state, field, None)
         if value is not None:
             record[field] = value

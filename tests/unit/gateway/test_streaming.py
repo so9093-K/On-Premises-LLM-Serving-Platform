@@ -375,6 +375,8 @@ def test_streaming_request_event_carries_upstream_identity_and_terminal_status(m
     assert records[0]["completion_tokens"] == 101
     assert records[0]["total_tokens"] == 112
     assert records[0]["stream_status"] == "completed"
+    assert isinstance(records[0]["stream_first_chunk_ms"], (int, float))
+    assert records[0]["stream_first_chunk_ms"] >= 0
     assert records[0]["upstream_response_id"] == completion_id
 
 

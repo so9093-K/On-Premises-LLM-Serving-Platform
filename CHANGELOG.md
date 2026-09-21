@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Streaming Chat/Responses의 기존 `streaming_time_to_first_chunk_seconds` 측정값을 요청 이벤트의 `stream_first_chunk_ms`에도 투영한다. 새 timer나 SLO를 만들지 않고 같은 관측값을 request-level 진단에 재사용하며, Request Log Explorer에서 latency·queue wait·first chunk·stream status를 한 요청 단위로 함께 볼 수 있다. 이 값은 첫 non-empty SSE chunk 시간이며 token-level TTFT로 해석하지 않는다.
+
 - vLLM engine pin과 security posture review를 정적 governance 계약으로 연결했다. `configs/vllm_unified_build.yaml`의 `compatibility_pins.vllm`이 바뀌면 `docs/reference/vllm_security_posture.md`의 machine-readable Security review contract도 같은 변경에서 갱신해야 하며, `make validate`가 stale/missing/invalid review marker를 fail-closed한다. 이 계약은 GPU별 qualification을 추가하지 않고 engine upgrade lane의 advisory 재검토 누락만 막는다.
 
 - Control Plane Overview를 동급 카드 나열에서 operator decision hierarchy로 재구성했다. 첫 화면은 전체 SLO health를 추측하지 않고 현재 Control Plane 신호에서 즉시 확인할 항목이 있는지만 요약하며, active Main Model의 closed gate·unhealthy observation·state recovery 오류를 Needs attention으로 올린다. 의도적인 stopped 상태, resource-policy unavailable, Configuration write unavailable은 장애로 과장하지 않고 informational policy state로 분리한다. Main Model/Runtime/Configuration은 primary 영역에, environment/observability/capability는 secondary 영역에 배치한다.

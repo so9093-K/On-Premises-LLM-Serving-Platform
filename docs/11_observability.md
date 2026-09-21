@@ -153,6 +153,7 @@ Request Log Explorer는 Gateway 요청과 Runtime 로그를 Loki에서 조회한
 | Latency | 응답 지연 요청 확인 |
 | Token Usage | Chat 요청의 입력·출력 Token 사용량 확인. streaming 요청도 같은 필드를 남긴다 |
 | Queue Wait | upstream admission slot 대기 시간. Latency에서 빼면 대기와 추론을 구분한다 |
+| Stream First Chunk | streaming 요청에서 Gateway가 첫 non-empty chunk를 관측할 때까지의 시간. aggregate `streaming_time_to_first_chunk_seconds`와 같은 측정이며 token-level TTFT가 아니다 |
 | Stream Status | SSE relay 종료 사유(`completed` / `client_disconnect` / `error`). status code 200 안에서 중단된 요청을 구분한다 |
 | Upstream Response ID | model runtime이 생성에 붙인 id(vLLM은 `chatcmpl-...`). runtime 컨테이너 로그에 같은 값이 남아 있어 시간대 추정 없이 연결한다 |
 
@@ -169,7 +170,7 @@ Request ID 또는 Error Code로 대상을 좁힌 뒤 관련 서비스와 Runtime
 
 ### 로그 데이터 기준
 
-운영 로그에는 request id, route, status code, latency, service, error code, token 사용량 등 진단에 필요한 정보를 기록한다.
+운영 로그에는 request id, route, status code, latency, service, error code, token 사용량 등 진단에 필요한 정보를 기록한다. Streaming Chat/Responses는 aggregate metric에서 이미 측정하는 첫 chunk 시간을 같은 시계에서 `stream_first_chunk_ms`로 요청 이벤트에도 남긴다. 이 값은 첫 non-empty SSE chunk 관측 시간이며 token 생성 경계를 직접 관측하지 않으므로 TTFT로 부르지 않는다. 첫 chunk 전에 종료된 요청에는 필드가 없다.
 
 Gateway의 `request_id`는 애플리케이션 로그 안에서만 유효하다. 같은 요청의 runtime 로그는 `upstream_response_id`로 찾는다. Gateway가 runtime에 자기 request id를 전달하지는 않으며, 대신 runtime이 응답에 실어 보낸 생성 id를 그대로 기록해 두 로그를 잇는다.
 
