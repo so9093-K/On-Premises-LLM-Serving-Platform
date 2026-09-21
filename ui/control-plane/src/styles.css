@@ -258,6 +258,39 @@ input {
   margin-top: 1rem;
 }
 
+.profile-comparison-intro {
+  margin-top: 0;
+  max-width: 64rem;
+}
+
+.profile-comparison-scroll {
+  margin-top: 1rem;
+}
+
+.profile-comparison-table td:last-child {
+  min-width: 8rem;
+}
+
+.profile-impact-stack {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.profile-target-details {
+  margin-top: 1rem;
+}
+
+.profile-target-details summary {
+  cursor: pointer;
+  color: var(--pf-t--global--color--brand--default, #06c);
+  font-weight: 600;
+}
+
+.profile-target-details .facts {
+  margin-top: 0.75rem;
+}
+
 .operation-facts {
   margin-bottom: 1rem;
 }
