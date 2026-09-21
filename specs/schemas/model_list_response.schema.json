@@ -13,7 +13,7 @@
     },
     "data": {
       "type": "array",
-      "minItems": 3,
+      "minItems": 4,
       "items": {
         "type": "object",
         "required": [
@@ -31,7 +31,8 @@
             "enum": [
               "local-main",
               "local-embed",
-              "local-embed-ko"
+              "local-embed-ko",
+              "risk-prompt"
             ]
           },
           "object": {
@@ -62,7 +63,8 @@
                 "responses",
                 "embeddings",
                 "retrieval_rerank",
-                "retrieval_score"
+                "retrieval_score",
+                "risk.prompt_attack_signal"
               ]
             }
           },
