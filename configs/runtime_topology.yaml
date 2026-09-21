@@ -31,11 +31,12 @@ runtimes:
   prompt_injection_detector:
     service_id: prompt_injection_detector_runtime
     features: [risk]
-    # 이 runtime은 현재 기동하지 않는다. risk feature 자체는 유지되며 in-process
-    # PII/Secret detector가 계속 소유한다 -- 여기서 빠지는 것은 vLLM prompt attack
-    # detector뿐이다. 비활성 binding은 feature의 required runtime 집합에서 제외되므로
-    # Gateway가 존재하지 않는 runtime을 readiness 조건으로 요구하지 않는다.
-    # start_prerequisites는 enabled+controllable일 때만 선언할 수 있어 함께 비운다.
-    enabled: false
-    required: false
-    controllable: false
+    enabled: true
+    required: true
+    controllable: true
+    start_prerequisites: [embedding, embedding_ko]
+    # GPU 제품 allowlist가 아니다. rtx4090-24gb는 E4B의 reference policy를 24GB에서
+    # 기동하기 위해 선택하는 explicit Main resource-policy override다. 이 override와
+    # embedding 두 종 + prompt detector의 동시 상주가 실측에서 불가능했으므로
+    # 해당 policy가 선택된 동안 effective topology에서 detector만 비활성화한다.
+    unavailable_with_main_resource_variants: [rtx4090-24gb]

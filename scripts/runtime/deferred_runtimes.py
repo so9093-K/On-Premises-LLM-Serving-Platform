@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -57,6 +58,8 @@ def load_runtime_startup_profile(config_root: Path, profile: str) -> tuple[str, 
 def resolve_deferred_runtimes(
     topology: RuntimeTopology,
     raw: str,
+    *,
+    ignore_unavailable: bool = False,
 ) -> tuple[list[str], list[str]]:
     service_by_key = topology.service_by_key
     key_by_service = {service: key for key, service in service_by_key.items()}
@@ -69,10 +72,14 @@ def resolve_deferred_runtimes(
         elif item in key_by_service:
             key = key_by_service[item]
             service = item
+        elif ignore_unavailable and item in topology.bindings_by_key:
+            # Startup Profile은 target-neutral 선언이다. 현재 Main resource policy가
+            # runtime을 effective topology에서 제거했다면 defer할 대상도 아니다.
+            continue
         else:
             valid = sorted(set(service_by_key) | set(key_by_service))
             raise SystemExit(
-                f"unknown deferred runtime: {item}; valid values: {', '.join(valid)}"
+                f"unknown or unavailable deferred runtime: {item}; valid values: {', '.join(valid)}"
             )
         if key not in keys:
             keys.append(key)
@@ -87,18 +94,24 @@ def main() -> int:
     parser.add_argument("--config-root", type=Path, default=Path.cwd())
     parser.add_argument("--runtimes", default="")
     parser.add_argument("--profile", default="")
+    parser.add_argument(
+        "--main-resource-variant",
+        default=os.getenv("MAIN_MODEL_RESOURCE_VARIANT", ""),
+    )
     parser.add_argument("--output", choices=("lines", "json"), default="lines")
     args = parser.parse_args()
 
-    topology = load_runtime_topology(args.config_root)
+    variant = args.main_resource_variant.strip() or None
+    topology = load_runtime_topology(args.config_root, main_resource_variant=variant)
     raw_runtimes = args.runtimes
     effective_profile = ""
-    if not raw_runtimes:
+    from_profile = not raw_runtimes
+    if from_profile:
         effective_profile, profile_runtimes = load_runtime_startup_profile(
             args.config_root, args.profile
         )
         raw_runtimes = ",".join(profile_runtimes)
-    keys, services = resolve_deferred_runtimes(topology, raw_runtimes)
+    keys, services = resolve_deferred_runtimes(topology, raw_runtimes, ignore_unavailable=from_profile)
     if args.output == "json":
         print(
             json.dumps(

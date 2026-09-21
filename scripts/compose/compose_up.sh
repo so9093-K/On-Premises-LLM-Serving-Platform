@@ -101,17 +101,21 @@ if [[ "${SKIP_PREFLIGHT:-0}" == "1" ]]; then
 fi
 
 RUNTIME_STARTUP_PROFILE_REQUESTED="${RUNTIME_STARTUP_PROFILE:-}"
+MAIN_MODEL_RESOURCE_VARIANT_EFFECTIVE="${MAIN_MODEL_RESOURCE_VARIANT:-$(_env_value MAIN_MODEL_RESOURCE_VARIANT)}"
 
 DEFERRED_RUNTIME_RESOLUTION="$(
   "$PYTHON_BIN" scripts/runtime/deferred_runtimes.py \
     --config-root "$ROOT" \
     --profile "$RUNTIME_STARTUP_PROFILE_REQUESTED" \
+    --main-resource-variant "$MAIN_MODEL_RESOURCE_VARIANT_EFFECTIVE" \
     --output lines
 )"
 # 비활성 runtime은 Compose 정의를 유지하되 기동 대상에서 뺀다. 비활성 binding은
 # controllable일 수 없어 deferred 목록에 들어갈 수 없으므로 별도로 구한다.
 mapfile -t DISABLED_RUNTIME_SERVICES < <(
-  "$PYTHON_BIN" scripts/runtime/disabled_runtime_services.py --config-root "$ROOT"
+  "$PYTHON_BIN" scripts/runtime/disabled_runtime_services.py \
+    --config-root "$ROOT" \
+    --main-resource-variant "$MAIN_MODEL_RESOURCE_VARIANT_EFFECTIVE"
 )
 mapfile -t DEFERRED_RUNTIME_LINES <<<"$DEFERRED_RUNTIME_RESOLUTION"
 read -r -a DEFERRED_RUNTIME_KEYS <<<"${DEFERRED_RUNTIME_LINES[0]:-}"

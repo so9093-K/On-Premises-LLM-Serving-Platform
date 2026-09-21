@@ -3,13 +3,15 @@
 default_profile: main_only
 
 profiles:
-  # 최초 기동은 Main만 준비한다. embedding은 필요할 때 Admin API로 시작한다.
+  # 최초 기동은 Main만 준비한다. secondary runtime은 필요할 때 Admin API로 시작한다.
   main_only:
     deferred_runtimes:
       - embedding
       - embedding_ko
+      - prompt_injection_detector
 
-  # Retrieval을 처음부터 제공한다. 현재 controllable runtime은 embedding 두 종뿐이므로
-  # 이 profile은 남는 deferred runtime이 없다.
+  # Retrieval은 처음부터 제공하고 Prompt Injection Detector는 필요할 때 시작한다.
+  # host-specific unavailable runtime은 effective topology가 이 목록에서 걸러낸다.
   retrieval_ready:
-    deferred_runtimes: []
+    deferred_runtimes:
+      - prompt_injection_detector
