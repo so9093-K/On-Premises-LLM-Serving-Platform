@@ -11,11 +11,16 @@ import {
   type RuntimeOperation,
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import {
+  mainRuntimeDiagnosticsUrl,
+  requestLogDiagnosticsUrl,
+} from './activityDiagnostics';
 
 type OperationsPageProps = {
   token: string | null;
   onUnauthorized: () => void;
   deploymentFeatures: readonly string[];
+  grafanaUrl: string | null;
 };
 
 type LabelColor = 'blue' | 'green' | 'orange' | 'red' | 'grey';
@@ -34,6 +39,7 @@ type ActivityItem = {
   phase: string;
   detail: string;
   metadata: Array<{ label: string; value: string }>;
+  diagnostics: Array<{ label: string; href: string }>;
 };
 
 function formatTimestamp(value: number): string {
@@ -90,7 +96,7 @@ function actorText(actor: { auth_method: string; actor_id: string }): string {
   return `${actor.actor_id} · ${actor.auth_method}`;
 }
 
-function runtimeActivity(operation: RuntimeOperation): ActivityItem {
+function runtimeActivity(operation: RuntimeOperation, grafanaUrl: string | null): ActivityItem {
   const detail = [
     runtimeVerification(operation.verification),
     operation.force ? 'auto-stop 허용' : null,
@@ -114,10 +120,14 @@ function runtimeActivity(operation: RuntimeOperation): ActivityItem {
       { label: 'Actor', value: actorText(operation.actor) },
       { label: 'Plan digest', value: operation.plan_digest ?? '—' },
     ],
+    diagnostics: (() => {
+      const href = requestLogDiagnosticsUrl(grafanaUrl, operation.request_id, operation.updated_at);
+      return href ? [{ label: 'Request logs', href }] : [];
+    })(),
   };
 }
 
-function mainModelActivity(operation: MainModelOperation): ActivityItem {
+function mainModelActivity(operation: MainModelOperation, grafanaUrl: string | null): ActivityItem {
   const failure = mainModelFailure(operation);
   const detail = failure
     ?? (operation.recovered_after_restart
@@ -141,10 +151,14 @@ function mainModelActivity(operation: MainModelOperation): ActivityItem {
       { label: 'Previous profile', value: operation.previous_profile ?? '—' },
       { label: 'Recovered after restart', value: operation.recovered_after_restart ? 'yes' : 'no' },
     ],
+    diagnostics: (() => {
+      const href = mainRuntimeDiagnosticsUrl(grafanaUrl, operation.updated_at);
+      return href ? [{ label: 'Main Runtime Health', href }] : [];
+    })(),
   };
 }
 
-function configurationActivity(operation: ConfigurationHistoryItem): ActivityItem {
+function configurationActivity(operation: ConfigurationHistoryItem, grafanaUrl: string | null): ActivityItem {
   const operationLabel = operation.kind === 'configuration_rollback' ? 'Rollback' : 'Apply';
   const revision = operation.applied_revision ?? operation.candidate_revision;
   return {
@@ -164,6 +178,10 @@ function configurationActivity(operation: ConfigurationHistoryItem): ActivityIte
       { label: 'Actor', value: actorText(operation.actor) },
       { label: 'Plan digest', value: operation.plan_digest },
     ],
+    diagnostics: (() => {
+      const href = requestLogDiagnosticsUrl(grafanaUrl, operation.request_id, operation.updated_at);
+      return href ? [{ label: 'Request logs', href }] : [];
+    })(),
   };
 }
 
@@ -173,7 +191,7 @@ function sourceCountLabel(source: ActivitySourceKey, count: number): string {
   return `Configuration ${count}`;
 }
 
-export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: OperationsPageProps) {
+export function OperationsPage({ token, onUnauthorized, deploymentFeatures, grafanaUrl }: OperationsPageProps) {
   const authClass = token === null ? 'anonymous' : 'authenticated';
   const runtimeEnabled = deploymentFeatures.includes('runtime_control');
   const mainModelEnabled = deploymentFeatures.includes('model_switching');
@@ -217,19 +235,20 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: Op
   const activity = useMemo(() => {
     const items: ActivityItem[] = [];
     if (runtimeEnabled && runtimeQuery.data) {
-      items.push(...runtimeQuery.data.items.map(runtimeActivity));
+      items.push(...runtimeQuery.data.items.map((item) => runtimeActivity(item, grafanaUrl)));
     }
     if (mainModelEnabled && mainModelQuery.data) {
-      items.push(...mainModelQuery.data.items.map(mainModelActivity));
+      items.push(...mainModelQuery.data.items.map((item) => mainModelActivity(item, grafanaUrl)));
     }
     if (configurationQuery.data) {
-      items.push(...configurationQuery.data.items.map(configurationActivity));
+      items.push(...configurationQuery.data.items.map((item) => configurationActivity(item, grafanaUrl)));
     }
     return items.sort((left, right) => (
       right.updatedAt - left.updatedAt || left.key.localeCompare(right.key)
     ));
   }, [
     configurationQuery.data,
+    grafanaUrl,
     mainModelEnabled,
     mainModelQuery.data,
     runtimeEnabled,
@@ -375,6 +394,21 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures }: Op
                         ))}
                       </dl>
                     </details>
+                    {item.diagnostics.length ? (
+                      <div className="activity-diagnostics" aria-label="Diagnostics">
+                        {item.diagnostics.map((diagnostic) => (
+                          <a
+                            className="activity-diagnostic-link"
+                            href={diagnostic.href}
+                            key={diagnostic.label}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {diagnostic.label} ↗
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </article>
                 </li>
               ))}

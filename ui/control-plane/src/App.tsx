@@ -153,7 +153,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
             <Route path="/runtimes" element={<RuntimePage token={token} onUnauthorized={clearToken} />} />
             <Route path="/main-model" element={<MainModelPage token={token} onUnauthorized={clearToken} />} />
             <Route path="/configuration" element={<ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
-            <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
+            <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

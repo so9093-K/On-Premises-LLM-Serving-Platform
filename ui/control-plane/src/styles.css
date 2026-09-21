@@ -553,6 +553,18 @@ input {
   margin-top: 0.75rem;
 }
 
+.activity-diagnostics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.activity-diagnostic-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .activity-fact {
   display: contents;
 }
