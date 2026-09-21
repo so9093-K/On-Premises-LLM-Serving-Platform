@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from .configuration import load_yaml_mapping
 from .deployment_target import KNOWN_FEATURES
@@ -16,6 +17,9 @@ class RuntimeBinding:
     required: bool
     enabled: bool
     controllable: bool
+    # GPU 제품 allowlist가 아니라, 특정 Main resource-policy override와 함께
+    # 상주시킬 수 없다고 실측된 composition 제약만 기록한다.
+    unavailable_with_main_resource_variants: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -122,10 +126,37 @@ def _validate_prerequisite_graph(
         visit(key)
 
 
-def load_runtime_topology(config_root: Path) -> RuntimeTopology:
+def _known_main_resource_variants(config_root: Path) -> frozenset[str]:
+    path = config_root / "configs/main_model_profiles.yaml"
+    if not path.is_file():
+        raise ValueError(
+            "main_model_profiles.yaml is required to validate runtime topology resource constraints"
+        )
+    document = load_yaml_mapping(path)
+    profiles = document.get("profiles")
+    if not isinstance(profiles, dict):
+        raise ValueError("main_model_profiles.yaml profiles must be a mapping")
+    variants: set[str] = set()
+    for profile in profiles.values():
+        if not isinstance(profile, dict):
+            continue
+        declared = profile.get("resource_variants", {})
+        if not isinstance(declared, dict):
+            raise ValueError("main_model_profiles.yaml resource_variants must be mappings")
+        variants.update(str(key) for key in declared)
+    return frozenset(variants)
+
+
+def load_runtime_topology(
+    config_root: Path,
+    *,
+    main_resource_variant: str | None = None,
+) -> RuntimeTopology:
     """Load the canonical runtime lifecycle topology.
 
-    ``configs/runtime_topology.yaml`` owns Runtime Control start prerequisites.
+    configs/runtime_topology.yaml owns Runtime Control start prerequisites.
+    main_resource_variant projects reviewed host resource-policy composition constraints
+    without treating GPU identity itself as a support allowlist.
     """
     model_serving = load_yaml_mapping(config_root / "configs/model_serving.yaml")
     services_document = load_yaml_mapping(config_root / "configs/services.yaml")
@@ -142,6 +173,8 @@ def load_runtime_topology(config_root: Path) -> RuntimeTopology:
     vram_fraction_by_service: dict[str, float] = {}
     criticality_by_service: dict[str, str] = {}
     prerequisite_keys_by_key: dict[str, tuple[str, ...]] = {}
+    model_by_key: dict[str, dict[str, Any]] = {}
+    constrained_variants: set[str] = set()
     models = model_serving.get("models") or {}
     for key, raw_binding in bindings.items():
         if not isinstance(raw_binding, dict):
@@ -188,6 +221,23 @@ def load_runtime_topology(config_root: Path) -> RuntimeTopology:
                 f"disabled runtime topology binding {key!r} cannot be required or controllable"
             )
 
+        raw_unavailable = raw_binding.get("unavailable_with_main_resource_variants", [])
+        if (
+            not isinstance(raw_unavailable, list)
+            or not all(isinstance(item, str) and item for item in raw_unavailable)
+            or len(raw_unavailable) != len(set(raw_unavailable))
+        ):
+            raise ValueError(
+                f"runtime topology binding {key!r}.unavailable_with_main_resource_variants "
+                "must be a unique string list"
+            )
+        if raw_unavailable and not raw_binding["enabled"]:
+            raise ValueError(
+                f"runtime topology binding {key!r} cannot declare resource-policy "
+                "availability constraints while statically disabled"
+            )
+        constrained_variants.update(raw_unavailable)
+
         raw_prerequisites = raw_binding.get("start_prerequisites")
         if raw_binding["controllable"]:
             if (
@@ -220,26 +270,71 @@ def load_runtime_topology(config_root: Path) -> RuntimeTopology:
             required=bool(raw_binding["required"]),
             enabled=bool(raw_binding["enabled"]),
             controllable=bool(raw_binding["controllable"]),
+            unavailable_with_main_resource_variants=frozenset(raw_unavailable),
         )
         bindings_by_key[str(key)] = binding
+        model_by_key[str(key)] = model
+
+    # 먼저 선언 topology 자체를 검증한다. host projection은 올바른 선언을 좁힐 뿐,
+    # 잘못된 prerequisite graph를 숨기는 수단이 아니다.
+    _validate_prerequisite_graph(bindings_by_key, prerequisite_keys_by_key)
+
+    if constrained_variants or main_resource_variant:
+        known_variants = _known_main_resource_variants(config_root)
+        unknown_constraints = constrained_variants - known_variants
+        if unknown_constraints:
+            raise ValueError(
+                "runtime topology references unknown Main Model resource variant(s): "
+                + ", ".join(sorted(unknown_constraints))
+            )
+        if main_resource_variant and main_resource_variant not in known_variants:
+            raise ValueError(
+                f"unknown Main Model resource variant for runtime topology: {main_resource_variant!r}"
+            )
+
+    if main_resource_variant:
+        bindings_by_key = {
+            key: (
+                replace(binding, enabled=False, required=False, controllable=False)
+                if main_resource_variant in binding.unavailable_with_main_resource_variants
+                else binding
+            )
+            for key, binding in bindings_by_key.items()
+        }
+
+    effective_prerequisites_by_key: dict[str, tuple[str, ...]] = {}
+    for key, prerequisite_keys in prerequisite_keys_by_key.items():
+        binding = bindings_by_key[key]
+        if not (binding.enabled and binding.controllable):
+            continue
+        for prerequisite_key in prerequisite_keys:
+            prerequisite = bindings_by_key[prerequisite_key]
+            if not (prerequisite.enabled and prerequisite.controllable):
+                raise ValueError(
+                    f"runtime topology binding {key!r} requires {prerequisite_key!r}, "
+                    f"but that prerequisite is unavailable under Main resource variant "
+                    f"{main_resource_variant!r}"
+                )
+        effective_prerequisites_by_key[key] = prerequisite_keys
+
+    for key, binding in bindings_by_key.items():
+        model = model_by_key[key]
         if binding.enabled and binding.controllable:
             if model.get("port") is not None:
-                health_port_by_service[compose_service] = int(model["port"])
+                health_port_by_service[binding.compose_service] = int(model["port"])
             if model.get("gpu_memory_utilization") is not None:
-                vram_fraction_by_service[compose_service] = float(
+                vram_fraction_by_service[binding.compose_service] = float(
                     model["gpu_memory_utilization"]
                 )
             criticality = ((model.get("resource_control") or {}).get("criticality") or "")
-            criticality_by_service[compose_service] = str(criticality)
-
-    _validate_prerequisite_graph(bindings_by_key, prerequisite_keys_by_key)
+            criticality_by_service[binding.compose_service] = str(criticality)
 
     start_prerequisites_by_service = {
         bindings_by_key[key].compose_service: [
             bindings_by_key[prerequisite_key].compose_service
             for prerequisite_key in prerequisite_keys
         ]
-        for key, prerequisite_keys in prerequisite_keys_by_key.items()
+        for key, prerequisite_keys in effective_prerequisites_by_key.items()
         if prerequisite_keys
     }
 

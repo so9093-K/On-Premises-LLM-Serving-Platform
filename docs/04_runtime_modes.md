@@ -472,22 +472,23 @@ Main Model vLLM
 
 ### non-main Model Runtime
 
-Embedding Runtime은 Runtime Startup Profile에 따라 active 또는 deferred 상태로 운영할 수 있다.
+non-main Model Runtime은 Runtime Startup Profile에 따라 active 또는 deferred 상태로 운영할 수 있다.
 
-현재 non-main Model Runtime control 대상은 다음과 같다.
+reference Main resource policy에서 control 대상은 다음과 같다.
 
 - `embedding`
 - `embedding_ko`
+- `prompt_injection_detector`
 
-Prompt Injection Detector Runtime은 현재 비활성이라 control 대상이 아니다. 근거는
-[9. Prompt Injection Detector Runtime 비활성](#prompt-injection-detector-runtime-비활성)을 본다.
+특정 Main resource policy와 공존할 수 없다고 검토된 runtime은 effective topology에서
+control 대상에서 제외된다. 현재 `rtx4090-24gb`에서는 Prompt Injection Detector가 해당한다.
 
 대표 profile은 다음과 같다.
 
 | Runtime Startup Profile | 실행 상태 |
 |---|---|
-| `main_only` (기본) | Main Model 중심, embedding 계열 deferred |
-| `retrieval_ready` | Main + embedding 계열 모두 준비 |
+| `main_only` (기본) | Main Model 중심, non-main Model Runtime deferred |
+| `retrieval_ready` | Main + embedding 계열 준비, Prompt Injection Detector deferred |
 
 Runtime Startup Profile과 Exposure Profile의 역할은 다르다.
 
@@ -547,7 +548,8 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 | Base Compose topology   | `ops/compose/full-stack.private-network.yaml` | 전체 서비스의 기본 컨테이너 구성과 연결 관계 정의        |
 | Service / port registry | `configs/services.yaml`                       | 서비스 이름, 포트, bind 정보 등 서비스 메타데이터 정의  |
 | Exposure profile        | `configs/exposure_profiles.yaml`              | 서비스별 host port 공개 범위 정의             |
-| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack compose-up 시 활성화할 non-main Model Runtime 조합 정의 |
+| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack compose-up 시 초기 deferred runtime 조합 정의 |
+| Effective Runtime topology | `configs/runtime_topology.yaml`             | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
 | Model runtime           | `configs/model_serving.yaml`                  | 모델 runtime 연결, 제한값 및 serving 정책 정의  |
 | Main Model profile      | `configs/main_model_profiles.yaml`            | Main Model별 runtime 및 실행 profile 정의 |
 | GPU budget              | `configs/gpu_budgets.yaml`                    | GPU별 runtime 자원 사용 한도 정의            |
@@ -557,19 +559,23 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 
 각 설정의 우선순위와 변경 반영 범위는 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 이어서 설명한다.
 
-## Prompt Injection Detector Runtime 비활성
+## Prompt Injection Detector resource-aware topology
 
-`prompt_injection_detector` runtime은 현재 어느 deployment target에서도 기동하지 않는다.
-`configs/model_serving.yaml`의 runtime과 detector registry, `configs/runtime_topology.yaml`의
-lifecycle binding이 모두 `enabled: false`다.
+`prompt_injection_detector`는 선언상 활성인 Model Runtime이며 reference Main resource policy에서는
+Runtime Startup Profile과 Runtime Control 대상이다. 다만 `configs/runtime_topology.yaml`은
+`unavailable_with_main_resource_variants`로 검토된 **runtime composition 제약**을 함께 선언한다.
 
-이 runtime을 24GB GPU에서 Main Model과 함께 상주시킬 수 없다는 것이 RTX 4090 실측으로
-확인됐다. weight 1.42 GiB에 비KV overhead가 붙어 2.04 GiB가 바닥값이고, 계약된 8192
-context의 KV 1.0 GiB까지 더하면 약 3.05 GiB가 필요한데, Main Model과 embedding 두 종이
-상주한 뒤 남는 가용량은 그에 못 미친다. GPU budget을 host별로 나눠 갖는 수단이 아직 없어
-전역으로 끈다.
+현재 `rtx4090-24gb` Main resource-policy override에서는 Prompt Injection Detector가 effective
+topology에서 비활성화된다. RTX 4090 실측에서 weight 1.42 GiB에 비KV overhead가 붙어 2.04 GiB가
+바닥값이고, 8192 context의 KV 약 1.0 GiB까지 더해 약 3.05 GiB가 필요한 반면 Main Model과
+embedding 두 종 상주 뒤 가용량이 그보다 작았기 때문이다.
 
-Risk feature 자체는 유지된다. PII와 Secret detector는 Risk Signal Service in-process
-구현이라 GPU를 쓰지 않으며, `/v1/risk/detectors/pii`, `/v1/risk/detectors/secret`,
-`/v1/risk/assessments` aggregate가 그대로 동작한다. 빠지는 것은 `prompt_attack` family의
-A1·A2 signal이다.
+이 제약은 RTX 4090이라는 GPU 제품명을 support allowlist로 쓰는 규칙이 아니다. Operator가
+`MAIN_MODEL_RESOURCE_VARIANT=rtx4090-24gb`를 명시해 해당 Main resource policy를 선택했을 때만
+적용된다. reference policy 또는 다른 검토된 policy에서는 detector가 다시 일반 controllable
+runtime으로 동작한다.
+
+effective topology는 Gateway 모델 목록과 readiness, Risk Signal Service detector registry,
+Runtime Controller, compose-up/startup profile, smoke/runtime validation에 공통으로 투영된다.
+따라서 unavailable composition에서는 prompt 단독 endpoint가 `DETECTOR_DISABLED`이고 aggregate는
+PII/Secret만 사용하지만 Risk feature 자체는 계속 제공된다.

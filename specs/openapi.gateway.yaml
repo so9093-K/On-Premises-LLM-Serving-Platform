@@ -3692,6 +3692,7 @@ paths:
           enum:
           - embedding
           - embedding_ko
+          - prompt_injection_detector
           - main
           title: Service Key
         description: GET /admin/runtimes가 반환하는 service_key.
@@ -4036,6 +4037,7 @@ paths:
           enum:
           - embedding
           - embedding_ko
+          - prompt_injection_detector
           - main
           title: Service Key
         description: GET /admin/runtimes가 반환하는 service_key.
@@ -5118,7 +5120,12 @@ tags:
     |
 
     | `local-embed-ko` | `text` | `embeddings`, `retrieval_rerank`, `retrieval_score`
-    |'
+    |
+
+    | `risk-prompt` | `text` | `risk.prompt_attack_signal` |
+
+
+    - `risk-prompt`는 조정 가능한 파라미터가 없습니다. `max_tokens=1`, `temperature=0`으로 고정입니다.'
 - name: Chat
   description: 'OpenAI 호환 chat completions API입니다. Gateway는 요청을 모델 런타임으로 넘기기 전에 모델
     이름, 입력 종류, 요청 출력 한도, 허용 파라미터, 구조화 출력 스키마를 직접 검사합니다. 입력과 출력의 정확한 합은 실제 tokenizer와

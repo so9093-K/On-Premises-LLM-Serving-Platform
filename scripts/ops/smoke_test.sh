@@ -44,9 +44,14 @@ while IFS=$'\t' read -r config_key config_value; do
   esac
 done < <("$PYTHON_BIN" - <<'PY'
 import json
+import os
+import sys
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str((Path.cwd() / "src").resolve()))
+from ai_model_serving.runtime_topology import load_runtime_topology
 
 catalog = yaml.safe_load(Path("configs/model_catalog.yaml").read_text(encoding="utf-8"))
 serving = yaml.safe_load(Path("configs/model_serving.yaml").read_text(encoding="utf-8"))
@@ -59,16 +64,30 @@ def required(value: object, label: str) -> str:
 
 detectors = serving["risk_signal_service"]["detectors"]
 prompt_detector = detectors["prompt"]
-prompt_detector_enabled = prompt_detector.get("enabled", True) is True
+variant = os.getenv("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+topology = load_runtime_topology(Path.cwd(), main_resource_variant=variant)
+enabled_runtime_keys = {
+    key for key, binding in topology.bindings_by_key.items() if binding.enabled
+}
+prompt_service_key = required(
+    prompt_detector["service_key"], "risk_signal_service.detectors.prompt.service_key"
+)
+prompt_detector_enabled = (
+    prompt_detector.get("enabled", True) is True
+    and prompt_service_key in enabled_runtime_keys
+)
 
-# 비활성 vLLM detector가 받치는 model은 Gateway 공개 목록에 나오지 않는다.
-# catalog의 gateway_listing만 보면 띄우지도 않은 runtime을 기대하게 된다.
+# 선언상 공개 모델이어도 effective topology에서 runtime이 unavailable이면
+# 이 host의 /v1/models 기대 집합에서는 제외한다.
 disabled_detector_models = {
     str(cfg.get("source_model", key))
     for key, cfg in detectors.items()
     if isinstance(cfg, dict)
     and cfg.get("type", "vllm") != "local"
-    and cfg.get("enabled", True) is not True
+    and (
+        cfg.get("enabled", True) is not True
+        or str(cfg.get("service_key", "")) not in enabled_runtime_keys
+    )
 }
 public_ids = sorted(
     model_id
@@ -262,8 +281,8 @@ PY
 
 skip_runtime() {
   local runtime="$1"
-  # 비활성 detector runtime은 배포본이 아예 기동하지 않는다. deferred와 이유는
-  # 다르지만 "이 runtime에 추론 probe를 보내지 않는다"는 결과는 같다.
+  # effective topology에서 비활성인 runtime 또는 startup profile에서 deferred인
+  # runtime에는 그 runtime 자체를 요구하는 probe를 보내지 않는다.
   if [[ "$runtime" == "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME" && "$SMOKE_PROMPT_DETECTOR_ENABLED" != "1" ]]; then
     return 0
   fi
@@ -280,27 +299,28 @@ assert_json ready
 get_json gateway-models "$GATEWAY_BASE_URL/v1/models"
 assert_json models
 
-if skip_runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME"; then
-  echo "[smoke] ${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME} runtime is not serving; skipping risk inference probes" >&2
-else
-  post_json_with_retry gateway-risk-aggregate "$GATEWAY_BASE_URL/v1/risk/assessments" \
-    '{"prompt":"smoke test prompt"}'
-  assert_json risk
-fi
+# Aggregate는 Prompt Detector가 unavailable이어도 local PII/Secret detector로 계속
+# 제공된다. resource-aware topology가 detector 하나를 제외했다고 전체 Risk path 검증까지
+# 건너뛰면 실제 서비스 회귀를 놓친다.
+post_json_with_retry gateway-risk-aggregate "$GATEWAY_BASE_URL/v1/risk/assessments" \
+  '{"prompt":"smoke test prompt"}'
+assert_json risk
 
 # Private-network compose에서는 risk-signal-service 포트가 host에 노출되지 않는다.
-# 접근 가능할 때만 직접 프로브를 실행하고, 아닐 경우 gateway 경유 테스트로 검증한다.
-if skip_runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME"; then
-  :
-elif curl -sS --max-time 3 -o /dev/null "$RISK_SIGNAL_SERVICE_BASE_URL/health" 2>/dev/null; then
+# 접근 가능할 때만 직접 프로브를 실행하고, 아닐 경우 gateway 경유 aggregate로 검증한다.
+if curl -sS --max-time 3 -o /dev/null "$RISK_SIGNAL_SERVICE_BASE_URL/health" 2>/dev/null; then
   get_json risk-health "$RISK_SIGNAL_SERVICE_BASE_URL/health"
   assert_json health
   get_json risk-ready "$RISK_SIGNAL_SERVICE_BASE_URL/ready" admin
   assert_json ready
 
-  post_json_with_retry risk-prompt "$RISK_SIGNAL_SERVICE_BASE_URL/v1/risk/detectors/prompt/assessments" \
-    '{"prompt":"smoke test prompt"}' internal
-  assert_json risk
+  if skip_runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME"; then
+    echo "[smoke] ${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME} runtime is not serving; skipping prompt-specific risk probe" >&2
+  else
+    post_json_with_retry risk-prompt "$RISK_SIGNAL_SERVICE_BASE_URL/v1/risk/detectors/prompt/assessments" \
+      '{"prompt":"smoke test prompt"}' internal
+    assert_json risk
+  fi
 
   post_json_with_retry risk-aggregate "$RISK_SIGNAL_SERVICE_BASE_URL/v1/risk/assessments" \
     '{"prompt":"smoke test prompt"}' internal

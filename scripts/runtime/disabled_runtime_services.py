@@ -14,6 +14,7 @@ diagnostic profile이 모든 model_runtime을 공개해야 한다는 규칙까�
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -23,8 +24,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from ai_model_serving.runtime_topology import load_runtime_topology  # noqa: E402
 
 
-def disabled_runtime_services(config_root: Path) -> list[str]:
-    topology = load_runtime_topology(config_root)
+def disabled_runtime_services(
+    config_root: Path, *, main_resource_variant: str | None = None
+) -> list[str]:
+    topology = load_runtime_topology(
+        config_root, main_resource_variant=main_resource_variant
+    )
     return sorted(
         binding.compose_service
         for binding in topology.bindings_by_key.values()
@@ -35,8 +40,15 @@ def disabled_runtime_services(config_root: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config-root", default=str(ROOT))
+    parser.add_argument(
+        "--main-resource-variant",
+        default=os.getenv("MAIN_MODEL_RESOURCE_VARIANT", ""),
+    )
     args = parser.parse_args()
-    for service in disabled_runtime_services(Path(args.config_root)):
+    variant = args.main_resource_variant.strip() or None
+    for service in disabled_runtime_services(
+        Path(args.config_root), main_resource_variant=variant
+    ):
         print(service)
     return 0
 

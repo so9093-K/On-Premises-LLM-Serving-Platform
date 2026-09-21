@@ -30,6 +30,7 @@ def _public_models_from_registry(
     model_serving: dict[str, Any],
     default_main_model_gateway_policy: dict[str, Any],
     deployment_target: DeploymentTarget,
+    enabled_runtime_keys: frozenset[str],
 ) -> tuple[dict[str, Any], ...]:
     # ModelRegistry는 공개 목록의 공통 projection을 담당한다. main_llm의 API
     # parameter 표면만은 default Profile에서 주입한다. 실제 요청 시에는 Gateway가
@@ -53,7 +54,12 @@ def _public_models_from_registry(
         enabled_ids.update(
             str(cfg.get("source_model", key))
             for key, cfg in (model_serving.get("risk_signal_service", {}).get("detectors", {}) or {}).items()
-            if isinstance(cfg, dict) and cfg.get("type") == "vllm" and cfg.get("enabled", True) is True
+            if (
+                isinstance(cfg, dict)
+                and cfg.get("type") == "vllm"
+                and cfg.get("enabled", True) is True
+                and str(cfg.get("service_key", "")) in enabled_runtime_keys
+            )
         )
     public_models: list[dict[str, Any]] = []
     main_model_id = str(model_serving["models"]["main_llm"]["served_model_name"])
@@ -140,7 +146,11 @@ def _build_runtime_endpoints(
     return endpoints
 
 
-def _risk_detectors_from_config(risk_signal_service_cfg: dict[str, Any]) -> tuple[RiskDetectorSettings, ...]:
+def _risk_detectors_from_config(
+    risk_signal_service_cfg: dict[str, Any],
+    *,
+    enabled_service_keys: frozenset[str] | None = None,
+) -> tuple[RiskDetectorSettings, ...]:
     detectors_cfg = risk_signal_service_cfg.get("detectors")
     if not isinstance(detectors_cfg, dict) or not detectors_cfg:
         raise RuntimeError("risk_signal_service.detectors must be a non-empty mapping in configs/model_serving.yaml")
@@ -150,6 +160,12 @@ def _risk_detectors_from_config(risk_signal_service_cfg: dict[str, Any]) -> tupl
         detector_type = str(cfg.get("type", "vllm"))
         # local detector는 service_key가 필요하지 않다; 기본값은 빈 문자열로 둔다.
         service_key = str(cfg.get("service_key", "")) if detector_type == "local" else str(cfg["service_key"])
+        configured_enabled = cfg.get("enabled", True) is True
+        effective_enabled = configured_enabled and (
+            detector_type == "local"
+            or enabled_service_keys is None
+            or service_key in enabled_service_keys
+        )
         detectors.append(
             RiskDetectorSettings(
                 key=str(key),
@@ -159,7 +175,7 @@ def _risk_detectors_from_config(risk_signal_service_cfg: dict[str, Any]) -> tupl
                 family=str(cfg["family"]),
                 allowed_codes=frozenset(str(item) for item in cfg.get("allowed_codes", [])),
                 detector_type=detector_type,
-                enabled=cfg.get("enabled", True) is True,
+                enabled=effective_enabled,
                 max_output_tokens=int(fixed.get("max_tokens", cfg.get("max_output_tokens", 1))),
                 temperature=float(fixed.get("temperature", cfg.get("temperature", 0))),
             )
@@ -258,7 +274,10 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     operational_limits = model_serving.get("operational_limits", {})
     documentation_cfg = model_serving.get("documentation", {})
     models = model_serving["models"]
-    runtime_topology = load_runtime_topology(project_root)
+    main_resource_variant = _env("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+    runtime_topology = load_runtime_topology(
+        project_root, main_resource_variant=main_resource_variant
+    )
 
     documentation = _documentation_settings(documentation_cfg)
     cors = _cors_settings()
@@ -320,7 +339,10 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         raise RuntimeError("risk_signal_service must be configured in configs/model_serving.yaml")
     risk_signal_service_cfg = risk_signal_service_cfg if isinstance(risk_signal_service_cfg, dict) else {}
     risk_detectors = (
-        _risk_detectors_from_config(risk_signal_service_cfg)
+        _risk_detectors_from_config(
+            risk_signal_service_cfg,
+            enabled_service_keys=frozenset(enabled_service_keys),
+        )
         if deployment_target.supports("risk")
         else ()
     )
@@ -421,6 +443,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             model_serving,
             selected_gateway_policy,
             deployment_target,
+            frozenset(enabled_service_keys),
         ),
         documentation=documentation,
         cors=cors,

@@ -35,7 +35,10 @@ class RuntimeStateRecord:
 
 def _default_controllable_keys() -> frozenset[str]:
     root = Path(os.environ.get("APP_CONFIG_ROOT", Path(__file__).resolve().parents[3]))
-    return load_runtime_topology(root).controllable_keys
+    variant = os.environ.get("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+    return load_runtime_topology(
+        root, main_resource_variant=variant
+    ).controllable_keys
 
 
 _RUNTIME_STATE_KEY_RENAMES = {
