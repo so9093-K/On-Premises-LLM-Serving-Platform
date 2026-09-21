@@ -260,7 +260,8 @@ def test_responses_usage_is_normalized_to_existing_access_log_token_fields():
     assert record["upstream_response_id"] == "resp_1"
 
 
-def test_responses_stream_relays_typed_events_and_removes_runtime_internal_fields():
+def test_responses_stream_relays_typed_events_and_removes_runtime_internal_fields(monkeypatch, tmp_path):
+    monkeypatch.setenv("REQUEST_EVENT_LOG_DIR", str(tmp_path))
     clients = FakeGatewayClients()
     created = _response_body(output=[], metrics={"hidden": True})
     event = {"type": "response.created", "sequence_number": 0, "response": created, "internal": "hidden"}
@@ -280,6 +281,12 @@ def test_responses_stream_relays_typed_events_and_removes_runtime_internal_field
     assert '"type":"response.created"' in response.text
     assert '"internal"' not in response.text
     assert '"metrics"' not in response.text
+
+    records = [json.loads(line) for line in (tmp_path / "gateway.jsonl").read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]["stream_status"] == "completed"
+    assert records[0]["time_to_first_chunk_ms"] >= 0
+    assert records[0]["upstream_response_id"] == "resp_1"
 
 
 def test_models_advertises_responses_for_main_model():

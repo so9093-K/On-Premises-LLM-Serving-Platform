@@ -133,6 +133,7 @@ class ResponsesService:
         chunk_count = 0
         byte_count = 0
         first_chunk_recorded = False
+        time_to_first_chunk_seconds: float | None = None
         terminal_status = "completed"
         buffer = ""
         response_id: str | None = None
@@ -159,7 +160,11 @@ class ResponsesService:
                         )
                     if not first_chunk_recorded:
                         first_chunk_recorded = True
-                        self.metrics.record_streaming_first_chunk(target, time.monotonic() - start)
+                        time_to_first_chunk_seconds = time.monotonic() - start
+                        self.metrics.record_streaming_first_chunk(
+                            target,
+                            time_to_first_chunk_seconds,
+                        )
                     self.metrics.record_streaming_chunk(target, len(chunk))
                     buffer += chunk.decode("utf-8", errors="ignore")
                     emitted: list[str] = []
@@ -237,4 +242,5 @@ class ResponsesService:
                 status=sanitized_stream_status(terminal_status),
                 usage=usage,
                 response_id=response_id,
+                time_to_first_chunk_seconds=time_to_first_chunk_seconds,
             )
