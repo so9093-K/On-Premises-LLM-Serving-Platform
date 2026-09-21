@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Control Plane Overview를 동급 카드 나열에서 operator decision hierarchy로 재구성했다. 첫 화면은 전체 SLO health를 추측하지 않고 현재 Control Plane 신호에서 즉시 확인할 항목이 있는지만 요약하며, active Main Model의 closed gate·unhealthy observation·state recovery 오류를 Needs attention으로 올린다. 의도적인 stopped 상태, resource-policy unavailable, Configuration write unavailable은 장애로 과장하지 않고 informational policy state로 분리한다. Main Model/Runtime/Configuration은 primary 영역에, environment/observability/capability는 secondary 영역에 배치한다.
+
 - Control Plane Activity가 bootstrap이 안전하게 제공하는 direct Grafana URL이 있을 때 기존 dashboard로 진단 deep-link를 제공한다. Runtime/Configuration operation은 실제 Gateway `request_id`를 Request Log Explorer의 exact filter로 넘기고, Main Model operation은 같은 시각 구간의 Main Runtime Health로 연결한다. `client_request_id`를 HTTP request id로 오인하지 않으며 private/edge처럼 direct URL을 추측할 수 없는 환경에서는 링크를 만들지 않는다.
 
 - Control Plane Main Model switch review가 후보 profile의 속성만 반복하지 않고 현재 active profile과 target의 Compatibility, Profile evidence, resource policy, deployed input, VRAM fraction을 나란히 비교한다. Input capability 추가/제거와 resource-policy 변화는 전환 전에 별도 impact로 표시하며, 비교 결과를 GPU 제품 지원 판정으로 재해석하지 않는다.
