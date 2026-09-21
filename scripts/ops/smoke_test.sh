@@ -44,9 +44,14 @@ while IFS=$'\t' read -r config_key config_value; do
   esac
 done < <("$PYTHON_BIN" - <<'PY'
 import json
+import os
+import sys
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str((Path.cwd() / "src").resolve()))
+from ai_model_serving.runtime_topology import load_runtime_topology
 
 catalog = yaml.safe_load(Path("configs/model_catalog.yaml").read_text(encoding="utf-8"))
 serving = yaml.safe_load(Path("configs/model_serving.yaml").read_text(encoding="utf-8"))
@@ -59,16 +64,30 @@ def required(value: object, label: str) -> str:
 
 detectors = serving["risk_signal_service"]["detectors"]
 prompt_detector = detectors["prompt"]
-prompt_detector_enabled = prompt_detector.get("enabled", True) is True
+variant = os.getenv("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+topology = load_runtime_topology(Path.cwd(), main_resource_variant=variant)
+enabled_runtime_keys = {
+    key for key, binding in topology.bindings_by_key.items() if binding.enabled
+}
+prompt_service_key = required(
+    prompt_detector["service_key"], "risk_signal_service.detectors.prompt.service_key"
+)
+prompt_detector_enabled = (
+    prompt_detector.get("enabled", True) is True
+    and prompt_service_key in enabled_runtime_keys
+)
 
-# 비활성 vLLM detector가 받치는 model은 Gateway 공개 목록에 나오지 않는다.
-# catalog의 gateway_listing만 보면 띄우지도 않은 runtime을 기대하게 된다.
+# 선언상 공개 모델이어도 effective topology에서 runtime이 unavailable이면
+# 이 host의 /v1/models 기대 집합에서는 제외한다.
 disabled_detector_models = {
     str(cfg.get("source_model", key))
     for key, cfg in detectors.items()
     if isinstance(cfg, dict)
     and cfg.get("type", "vllm") != "local"
-    and cfg.get("enabled", True) is not True
+    and (
+        cfg.get("enabled", True) is not True
+        or str(cfg.get("service_key", "")) not in enabled_runtime_keys
+    )
 }
 public_ids = sorted(
     model_id

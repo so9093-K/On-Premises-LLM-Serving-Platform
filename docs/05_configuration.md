@@ -62,6 +62,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env, exposure category 정의 |
 | Exposure mode | `configs/exposure_profiles.yaml` | 어떤 서비스를 host에 publish할지 정의 |
 | Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
+| Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/required/controllable binding과 Main resource-policy composition constraint 정의 |
 | Authentication profile | `configs/auth_profiles.yaml` | `AUTH_MODE`별 인증·관리 endpoint 보호 정책 정의 |
 | Environment example contract | `configs/env_contract.yaml` | `.env` 예시 파일에 포함할 키 정의 |
 | Monitoring 설정 | `configs/monitoring.yaml` | Prometheus scrape와 live metric 검증 기준 정의 |
@@ -308,7 +309,7 @@ Exposure Profile
 
 - `embedding`
 - `embedding_ko`
-- `risk_prompt`
+- `prompt_injection_detector`
 
 대표 profile은 다음과 같다.
 
@@ -317,7 +318,7 @@ Exposure Profile
 | `main_only` (기본) | Main Model 중심으로 기동하고 non-main Model Runtime은 deferred |
 | `retrieval_ready` | embedding 계열은 준비하고 Prompt Injection는 deferred |
 
-Main Model Profile과 Runtime Startup Profile은 서로 다른 실행 축을 관리한다.
+Main Model Profile과 Runtime Startup Profile은 서로 다른 실행 축을 관리한다. 여기에 `configs/runtime_topology.yaml`의 effective projection이 적용되어, 선택된 `MAIN_MODEL_RESOURCE_VARIANT`와 공존할 수 없는 secondary runtime은 startup profile에 들어 있어도 현재 host의 control/start 대상에서 제외된다. 이 제약은 GPU 제품 allowlist가 아니라 검토된 Main resource-policy composition에만 묶인다.
 
 ```text
 Main Model Profile

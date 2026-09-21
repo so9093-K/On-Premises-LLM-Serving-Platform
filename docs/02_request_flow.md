@@ -476,15 +476,16 @@ Prompt detector는 Kanana Safeguard-Prompt가 생성한 단일 label을 A1 Promp
 
 | API | Backend |
 |---|---|
-| `/v1/risk/detectors/prompt/assessments` | Kanana `prompt-injection-detector-runtime` (현재 비활성) |
+| `/v1/risk/detectors/prompt/assessments` | Kanana `prompt-injection-detector-runtime` |
 | `/v1/risk/detectors/pii/assessments` | Risk Signal Service in-process PII detector |
 | `/v1/risk/detectors/secret/assessments` | Risk Signal Service in-process Secret detector |
-| `/v1/risk/assessments` | 활성 detector를 registry 순서대로 순차 처리 |
+| `/v1/risk/assessments` | effective하게 활성인 detector를 registry 순서대로 순차 처리 |
 
-Prompt detector runtime은 현재 비활성이며 그 사유는
-[4. Runtime 모드](./04_runtime_modes.md#prompt-injection-detector-runtime-비활성)가 소유한다.
-따라서 현재 aggregate는 PII와 Secret 결과를 합치고, `/v1/risk/detectors/prompt/assessments`는
-`DETECTOR_DISABLED`로 응답한다.
+Prompt detector는 선언상 지원되지만 host의 Main resource policy와 함께 상주시킬 수 없는
+composition에서는 effective topology에서 비활성화된다. 현재 `rtx4090-24gb` override가
+그 사례이며, 이때 prompt 단독 endpoint는 `DETECTOR_DISABLED`로 응답하고 aggregate는
+PII와 Secret detector만 사용한다. 자세한 기준은
+[4. Runtime 모드](./04_runtime_modes.md#prompt-injection-detector-resource-aware-topology)를 따른다.
 
 Aggregate 요청은 활성 detector 결과를 하나의 signal response로 합친다. 응답은 탐지 결과와 system signal을 제공하며 최종 허용·차단 판단은 호출 측 policy layer가 담당한다.
 

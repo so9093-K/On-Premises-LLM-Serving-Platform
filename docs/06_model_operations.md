@@ -397,6 +397,11 @@ Profile switch에서 자원이 부족하면 필요한 runtime stop plan을 확�
 reference policy로 조용히 fallback하지 않도록 fail-closed한다. 이것은 hardware allowlist가 아니라
 잘못된 자원 정책 적용을 막는 안전장치다.
 
+같은 variant가 secondary runtime과의 실측된 composition 제약도 가질 수 있다. 이 경우
+`configs/runtime_topology.yaml`의 effective topology가 해당 runtime을 control/start 대상에서
+제외한다. 현재 `rtx4090-24gb`에서는 Prompt Injection Detector가 제외되며, 단순 비율 admission이
+이를 다시 켤 수 없다. reference policy에서는 detector가 일반 controllable runtime으로 유지된다.
+
 Runtime start에서는 `force=true`를 사용해 admission planner가 선택한 낮은 priority runtime을 정지하고 공간을 확보할 수 있다.
 
 ```bash
@@ -619,8 +624,9 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 | Main Model profile | `configs/main_model_profiles.yaml` | model, revision, image, vLLM command, capability, Gateway 요청 정책, compatibility 정의 |
 | GPU budget | `configs/gpu_budgets.yaml` | GPU admission ceiling과 runtime resource policy 정의 |
 | Runtime serving policy | `configs/model_serving.yaml` | Gateway runtime 연결, timeout, admission 정의 |
-| Runtime Startup Profile | `configs/deploy_profiles.yaml` | compose-up/full 배포 후 non-main Model Runtime 활성 구성 정의 |
-| Runtime topology | `ops/compose/full-stack.private-network.yaml` | Main / non-main Model Runtime container 기본 topology 정의 |
+| Runtime Startup Profile | `configs/deploy_profiles.yaml` | compose-up/full 배포 후 non-main Model Runtime 초기 deferred 구성 정의 |
+| Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
+| Compose topology | `ops/compose/full-stack.private-network.yaml` | Main / non-main Model Runtime container 기본 topology 정의 |
 | Main Model state | `.runtime/main-model/main-model-state.json` 또는 deployment state path | active profile, gate, runtime state, switch operation 기록 |
 | Runtime control implementation | `src/ai_model_serving/main_model/`, `src/ai_model_serving/apps/runtime_controller.py` | switch, validation, rollback, Docker lifecycle 구현 |
 | Gateway Admin API | `src/ai_model_serving/api/routers/gateway_runtime_control.py` | Runtime / Main Model Admin API 제공 |

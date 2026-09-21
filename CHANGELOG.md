@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Prompt Injection Detector Runtime의 전역 비활성화를 resource-aware effective topology로 대체했다. 선언상 runtime/detector는 다시 활성 상태이며 reference Main resource policy에서는 Runtime Startup Profile과 Runtime Control 대상이 된다. RTX 4090 24GB 실측에서 공존 불가가 확인된 `rtx4090-24gb` Main resource-policy override가 선택된 동안에는 `configs/runtime_topology.yaml`의 composition constraint가 detector를 effective topology에서 제외한다. Gateway `/v1/models`, Risk Signal Service detector registry, Runtime Controller, compose-up/deferred 계산, smoke/runtime validation이 같은 projection을 사용하며 GPU 제품명 자체를 support allowlist로 취급하지 않는다. ([ADR-0038](docs/adr/0038-resource-aware-secondary-runtime-topology.md))
+
 - Remote release 제거 뒤 남아 있던 Runtime Startup 내부 이름을 정리했다. `DEPLOY_DEFERRED_RUNTIMES` / `DEPLOY_RELEASE_ID`는 `RUNTIME_STARTUP_DEFERRED_KEYS` / `RUNTIME_STARTUP_GENERATION`으로 직접 cutover하고 operator `.env`에서 제거한다. `runtime-state.json`은 schema v3의 `applied_startup_generation`을 사용하며 schema v1/v2의 desired state와 `applied_release_id`를 원자적으로 이관한다. Control Plane bootstrap v4의 nullable `platform.release_id`에는 startup generation을 새 의미로 투영하지 않는다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
 
 - Repository-owned deployment authority를 target-aware local lifecycle(`make setup/build/prepare/up/status/down`)로 수렴하고, 별도 remote release transport·`rolling/full` mode·release symlink·자동 rollback state machine을 제거했다. `make package`와 deterministic release manifest는 artifact/reproducibility 계약으로 유지하며 Runtime/Main Model rollback은 각 Control Plane component가 소유한다. Unified vLLM build-input manifest는 deployment helper가 아니라 `scripts/lib/vllm_unified_image.sh`가 소유한다. ([ADR-0037](docs/adr/0037-local-lifecycle-deployment-authority.md))
