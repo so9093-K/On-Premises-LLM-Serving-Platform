@@ -1,9 +1,9 @@
-# compose-up과 full 배포가 공통으로 사용하는 Runtime Startup Profile이다. 명시적으로 profile을 고르지 않으면
+# full-stack compose-up이 사용하는 Runtime Startup Profile이다. 명시적으로 profile을 고르지 않으면
 # default_profile을 적용하며, deferred runtime은 컨테이너만 만들고 stopped로 기록한다.
 default_profile: main_only
 
 profiles:
-  # 최초 기동은 Main만 준비한다. secondary runtime은 필요할 때 Admin API로 시작한다.
+  # 최초 기동은 Main만 준비한다. non-main Model Runtime은 필요할 때 Admin API로 시작한다.
   main_only:
     deferred_runtimes:
       - embedding

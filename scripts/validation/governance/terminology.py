@@ -23,6 +23,21 @@ NONCANONICAL_DISPLAY_TERMS: dict[str, str] = {
     "Prompt Risk": "Prompt Injection Detector",
 }
 
+# ADR-0037에서 제거된 remote release state machine의 현재형 표현이다.
+# 역사 기록(ADR/CHANGELOG)은 검사하지 않고, 운영자가 현재 계약으로 읽는 문서와
+# Runtime Startup Profile 설정에 다시 들어오는 경우만 거부한다.
+RETIRED_DEPLOYMENT_TERMS: dict[str, str] = {
+    "### Rolling 배포": "Application / Runtime lifecycle 변경 후",
+    "### Full 배포": "Full-stack 기동 후",
+    "현재 Release": "선택 target / lifecycle 상태",
+    "Release 구조와 자동 복구 범위": "local lifecycle과 component별 복구 책임",
+    "compose-up/full 배포": "full-stack compose-up",
+    "compose-up과 full 배포": "full-stack compose-up",
+    "Rolling 요청": "canonical local lifecycle",
+    "Rolling / Full": "canonical local lifecycle",
+    "Release 활성화": "component-owned state/rollback",
+    "`scripts/deploy/`": "`scripts/platform_cli.py` 또는 `scripts/ops/`",
+}
 
 
 def _user_facing_paths(root: Path) -> list[Path]:
@@ -78,6 +93,12 @@ def _active_identifier_paths(root: Path) -> list[Path]:
     return sorted(path for path in paths if path.is_file())
 
 
+def _current_deployment_contract_paths(root: Path) -> list[Path]:
+    paths = list(sorted((root / "docs").glob("*.md")))
+    paths.append(root / "configs" / "deploy_profiles.yaml")
+    return [path for path in paths if path.is_file()]
+
+
 def terminology_violations(root: Path = ROOT) -> list[str]:
     violations: list[str] = []
     for path in _user_facing_paths(root):
@@ -90,6 +111,18 @@ def terminology_violations(root: Path = ROOT) -> list[str]:
                     violations.append(
                         f"{path.relative_to(root)}:{line_number}: noncanonical display term "
                         f"{legacy!r}; use {canonical!r}"
+                    )
+
+    for path in _current_deployment_contract_paths(root):
+        text = path.read_text(encoding="utf-8")
+        for retired, replacement in RETIRED_DEPLOYMENT_TERMS.items():
+            if retired not in text:
+                continue
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                if retired in line:
+                    violations.append(
+                        f"{path.relative_to(root)}:{line_number}: retired deployment term "
+                        f"{retired!r}; use {replacement!r}"
                     )
 
     legacy_env_migration_paths = {

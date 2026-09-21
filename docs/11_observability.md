@@ -312,18 +312,18 @@ GPU Memory / Headroom
 관련 Request Log
 ```
 
-### Rolling 배포
+### Application / Runtime lifecycle 변경 후
 
-Application/runtime lifecycle 변경 후에는 Gateway 상태와 요청 흐름을 우선 확인한다.
+Gateway 상태와 요청 흐름을 우선 확인한다.
 
 - Gateway `/health`
 - 요청량과 오류율
 - 응답 시간
 - Gateway / Risk Signal Service 관련 로그
 
-### Full 배포
+### Full-stack 기동 후
 
-Full 배포 후에는 전체 Runtime 준비 상태와 GPU 자원을 함께 확인한다.
+Full-stack 기동 후에는 전체 Runtime 준비 상태와 GPU 자원을 함께 확인한다.
 
 - `make ready-full`
 - Main Model과 non-main Model Runtime 상태

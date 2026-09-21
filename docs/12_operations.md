@@ -244,14 +244,14 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 ---
 
-## 12.7 배포 후 이상 상태
+## 12.7 기동·변경 후 이상 상태
 
-배포 직후 문제는 현재 Release, 서비스 상태, Runtime 준비 상태 순서로 확인한다.
+Local lifecycle 또는 Control Plane 변경 직후 문제는 선택 target, 서비스 상태, Runtime 준비 상태 순서로 확인한다.
 
 ```text
-배포 결과 확인
+실행 결과 확인
       ↓
-현재 Release
+선택 target / lifecycle 상태
       ↓
 서비스 상태
       ↓
@@ -262,15 +262,15 @@ make ready-full
 관련 요청 / Runtime 로그
 ```
 
-배포 실패로 자동 복구가 수행된 경우에는 다음 항목을 확인한다.
+Main Model switch, Runtime transition, Configuration Apply에서 실패나 복구가 기록된 경우에는 다음 항목을 확인한다.
 
-- 이전 Release 활성화 여부
-- 대상 `.env`와 Runtime 상태가 이전 상태로 복원되었는지
+- operation의 status·stage와 rollback/verification 결과
+- 선택 target과 persistent configuration이 기대한 상태인지
 - Gateway와 주요 서비스 상태
 - Main Model과 non-main Model Runtime 상태
 - `make ready-full` 결과
 
-Release 구조와 자동 복구 범위는 [10. 배포](./10_deployment.md)에 정리되어 있다.
+Repository-owned local lifecycle과 component별 복구 책임은 [10. 배포](./10_deployment.md)에 정리되어 있다.
 
 배포 후 설정과 Compose 상태를 함께 확인할 때는 다음 명령을 사용한다.
 
