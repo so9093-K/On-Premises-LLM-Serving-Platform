@@ -46,6 +46,40 @@ def test_responses_non_stream_uses_responses_runtime_and_projects_internal_field
     assert "metrics" not in response.json()
 
 
+def test_responses_request_event_records_active_profile_and_resource_policy(monkeypatch, tmp_path):
+    class ResourcePolicySidecar:
+        async def main_model(self, *, observed: bool = True):
+            assert observed is False
+            return {
+                "gate": "open",
+                "active_profile": {
+                    "id": "gemma4-e4b-it",
+                    "resource_variant": "rtx4090-24gb",
+                },
+            }
+
+    monkeypatch.setenv("REQUEST_EVENT_LOG_DIR", str(tmp_path))
+    clients = FakeGatewayClients()
+    clients.runtime_controller = ResourcePolicySidecar()
+    clients.main_llm.post_response = _response_body()
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    response = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "local-main", "input": "hello"},
+    )
+
+    assert response.status_code == 200
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "gateway.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    record = records[-1]
+    assert record["main_model_profile"] == "gemma4-e4b-it"
+    assert record["main_resource_variant"] == "rtx4090-24gb"
+
+
 def test_responses_rejects_server_side_storage_semantics():
     clients = FakeGatewayClients()
     client = TestClient(create_gateway_app(settings(), clients))

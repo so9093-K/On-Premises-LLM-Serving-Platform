@@ -11,7 +11,11 @@ from ..endpoint_spec import GATEWAY_ENDPOINTS
 from ..error_responses import runtime_controller_request_error_response, runtime_controller_unavailable_response
 from ...errors import ServiceError, error_payload, error_response_headers
 from ...domain.request_surfaces import chat_request_limit_surface, chat_request_parameter_surface
-from ...logging_policy import record_request_response_preview, record_upstream_response
+from ...logging_policy import (
+    record_main_model_request_context,
+    record_request_response_preview,
+    record_upstream_response,
+)
 from ...services.runtime_state import RuntimeState, RuntimeStateStore
 from ...services.runtime_controller_client import (
     RuntimeControllerClient,
@@ -189,7 +193,7 @@ def build_router(
     responses_service = ResponsesService(service)
 
 
-    async def _main_model_request_context() -> tuple[
+    async def _main_model_request_context(request: Request) -> tuple[
         tuple[str, ...] | None, dict[str, Any] | None, JSONResponse | None
     ]:
         if runtime_controller is None:
@@ -200,6 +204,7 @@ def build_router(
             return None, None, runtime_controller_request_error_response(exc)
         except RuntimeControllerUnavailableError as exc:
             return None, None, runtime_controller_unavailable_response(exc)
+        record_main_model_request_context(request, main_model)
         if main_model.get("gate") != "open":
             operation = main_model.get("last_operation") or {}
             body = error_payload(
@@ -305,7 +310,7 @@ def build_router(
         async with AsyncExitStack() as stack:
             if main_model_inflight is not None:
                 await stack.enter_async_context(main_model_inflight.track())
-            active_modalities, gateway_policy, admission_error = await _main_model_request_context()
+            active_modalities, gateway_policy, admission_error = await _main_model_request_context(request)
             if admission_error is not None:
                 return admission_error
 
@@ -377,7 +382,7 @@ def build_router(
         async with AsyncExitStack() as stack:
             if main_model_inflight is not None:
                 await stack.enter_async_context(main_model_inflight.track())
-            active_modalities, gateway_policy, admission_error = await _main_model_request_context()
+            active_modalities, gateway_policy, admission_error = await _main_model_request_context(request)
             if admission_error is not None:
                 return admission_error
 
