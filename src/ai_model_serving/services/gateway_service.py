@@ -403,6 +403,7 @@ class GatewayService:
     async def _relay_chat_stream(self, upstream: Any, *, target: str, start: float) -> AsyncIterator[bytes]:
         emitted_chunk = False
         first_chunk_recorded = False
+        time_to_first_chunk_seconds: float | None = None
         chunk_count = 0
         byte_count = 0
         terminal_status = "completed"
@@ -431,7 +432,11 @@ class GatewayService:
                         )
                     if not first_chunk_recorded:
                         first_chunk_recorded = True
-                        self.metrics.record_streaming_first_chunk(target, time.monotonic() - start)
+                        time_to_first_chunk_seconds = time.monotonic() - start
+                        self.metrics.record_streaming_first_chunk(
+                            target,
+                            time_to_first_chunk_seconds,
+                        )
                     # chunk 크기와 한도는 런타임이 만든 바이트를 기준으로 센다.
                     # 좁힌 뒤 크기로 재면 한도가 내부 telemetry 양에 따라 흔들린다.
                     self.metrics.record_streaming_chunk(target, len(chunk))
@@ -481,6 +486,7 @@ class GatewayService:
                 status=sanitized_stream_status(terminal_status),
                 usage=observer.last_usage,
                 response_id=observer.response_id,
+                time_to_first_chunk_seconds=time_to_first_chunk_seconds,
             )
 
     async def create_embedding(self, payload: dict[str, Any]) -> dict[str, Any]:

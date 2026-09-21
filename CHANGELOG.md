@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Streaming request event에 `time_to_first_chunk_ms`를 추가했다. Chat Completions와 Responses relay가 Prometheus `streaming_time_to_first_chunk_seconds`에 기록하던 동일 관측값을 request-level log에도 남겨, Request Log Explorer에서 `latency_ms`, `queue_wait_ms`, first SSE chunk, `stream_status`, token usage와 upstream response id를 한 행에서 함께 진단할 수 있다. 이 값은 첫 token/TTFT 추정치가 아니며 첫 chunk 전에 실패한 요청과 non-streaming 요청에는 기록하지 않는다.
+
 - vLLM engine pin과 security posture review를 정적 governance 계약으로 연결했다. `configs/vllm_unified_build.yaml`의 `compatibility_pins.vllm`이 바뀌면 `docs/reference/vllm_security_posture.md`의 machine-readable Security review contract도 같은 변경에서 갱신해야 하며, `make validate`가 stale/missing/invalid review marker를 fail-closed한다. 이 계약은 GPU별 qualification을 추가하지 않고 engine upgrade lane의 advisory 재검토 누락만 막는다.
 
 - Control Plane Overview를 동급 카드 나열에서 operator decision hierarchy로 재구성했다. 첫 화면은 전체 SLO health를 추측하지 않고 현재 Control Plane 신호에서 즉시 확인할 항목이 있는지만 요약하며, active Main Model의 closed gate·unhealthy observation·state recovery 오류를 Needs attention으로 올린다. 의도적인 stopped 상태, resource-policy unavailable, Configuration write unavailable은 장애로 과장하지 않고 informational policy state로 분리한다. Main Model/Runtime/Configuration은 primary 영역에, environment/observability/capability는 secondary 영역에 배치한다.
