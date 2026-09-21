@@ -97,7 +97,10 @@ def test_model_registry_projects_catalog_to_runtime_and_public_contracts() -> No
     assert services["chat_runtime"].compose_service_name == "chat-vllm"
 
     schema = registry.model_list_schema_document()
-    assert schema["properties"]["data"]["items"]["properties"]["id"]["enum"] == ["chat", "embed"]
+    data_schema = schema["properties"]["data"]
+    assert data_schema["minItems"] == 1
+    assert data_schema["maxItems"] == 2
+    assert data_schema["items"]["properties"]["id"]["enum"] == ["chat", "embed"]
     public_models = {item["id"]: item for item in registry.public_model_response_items()}
     assert public_models["chat"]["request_parameters"]["max_tokens"]["max"] == 9
     assert public_models["embed"]["request_parameters"]["dimensions"]["enum"] == [64, 32]
