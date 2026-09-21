@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Control Plane Activity가 bootstrap이 안전하게 제공하는 direct Grafana URL이 있을 때 기존 dashboard로 진단 deep-link를 제공한다. Runtime/Configuration operation은 실제 Gateway `request_id`를 Request Log Explorer의 exact filter로 넘기고, Main Model operation은 같은 시각 구간의 Main Runtime Health로 연결한다. `client_request_id`를 HTTP request id로 오인하지 않으며 private/edge처럼 direct URL을 추측할 수 없는 환경에서는 링크를 만들지 않는다.
+
 - Control Plane Main Model switch review가 후보 profile의 속성만 반복하지 않고 현재 active profile과 target의 Compatibility, Profile evidence, resource policy, deployed input, VRAM fraction을 나란히 비교한다. Input capability 추가/제거와 resource-policy 변화는 전환 전에 별도 impact로 표시하며, 비교 결과를 GPU 제품 지원 판정으로 재해석하지 않는다.
 
 - Control Plane Activity를 Runtime/Main Model/Configuration별 독립 테이블에서 시간순 통합 timeline으로 바꿨다. 세 backend operation source는 authority와 persistence를 그대로 유지하고 Console이 read-only projection만 구성한다. Source filter, status/stage, operation evidence detail을 한 흐름에서 볼 수 있으며 한 source 조회가 실패해도 나머지 activity는 계속 표시한다.
