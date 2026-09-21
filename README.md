@@ -212,6 +212,7 @@ assets/     아키텍처·문서 이미지
 | [문서 안내](docs/README.md) | 전체 문서 구성과 읽기 순서 |
 | [API 인터페이스](docs/reference/api_reference.md) | API 계약, 요청·응답, 인증, 예제 |
 | [표준 용어](docs/reference/terminology.md) | 사용자-facing 표준 용어와 안정 식별자 구분 |
+| [vLLM 보안 노출 경계](docs/reference/vllm_security_posture.md) | 현재 vLLM pin의 upstream advisory reachability와 Gateway/direct runtime 경계 |
 | [vLLM Container 실행 가이드](docs/reference/vllm_container_guide.md) | vLLM Container 직접 실행과 API 요청 |
 | [설정 체계](docs/05_configuration.md) | 설정 구조와 적용 방식 |
 | [자동화 경계](docs/09_cicd.md) | 현재 GitHub 검증과 미래 publish·deploy 연결 원칙 |

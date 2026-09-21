@@ -2,7 +2,7 @@
 
 AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·검증, 자동화 경계, 배포, 관측성, 장애 대응 및 변경 절차를 정리합니다.
 
-프로젝트의 사용자-facing 이름과 안정 식별자 구분은 [표준 용어](reference/terminology.md)에서 확인합니다. 외부 API의 요청·응답 형식과 사용 예시는 [API 인터페이스](reference/api_reference.md)에서, OpenAI SDK로 바꿔 부를 때 무엇이 같고 무엇이 다른지는 [OpenAI 호환 범위](reference/openai_compatibility.md)에서, `/docs`·`/redoc`·`/openapi.json`의 운영 경계는 [API 문서 화면 Reference](reference/api_docs_reference.md)에서 확인할 수 있습니다.
+프로젝트의 사용자-facing 이름과 안정 식별자 구분은 [표준 용어](reference/terminology.md)에서 확인합니다. 외부 API의 요청·응답 형식과 사용 예시는 [API 인터페이스](reference/api_reference.md)에서, OpenAI SDK로 바꿔 부를 때 무엇이 같고 무엇이 다른지는 [OpenAI 호환 범위](reference/openai_compatibility.md)에서, `/docs`·`/redoc`·`/openapi.json`의 운영 경계는 [API 문서 화면 Reference](reference/api_docs_reference.md)에서 확인할 수 있습니다. 현재 vLLM pin에 공개된 upstream advisory가 이 플랫폼의 Gateway/Exposure 경계에서 실제로 도달 가능한지는 [vLLM 보안 노출 경계](reference/vllm_security_posture.md)에서 확인합니다.
 
 ## 목차
 
@@ -154,6 +154,13 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 - Canonical 사용자-facing 용어
 - 안정 API·service·env 식별자와 표시명 구분
 - legacy 용어 migration 원칙
+
+### [vLLM 보안 노출 경계](reference/vllm_security_posture.md)
+
+- 현재 vLLM pin에 대한 request-surface advisory reachability
+- Gateway가 차단·제한하는 입력과 direct runtime bypass 경계
+- `private_network` / `master_open` 운영 보안 차이
+- engine upgrade 전에 유지해야 할 regression invariant
 
 ### [부록](appendix.md)
 
