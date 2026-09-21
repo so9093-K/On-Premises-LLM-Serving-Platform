@@ -12,12 +12,46 @@ from .helpers import *  # noqa: F401,F403
 from starlette.requests import Request
 from ai_model_serving.logging_policy import (
     record_error_diagnosis,
+    record_main_model_request_context,
     record_readiness_failure,
     record_request_response_preview,
     safe_request_log_record,
 )
 from ai_model_serving.metrics import Metrics
 from ai_model_serving.settings import CorsSettings
+
+def test_request_log_records_profile_but_omits_reference_resource_variant() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+
+    record_main_model_request_context(
+        request,
+        {
+            "active_profile": {
+                "id": "gemma4-e4b-it",
+                "resource_variant": None,
+            }
+        },
+    )
+    record = safe_request_log_record(
+        service="gateway",
+        request=request,
+        status_code=200,
+        elapsed_seconds=0.01,
+    )
+
+    assert record["main_model_profile"] == "gemma4-e4b-it"
+    assert "main_resource_variant" not in record
+
 
 def test_gateway_error_uses_incoming_request_id():
     client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))

@@ -231,6 +231,28 @@ def _apply_upstream_identity(sink: dict[str, Any], *, usage: Any, response_id: A
         sink["upstream_response_id"] = response_id.strip()[:_UPSTREAM_RESPONSE_ID_LIMIT]
 
 
+def record_main_model_request_context(request: Request, main_model: Any) -> None:
+    """요청을 admission한 Main Model profile/resource-policy 식별자만 기록한다.
+
+    Runtime Controller에서 이미 받은 control-plane snapshot을 재사용한다. Catalog 전체,
+    GPU identity, compatibility/qualification evidence는 request log에 복사하지 않는다.
+    resource_variant가 null인 reference policy는 별도 합성값을 만들지 않고 필드를 생략한다.
+    """
+    if not isinstance(main_model, dict):
+        return
+    profile = main_model.get("active_profile")
+    if not isinstance(profile, dict):
+        return
+
+    profile_id = profile.get("id")
+    if isinstance(profile_id, str) and profile_id.strip():
+        request.scope.setdefault("state", {})["main_model_profile"] = profile_id.strip()
+
+    resource_variant = profile.get("resource_variant")
+    if isinstance(resource_variant, str) and resource_variant.strip():
+        request.scope.setdefault("state", {})["main_resource_variant"] = resource_variant.strip()
+
+
 def record_upstream_response(request: Request, response: Any) -> None:
     """업스트림 응답에서 진단에 쓰는 식별 정보를 request.state에 남긴다.
 
@@ -331,7 +353,14 @@ def safe_request_log_record(
         value = getattr(request.state, field, None)
         if value:
             record[field] = value
-    # 운영 분해용 필드. queue_wait_ms는 upstream admission slot을 기다린 시간이고,
+    # 운영 분해용 필드. main_model_profile/main_resource_variant는 이미 admission에
+    # 사용한 active snapshot의 식별자만 옮긴다. resource_variant가 없는 reference
+    # policy는 필드를 생략하며 GPU support 판정으로 사용하지 않는다.
+    for field in ("main_model_profile", "main_resource_variant"):
+        value = getattr(request.state, field, None)
+        if value is not None:
+            record[field] = value
+    # queue_wait_ms는 upstream admission slot을 기다린 시간이고,
     # time_to_first_chunk_ms는 streaming에서 첫 SSE chunk를 관찰한 시점이다. 둘 다
     # request 단위 latency 원인 분해에 쓰며 TTFT를 추정하지 않는다. stream_status는
     # 정상 완료와 client 중단을 status_code=200 안에서 구분한다.

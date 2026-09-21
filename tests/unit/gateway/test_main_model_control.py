@@ -5,6 +5,8 @@ sidecar 쪽에서 직접 다루고, 여기는 gateway가 그 API를 올바르게
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from .helpers import *  # noqa: F401,F403
@@ -55,6 +57,44 @@ class FakeMainModelSidecar:
 
     async def get_status(self):
         return {}
+
+
+def test_chat_request_event_records_active_profile_and_resource_policy(monkeypatch, tmp_path) -> None:
+    """Admission에 사용한 control snapshot의 최소 식별자를 request event에 보존한다."""
+
+    class ResourcePolicySidecar(FakeMainModelSidecar):
+        async def main_model(self, *, observed: bool = True):
+            self.observed_requested.append(observed)
+            return {
+                "public_model": "local-main",
+                "active_profile": {
+                    "id": "gemma4-e4b-it",
+                    "resource_variant": "rtx4090-24gb",
+                },
+                "gate": "open",
+                "last_operation": None,
+            }
+
+    monkeypatch.setenv("REQUEST_EVENT_LOG_DIR", str(tmp_path))
+    clients = FakeGatewayClients()
+    clients.runtime_controller = ResourcePolicySidecar()
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    response = client.post(
+        "/v1/chat/completions",
+        headers=auth_headers(),
+        json={"model": "local-main", "messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 200
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "gateway.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    record = records[-1]
+    assert record["main_model_profile"] == "gemma4-e4b-it"
+    assert record["main_resource_variant"] == "rtx4090-24gb"
+    assert clients.runtime_controller.observed_requested == [False]
 
 
 def test_chat_uses_active_profile_request_limit() -> None:

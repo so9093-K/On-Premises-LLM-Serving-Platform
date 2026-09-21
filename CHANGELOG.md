@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Chat Completions와 Responses request event가 admission에 이미 사용한 Main Model control snapshot에서 `main_model_profile`과 explicit override인 경우의 `main_resource_variant`를 보존한다. 추가 Runtime Controller 조회 없이 개별 request를 active profile/resource policy와 연결할 수 있으며, reference policy는 합성값 없이 resource-variant 필드를 생략한다. GPU product/UUID나 qualification provenance는 request log에 추가하지 않는다.
+
 - Streaming request event에 `time_to_first_chunk_ms`를 추가했다. Chat Completions와 Responses relay가 Prometheus `streaming_time_to_first_chunk_seconds`에 기록하던 동일 관측값을 request-level log에도 남겨, Request Log Explorer에서 `latency_ms`, `queue_wait_ms`, first SSE chunk, `stream_status`, token usage와 upstream response id를 한 행에서 함께 진단할 수 있다. 이 값은 첫 token/TTFT 추정치가 아니며 첫 chunk 전에 실패한 요청과 non-streaming 요청에는 기록하지 않는다.
 
 - vLLM engine pin과 security posture review를 정적 governance 계약으로 연결했다. `configs/vllm_unified_build.yaml`의 `compatibility_pins.vllm`이 바뀌면 `docs/reference/vllm_security_posture.md`의 machine-readable Security review contract도 같은 변경에서 갱신해야 하며, `make validate`가 stale/missing/invalid review marker를 fail-closed한다. 이 계약은 GPU별 qualification을 추가하지 않고 engine upgrade lane의 advisory 재검토 누락만 막는다.
