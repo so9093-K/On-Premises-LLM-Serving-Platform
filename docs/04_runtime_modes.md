@@ -487,7 +487,7 @@ control 대상에서 제외된다. 현재 `rtx4090-24gb`에서는 Prompt Injecti
 
 | Runtime Startup Profile | 실행 상태 |
 |---|---|
-| `main_only` (기본) | Main Model 중심, secondary runtime deferred |
+| `main_only` (기본) | Main Model 중심, non-main Model Runtime deferred |
 | `retrieval_ready` | Main + embedding 계열 준비, Prompt Injection Detector deferred |
 
 Runtime Startup Profile과 Exposure Profile의 역할은 다르다.

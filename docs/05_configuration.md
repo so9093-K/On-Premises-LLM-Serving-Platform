@@ -318,7 +318,7 @@ Exposure Profile
 | `main_only` (기본) | Main Model 중심으로 기동하고 non-main Model Runtime은 deferred |
 | `retrieval_ready` | embedding 계열은 준비하고 Prompt Injection는 deferred |
 
-Main Model Profile과 Runtime Startup Profile은 서로 다른 실행 축을 관리한다. 여기에 `configs/runtime_topology.yaml`의 effective projection이 적용되어, 선택된 `MAIN_MODEL_RESOURCE_VARIANT`와 공존할 수 없는 secondary runtime은 startup profile에 들어 있어도 현재 host의 control/start 대상에서 제외된다. 이 제약은 GPU 제품 allowlist가 아니라 검토된 Main resource-policy composition에만 묶인다.
+Main Model Profile과 Runtime Startup Profile은 서로 다른 실행 축을 관리한다. 여기에 `configs/runtime_topology.yaml`의 effective projection이 적용되어, 선택된 `MAIN_MODEL_RESOURCE_VARIANT`와 공존할 수 없는 non-main Model Runtime은 startup profile에 들어 있어도 현재 host의 control/start 대상에서 제외된다. 이 제약은 GPU 제품 allowlist가 아니라 검토된 Main resource-policy composition에만 묶인다.
 
 ```text
 Main Model Profile

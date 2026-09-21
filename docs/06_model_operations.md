@@ -397,7 +397,7 @@ Profile switch에서 자원이 부족하면 필요한 runtime stop plan을 확�
 reference policy로 조용히 fallback하지 않도록 fail-closed한다. 이것은 hardware allowlist가 아니라
 잘못된 자원 정책 적용을 막는 안전장치다.
 
-같은 variant가 secondary runtime과의 실측된 composition 제약도 가질 수 있다. 이 경우
+같은 variant가 non-main Model Runtime과의 실측된 composition 제약도 가질 수 있다. 이 경우
 `configs/runtime_topology.yaml`의 effective topology가 해당 runtime을 control/start 대상에서
 제외한다. 현재 `rtx4090-24gb`에서는 Prompt Injection Detector가 제외되며, 단순 비율 admission이
 이를 다시 켤 수 없다. reference policy에서는 detector가 일반 controllable runtime으로 유지된다.
