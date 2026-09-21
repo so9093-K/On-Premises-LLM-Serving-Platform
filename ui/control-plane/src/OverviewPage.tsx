@@ -91,6 +91,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
 
   const release = bootstrap.platform.release_id ?? 'development';
   const runtimes = runtimesQuery.data?.runtimes ?? [];
+  const topology = runtimesQuery.data?.topology ?? [];
+  const unavailableTopology = topology.filter((item) => !item.available);
   const budget = runtimesQuery.data?.budget;
   const mainModel = mainModelQuery.data;
 
@@ -114,6 +116,16 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
       {mainModelQuery.isError ? (
         <Alert isInline variant="warning" title="Main Model 상태를 조회하지 못했습니다.">
           {apiErrorMessage(mainModelQuery.error)}
+        </Alert>
+      ) : null}
+
+      {unavailableTopology.length ? (
+        <Alert
+          isInline
+          variant="info"
+          title={`${unavailableTopology.length}개 Runtime이 현재 resource policy에서 unavailable합니다.`}
+        >
+          장애나 GPU 지원 판정이 아니라 effective topology의 정책 상태입니다. Runtimes에서 제외 이유를 확인할 수 있습니다.
         </Alert>
       ) : null}
 
@@ -159,6 +171,12 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <dt>Active</dt><dd>{runtimeStateCount(runtimes, 'active')}</dd>
                 <dt>Starting</dt><dd>{runtimeStateCount(runtimes, 'starting')}</dd>
                 <dt>Stopped</dt><dd>{runtimeStateCount(runtimes, 'stopped')}</dd>
+                <dt>Unavailable</dt>
+                <dd>
+                  <Label color={unavailableTopology.length ? 'orange' : 'green'}>
+                    {unavailableTopology.length}
+                  </Label>
+                </dd>
                 <dt>GPU ceiling</dt><dd>{displayNumber(budget?.ceiling)}</dd>
                 <dt>GPU used</dt><dd>{displayNumber(budget?.used)}</dd>
                 <dt>GPU free</dt><dd>{displayNumber(budget?.free)}</dd>
