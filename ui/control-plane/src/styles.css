@@ -182,6 +182,37 @@ input {
   color: var(--pf-t--global--text--color--subtle, #6a6e73);
 }
 
+.overview-inline-action,
+.overview-card-actions a {
+  color: var(--pf-t--global--color--brand--default, #06c);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.overview-inline-action {
+  display: inline-block;
+  margin-top: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.overview-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+}
+
+.overview-card-actions a:hover,
+.overview-inline-action:hover {
+  text-decoration: underline;
+}
+
+.overview-ownership-note {
+  margin: 1rem 0 0;
+}
+
 .overview-no-attention {
   margin: 0;
 }

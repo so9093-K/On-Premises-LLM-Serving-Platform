@@ -1,0 +1,41 @@
+name: Regenerate Control Plane assets
+
+on:
+  push:
+    branches:
+      - feat/control-plane-overview-actions
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: ui/control-plane/package-lock.json
+      - name: Pin npm toolchain
+        run: npm install --global npm@11.19.0
+      - name: Build checked-in Console asset
+        run: |
+          npm --prefix ui/control-plane ci
+          npm --prefix ui/control-plane run build
+      - name: Commit generated Console asset
+        shell: bash
+        run: |
+          if git diff --quiet -- src/ai_model_serving/static/control-plane; then
+            echo "Generated Console asset is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ai_model_serving/static/control-plane
+          git commit -m "build(console): Overview 생성 asset 갱신"
+          git push origin HEAD:${GITHUB_REF_NAME}
