@@ -409,3 +409,12 @@ def test_runtime_state_store_restores_memory_when_persistence_fails(tmp_path, mo
         )
 
     assert asyncio.run(store.all_records())["embedding"] == before
+
+
+def test_default_controllable_keys_follow_main_resource_variant(monkeypatch) -> None:
+    monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
+
+    store = RuntimeStateStore()
+
+    assert "prompt_injection_detector" not in store.controllable_keys
+    assert {"embedding", "embedding_ko"}.issubset(store.controllable_keys)

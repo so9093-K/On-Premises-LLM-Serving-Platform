@@ -9,7 +9,7 @@ from ai_model_serving.runtime_topology import load_runtime_topology
 def _copy_runtime_configs(destination: Path) -> Path:
     root = Path(__file__).resolve().parents[2]
     (destination / "configs").mkdir()
-    for filename in ("model_serving.yaml", "services.yaml", "runtime_topology.yaml"):
+    for filename in ("model_serving.yaml", "services.yaml", "runtime_topology.yaml", "main_model_profiles.yaml"):
         shutil.copy(root / "configs" / filename, destination / "configs" / filename)
     return destination / "configs/runtime_topology.yaml"
 
@@ -21,19 +21,20 @@ def test_runtime_topology_uses_explicit_lifecycle_bindings() -> None:
     assert topology.service_by_key == {
         "embedding": "embedding-vllm",
         "embedding_ko": "embedding-ko-vllm",
+        "prompt_injection_detector": "prompt-injection-detector-runtime",
     }
     assert "main_llm" not in topology.controllable_keys
     assert topology.bindings_by_key["embedding"].service_id == "embedding_vllm"
     assert topology.bindings_by_key["embedding"].compose_service == "embedding-vllm"
     assert topology.runtime_keys_for_features(frozenset({"chat"})) == frozenset({"main_llm"})
-    # risk feature는 유지되지만 요구하는 runtime이 없다. 현재 risk 신호는
-    # in-process PII/Secret detector가 소유하고, vLLM prompt detector binding은
-    # 비활성이라 어떤 feature의 required 집합에도 들어가지 않는다.
     assert topology.required_keys_for_features(
         frozenset({"chat", "embeddings", "risk"})
-    ) == frozenset({"main_llm", "embedding", "embedding_ko"})
+    ) == frozenset(
+        {"main_llm", "embedding", "embedding_ko", "prompt_injection_detector"}
+    )
     assert topology.start_prerequisites_by_service == {
         "embedding-ko-vllm": ["embedding-vllm"],
+        "prompt-injection-detector-runtime": ["embedding-vllm", "embedding-ko-vllm"],
     }
 
 
@@ -96,4 +97,26 @@ def test_runtime_topology_rejects_prerequisite_cycle(tmp_path) -> None:
     path.write_text(yaml.safe_dump(document), encoding="utf-8")
 
     with pytest.raises(ValueError, match="start_prerequisites contain a cycle"):
+        load_runtime_topology(tmp_path)
+
+
+def test_main_resource_variant_projects_unavailable_secondary_runtime() -> None:
+    root = Path(__file__).resolve().parents[2]
+    topology = load_runtime_topology(root, main_resource_variant="rtx4090-24gb")
+
+    assert "prompt_injection_detector" not in topology.controllable_keys
+    assert topology.bindings_by_key["prompt_injection_detector"].enabled is False
+    assert topology.required_keys_for_features(frozenset({"risk"})) == frozenset()
+    assert "prompt-injection-detector-runtime" not in topology.start_prerequisites_by_service
+
+
+def test_runtime_topology_rejects_unknown_resource_variant_constraint(tmp_path) -> None:
+    path = _copy_runtime_configs(tmp_path)
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["runtimes"]["prompt_injection_detector"][
+        "unavailable_with_main_resource_variants"
+    ] = ["typo-variant"]
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown Main Model resource variant"):
         load_runtime_topology(tmp_path)

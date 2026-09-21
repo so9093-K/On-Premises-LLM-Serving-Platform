@@ -40,11 +40,9 @@ def _config_root(tmp_path: Path) -> Path:
 
 
 def _config_root_with_prompt_detector(tmp_path: Path) -> Path:
-    """vLLM prompt detector를 켠 설정 트리를 만든다.
+    """vLLM prompt detector가 선언상 활성인 설정 트리를 만든다.
 
-    배포본은 이 detector를 끄고 있지만 그 코드 경로는 그대로 남아 있다. 어떤
-    detector가 실제로 켜져 있는지는 설정 계약 검증이 소유하고, 여기서는 vLLM
-    detector가 하나라도 있을 때 성립해야 하는 settings 계약을 본다.
+    host별 effective availability와 무관한 detector 자체 동작 계약을 검증할 때 쓴다.
     """
     root = _config_root(tmp_path)
     serving_path = root / "configs" / "model_serving.yaml"
@@ -87,6 +85,7 @@ def isolate_settings_environment(monkeypatch):
         "MAIN_MODEL_MAX_CONCURRENCY",
         "MAIN_MODEL_QUEUE_TIMEOUT_SECONDS",
         "MAIN_MODEL_STATIC_PROFILE",
+        "MAIN_MODEL_RESOURCE_VARIANT",
         "EMBEDDING_MAX_CONCURRENCY",
         "EMBEDDING_QUEUE_TIMEOUT_SECONDS",
         "PROMPT_INJECTION_DETECTOR_BASE_URL",
@@ -108,6 +107,22 @@ def test_load_settings_uses_canonical_runtime_controller_url(monkeypatch):
     settings = load_settings()
 
     assert settings.runtime_controller_url == "http://runtime-controller:8080"
+
+
+def test_main_resource_variant_projects_prompt_detector_out_of_effective_settings(
+    tmp_path, monkeypatch
+):
+    root = _config_root(tmp_path)
+    monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
+
+    settings = load_settings(root)
+
+    assert "prompt_injection_detector" not in settings.runtime_endpoints
+    assert "prompt_injection_detector" not in settings.controllable_runtime_keys
+    assert "prompt_injection_detector" not in settings.required_runtime_keys
+    prompt = next(detector for detector in settings.risk_detectors if detector.key == "prompt")
+    assert prompt.enabled is False
+    assert "risk-prompt" not in {item["id"] for item in settings.public_models}
 
 
 def test_load_settings_rejects_default_api_key_in_non_local_env(monkeypatch):

@@ -8,7 +8,7 @@ from scripts.validation.runtime.live_checks import LiveRuntimeChecks
 
 class _Registry:
     def public_logical_ids(self) -> list[str]:
-        return ["local-main"]
+        return ["local-main", "risk-prompt"]
 
     def runtime_service(self, key: str) -> SimpleNamespace:
         served = "local-main" if key == "main_llm" else key
@@ -92,6 +92,7 @@ def test_main_model_runtime_checks_emit_stable_qualification_ids() -> None:
     runtime_models = checks.check_vllm_models("main_llm", "http://main/v1")
     text_chat = checks.check_chat()
 
+    assert models.passed
     assert models.qualification_check_id == "main_model.gateway.models"
     assert models.details["main_model_input_modalities"] == [
         "text",
