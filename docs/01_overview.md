@@ -1,14 +1,21 @@
 # 1. 프로젝트 개요
 
-AI Model Serving Platform은 Chat, Embedding, Retrieval, Prompt Guard 기능을 하나의 Gateway API로 제공하는 온프레미스 모델 서빙 플랫폼이다.
+AI Model Serving Platform은 Chat, Embedding, Retrieval, Risk Detection 기능을 하나의 Gateway API로 제공하고,
+배포 target별 runtime lifecycle과 운영 상태를 함께 관리하는 온프레미스 모델 서빙 플랫폼이다.
 
-모델 inference는 독립된 vLLM runtime으로 실행하고, runtime과 container 제어는 Runtime Controller로 분리한다. 메트릭과 로그는 별도 관측성 스택에서 수집한다.
+Model inference backend는 deployment target에 따라 Linux/NVIDIA의 vLLM 또는 Apple Silicon의 MLX-VLM을 사용한다.
+Gateway의 외부 API 계약은 backend와 분리하며, runtime lifecycle ownership과 제공 기능은
+`configs/deployment_targets.yaml`의 target contract가 결정한다.
 
 ## 1.1 프로젝트 배경
 
-모델마다 API 형식, 입력 modality, context, GPU 사용량, runtime option이 다르다. 모델을 추가하거나 교체할 때는 runtime 설정뿐 아니라 GPU resource, validation, image, 배포 구성도 함께 관리해야 한다.
+모델마다 API 형식, 입력 modality, context, resource 사용량, runtime option이 다르다.
+모델을 추가하거나 교체할 때는 runtime 설정뿐 아니라 resource admission, validation, artifact,
+deployment topology와 운영자 설명까지 함께 관리해야 한다.
 
-이 플랫폼은 모델별 차이를 Gateway와 설정 체계에서 관리하고, 애플리케이션에는 일관된 API를 제공한다.
+이 플랫폼은 모델별 차이를 Gateway와 설정 체계에서 흡수하고, 애플리케이션에는 일관된 API를 제공한다.
+운영자는 target별로 허용된 Control Plane 기능만 사용하며, API 사용은 Scalar,
+시간축 metrics/log 진단은 Grafana가 각각 소유한다.
 
 ```text
 Client / Application
@@ -16,160 +23,135 @@ Client / Application
         ▼
       Gateway
         │
-        ├─ Chat
-        ├─ Embedding
-        ├─ Retrieval
-        └─ Prompt Guard
+        ├─ Main Model Runtime
+        ├─ optional Model Runtimes
+        └─ Risk Signal Service
         │
         ▼
-   Model Runtime
-        │
-        ▼
-   GPU Resource
-        │
-        ▼
-Validation / Lifecycle / Monitoring
+Deployment Target Contract
+  ├─ runtime backend
+  ├─ lifecycle ownership
+  ├─ capability surface
+  ├─ resource policy
+  └─ qualification state
+
+Operator surfaces
+  ├─ Scalar        → API reference / authenticated test request
+  ├─ Control Plane → state / plan / apply / verify / history
+  └─ Grafana       → metrics / logs / troubleshooting
 ```
 
-모델 구성, runtime, GPU budget, target lifecycle과 관측을 하나의 프로젝트 안에서 함께 관리하는 구조를 사용한다.
+## 1.2 Deployment Target과 전체 아키텍처
 
-## 1.2 전체 아키텍처
+### 현재 target
 
-### 시스템 구성도
+Deployment capability의 Source of Truth는 `configs/deployment_targets.yaml`이다.
 
-![AI 모델 서빙 플랫폼 시스템 구성도](../assets/ai_model_serving_system_architecture.jpg)
+| Target | Runtime backend | Lifecycle owner | Control mode | 상태 | 주요 기능 |
+|---|---|---|---|---|---|
+| `linux-nvidia-dynamic` | `vllm-cuda` | Platform | `runtime_controller` | Implemented / Verified | Chat, Embedding, Retrieval, Risk, Runtime Control, Main Model switching, GPU admission |
+| `linux-nvidia-static` | `vllm-cuda` | External | `static` | Implemented / Unverified | Chat |
+| `macos-metal-static` | `mlx-vlm` | External | `static` | Implemented / Verified | Chat |
 
-위 구성도는 클라이언트 요청이 Gateway를 거쳐 모델 runtime과 Prompt Guard로 전달되고, metrics가 운영·모니터링 계층으로 수집되는 서빙 경로를 보여준다.
+`static`은 macOS의 별칭이 아니다. static target은 Main runtime lifecycle을 외부 또는 native process가
+소유하고 Gateway는 고정 OpenAI-compatible endpoint를 사용한다. Linux와 macOS가 같은 static serving 계약을
+공유할 수 있다.
 
-Runtime Controller와 로그 수집 계층까지 포함한 현재 주요 경계는 다음과 같다.
+### 공통 경계
 
-```text
-Client / Application
-        │
-        ▼
-┌──────────────────────┐
-│       Gateway        │
-│        :9400         │
-└──────────┬───────────┘
-           │
-           ├──────────────► main-llm-vllm
-           │
-           ├──────────────► embedding-vllm
-           │
-           ├──────────────► embedding-ko-vllm
-           │
-           └──────────────► Prompt Guard
-                                  │
-                                  ▼
-                           risk-signal-service :9405
-                                  │
-                                  ▼
-                           prompt-injection-detector-runtime
-
-
-┌──────────────────────────┐
-│ Runtime Controller  │
-│          :8080           │
-└────────────┬─────────────┘
-             │
-             ├─ Runtime start / stop
-             ├─ Main model profile switch
-             ├─ GPU budget admission
-             └─ Container lifecycle
-
-
-┌──────────────────────────────────────────────────────────┐
-│                    Observability                         │
-│ Prometheus · Grafana · Loki · Alloy · DCGM · cAdvisor   │
-└──────────────────────────────────────────────────────────┘
-```
-
-### 주요 경계
-
-| 구성 요소 | 주요 역할 | 연결 구조 |
+| 구성 요소 | 주요 역할 | Authority |
 |---|---|---|
-| **Gateway** | API 인터페이스<br>Request / Response 처리<br>멀티모달 입력 검증<br>Routing / Orchestration | `Client` → `Gateway`<br>→ Model Runtime<br>→ Prompt Guard |
-| **Runtime Controller** | Runtime Lifecycle<br>Main Model 전환<br>GPU Budget Admission<br>Container 제어 | `Gateway` → `Sidecar`<br>→ Docker / Runtime |
-| **vLLM Runtime** | Model Load<br>Inference 실행<br>모델별 Runtime 설정 적용 | Main LLM<br>Embedding<br>Embedding-KO<br>Prompt Guard Model |
-| **Prompt Guard** | Prompt 검사<br>Detector 호출<br>결과 정규화 | `Gateway` → `risk-signal-service`<br>→ `prompt-injection-detector-runtime` |
-| **관측성 스택** | Metrics 수집<br>Logs 수집<br>GPU / Container 관측<br>Dashboard | Prometheus · Grafana<br>Loki · Alloy<br>DCGM · cAdvisor |
+| **Gateway** | 외부 API, 인증, request validation, routing, admission | 공개 API와 request contract |
+| **Runtime Controller** | managed runtime lifecycle, Main Model 전환, GPU budget admission, Docker 제어 | `runtime_control`이 활성인 target의 runtime mutation |
+| **Model Runtime** | 실제 inference / embedding / detection | target별 vLLM 또는 MLX-VLM runtime |
+| **Risk Signal Service** | Risk detector 호출과 signal 정규화 | Risk API의 detector orchestration |
+| **Control Plane Console** | 현재 상태 설명, reviewed mutation, verification/history projection | 기존 Admin API의 first-party operator UI |
+| **Scalar API Reference** | API contract 탐색, example, authenticated test request | OpenAPI 기반 API 사용 경험 |
+| **Observability** | Metrics, logs, dashboard와 troubleshooting | Prometheus / Grafana / Loki / Alloy 및 target별 exporter |
 
-Gateway와 Runtime Controller는 역할이 분리되어 있다.
+Gateway는 Docker socket을 소유하지 않는다. managed runtime의 container lifecycle은 Runtime Controller가 소유한다.
+static target에서는 Runtime Controller 기능을 노출하지 않으며 external/native runtime lifecycle이 authority를 유지한다.
+
+### Linux/NVIDIA managed target
+
+`linux-nvidia-dynamic`은 platform-owned managed runtime target이다.
 
 ```text
+Client
+  │
+  ▼
 Gateway
-  API / Request 처리
-  Routing / Orchestration
+  ├─ Main Model vLLM
+  ├─ Embedding vLLM
+  ├─ Korean Embedding vLLM
+  └─ Risk Signal Service ── Prompt Injection Detector Runtime
 
 Runtime Controller
-  Runtime 제어
-  GPU Budget 확인
-  Container Lifecycle
+  ├─ Runtime start / stop
+  ├─ Main Model profile switch
+  ├─ GPU budget admission
+  └─ Docker lifecycle
+
+Observability
+  └─ Prometheus · Grafana · Loki · Alloy · DCGM · cAdvisor
 ```
 
-Docker socket은 Runtime Controller에 연결된다. Gateway는 내부 control API를 통해 runtime 상태 조회와 전환 기능을 사용한다.
+Main Model은 외부에 `local-main` alias를 제공하고, 내부에서는 허용된 Main Model profile 중
+한 시점에 하나의 active profile을 사용한다.
 
-vLLM runtime은 모델별 독립 process와 port로 구성된다.
+### Static Main target
 
-| Runtime | 역할 | 기본 Port |
-|---|---|---:|
-| `main-llm-vllm` | Chat / Multimodal | `9401` |
-| `embedding-vllm` | Embedding | `9402` |
-| `embedding-ko-vllm` | Retrieval용 Korean Embedding | `9406` |
-| `prompt-injection-detector-runtime` | Prompt Guard Model | `9403` |
+`linux-nvidia-static`과 `macos-metal-static`은 Main runtime lifecycle을 Gateway 밖에서 소유한다.
 
-Main LLM은 외부에 `local-main` alias를 제공하고, 내부에서는 main model profile을 전환할 수 있다. 한 시점에는 하나의 main model profile이 활성화된다.
+```text
+Client
+  │
+  ▼
+Gateway
+  │
+  ▼
+Externally managed Main Runtime
+  ├─ Linux/NVIDIA → vLLM
+  └─ macOS/Metal  → MLX-VLM
+```
+
+static target은 model switching, GPU admission, Runtime Control을 제공한다고 가장하지 않는다.
+Console은 target capability를 기준으로 해당 mutation surface를 숨기고 lifecycle ownership을 설명한다.
 
 ## 1.3 주요 특징
 
 ### Gateway 중심 API
 
-애플리케이션이 사용하는 모델 기능은 Gateway에서 시작한다.
+애플리케이션이 사용하는 모델 기능은 Gateway에서 시작한다. 실제 route 집합은 deployment target capability에 따라 달라진다.
 
 | 기능 | Gateway API |
 |---|---|
 | Model Listing | `/v1/models` |
 | Chat | `/v1/chat/completions` |
+| Responses | `/v1/responses` |
 | Embedding | `/v1/embeddings` |
 | Retrieval | `/v1/retrieval/*` |
-| Prompt Guard | `/v1/risk/*` |
+| Risk Detection | `/v1/risk/*` |
 
-Gateway는 외부 API 형식을 유지하면서 request parameter, 이미지·오디오·비디오 입력, response 형식과 내부 runtime 차이를 처리한다.
+Gateway는 외부 API 형식을 유지하면서 request parameter, 이미지·오디오·비디오 입력,
+response 형식과 내부 runtime 차이를 처리한다. 현재 runtime이 실제로 공개하는 capability는
+`/v1/models`와 target/profile contract를 기준으로 확인한다.
 
 ![Gateway API Reference](../assets/screenshots/scalar_api_reference.jpg)
 
-*Scalar API Reference에서 Chat, Embedding, Retrieval, Prompt Guard API와 요청·응답 스펙을 확인할 수 있다.*
+*Scalar API Reference에서 현재 Gateway API의 endpoint, 요청·응답 schema와 example을 확인하고 인증된 Test Request를 실행할 수 있다.*
 
-### Runtime 제어 분리
+### Target-aware runtime lifecycle
 
-모델 요청 처리와 runtime 제어를 별도 경계로 구성한다.
+Runtime lifecycle은 backend 이름이나 운영체제에서 추론하지 않는다.
 
-| 영역 | 담당 |
+| Target contract | 의미 |
 |---|---|
-| API 요청·Routing | Gateway |
-| Runtime 상태·전환 | Runtime Controller |
-| Container Lifecycle | Runtime Controller |
-| Model Inference | vLLM Runtime |
+| `control_mode=runtime_controller` / `lifecycle_owner=platform` | Platform이 runtime mutation과 reconciliation을 소유 |
+| `control_mode=static` / `lifecycle_owner=external` | 외부/native runtime이 lifecycle을 소유하고 Gateway는 고정 endpoint 사용 |
 
-이 구조를 통해 API 처리 영역과 Docker 제어 권한을 분리한다.
-
-### 독립 vLLM Runtime
-
-Main LLM, Embedding, Korean Embedding, Prompt Guard model은 각각 독립된 vLLM process로 실행된다.
-
-모델별로 다음 runtime 값을 별도로 구성할 수 있다.
-
-```text
-Model / Revision
-Context
-Concurrency
-GPU Memory Budget
-dtype
-Quantization
-Runtime Flags
-```
-
-모든 vLLM 서비스는 공통 `vllm-unified` image를 사용하고, 모델별 차이는 profile과 runtime option으로 구성한다.
+따라서 Linux/NVIDIA와 macOS/Metal의 차이는 core/secondary가 아니라
+runtime backend, capability, lifecycle ownership의 차이다.
 
 ### 설정 기반 운영
 
@@ -177,119 +159,100 @@ Runtime Flags
 
 | 설정 영역 | 주요 파일 | 역할 |
 |---|---|---|
-| **Model Catalog** | `configs/model_catalog.yaml` | 논리 모델 identity, capability와 public listing 정의 |
-| **Main Model Profile** | `configs/main_model_profiles.yaml` | Main LLM checkpoint model/revision과 runtime profile·전환 대상 정의 |
-| **Model Runtime** | `configs/model_serving.yaml` | 공통 backend/port/connectivity/admission과 고정 non-main runtime option 설정 |
-| **GPU Budget** | `configs/gpu_budgets.yaml` | Runtime별 GPU memory budget과 전체 사용 한도 관리 |
-| **Service / Port** | `configs/services.yaml` | 서비스 이름, 내부 port, 연결 정보 정의 |
-| **Access Profile** | `configs/access_profiles.yaml` | 사용자 접근 의도를 인증·노출·bind 조합으로 투영 |
-| **Exposure** | `configs/exposure_profiles.yaml` | Host publish 여부와 외부 노출 범위 설정 |
-| **Authentication** | `configs/auth_profiles.yaml` | API 인증 방식과 인증 profile 설정 |
-| **Monitoring** | `configs/monitoring.yaml` | Metrics, logs, dashboard 관련 관측성 설정 |
-| **Deploy Profile** | `configs/deploy_profiles.yaml` | full-stack compose-up의 초기 Runtime 구성 정의 |
+| **Deployment Target** | `configs/deployment_targets.yaml` | backend, lifecycle owner, control mode, capability와 qualification state |
+| **Model Catalog** | `configs/model_catalog.yaml` | 논리 모델 identity, capability와 public listing |
+| **Main Model Profile** | `configs/main_model_profiles.yaml` | Linux/NVIDIA Main Model checkpoint/revision과 serving/runtime profile |
+| **macOS MLX Runtime** | `configs/macos_mlx_runtime.yaml` | Apple Silicon MLX-VLM Main runtime profile과 실행 한도 |
+| **Model Runtime** | `configs/model_serving.yaml` | 공통 backend/port/connectivity/admission과 non-main runtime option |
+| **Runtime Topology** | `configs/runtime_topology.yaml` | feature-runtime 연결과 resource-aware composition constraint |
+| **GPU Budget** | `configs/gpu_budgets.yaml` | managed runtime의 GPU memory budget과 전체 admission ceiling |
+| **Service / Port** | `configs/services.yaml` | 서비스 identity, 내부 port와 연결 정보 |
+| **Access / Exposure / Auth** | `configs/access_profiles.yaml`, `configs/exposure_profiles.yaml`, `configs/auth_profiles.yaml` | 접속 의도, host publish와 인증 정책 |
+| **Monitoring** | `configs/monitoring.yaml` | Metrics, logs와 dashboard 관련 설정 |
 
 설정 간 우선순위와 생성 artifact는 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 다룬다.
 
-### 단일 GPU Resource 관리
+### Resource admission과 hardware 의미
 
-기준 GPU는 **NVIDIA RTX 6000 Ada Generation 48 GiB**이며, 여러 vLLM runtime이 하나의 GPU를 공유한다.
+managed Linux/NVIDIA target에서 Runtime Controller는 선언된 GPU budget과 active runtime 구성을 기준으로
+start/switch admission을 판단한다.
 
-```text
-RTX 6000 Ada 48 GiB
-        │
-        ├─ Main LLM
-        ├─ Embedding
-        ├─ Embedding-KO
-        └─ Prompt Guard Model
-```
+GPU product name, UUID, driver, memory size는 관측값과 qualification provenance이며 지원 allowlist가 아니다.
+새 GPU라는 이유만으로 별도 profile-level qualification을 요구하지 않는다. 실행 가능성은 deployment/runtime
+compatibility, resource admission, selected profile contract와 runtime validation이 판단한다.
 
-각 runtime은 `gpu_memory_utilization` budget을 갖고, Runtime Controller는 runtime 기동과 전환 시 전체 GPU budget을 확인한다.
+`resource_variant`는 GPU 제품 분류가 아니라 reference resource policy가 맞지 않을 때 사용하는
+명시적 reviewed override다. 선택한 override가 profile에 없으면 reference policy로 조용히 fallback하지 않는다.
 
-구체적인 budget과 기동 순서는 [6. 모델 운영](./06_model_operations.md)에서 다룬다.
+### Runtime artifact 경계
 
-### Runtime Artifact 관리
-
-Platform application과 vLLM runtime은 별도 image artifact로 관리한다.
+Platform application과 inference runtime artifact는 분리한다.
 
 ```text
 Platform Image
   ├─ Gateway
   ├─ Risk Signal Service
-  └─ Runtime Controller
+  └─ Runtime Controller (managed target)
 
-vLLM Unified Image
-  ├─ Main LLM
-  ├─ Embedding
-  ├─ Embedding-KO
-  └─ Prompt Guard Model
+Linux/NVIDIA Runtime Artifact
+  └─ Unified vLLM image + target/profile configuration
+
+macOS/Metal Runtime Artifact
+  └─ Native MLX-VLM environment + pinned runtime/model configuration
 ```
 
-Production 배포에서는 검증된 image digest와 model revision을 기준으로 실행 구성을 고정한다.
+Production에서는 repository가 소유하는 image와 model revision을 고정된 입력으로 관리한다.
+static external runtime은 자신의 lifecycle authority를 유지한다.
 
-### 통합 관측성
+### 운영자 UX 경계
 
-API, runtime, GPU, container 상태를 metrics와 logs로 수집한다.
+세 UI surface는 역할을 나눠 가진다.
 
-| 영역 | 구성 | 역할 |
-|---|---|---|
-| **Metrics** | Prometheus | 서비스와 runtime의 메트릭 수집·저장 |
-| **Dashboard** | Grafana | 메트릭과 로그를 대시보드로 시각화 |
-| **Logs** | Loki | 애플리케이션과 container 로그 저장·조회 |
-| **Log Collection** | Alloy | container 로그 수집 후 Loki로 전달 |
-| **GPU** | DCGM Exporter | GPU 사용률, 메모리, 온도, 전력 메트릭 수집 |
-| **Container** | cAdvisor | container CPU, 메모리, 네트워크 사용량 수집 |
-
-Grafana dashboard와 request log 조회 방법은 [11. 관측성과 장애 대응](./11_observability.md)에서 다룬다.
-
-## 1.4 플랫폼 범위
-
-### 제공 기능
-
-| 기능 | 설명 |
+| Surface | 역할 |
 |---|---|
-| **Chat** | `local-main` 기반 Chat Completions |
-| **Embedding** | 범용 text embedding |
-| **Retrieval** | Korean embedding 기반 score / rerank |
-| **Prompt Guard** | Prompt 검사와 detector 결과 정규화 |
-| **Runtime Control** | Runtime 상태 조회, 기동·중지, main model profile 전환 |
-| **Observability** | API·model runtime·GPU·container metrics와 logs |
+| **Scalar `/docs`** | API reference, request example, authenticated API 호출 확인 |
+| **Control Plane `/admin/console/`** | 현재 상태 이해, Plan/Review/Apply/Verify, operation history |
+| **Grafana** | 시간축 metrics, request/runtime logs, resource와 장애 진단 |
 
-### 실행 모드
+Control Plane은 Scalar의 API playground나 Grafana의 로그/그래프 탐색기를 다시 구현하지 않는다.
+대신 현재 상태와 mutation 의미를 설명하고, 필요한 경우 해당 진단 surface로 연결한다.
 
-| 모드 | 구성 |
+## 1.4 실행 방식과 플랫폼 범위
+
+### 실행 방식
+
+| 방식 | 구성 |
 |---|---|
-| **app-only** | Gateway와 Prompt Guard application service를 로컬 process로 실행 |
-| **full-stack** | Gateway, Sidecar, vLLM runtime, Prompt Guard, 관측성 스택을 Docker Compose로 실행 |
+| **app-only** | Gateway와 Risk Signal Service 중심 application 개발 환경 |
+| **full-stack dynamic** | Linux/NVIDIA vLLM runtime, Runtime Controller와 observability를 포함한 managed serving |
+| **static main** | 외부/native Main runtime endpoint와 Gateway를 연결하는 serving |
 
-실행 방법과 readiness 기준은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 다룬다.
+세부 lifecycle과 target별 명령은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
 
-### 배포 경계
+### 제공 기능은 target capability를 따른다
 
-운영 권장 topology인 `EXPOSURE_MODE=private_network`에서는 Gateway와 Grafana를 host에 publish하고, model runtime과 운영 backend는 Compose network 내부에 둔다.
+Chat은 현재 세 deployment target 모두 제공한다.
+Embedding, Retrieval, Risk, Runtime Control, Main Model switching, GPU admission은
+현재 `linux-nvidia-dynamic` target에서 제공한다.
 
-```text
-Host Published
-  ├─ Gateway
-  └─ Grafana
+이 차이는 target의 구현 누락을 추측하는 표시가 아니라 선언된 product capability다.
+Console과 Gateway는 같은 target contract에서 기능 집합을 투영한다.
 
-Compose Internal
-  ├─ Runtime Controller
-  ├─ Risk Signal Service
-  ├─ Main vLLM
-  ├─ Embedding vLLM
-  ├─ Embedding-KO vLLM
-  ├─ Prompt Guard vLLM
-  ├─ Prometheus
-  ├─ Loki
-  ├─ Alloy
-  ├─ DCGM Exporter
-  └─ cAdvisor
-```
+### 네트워크와 관측
 
-애플리케이션의 모델 기능은 Gateway API를 기준 인터페이스로 사용한다.
+`linux-nvidia-dynamic`의 `private_network` exposure에서는 Gateway와 Grafana를 host에 publish하고,
+model runtime과 운영 backend는 Compose network 내부에 둔다.
+
+static target은 `configs/deployment_targets.yaml`이 지정한 별도 Compose/native lifecycle을 사용한다.
+특히 `macos-metal-static`은 native MLX-VLM runtime과 Gateway/Prometheus/Grafana/Loki/Alloy 경로를 조합하며,
+NVIDIA GPU 전용 관측을 지원한다고 가장하지 않는다.
+
+애플리케이션의 모델 기능은 항상 Gateway API를 기준 인터페이스로 사용한다.
 
 ## 다음 문서
 
 - [2. 요청 처리 흐름](./02_request_flow.md)
 - [3. 시스템 구성](./03_system_components.md)
 - [4. 실행 환경과 모드](./04_runtime_modes.md)
+- [5. 설정 체계와 Source of Truth](./05_configuration.md)
+- [11. 관측성과 장애 대응](./11_observability.md)

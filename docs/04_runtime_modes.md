@@ -142,7 +142,7 @@ app-only는 다음 작업에 적합하다.
 - OpenAPI / schema 개발
 - mock 또는 별도 upstream을 이용한 application 테스트
 
-실제 model loading, GPU resource, vLLM inference, Main Model lifecycle 검증은 full-stack에서 수행한다.
+실제 model loading과 inference, target별 resource/lifecycle 검증은 선택한 deployment target에서 수행한다. Linux/NVIDIA managed runtime의 GPU resource와 Runtime Controller 동작은 full-stack에서 검증하고, macOS/Metal static target의 MLX-VLM runtime은 native lifecycle과 static Gateway 경로에서 검증한다.
 
 app-only 환경은 `.env.local.example`을 기반으로 생성하며 localhost endpoint를 사용한다.
 
