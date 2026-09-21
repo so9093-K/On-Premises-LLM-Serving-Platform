@@ -291,7 +291,7 @@ Compose Network
 숫자가 다른 service network namespace에서 반복될 수 있다. 실제 배정의 기준은
 `configs/services.yaml`이며, 빈 번호 때문에 기존 서비스를 다시 번호 매기지 않는다.
 
-`master_open`은 model runtime과 운영 endpoint에 직접 접근해야 하는 진단 환경에서 사용한다. 실제 접근 범위는 `EXPOSURE_AUDIENCE`와 네트워크 정책으로 제한한다.
+`master_open`은 model runtime과 운영 endpoint에 직접 접근해야 하는 진단 환경에서 사용한다. 실제 접근 범위는 `EXPOSURE_AUDIENCE`와 네트워크 정책으로 제한한다. 이 mode에서는 호출자가 Gateway request validation을 우회해 upstream runtime API에 직접 접근할 수 있으므로 untrusted network의 일반 제공 경로로 사용하지 않는다. 현재 vLLM advisory와 Gateway/direct runtime 경계는 [vLLM 보안 노출 경계](./reference/vllm_security_posture.md)를 따른다.
 
 ### Effective Compose 구성
 
