@@ -8,6 +8,7 @@ import {
   fetchRuntimeOperation,
   fetchRuntimes,
   planRuntimeTransition,
+  type RuntimeListResponse,
   type RuntimeOperationResponse,
   type RuntimePlanResponse,
 } from './api';
@@ -19,6 +20,27 @@ import {
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 
 type DesiredState = 'active' | 'stopped';
+type RuntimeTopologyItem = NonNullable<RuntimeListResponse['topology']>[number];
+
+function runtimeDisplayName(serviceKey: string): string {
+  const names: Record<string, string> = {
+    main_llm: 'Main Model',
+    embedding: 'Embedding',
+    embedding_ko: 'Korean Embedding',
+    prompt_injection_detector: 'Prompt Injection Detector',
+  };
+  return names[serviceKey] ?? serviceKey;
+}
+
+function topologyReason(item: RuntimeTopologyItem): string {
+  if (
+    item.reason_code === 'MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT'
+    && item.main_resource_variant
+  ) {
+    return `현재 Main resource policy ${item.main_resource_variant}와의 검토된 runtime composition constraint 때문에 effective topology에서 제외되었습니다. GPU 제품 자체의 지원 여부를 뜻하지 않습니다.`;
+  }
+  return '현재 effective topology에서 사용할 수 없습니다. GPU 제품 자체의 지원 여부를 뜻하지 않습니다.';
+}
 
 type RuntimePageProps = {
   token: string | null;
@@ -153,6 +175,9 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
   }
 
   const { runtimes, budget } = runtimesQuery.data;
+  const unavailableTopology = (runtimesQuery.data.topology ?? []).filter(
+    (item) => !item.available,
+  );
   const actionPending = planMutation.isPending || applyMutation.isPending;
 
   return (
@@ -183,6 +208,31 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
           Runtime 상태는 표시하지만 자원 영향은 변경 검토 결과를 기준으로 판단하세요.
         </Alert>
       )}
+
+      {unavailableTopology.length ? (
+        <Card>
+          <CardTitle>Unavailable runtimes</CardTitle>
+          <CardBody>
+            <p className="overview-muted">
+              선언에는 존재하지만 현재 effective topology에서는 제어·기동 대상에서 제외된 Runtime입니다.
+            </p>
+            {unavailableTopology.map((item) => (
+              <div className="impact-block" key={item.service_key}>
+                <p>
+                  <strong>{runtimeDisplayName(item.service_key)}</strong>{' '}
+                  <Label color="orange">Unavailable</Label>
+                </p>
+                <p>{topologyReason(item)}</p>
+                <dl className="facts compact-facts">
+                  <dt>Service key</dt><dd>{item.service_key}</dd>
+                  <dt>Capability</dt><dd>{item.features.join(', ') || '—'}</dd>
+                  <dt>Resource policy</dt><dd>{item.main_resource_variant ?? '—'}</dd>
+                </dl>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {actionError ? <Alert isInline variant="danger" title="Runtime operation을 완료하지 못했습니다.">{actionError}</Alert> : null}
 
