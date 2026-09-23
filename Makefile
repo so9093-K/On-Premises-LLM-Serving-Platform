@@ -13,11 +13,10 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help help-all setup build rebuild prepare up status down down-all check app-check init-env-local init-env-compose sync-env static-compose-config metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package compose-up compose-config ready-local ready-full smoke runtime-validate qualification-candidate qualification-promote qualification-status-promote perf-smoke perf-sweep perf-run perf-gate perf-promote perf-report auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare compose-down compose-restart compose-logs logs compose-diagnostics clean reset reset-version render-runtime-assets fetch-docs-assets console-build console-check
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate qualification-candidate qualification-promote qualification-status-promote perf-smoke perf-sweep perf-run perf-gate perf-promote perf-report auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev
 
-PUBLIC_TARGETS := setup build prepare up status down
-RECOVERY_TARGETS := rebuild down-all reset
+PUBLIC_TARGETS := up status down logs reset purge
 QUALITY_TARGETS := check
 PLATFORM_CLI := "$(CURDIR)/.venv/bin/python" scripts/platform_cli.py
 PLATFORM_TARGET_ARG = $(if $(TARGET),--target "$(TARGET)",)
@@ -26,31 +25,25 @@ PLATFORM_MAIN_URL_ARG = $(if $(MAIN_URL),--main-base-url "$(MAIN_URL)",)
 PLATFORM_ACCESS_ARG = $(if $(ACCESS),--access-profile "$(ACCESS)",)
 PLATFORM_ACCESS_CONFIRM_ARG = $(if $(filter access,$(CONFIRM)),--confirm-access,)
 
-setup: ## target과 접근 범위의 로컬 환경 준비 (TARGET=<id>, ACCESS 기본값 local)
-	"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime
-	$(PLATFORM_CLI) setup $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG)
+up: ## 필요한 준비를 수렴한 뒤 플랫폼을 사용 가능 상태로 만든다
+	@"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime
+	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG)
 
-build: ## 선택 target에서 이 저장소가 소유한 image 전체 빌드
-	$(PLATFORM_CLI) build $(PLATFORM_TARGET_ARG)
+status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
+	@if [[ ! -x "$(CURDIR)/.venv/bin/python" ]]; then echo "Platform UNCONFIGURED"; echo "First run: make up TARGET=<deployment-target>"; exit 1; fi
+	@$(PLATFORM_CLI) status $(PLATFORM_TARGET_ARG)
 
-rebuild: ## 선택 target의 project-owned image를 cache 재사용 없이 다시 빌드
-	$(PLATFORM_CLI) rebuild $(PLATFORM_TARGET_ARG)
+down: ## 이 checkout이 소유한 실행 리소스를 안전하게 정지한다
+	@if [[ -x "$(CURDIR)/.venv/bin/python" ]]; then $(PLATFORM_CLI) down $(PLATFORM_TARGET_ARG); else bash scripts/ops/down_all.sh; fi
 
-prepare: ## 선택 target의 선택 Main Model 준비 (non-main model 제외)
-	$(PLATFORM_CLI) prepare $(PLATFORM_TARGET_ARG)
+logs: ## 오류·readiness 이벤트 조회 (ALL=1, SERVICE=<id>, RAW=1, FOLLOW=1)
+	@"$(PYTHON)" scripts/ops/platform_logs.py $(if $(SERVICE),--service "$(SERVICE)",) $(if $(filter 1,$(RAW)),--raw,) $(if $(filter 1,$(ALL)),--all-events,) $(if $(filter 1,$(FOLLOW)),--follow,) $(if $(TAIL),--tail "$(TAIL)",)
 
-up: ## .env에 선택된 target 전체 기동 후 readiness 확인
-	$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG)
+reset: ## 로컬 설정·runtime state 초기화 plan (적용: CONFIRM=reset)
+	@bash scripts/ops/reset_all.sh $(if $(filter reset,$(CONFIRM)),--confirm reset,)
 
-down: ## .env에 선택된 target 전체 정지
-	$(PLATFORM_CLI) down $(PLATFORM_TARGET_ARG)
-
-down-all: ## .env와 무관하게 이 checkout이 소유한 모든 실행 리소스 정지
-	bash scripts/ops/down_all.sh
-
-reset: ## 프로젝트 로컬 상태 초기화 계획 출력 (적용: CONFIRM=reset)
-	bash scripts/ops/reset_all.sh $(if $(filter reset,$(CONFIRM)),--confirm reset,)
-
+purge: ## project cache/artifact 삭제 plan (SCOPE=cache|all, 적용: CONFIRM=purge)
+	@bash scripts/ops/purge_all.sh --scope "$(or $(SCOPE),all)" $(if $(filter purge,$(CONFIRM)),--confirm purge,)
 app-check: ## Python application·config·contract 검증
 	$(MAKE) validate
 	$(MAKE) test
@@ -68,42 +61,21 @@ doctor-dev: ## Python과 운영 스크립트용 Bash 확인
 help:
 	@echo "ai_model_serving_platform $(CURRENT_VERSION)"
 	@echo ""
-	@echo "로컬 lifecycle"
+	@echo "운영 lifecycle"
 	@for target in $(PUBLIC_TARGETS); do \
-		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
+		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\\n", $$1, $$2}' $(MAKEFILE_LIST); \
 	done
 	@echo ""
-	@echo "처음 한 번: make setup TARGET=<deployment-target> [ACCESS=local|private|edge]"
-	@echo "기본 순서: setup → build → prepare → up → status/down"
+	@echo "첫 실행: make up TARGET=<deployment-target> [ACCESS=local|private|edge]"
+	@echo "일상 운영: make up / make status / make logs / make down"
+	@echo "초기화: make reset   cache/전체 정리: make purge"
 	@echo ""
-	@echo "복구·초기화"
-	@for target in $(RECOVERY_TARGETS); do \
-		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
-	done
-	@echo ""
-	@echo "변경 검증"
+	@echo "개발 검증"
 	@for target in $(QUALITY_TARGETS); do \
-		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
+		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\\n", $$1, $$2}' $(MAKEFILE_LIST); \
 	done
-	@echo ""
-	@echo "고급·유지보수 명령: make help-all"
-
-help-all: ## 내부 단계와 운영 진단을 포함한 전체 명령
-	@echo "ai_model_serving_platform $(CURRENT_VERSION) — all commands"
-	@echo ""
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  make %-26s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local
-
-init-env-compose: ## compose용 .env 생성 (기존 .env가 있으면 실패)
-	$(PYTHON) scripts/config/setup_env.py --profile compose
-
-sync-env: ## .env 키 동기화 + repository-managed image digest 수렴
-	$(PYTHON) scripts/config/setup_env.py --sync-env --env-file "$(if $(ENV_FILE),$(ENV_FILE),.env)"
-
-static-compose-config: ## static Gateway의 분리된 Compose 정의 출력
-	bash scripts/compose/static_main_compose.sh config
 
 metal-doctor: ## Apple Silicon과 고정 MLX runtime 설정 확인
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py doctor
@@ -138,21 +110,6 @@ lock: ## Platform과 MLX dependency lock 갱신 (암묵적 전체 upgrade 없음
 
 package: ## 릴리스 ZIP 생성
 	bash scripts/build/package_release.sh
-
-compose-up: ## GPU full-stack compose 기동
-	bash scripts/compose/compose_up.sh
-
-compose-config: ## resolve된 compose 정의 출력
-	@bash scripts/compose/compose_config.sh
-
-ready-local: ## app-only readiness
-	bash scripts/ops/ready_local.sh
-
-ready-full: ## vLLM 포함 readiness
-	bash scripts/ops/ready_full.sh
-
-smoke: ## smoke test 실행
-	bash scripts/ops/smoke_test.sh
 
 runtime-validate: ## 실제 서비스·GPU 검증
 	$(PYTHON) scripts/validation/runtime_validation.py
@@ -223,31 +180,6 @@ exposure-apply: ## MODE=<mode> 노출 설정 적용
 main-model-prepare: ## PROFILE=<id> main-model 캐시 준비 (런타임 미변경)
 	@if [[ -z "$(PROFILE)" ]]; then echo "PROFILE=<main-model-profile-id>를 지정하세요" >&2; exit 2; fi
 	$(PYTHON) scripts/models/prepare_main_model_cache.py --profile "$(PROFILE)" --env-file "$${ENV_FILE:-.env}" --compose-file "$${COMPOSE_FILE:-ops/compose/full-stack.private-network.yaml}"
-
-status: ## .env에 선택된 target의 runtime·서비스 상태 확인
-	$(PLATFORM_CLI) status $(PLATFORM_TARGET_ARG)
-
-compose-down: ## compose 스택 정지
-	bash scripts/ops/down_services.sh --compose
-
-compose-restart: ## compose 스택 재시작
-	bash scripts/compose/compose_restart.sh
-
-compose-logs: ## compose 로그
-	bash scripts/compose/compose_logs.sh
-
-compose-diagnostics: ## ready-full 실패 시 상태·로그 수집
-	bash scripts/compose/compose_diagnostics.sh
-
-logs: ## 로컬 app 로그 tail (app-only make up 이후)
-	@if ! ls logs/*.log >/dev/null 2>&1; then \
-		echo "logs/ 에 로그 파일이 없습니다. app-only 환경에서 'make up'을 먼저 실행하세요." >&2; \
-		exit 2; \
-	fi
-	@tail -n 100 -f logs/*.log
-
-clean: ## 저비용 산출물 정리 (DRY_RUN=1, LOGS=1)
-	bash scripts/ops/clean_project.sh $(if $(filter 1,$(DRY_RUN)),--dry-run,) $(if $(filter 1,$(LOGS)),--logs,)
 
 reset-version: ## NEW_VERSION=<x.y.z> 버전을 선언된 모든 자리에 반영
 	@if [[ -z "$(NEW_VERSION)" ]]; then echo "Usage: make reset-version NEW_VERSION=0.1.0"; exit 2; fi

@@ -92,7 +92,7 @@ def load_runtime_controller_config(
     if internal_service_auth_required and is_default_secret(internal_service_token):
         raise RuntimeError(
             "INTERNAL_SERVICE_TOKEN must be set to a non-default value when "
-            "INTERNAL_SERVICE_AUTH_REQUIRED=true. Run `make init-env-compose` to generate one."
+            "INTERNAL_SERVICE_AUTH_REQUIRED=true. Initialize with `make up TARGET=<deployment-target>` or set a non-default token in the existing .env."
         )
     return RuntimeControllerConfig(
         docker_socket=environment.get("DOCKER_SOCKET", "/var/run/docker.sock"),

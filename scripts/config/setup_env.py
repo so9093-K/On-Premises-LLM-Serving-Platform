@@ -693,7 +693,7 @@ def build_parser() -> KoreanArgumentParser:
     parser.add_argument(
         "--access-profile",
         choices=ACCESS_PROFILE_CHOICES,
-        help="사용자 접근 의도입니다. 최초 setup 기본값은 local입니다. (local|private|edge)",
+        help="사용자 접근 의도입니다. 최초 make up 기본값은 local입니다. (local|private|edge)",
     )
     parser.add_argument(
         "--confirm-access",
@@ -778,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     if out_path.exists() and not args.force:
         print(f"기존 파일을 덮어쓰지 않습니다: {out_path}. 교체하려면 --force를 사용하세요.", file=sys.stderr)
-        print("기존 .env를 유지하면서 Prometheus secret만 복구하려면 `make compose-up`을 실행하세요.", file=sys.stderr)
+        print("full-stack lifecycle은 `make up`으로 기존 .env를 동기화합니다. secret만 복구하는 maintainer 작업은 `--sync-runtime-secrets`를 사용하세요.", file=sys.stderr)
         return 2
     try:
         lines, base_values = effective_profile_template(args.profile)

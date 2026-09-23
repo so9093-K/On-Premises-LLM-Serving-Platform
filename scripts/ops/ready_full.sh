@@ -135,7 +135,7 @@ wait_for_gateway_ready() {
 
     if (( now >= deadline )); then
       rm -f "$tmp"
-      echo "[ready-full] gateway /ready: ${READY_FULL_TIMEOUT_SECONDS}s timeout — 로그를 확인하세요: COMPOSE_FILE=${COMPOSE_FILE} ENV_FILE=${ENV_FILE} make compose-logs" >&2
+      echo "[ready-full] gateway /ready: ${READY_FULL_TIMEOUT_SECONDS}s timeout — 로그를 확인하세요: make logs RAW=1" >&2
       return 1
     fi
 

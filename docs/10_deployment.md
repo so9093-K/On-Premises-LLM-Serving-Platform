@@ -6,13 +6,11 @@ target-aware local lifecycle을 실행해 선언된 구성과 실제 Runtime을 
 ```text
 Repository / Published Images
           ↓
-make setup
+make up TARGET=<deployment-target>
           ↓
-make build
+configuration / image / model cache convergence
           ↓
-make prepare
-          ↓
-make up
+runtime startup + target readiness\n          ↓\nmanaged dynamic: representative smoke
           ↓
 make status
           ↓
@@ -31,9 +29,9 @@ Repository가 소유하는 canonical lifecycle은 다음 명령이다.
 
 | 단계 | 명령 | 책임 |
 |---|---|---|
-| 환경 준비 | `make setup TARGET=<id>` | target·access profile·persistent `.env` 수렴 |
-| image 준비 | `make build` | repository-owned Platform / Unified vLLM image 준비 |
-| model 준비 | `make prepare` | 선택 Main Model의 cache/input 준비 |
+| 초기화 + 수렴 | `make up TARGET=<id>` | target·access profile·persistent `.env`, 필요한 image/model cache와 runtime, target-appropriate serving gate 수렴 |
+
+
 | 기동 | `make up` | target topology 기동과 readiness |
 | 상태 확인 | `make status` | Runtime·Gateway·target 상태 확인 |
 | 종료 | `make down` | 선택 target의 실행 리소스 종료 |
@@ -60,14 +58,11 @@ Linux/NVIDIA target의 host에는 최소 다음이 준비되어 있어야 한다
 최초 실행은 다음 순서로 진행한다.
 
 ```bash
-make setup TARGET=linux-nvidia-dynamic
-make build
-make prepare
-make up
+HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic
 make status
 ```
 
-기본 access profile은 local이다. 다른 접근 의도가 필요하면 `make setup ACCESS=...`의
+기본 access profile은 local이다. 다른 접근 의도가 필요하면 `make up ACCESS=...`의
 plan/confirm 흐름을 사용한다.
 
 ---
@@ -77,7 +72,7 @@ plan/confirm 흐름을 사용한다.
 Project-owned image는 local lifecycle이 직접 build할 수 있다.
 
 ```bash
-make build
+make up
 ```
 
 현재 `.env`의 `PLATFORM_IMAGE` 또는 `VLLM_IMAGE`가 registry digest
@@ -95,13 +90,14 @@ Image를 publish하는 절차와 Runtime을 적용하는 절차는 분리한다.
 
 ## 10.4 환경 설정과 migration
 
-Persistent `.env`는 `make setup`과 `make sync-env`가 관리한다.
+Persistent `.env`의 정상 lifecycle ownership은 `make up`에 있다. 기존 host의 key
+migration만 분리해서 진단하는 maintainer 작업은 다음 implementation mode를 직접 사용할 수 있다.
 
 ```bash
-make sync-env
+python scripts/config/setup_env.py --sync-env --env-file .env
 ```
 
-`sync-env`는:
+configuration sync는:
 
 - 새 canonical key 추가
 - 등록된 rename migration 적용
@@ -124,7 +120,7 @@ Full-stack compose 기동 시 처음부터 활성화할 non-main Runtime 조합�
 기본값은 `main_only`이며, Retrieval Runtime도 초기 기동해야 하면 다음처럼 명시한다.
 
 ```bash
-RUNTIME_STARTUP_PROFILE=retrieval_ready make compose-up
+RUNTIME_STARTUP_PROFILE=retrieval_ready make up
 ```
 
 Startup Profile은 **초기 desired state**만 결정한다. `compose-up`은 이를
@@ -155,13 +151,13 @@ Model cache prepare
       ↓
 effective services start
       ↓
-make ready-full
+make up
 ```
 
-`make ready-full`은 Gateway health/readiness와 대표 inference 경로를 확인한다. 실패하면:
+`make up`은 target-appropriate serving gate를 완료 조건으로 확인한다. managed dynamic target은 strict readiness와 대표 inference 경로를, static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 실패하면 terminal에는 요약과 evidence 경로가 남으며, 기본 후속 확인은:
 
 ```bash
-make compose-diagnostics
+make logs
 ```
 
 로 컨테이너·Runtime 상태와 로그를 확인한다.
@@ -176,9 +172,6 @@ make compose-diagnostics
 
 ```bash
 git checkout <reviewed revision>
-make setup TARGET=<same-target>
-make build
-make prepare
 make up
 make status
 ```
@@ -186,7 +179,7 @@ make status
 이다.
 
 이미 immutable registry image를 사용하고 source 변경이 image rebuild를 요구하지 않는 경우
-`make build`은 외부 digest를 보존한다.
+`make up`은 외부 digest를 보존한다.
 
 Main Model 변경은 가능하면 전체 stack 재배포 대신 Main Model Control의 Plan/Apply/Verify
 경로를 사용한다. Model Runtime 상태 변경도 Runtime Controller를 사용한다.
@@ -247,7 +240,7 @@ external transport
       ↓
 host checkout / package
       ↓
-make setup / build / prepare / up / status
+make up / status
 ```
 
 다만 repository는 SSH credential, source 전송, release symlink, rolling/full mode,

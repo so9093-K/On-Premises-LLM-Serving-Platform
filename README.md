@@ -30,9 +30,11 @@ Gateway를 중심으로 Model Runtime, Risk Signal Service, Runtime Controller�
 
 ### 로컬 플랫폼 실행
 
-처음 한 번 실행 target을 선택한다. `setup`이 application 환경과 target별 `.env`를
-생성하므로 template을 복사하거나 Mac endpoint를 직접 조립하지 않는다.
-공통으로 Git, Python `>=3.12,<3.14`와 `pyproject.toml`에 고정된 uv가 필요하다.
+운영자는 내부 build·cache·Compose 단계를 조립하지 않는다. 첫 실행에서 target과 접근
+범위만 선택하면 `make up`이 필요한 Python environment, persistent configuration,
+project-owned image, Main Model cache와 service startup을 수렴시킨다. managed dynamic target은
+strict readiness와 representative smoke까지, static target은 외부 Main dependency를 포함한
+Gateway readiness까지 완료 조건으로 확인한다.
 
 | Target | 요구사항 |
 |---|---|
@@ -40,50 +42,64 @@ Gateway를 중심으로 Model Runtime, Risk Signal Service, Runtime Controller�
 | `linux-nvidia-dynamic` | Linux amd64, NVIDIA GPU/driver/Container Toolkit, Docker, Bash 4+ |
 | `linux-nvidia-static` | Linux amd64, Docker, 외부 OpenAI-compatible Main endpoint (`MAIN_URL=...`) |
 
+첫 실행:
+
 ```bash
-make setup TARGET=macos-metal-static ACCESS=local
-make build
-HF_TOKEN=hf_xxx make prepare
-make up
-make status
+make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-Linux/NVIDIA에서는 첫 명령의 target만 바꾼다.
+gated Hugging Face model에 token이 필요하면 같은 명령에 process environment로 전달한다.
 
 ```bash
-make setup TARGET=linux-nvidia-dynamic ACCESS=local
-make build
-HF_TOKEN=hf_xxx make prepare
-make up
-make status
+HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-`build`는 선택 target에서 이 저장소가 소유한 image만 만들고, `prepare`는 선택된 Main
-Model만 받는다. Main Model 외 모델을 전부 다운로드하지 않으며, 이미 준비된 환경의 일반
-기동에서는 둘 다 반복하지 않는다. 이후 명령은 `.env`의 target을 사용하므로 `TARGET`을 반복하지 않는다.
-Main profile을 처음부터 바꾸려면 `make setup TARGET=... MODEL=...`로 지정한다.
-허용 profile은 각 target이 가리키는 `configs/main_model_profiles.yaml` 또는
-`configs/macos_mlx_runtime.yaml`이 소유한다.
-
-`ACCESS`는 접속 위치만 표현한다. `local`은 loopback, `private`은 LAN/VPN에서
-Gateway 인증, `edge`는 같은 host의 TLS proxy 뒤 Gateway를 뜻한다. 기존 `.env`는
-자동 변경하지 않으며 profile을 전환할 때 먼저 계획을 보여준다. 확인한 계획은
-`CONFIRM=access`를 함께 지정해 적용한다.
-
-종료:
+Apple Silicon에서는 target만 바꾼다.
 
 ```bash
+make up TARGET=macos-metal-static ACCESS=local
+```
+
+이후에는 `.env`가 target을 기억하므로 정상 재기동은 다음 한 명령이다.
+
+```bash
+make up
+```
+
+Main profile을 처음부터 바꾸려면 첫 `make up`에 `MODEL=<profile-id>`를 전달한다.
+`ACCESS=local|private|edge`는 접속 의도만 표현한다. 기존 `.env`에서 access profile을
+바꾸는 경우 첫 실행은 변경 계획만 표시하며, 검토 후 같은 `make up`에
+`CONFIRM=access`를 추가해 적용한다.
+
+일상 운영:
+
+```bash
+make status
+make logs
 make down
 ```
 
-세부 build·runtime 명령은 장애 진단이나 artifact 유지보수 때만 `make help-all`에서
-확인한다.
+`make logs`는 기본적으로 오류와 readiness event만 보여준다. 정상 요청까지 보려면
+`ALL=1`, 특정 runtime/service의 원본 로그가 필요하면 `SERVICE=<id>` 또는 `RAW=1`,
+실시간 tail은 `FOLLOW=1`을 사용한다.
 
-### 애플리케이션만 실행
+초기화와 삭제는 비용 경계를 분리한다.
 
-Gateway와 Risk Signal Service를 로컬 Python 프로세스로 실행한다. Python `>=3.12,<3.14`와
-uv가 필요하며 Docker와 GPU는 필요하지 않다. `setup-dev`는 `uv.lock`에서
-`.venv`를 동기화하고 runtime 설정과 실행 중인 서비스를 변경하지 않는다.
+```bash
+make reset                         # plan only
+make reset CONFIRM=reset           # 설정/runtime state 초기화, image/model cache 보존
+make purge SCOPE=cache             # plan only
+make purge SCOPE=cache CONFIRM=purge
+make purge SCOPE=all CONFIRM=purge # project-owned 재생성 자원 + local state 제거
+```
+
+`purge`도 global Hugging Face cache, daemon-wide BuildKit cache와 다른 프로젝트 Docker
+resource는 제거하지 않는다.
+
+### 애플리케이션 개발
+
+Gateway와 Risk Signal Service만 개발할 때는 Docker/GPU 없이 development environment를
+준비하고 deterministic check를 실행할 수 있다.
 
 ```bash
 make setup-dev
@@ -91,17 +107,17 @@ make app-check
 make init-env-local
 make up
 make status
-```
-
-환경별 Python·Bash 준비와 진단 방법은 [로컬 개발과 빌드](docs/07_local_dev_build.md)에서 설명한다.
-
-종료:
-
-```bash
 make down
 ```
 
-실행 구조와 네트워크 공개 방식은 [실행 환경과 모드](docs/04_runtime_modes.md), 설정 항목은 [설정 체계](docs/05_configuration.md)에서 확인한다. 다른 Main Model과 Embedding/Risk Model Runtime 운영은 [모델 운영](docs/06_model_operations.md), Release package 적용은 [배포](docs/10_deployment.md)에서 다룬다.
+개발/CI용 image build, qualification과 live runtime validation은 operator lifecycle과
+별도 책임이다. 자세한 범위는 [로컬 개발과 빌드](docs/07_local_dev_build.md)와
+[테스트와 검증](docs/08_testing_validation.md)에서 설명한다.
+
+실행 구조와 네트워크 공개 방식은 [실행 환경과 모드](docs/04_runtime_modes.md), 설정 항목은
+[설정 체계](docs/05_configuration.md)에서 확인한다. 다른 Main Model과 Embedding/Risk Model
+Runtime 운영은 [모델 운영](docs/06_model_operations.md), Release package 적용은
+[배포](docs/10_deployment.md)에서 다룬다.
 
 ---
 
@@ -174,18 +190,20 @@ digest로 배포한다. 로컬 image는 변경 중인 코드를 확인하는 개
 
 | 목적 | 명령 |
 |---|---|
-| 최초 target 환경 준비 | `make setup TARGET=<id> [ACCESS=local\|private\|edge]` (기본 `local`) |
-| target image 빌드 | `make build` (`make rebuild`는 cache 재사용 없이 재빌드) |
-| 선택 Main Model 준비 | `HF_TOKEN=... make prepare` |
-| 전체 시작 / 종료 | `make up` / `make down` |
-| checkout 전체 종료 | `make down-all` |
-| 프로젝트 로컬 상태 초기화 계획 | `make reset` |
-| 통합 상태 확인 | `make status` |
+| 최초 초기화 + 시작 | `make up TARGET=<id> [ACCESS=local|private|edge]` |
+| 이후 시작/수렴 | `make up` |
+| 현재 상태 | `make status` |
+| 중요한 운영 이벤트 | `make logs` |
+| 전체 structured request event | `make logs ALL=1` |
+| 특정 service/raw 로그 | `make logs SERVICE=<id>` / `make logs RAW=1` |
+| 실행 리소스 정지 | `make down` |
+| local state 초기화 | `make reset` → `make reset CONFIRM=reset` |
+| project cache/artifact 폐기 | `make purge SCOPE=cache|all` → `CONFIRM=purge` |
 | Application 변경 검증 | `make app-check` |
 | 저장소 전체 변경 검증 | `make check` |
-| 고급·유지보수 명령 | `make help-all` |
 
-개발 환경과 이미지 빌드는 [로컬 개발과 빌드](docs/07_local_dev_build.md), 검증 항목은 [테스트와 검증](docs/08_testing_validation.md)에서 설명한다.
+정상 운영자는 첫 아홉 항목의 lifecycle만 알면 된다. 내부 readiness, smoke, Compose
+orchestration과 artifact build script는 이 public surface의 구현 계층이다.
 
 ---
 

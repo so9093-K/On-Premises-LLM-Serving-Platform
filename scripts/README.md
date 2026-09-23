@@ -6,20 +6,23 @@
 
 ## 기본 흐름
 
+정상 운영자는 내부 script를 조립하지 않는다.
+
 ```bash
-make setup TARGET=macos-metal-static   # 또는 linux-nvidia-dynamic
-make build
-HF_TOKEN=hf_xxx make prepare
-make up
+make up TARGET=linux-nvidia-dynamic ACCESS=local  # 최초 1회
 make status
+make logs
 make down
 ```
 
-개별 script와 `make help-all`의 세부 명령은 장애 진단과 release artifact
-유지보수와 변경 범위별 검증에 사용한다. 일반 실행자가 아래 단계를 직접
-조립하는 것은 기본 UX가 아니다.
+이후 재기동은 `make up`만 사용한다. project-local state 초기화는 `make reset`,
+비싼 project-owned image/model cache와 volume까지 폐기할 때만 `make purge`를 사용한다.
 
-로컬에서 Gateway와 Risk Signal Service만 확인하는 app-only 개발 흐름은 다음과 같다.
+이 디렉터리의 세부 script는 public command의 구현, 장애 evidence 수집, release/qualification,
+변경 범위별 검증을 위해 존재한다. script가 존재한다는 이유만으로 operator command를
+추가하지 않는다.
+
+app-only 개발 흐름은 다음과 같다.
 
 ```bash
 make setup-dev
@@ -51,7 +54,7 @@ make down
 
 | 파일 | 용도 |
 |---|---|
-| `platform_cli.py` | `setup/build/rebuild/prepare/up/status/down`을 target-aware lifecycle로 조합하고 기존 세부 script에 위임한다. |
+| `platform_cli.py` | `up/status/down`의 target-aware operator lifecycle을 소유하고 setup/build/cache/readiness 세부 단계를 implementation script에 위임한다. |
 | `build/setup_dev.py` | Platform `uv.lock`에서 개발용 `.venv`를 동기화한다. 기존 환경이 손상됐거나 Python minor가 다르면 자동 삭제하지 않는다. |
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
 | `build/build_platform_image.sh` | Platform Dockerfile build·image import smoke 경로다. source revision/state와 target platform을 image label 및 로그에 남긴다. |
@@ -81,22 +84,23 @@ make down
 
 ## 운영 주의사항
 
-- `make init-env-compose`는 기존 `.env`가 있으면 실패하고 보존한다.
-- `.runtime/prometheus/admin_api_key`만 사라졌거나 손상되었다면 `.env`를 다시 만들지 말고 `make compose-up`을 실행한다. Compose 기동 전 이 파일을 자동 복구한다. 이 파일은 Prometheus Compose secret source이므로 일반 파일이어야 하며, non-root Prometheus image가 읽을 수 있도록 파일은 `0644`로 생성한다. Host에서는 source directory `.runtime/prometheus`를 `0700`으로 고정해 다른 사용자의 path 접근을 막는다.
 - app-only `.env`의 `make up`은 vLLM을 시작하지 않고 Gateway/Risk Signal Service만 실행한다.
-- app-only 확인은 `make ready-local`, strict full-stack 확인은 `make ready-full`을 사용한다.
-- full-stack 기동인 `make compose-up`에는 Docker/GPU/포트/secret preflight가 포함된다.
-- `make compose-up`은 `configs/deploy_profiles.yaml`의 기본 `main_only`를 적용해 Main만 시작한다. Retrieval runtime도 처음부터 필요하면 `RUNTIME_STARTUP_PROFILE=retrieval_ready make compose-up`을 명시한다.
-- 라이브 검증은 `make runtime-validate`, 실행 전 정적 검증은 `make validate`로 수행한다.
-- 저비용 정리 대상은 `make clean DRY_RUN=1`으로 확인한다. project-local 초기화는 `make reset`이 plan만 출력한다.
-
-- `.runtime/`은 정상적인 로컬 runtime state다. `make clean`은 보존하고 확인된 `make reset CONFIRM=reset`만 제거한다. 테스트와 패키징 정책은 `.runtime`의 로컬 존재가 아니라 release/source ZIP 포함 여부를 검사해야 한다.
-- `package_release.sh`는 `.runtime`, `.venv`, `venv`, `env`, `.tox`, logs, run, cache, pycache, egg-info를 제외한다.
+- full-stack `make up`은 Docker/GPU/port/secret preflight와 strict readiness/smoke를 내부적으로 수행한다.
+- 기본 Runtime Startup Profile은 `main_only`다. Retrieval runtime도 처음부터 필요하면
+  `RUNTIME_STARTUP_PROFILE=retrieval_ready make up`을 사용한다.
+- `.runtime/prometheus/admin_api_key`가 사라져도 `.env`를 다시 만들지 않는다. 다음
+  `make up`이 runtime secret을 복구한다.
+- live qualification용 상세 runtime 검증은 developer/maintainer command
+  `make runtime-validate`가 소유하며 정상 기동 확인을 위해 별도로 실행하지 않는다.
+- 저비용 repository build/test artifact만 직접 정리해야 하는 maintainer 작업은
+  `scripts/ops/clean_project.sh --dry-run`으로 범위를 확인한다. 일반 사용자는
+  `reset` 또는 `purge`의 명확한 파괴 범위를 사용한다.
+- `.runtime/`은 정상 local runtime state이며 release/source package에 포함되지 않는다.
 
 ## Full-stack 진단
 
 - `validate_vllm_compose.py`: compose vLLM command와 model serving/catalog/card 정책 정합성을 검증한다. Embedding pooling token budget 오류와 risk detector quantization drift를 사전에 막는다.
-- `compose_diagnostics.sh`: `make ready-full` 실패 시 docker compose 상태와 주요 서비스 로그를 수집하고, 알려진 vLLM 장애 패턴을 요약한다.
+- `compose_diagnostics.sh`: `make up`의 strict readiness 실패 시 service별 raw evidence를 `.runtime/diagnostics/`에 저장하고 terminal에는 알려진 원인과 비정상 service만 요약한다.
 - `check_hf_model_config.py`: weight load 이전 HF config 문제를 분리하는 내부 helper다. 호스트 Platform 환경에 Transformers를 중복 설치하지 않고 `check_risk_vllm_image_config.sh`가 고정 vLLM image 안에서 실행한다.
 - `prepare_main_model_cache.py`: allowlisted main-model profile의 고정 revision 전체 snapshot을 공용 HF cache에 준비하고 local-only로 재검증한다. `make main-model-prepare PROFILE=<id>`로 실행하며 active runtime은 변경하지 않는다.
 - `render_main_model_boot_override.py`: locked/configured/persisted profile 우선순위를 검증해 일회성 Compose boot projection을 원자적으로 생성한다. 공식 로컬·CI 실행 경로는 임시 파일을 사용하고 종료 시 삭제한다.
@@ -105,11 +109,15 @@ Risk detector의 `bitsandbytes` 설정은 운영 기본값이다. 원인 분리�
 
 ## Unified vLLM 이미지와 Kanana patch 점검
 
-- `make build`: 선택 target에서 이 저장소가 소유한 image만 만들며 모델 다운로드·검증·기동을 섞지 않는다.
-- `make rebuild`: project-owned image를 Docker cache 재사용 없이 다시 만든다. 기존 BuildKit cache는 삭제하지 않는다.
-- `make build-vllm-unified-image`: `configs/vllm_unified_build.yaml`이 지정한 native Docker target에서 26B/12B/embedding/embedding-ko/risk-prompt 공용 image를 빌드하는 고급/수동 target이다.
-- `make up`의 full-stack preflight는 `RISK_VLLM_IMAGE` 안의 label, metadata, Kanana risk model config load를 확인한다.
-- `SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK=1 make compose-up`: image-internal config check만 건너뛴다. production 승격용으로 쓰지 않는다.
+- 정상 target 기동은 `make up`이 필요한 local Platform/Unified image를 Docker cache를
+  사용해 수렴시킨다.
+- Unified vLLM image 자체를 개발·qualification 목적으로 직접 빌드할 때는
+  `make build-vllm-unified-image`를 사용한다.
+- cache 없이 재현해야 하는 maintainer 검증은
+  `PROJECT_BUILD_NO_CACHE=1 bash scripts/build/build_vllm_unified_image.sh`처럼
+  implementation layer에서 명시적으로 수행한다.
+- full-stack preflight는 active image의 label, metadata와 model config load를 검증한다.
+  해당 검사 우회는 production promotion 계약이 아니다.
 
 ## 인증 제어 플레인 점검
 

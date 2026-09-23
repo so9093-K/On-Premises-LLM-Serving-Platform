@@ -29,7 +29,7 @@
 | Implementation Status | Deployment Target이 실행 가능한 구현 상태인지 나타내는 상태. | `implementation_status` |
 | Qualification | 특정 Main Model 또는 Deployment Target의 실제 검증 근거가 충족됐는지 나타내는 상태. | `qualification.status`, `qualification_status` |
 | Readiness | 서비스와 필요한 Model Runtime이 실제 요청을 처리할 준비가 된 상태. | `/ready` |
-| Smoke Test | 대표 API 요청을 실제 실행해 주요 요청 경로를 확인하는 검증. | `make smoke` |
+| Smoke Test | 대표 API 요청을 실제 실행해 주요 요청 경로를 확인하는 내부 serving gate. | `scripts/ops/smoke_test.sh` |
 | Runtime Validation | GPU, serving engine, Model Runtime 등 실제 실행 환경을 확인하는 검증. | `make runtime-validate` |
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |
@@ -75,59 +75,33 @@
 
 ## C. 주요 명령
 
-### 일반 실행
+### Operator lifecycle
 
 | 목적 | 명령 | 관련 문서 |
 |---|---|---|
-| target·`.env` 최초 준비 | `make setup TARGET=<id> [ACCESS=local\|private\|edge]` (기본 `local`) | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| target image 빌드 | `make build` / `make rebuild` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| 선택 Main Model 준비 | `HF_TOKEN=... make prepare` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| target 시작 / 상태 / 종료 | `make up` / `make status` / `make down` | [4. 실행 환경과 모드](./04_runtime_modes.md) |
-| checkout 전체 종료 | `make down-all` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| 프로젝트 로컬 상태 초기화 plan / 적용 | `make reset` / `make reset CONFIRM=reset` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| application 변경 검증 | `make app-check` | [8. 테스트와 검증](./08_testing_validation.md) |
-| 저장소 전체 변경 검증 | `make check` | [8. 테스트와 검증](./08_testing_validation.md) |
-| 내부 빌드·진단 명령 조회 | `make help-all` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| 최초 초기화 + 시작 | `make up TARGET=<id> [ACCESS=local|private|edge]` | [4. 실행 환경과 모드](./04_runtime_modes.md) |
+| 이후 시작/수렴 | `make up` | [10. 배포](./10_deployment.md) |
+| 현재 상태 | `make status` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
+| 중요한 운영 이벤트 | `make logs` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
+| raw/service 로그 | `make logs RAW=1` / `make logs SERVICE=<id>` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
+| 실행 리소스 정지 | `make down` | [10. 배포](./10_deployment.md) |
+| local state 초기화 | `make reset` / `make reset CONFIRM=reset` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| project cache/artifact 폐기 | `make purge SCOPE=cache|all` / `CONFIRM=purge` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 
-### 검증과 테스트
-
-| 목적 | 명령 | 관련 문서 |
-|---|---|---|
-| 설정·계약 정적 검증 | `make validate` | [8. 테스트와 검증](./08_testing_validation.md) |
-| 자동화 테스트 | `make test` | [8. 테스트와 검증](./08_testing_validation.md) |
-| 대표 API 요청 확인 | `make smoke` | [8. 테스트와 검증](./08_testing_validation.md) |
-| GPU / vLLM Runtime 검증 | `make runtime-validate` | [8. 테스트와 검증](./08_testing_validation.md) |
-
-### 빌드와 패키징
+### 개발·검증
 
 | 목적 | 명령 | 관련 문서 |
 |---|---|---|
-| 선택 target image 전체 Build | `make build` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| 선택 target image cache 없는 Build | `make rebuild` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| Platform Image Build | `make build-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| Unified vLLM Image Build | `make build-vllm-unified-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| Application/config/contract 검증 | `make app-check` | [8. 테스트와 검증](./08_testing_validation.md) |
+| 저장소 전체 검증 | `make check` | [8. 테스트와 검증](./08_testing_validation.md) |
+| Platform Image 직접 Build | `make build-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| Unified vLLM Image 직접 Build | `make build-vllm-unified-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| GPU/vLLM qualification 검증 | `make runtime-validate` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Release ZIP 생성 | `make package` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 | Generated artifact 갱신 | `make render-runtime-assets` | [5. 설정 체계와 Source of Truth](./05_configuration.md) |
 
-### 모델 운영
-
-| 목적 | 명령 | 관련 문서 |
-|---|---|---|
-
-### 운영과 진단
-
-| 목적 | 명령 | 관련 문서 |
-|---|---|---|
-| 현재 상태 확인 | `make status` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
-| Compose 구성 확인 | `make compose-config` | [4. 실행 환경과 모드](./04_runtime_modes.md) |
-| Compose 상태·로그 진단 | `make compose-diagnostics` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
-| full-stack 로그 조회 | `make compose-logs` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
-| app-only 로그 조회 | `make logs` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
-| 인증 상태 확인 | `make auth-status` | [5. 설정 체계와 Source of Truth](./05_configuration.md) |
-| 인증 진단 | `make auth-doctor` | [12. 운영 관리 및 장애 대응](./12_operations.md) |
-| 서비스 노출 상태 확인 | `make exposure-status` | [4. 실행 환경과 모드](./04_runtime_modes.md) |
-
-전체 Make target은 `make help-all`에서 확인할 수 있다.
+Readiness, smoke, Compose config/diagnostics와 cheap clean은 public Make alias가 아니라
+`make up`의 내부 단계 또는 maintainer script다.
 
 ---
 

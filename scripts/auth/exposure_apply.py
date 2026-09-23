@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     write_env(lines, current, env_path)
     print(f"업데이트 완료: {env_path}")
     print("안내: 변경사항을 compose에 반영하려면 스택을 재기동하세요.")
-    print("  make compose-down && make compose-up")
+    print("  make down && make up")
     return 0
 
 

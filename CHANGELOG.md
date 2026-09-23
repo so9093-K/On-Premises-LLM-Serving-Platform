@@ -24,6 +24,25 @@
 
 ### Changed
 
+- Operator lifecycle을 intent 기반 `make up/status/down/logs/reset/purge`로 수렴했다. 첫
+  `make up TARGET=<id>`이 persistent configuration, 필요한 local image와 pinned Main
+  Model cache와 runtime startup을 내부적으로 수렴한다. managed dynamic target은 strict
+  readiness와 representative smoke까지, static target은 외부 Main dependency를 포함한
+  Gateway readiness까지 완료 조건으로 확인하며 이후 재기동은 `make up` 하나로 처리한다. 단계별 `setup/build/rebuild/prepare`,
+  `down-all`, `ready-*`, `smoke`, `compose-*`, `clean`, `help-all`, `init-env-compose`,
+  `sync-env`, `static-compose-config` Make alias는 public surface에서 제거했다. ([ADR-0039](docs/adr/0039-operator-intent-lifecycle-and-diagnostics.md))
+- 운영 로그는 raw firehose 대신 error/readiness structured event를 기본으로 보여준다.
+  `make logs ALL=1`은 전체 request event, `SERVICE=<id>`/`RAW=1`은 bounded raw evidence,
+  `FOLLOW=1`은 명시적 live tail을 제공한다. readiness failure의 full raw service log는
+  `.runtime/diagnostics/`에 보존하고 terminal에는 분류된 원인과 evidence 위치만 표시한다.
+- `make reset`은 local configuration/runtime state만 초기화하고 project-built image와
+  repository-local model cache를 보존한다. 새 `make purge SCOPE=cache|all`은 확인된
+  project-owned image/model cache/Compose volume까지 제거하되 global Hugging Face cache,
+  daemon-wide BuildKit cache와 unrelated Docker resource는 건드리지 않는다.
+- `LOG_LEVEL`이 실제 application logger severity threshold를 제어하도록 연결했다. 잘못된
+  level은 조용히 INFO로 대체하지 않고 configuration error로 실패한다.
+
+
 - Control Plane Overview가 현재 상태를 보여주는 데서 끝나지 않고 Main Model, Runtimes, Configuration, Activity와 기존 Scalar/Grafana surface로 다음 행동을 직접 연결한다. Deployment Target 카드에는 runtime backend뿐 아니라 lifecycle owner와 control mode를 함께 표시해 static target의 누락된 메뉴를 기능 부족이 아니라 외부/native lifecycle ownership으로 설명한다. Console은 API playground나 time-series/log explorer를 새로 만들지 않는다.
 
 - Chat Completions와 Responses request event가 admission에 이미 사용한 Main Model control snapshot에서 `main_model_profile`과 explicit override인 경우의 `main_resource_variant`를 보존한다. 추가 Runtime Controller 조회 없이 개별 request를 active profile/resource policy와 연결할 수 있으며, reference policy는 합성값 없이 resource-variant 필드를 생략한다. GPU product/UUID나 qualification provenance는 request log에 추가하지 않는다.

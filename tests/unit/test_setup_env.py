@@ -197,9 +197,10 @@ def test_platform_setup_stops_cleanly_after_access_plan(tmp_path, monkeypatch, c
         platform_cli.TARGETS_PATH, 'linux-nvidia-dynamic'
     )
 
-    platform_cli.setup_target(target, None, None, 'private', False)
+    configured = platform_cli.setup_target(target, None, None, 'private', False)
 
     output = capsys.readouterr().out
+    assert configured is False
     assert len(commands) == 1
     assert '[platform] access plan complete' in output
     assert '[platform] setup ready' not in output

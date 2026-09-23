@@ -39,7 +39,7 @@ embedding, embedding-ko, risk-prompt는 이 authority가 가리키는 검증된 
 
 `EMBEDDING_KO_VLLM_IMAGE`와 `RISK_VLLM_IMAGE`는 retired persistent key이며
 runtime 또는 local build의 override로 해석하지 않는다. 기존 `.env`에 남아 있으면
-`make sync-env`가 제거한다. Main Model profile이 명시적으로 다른 image를 선택해야 할 때는
+`python scripts/config/setup_env.py --sync-env --env-file .env`가 제거한다. Main Model profile이 명시적으로 다른 image를 선택해야 할 때는
 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`가 그 profile-specific override를 소유한다.
 
 Registry publish 결과를 운영에 사용할 때는 immutable `name@sha256:...` digest를
@@ -54,7 +54,7 @@ VLLM_BASE_IMAGE='vllm/vllm-openai@sha256:<digest>' make build-vllm-unified-image
 ```
 
 digest가 아닌 값(태그 등)은 빌드가 거부한다. 이 키는 `.env`에서 읽지 않으며
-`configs/env_contract.yaml`의 `removed_keys`에 등록되어 `make sync-env`가 제거한다 —
+`configs/env_contract.yaml`의 `removed_keys`에 등록되어 `python scripts/config/setup_env.py --sync-env --env-file .env`가 제거한다 —
 base를 영속 파일에 적어두면 값이 낡아도 아무도 모른 채 canonical digest를 계속
 덮어쓰기 때문이다.
 
@@ -70,5 +70,5 @@ back — 12B never goes live half-capable.
 > Migration: deployment-time `AUDIO_VLLM_IMAGE_TO_DEPLOY`와
 > `VLLM_UNIFIED_IMAGE_TO_DEPLOY` 입력은 remote release state machine 제거와 함께 active
 > contract에서 사라졌다. 기존 persistent `AUDIO_VLLM_IMAGE`만 값 손실 방지를 위해
-> migration 대상으로 남으며 `make sync-env`가
+> migration 대상으로 남으며 `python scripts/config/setup_env.py --sync-env --env-file .env`가
 > `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`로 이동한다.

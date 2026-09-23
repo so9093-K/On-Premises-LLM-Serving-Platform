@@ -356,11 +356,11 @@ Main Model profile의 `gpu_memory_utilization`과 GPU budget은 하나의 resour
 `configs/access_profiles.yaml`이 인증·노출·bind의 지원 조합을 resolve한다.
 
 ```bash
-make setup TARGET=<id> ACCESS=local
+make up TARGET=<id> ACCESS=local
 ```
 
-기존 `.env`에 profile을 적용할 때는 첫 실행이 계획만 표시한다. 확인 후
-`CONFIRM=access`를 지정한다. `ACCESS_PROFILE`이 없는 기존 환경은 자동 이관하지 않는다.
+기존 `.env`에 profile을 적용할 때는 `make up ACCESS=...`의 첫 실행이 계획만 표시한다. 확인 후
+같은 `make up`에 `CONFIRM=access`를 지정한다. `ACCESS_PROFILE`이 없는 기존 환경은 자동 이관하지 않는다.
 
 인증과 네트워크 노출 profile은 Advanced/legacy primitive로 계속 분리 관리한다.
 개별 `auth-apply` 또는 `exposure-apply`를 적용하면 `ACCESS_PROFILE`을 비워 managed
@@ -416,12 +416,12 @@ make exposure-apply MODE=<mode>
 example 파일은 실행 환경별 `.env`를 구성하기 위한 template으로 사용한다.
 Main Model operator env의 canonical namespace는 `MAIN_MODEL_*`이다. Runtime과 운영 도구는
 `MAIN_LLM_*`를 더 이상 읽지 않는다. 기존 persistent `.env` 값은
-`configs/env_contract.yaml`의 `renamed_keys`와 `make sync-env`가 canonical key로 한 번 이관한다.
+`configs/env_contract.yaml`의 `renamed_keys`와 configuration sync가 canonical key로 한 번 이관한다.
 Runtime Controller endpoint도 `RUNTIME_CONTROLLER_URL`만 실행 계약으로 사용하며,
 기존 `ADMIN_SIDECAR_URL`은 `sync-env` migration 입력으로만 인식된다.
 두 경로의 layout과 일반 기본값은 각 template이 소유한다. Compose image 기본값과 env key mapping은
 `configs/recommended_images.yaml`이 소유한다. Platform/vLLM project-built image는 operator/local build 값을
-보존하고, `immutable_upstream` third-party image는 최초 생성과 `sync-env`에서 같은 pinned digest로 수렴한다.
+보존하고, `immutable_upstream` third-party image는 최초 생성과 configuration sync에서 같은 pinned digest로 수렴한다.
 private mirror가 필요한 경우에는 명시적 process environment override를 사용할 수 있지만,
 persistent `.env`의 repository-managed upstream image projection은 canonical digest를 유지한다.
 
@@ -429,16 +429,17 @@ persistent `.env`의 repository-managed upstream image projection은 canonical d
 make init-env-local
 ```
 
-또는
+full-stack environment는 별도 init 명령 없이 첫 lifecycle에서 생성한다.
 
 ```bash
-make init-env-compose
+make up TARGET=<deployment-target>
 ```
 
-기존 `.env`의 누락 key를 현재 contract에 맞추려면 다음 명령을 사용한다.
+기존 `.env`의 migration/sync만 분리해서 확인해야 하는 maintainer 작업은 implementation
+script를 직접 사용한다.
 
 ```bash
-make sync-env
+python scripts/config/setup_env.py --sync-env --env-file .env
 ```
 
 ### Environment Contract
@@ -560,7 +561,7 @@ make validate
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
 ```bash
-make compose-config
+bash scripts/compose/compose_config.sh
 make exposure-status
 ```
 
@@ -578,9 +579,9 @@ make exposure-status
 | Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
 | Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
 | GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `make compose-config` |
+| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `bash scripts/compose/compose_config.sh` |
 | Exposure mode | `exposure_profiles.yaml` | host publish 범위 | `make validate`, exposure 적용, Compose 재적용 |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make setup ACCESS=...` |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make up ACCESS=...` |
 | Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
 | Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make sync-env`, `make validate` |
@@ -614,7 +615,7 @@ make exposure-status
 
 ```bash
 make validate
-make compose-config        # Compose 관련 변경 시
+bash scripts/compose/compose_config.sh        # Compose 관련 변경 시
 make exposure-status       # exposure/auth 관련 변경 시
 ```
 

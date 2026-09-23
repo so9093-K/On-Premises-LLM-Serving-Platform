@@ -35,7 +35,7 @@ def _git_commit() -> str:
 def _deployment_target() -> tuple[str, dict[str, Any]]:
     target_id = os.getenv("DEPLOYMENT_TARGET", "").strip()
     if not target_id:
-        raise RuntimeError("DEPLOYMENT_TARGET is not set; run `make setup` or export it")
+        raise RuntimeError("DEPLOYMENT_TARGET is not set; run `make up TARGET=<deployment-target>` or export it")
     document = load_yaml_mapping(_TARGETS)
     targets = document.get("targets", document)
     if target_id not in targets:

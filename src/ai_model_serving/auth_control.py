@@ -535,7 +535,7 @@ def render_auth_status(settings: AppSettings, project_root: Path, env_path: Path
             "",
             "안내",
             "  지정된 env 파일이 없어 기본 설정값으로 상태를 표시했습니다.",
-            "  실제 운영 전에는 `make init-env-local` 또는 `make init-env-compose`로 env를 생성한 뒤 다시 확인하세요.",
+            "  실제 운영 전에는 app-only 개발은 `make init-env-local`, full-stack 운영은 `make up TARGET=<deployment-target>`으로 env를 준비한 뒤 다시 확인하세요.",
         ])
     elif not env_info["repository_default"]:
         lines.extend([

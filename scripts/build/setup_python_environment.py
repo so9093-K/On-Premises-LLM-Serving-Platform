@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -69,29 +70,71 @@ def build_sync_command(uv_binary: str, selected: Path, profile: str) -> list[str
     ]
 
 
+def _run_bootstrap_step(
+    command: list[str],
+    *,
+    label: str,
+    cwd: Path | None = None,
+    quiet: bool,
+) -> None:
+    if not quiet:
+        subprocess.run(command, cwd=cwd, check=True)
+        return
+
+    safe = "".join(char if char.isalnum() else "-" for char in label.lower()).strip("-")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    log_path = ROOT / ".runtime" / "operator-logs" / f"{stamp}-{safe}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("w", encoding="utf-8") as stream:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    if result.returncode == 0:
+        log_path.unlink(missing_ok=True)
+        return
+
+    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    excerpt = "\n".join(lines[-20:])
+    if excerpt:
+        print(excerpt, file=sys.stderr)
+    print(
+        f"[platform] {label} failed; full output: {log_path.relative_to(ROOT)}",
+        file=sys.stderr,
+    )
+    raise subprocess.CalledProcessError(result.returncode, command)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Platform uv.lock에서 목적별 Python 환경을 동기화합니다."
     )
     parser.add_argument("--profile", choices=PROFILES, required=True)
     args = parser.parse_args(argv)
-    context = "setup-dev" if args.profile == "development" else "setup"
+    context = "setup-dev" if args.profile == "development" else "make up"
+    quiet = args.profile == "runtime" and os.environ.get("PLATFORM_VERBOSE") != "1"
     try:
-        subprocess.run(
+        _run_bootstrap_step(
             [
                 sys.executable,
                 str(ROOT / "scripts/build/check_python.py"),
                 "--context",
                 context,
             ],
-            check=True,
+            label="Checking Python runtime",
+            quiet=quiet,
         )
         selected = Path(sys.executable).resolve()
         _check_existing_environment(ROOT, selected)
-        subprocess.run(
+        _run_bootstrap_step(
             build_sync_command(_uv_binary(), selected, args.profile),
+            label="Synchronizing Python environment",
             cwd=ROOT,
-            check=True,
+            quiet=quiet,
         )
     except subprocess.CalledProcessError as exc:
         return exc.returncode
@@ -102,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.profile == "development":
         print("[setup-dev] ready: make check")
     else:
-        print("[setup] runtime Python environment ready")
+        print("[platform] ✓ Python environment")
     return 0
 
 

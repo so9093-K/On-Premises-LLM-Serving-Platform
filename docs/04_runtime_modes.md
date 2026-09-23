@@ -51,10 +51,7 @@ Mac runtime은 Python 3.13.12의 앱 `.venv`와 분리된 native 환경 및 별�
 기동과 분리되어 있어 `metal-start`가 대용량 파일을 암묵적으로 받지 않는다.
 
 ```bash
-make setup TARGET=macos-metal-static ACCESS=local
-make build
-HF_TOKEN=hf_xxx make prepare
-make up
+HF_TOKEN=hf_xxx make up TARGET=macos-metal-static ACCESS=local
 make status
 ```
 
@@ -62,8 +59,8 @@ make status
 8,192 generation, 이미지 1~4장, Thinking/MTP 활성, TurboQuant 비활성, 동시성 1이다.
 5~8장은 기능 제외가 아니라 extended qualification 구간이다.
 
-`setup`은 target catalog에서 `MAIN_MODEL_STATIC_PROFILE`과 Docker Gateway가 native
-runtime에 연결할 endpoint를 `.env`로 투영한다. `up`은 native MLX runtime을 프로젝트
+첫 `make up`은 target catalog에서 `MAIN_MODEL_STATIC_PROFILE`과 Docker Gateway가 native
+runtime에 연결할 endpoint를 `.env`로 투영하고 필요한 image/model cache를 준비한다. `up`은 native MLX runtime을 프로젝트
 소유 background process로 시작해 readiness를 기다린 뒤 static Compose를 기동한다.
 `down`은 두 lifecycle을 역순으로 정리한다. 수동 `metal-*`, `build-image`,
 `static-compose-*` 명령은 개별 계층을 진단할 때만 사용한다.
@@ -172,16 +169,13 @@ Observability
 기본 실행 흐름은 다음과 같다.
 
 ```bash
-make setup TARGET=linux-nvidia-dynamic ACCESS=local
-make build
-HF_TOKEN=hf_xxx make prepare
-make up
+HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 make status
 ```
 
-`make up`은 내부적으로 환경 검증, exposure profile 적용, Main Model boot projection 준비,
-Compose preflight와 readiness를 수행한다. 개별 `compose-up`과 `ready-full` 명령은 해당
-단계만 진단할 때 사용한다.
+`make up`은 내부적으로 environment sync, 필요한 image/model cache 준비, exposure profile 적용,
+Main Model boot projection과 Compose preflight를 수행한다. managed dynamic target은 strict readiness와 representative smoke까지 확인하고 static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
+세부 Compose/readiness script는 maintainer 진단용 implementation이며 operator command가 아니다.
 
 Main Model의 실제 실행 profile은 persisted runtime state와 boot policy를 반영해 결정된다.
 
@@ -314,10 +308,10 @@ Effective Compose Config
 
 ```bash
 make exposure-status
-make compose-config
+bash scripts/compose/compose_config.sh  # maintainer: effective Compose 확인
 ```
 
-일반 사용자는 auth와 exposure를 직접 조합하지 않고 `make setup ACCESS=local|private|edge`를
+일반 사용자는 auth와 exposure를 직접 조합하지 않고 `make up ACCESS=local|private|edge`를
 사용한다. 새 환경의 기본 `local`은 `private_network` topology와 loopback bind를 사용한다.
 `master_open`은 기존 진단 환경을 위한 Advanced/legacy mode이며 신규 Access Profile의
 기본 경로가 아니다. 기존 `.env`는 명시적 전환 전까지 원래 의미를 보존한다.
@@ -403,53 +397,43 @@ optional_not_ready_dependencies: [...]
 
 Runtime Startup Profile에서 stopped 또는 deferred로 지정된 non-main Model Runtime은 optional dependency로 처리될 수 있다.
 
-### `make ready-local`
+### Operator readiness
 
-app-only 환경의 application process를 확인한다.
-
-```bash
-make ready-local
-```
-
-검증 대상은 Gateway와 Risk Signal Service의 `/health`다.
-
-### `make ready-full`
-
-full-stack의 실제 serving 가능 상태를 확인한다.
+정상 상태 확인은 backend 종류와 무관하게 `make status` 하나를 사용한다.
 
 ```bash
-make ready-full
+make status
 ```
 
-주요 검증 단계는 다음과 같다.
+`status`는 Gateway readiness와 현재 Runtime desired state/effective topology를 요약한다.
+app-only에서는 application health를, full-stack에서는 현재 active/stopped/unavailable
+Runtime 상태를 같은 표면에서 보여준다.
+
+실제 serving path까지 포함한 strict validation은 별도 operator 명령이 아니라 `make up`의
+완료 조건이다.
 
 ```text
+make up
+  ↓
 Gateway /ready
-      │
-      ▼
+  ↓
 Dependency Ready
-      │
-      ▼
+  ↓
 Main Model Gate
-      │
-      ▼
-Smoke Validation
-Strict Smoke Validation
+  ↓
+Representative Smoke
 ```
 
-| 확인 방법 | 의미 |
-|---|---|
-| `/health` | process가 살아 있음 |
-| `/ready` | 필요한 dependency가 ready |
-| `make ready-full` | main-model gate와 대표 inference 경로가 실제로 동작함 |
+내부 `scripts/ops/ready_full.sh`와 `scripts/ops/smoke_test.sh`는 이 계약의 implementation
+layer다. maintainer가 특정 계층만 분리 진단할 때 직접 실행할 수 있지만 일반 운영자가
+별도 lifecycle 명령으로 기억하지 않는다.
 
-`ready-full`은 실패를 무시하는 별도 inference warmup을 수행하지 않는다. Smoke는
-Chat(Structured Output 포함)과 Risk 경로를 실제 요청으로 검증하고, non-main Model
-Runtime은 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로
-probe 대상을 결정한다. `active` Runtime의 inference 실패는 full-stack readiness 실패이며,
-의도적으로 `stopped`이거나 resource policy로 unavailable인 Runtime은 해당 Runtime
-자체를 요구하는 probe를 보내지 않는다. `starting` 또는 현재 상태를 확정할 수 없는
-Runtime은 조용히 건너뛰지 않고 readiness를 실패시킨다.
+Smoke는 Chat(Structured Output 포함)과 Risk 경로를 실제 요청으로 검증하고, non-main
+Model Runtime은 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로
+probe 대상을 결정한다. `active` Runtime의 inference 실패는 `make up` 실패이며,
+의도적으로 `stopped`이거나 resource policy로 unavailable인 Runtime은 해당 Runtime 전용
+probe를 보내지 않는다. `starting` 또는 현재 상태를 확정할 수 없는 Runtime은
+fail-closed한다.
 
 ---
 
@@ -534,14 +518,14 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 
 | 작업 | 권장 모드 | 주요 확인 |
 |---|---|---|
-| Gateway / Risk Signal Service 개발 | app-only | `make ready-local` |
-| API contract / validation 개발 | app-only | test + `make ready-local` |
-| 실제 Chat inference | full-stack | `make ready-full` |
-| Embedding / Retrieval 검증 | full-stack | `make ready-full` |
-| Prompt Injection Detector Runtime 검증 | full-stack | `make ready-full` |
+| Gateway / Risk Signal Service 개발 | app-only | `make status` |
+| API contract / validation 개발 | app-only | test + `make status` |
+| 실제 Chat inference | full-stack | `make up` 완료 + `make status` |
+| Embedding / Retrieval 검증 | full-stack | `make up` 완료 + Runtime 상태/API 검증 |
+| Prompt Injection Detector Runtime 검증 | full-stack | `make up` 완료 + Runtime 상태/API 검증 |
 | Main Model switch | full-stack | Model Operations 검증 |
 | GPU budget 변경 | full-stack | Runtime / GPU validation |
-| Compose / exposure 변경 | full-stack | `make compose-config`, `make exposure-status` |
+| Compose / exposure 변경 | full-stack | `bash scripts/compose/compose_config.sh`, `make exposure-status` |
 | NVIDIA runtime/container 관측 검증 | full-stack | Prometheus / Grafana / Loki 확인 |
 | Metal 요청·runtime metric 관측 검증 | macOS Metal static | Prometheus / Grafana / Loki 확인 |
 

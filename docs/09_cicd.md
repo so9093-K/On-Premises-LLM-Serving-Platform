@@ -18,7 +18,7 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
 | Release source package | `make package` | Git tracked source와 packaging exclusion |
-| Target lifecycle | `make setup/build/prepare/up/status/down` | deployment target, `.env`, local Runtime convergence |
+| Operator lifecycle | `make up/status/down/logs/reset/purge` | deployment target, `.env`, local Runtime convergence와 operator UX |
 | Runtime / Main Model mutation | Control Plane Plan/Apply APIs | component-owned runtime state와 rollback |
 | 외부 transport | Repository contract 아님 | SSH/Ansible/CI 등이 canonical lifecycle을 호출 |
 
@@ -74,7 +74,7 @@ Local image
               canonical target lifecycle
 ```
 
-외부 registry digest는 `make build`가 다시 build하지 않고 보존한다. Publish 결과를 특정
+외부 registry digest는 `make up`의 artifact convergence가 다시 build하지 않고 보존한다. Publish 결과를 특정
 host에서 사용하려면 해당 host의 image pin을 명시적으로 갱신하고 같은
 `setup/build/prepare/up/status` lifecycle로 수렴시킨다.
 

@@ -59,13 +59,13 @@
 | **Deploy Runtime Profile** | deployment 전체 profile처럼 보임 | Runtime Startup Profile |
 | **operation evidence** | 내부 영속성 구현 용어에 가까움 | Verification Details / Activity |
 | **force** (단독 버튼) | 실제 영향이 드러나지 않음 | 필요한 runtime 자동 중지 허용 |
-| **AUDIO_VLLM_IMAGE** (신규 이름으로 사용) | 현재 역할이 audio 전용이 아니라 Main Model profile image override임 | 신규 사용 금지. deployment-time/direct deploy read는 제거됐고 persistent key는 `sync-env` migration 입력으로만 남음 |
+| **AUDIO_VLLM_IMAGE** (신규 이름으로 사용) | 현재 역할이 audio 전용이 아니라 Main Model profile image override임 | 신규 사용 금지. deployment-time/direct deploy read는 제거됐고 persistent key는 `setup_env.py --sync-env` migration 입력으로만 남음 |
 
 ### Process inputs
 
 - `RUNTIME_STARTUP_PROFILE`이 full-stack compose-up의 유일한 operator-facing startup profile input이다.
 - `RUNTIME_STARTUP_DEFERRED_KEYS`와 `RUNTIME_STARTUP_GENERATION`은 compose-up이 Gateway에 전달하는 내부 one-shot directive이며 persistent `.env` key가 아니다.
-- `DEPLOY_RELEASE_ID`는 제거된 remote release/startup naming debt이며 `make sync-env`가 기존 persistent `.env`에서 제거한다.
+- `DEPLOY_RELEASE_ID`는 제거된 remote release/startup naming debt이며 `setup_env.py --sync-env`가 기존 persistent `.env`에서 제거한다.
 - `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process alias는 제거됐다.
 - `PACKAGE_NAME`은 release ZIP 파일명을 바꾸는 packaging process override이며 Runtime `.env` key가 아니다.
 
@@ -79,9 +79,9 @@ consumer를 함께 바꿀 수 있으면 직접 cutover한다. migration bridge�
 
 | Legacy namespace | Canonical target | 현재 정책 |
 |---|---|---|
-| `MAIN_LLM_*` | `MAIN_MODEL_*` | runtime read alias는 제거됨. 기존 persistent `.env`의 legacy key는 `sync-env` migration 입력으로만 유지되며 `MAIN_LLM_MODEL`은 `MAIN_MODEL_ALIAS`로 이관 |
-| `risk-adapter` / `risk_adapter` / `RISK_ADAPTER_*` | Risk Signal Service 계열 legacy identifier | active Python/config/process identifier는 `risk_signal_service`, operator env는 `RISK_SIGNAL_SERVICE_*`로 수렴. `RISK_ADAPTER_*`는 `sync-env` migration 입력/테스트/history에만 유지하며 공개 `/v1/risk/*` API는 그대로 유지 |
-| `risk_prompt` / `RISK_PROMPT_*` | Prompt Injection Detector 계열 legacy identifier | runtime/config key는 `prompt_injection_detector`, operator env는 `PROMPT_INJECTION_DETECTOR_*`로 수렴. `risk_prompt`는 persisted runtime-state migration 입력에만 남고 `RISK_PROMPT_*`는 `sync-env` migration 입력으로만 유지. public model alias `risk-prompt`는 외부 model ID로 유지하고 service-registry/Compose identity는 `prompt_injection_detector_runtime` / `prompt-injection-detector-runtime`로 수렴 |
+| `MAIN_LLM_*` | `MAIN_MODEL_*` | runtime read alias는 제거됨. 기존 persistent `.env`의 legacy key는 `setup_env.py --sync-env` migration 입력으로만 유지되며 `MAIN_LLM_MODEL`은 `MAIN_MODEL_ALIAS`로 이관 |
+| `risk-adapter` / `risk_adapter` / `RISK_ADAPTER_*` | Risk Signal Service 계열 legacy identifier | active Python/config/process identifier는 `risk_signal_service`, operator env는 `RISK_SIGNAL_SERVICE_*`로 수렴. `RISK_ADAPTER_*`는 `setup_env.py --sync-env` migration 입력/테스트/history에만 유지하며 공개 `/v1/risk/*` API는 그대로 유지 |
+| `risk_prompt` / `RISK_PROMPT_*` | Prompt Injection Detector 계열 legacy identifier | runtime/config key는 `prompt_injection_detector`, operator env는 `PROMPT_INJECTION_DETECTOR_*`로 수렴. `risk_prompt`는 persisted runtime-state migration 입력에만 남고 `RISK_PROMPT_*`는 `setup_env.py --sync-env` migration 입력으로만 유지. public model alias `risk-prompt`는 외부 model ID로 유지하고 service-registry/Compose identity는 `prompt_injection_detector_runtime` / `prompt-injection-detector-runtime`로 수렴 |
 | `admin-sidecar` / `admin_sidecar` | Runtime Controller 계열 legacy identifier | Python shim, Compose service ID, DNS, telemetry key migration이 모두 완료됨. 현재 identifier는 `runtime-controller` / `runtime_controller` |
 
 migration이 완료되기 전에는 기존 식별자를 삭제하거나 새 target과 충돌하는 값을 자동 선택하지 않는다.
@@ -110,7 +110,7 @@ compatibility layer는 다음 중 하나가 구체적으로 성립할 때만 둔
 2. OpenAI-compatible API처럼 외부 표준 호환 자체가 제품 기능이다.
 3. 버전 정책에서 안정화했다고 명시한 공개 계약을 실제 외부 consumer가 사용한다.
 
-이 경우에도 runtime dual-read를 영구 계약으로 만들지 않는다. 가능한 경우 `sync-env` 같은 migration 도구가
+이 경우에도 runtime dual-read를 영구 계약으로 만들지 않는다. 가능한 경우 `setup_env.py --sync-env` 같은 migration 도구가
 기존 값을 canonical 형태로 한 번 옮기고, bridge에는 제거 조건을 함께 기록한다. 단순히 "기존 사용자가 있을 수 있다"는
 추측이나 참조 수가 많다는 이유만으로 alias를 유지하지 않는다.
 
