@@ -9,8 +9,8 @@ test('an intentionally stopped Main Model is informational rather than an incide
     [{
       key: 'main-model-stopped',
       tone: 'info',
-      title: 'Main Model이 stopped 상태입니다.',
-      detail: '의도적인 stop일 수 있으므로 장애로 판정하지 않습니다. 필요하면 Main Model 화면에서 현재 state와 최근 operation을 확인하세요.',
+      title: '메인 모델이 중지된 상태입니다.',
+      detail: '의도적으로 중지한 상태일 수 있으므로 장애로 단정하지 않습니다. 필요하면 메인 모델 화면에서 현재 상태와 최근 작업을 확인하세요.',
     }],
   );
 });
