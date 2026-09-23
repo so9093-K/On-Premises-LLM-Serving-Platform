@@ -1,335 +1,268 @@
 # 12. 운영 관리 및 장애 대응
 
-운영 중 이상이 발생하면 서비스 상태부터 확인하고, 문제가 발생한 기능과 로그, 모델·GPU 상태 순서로 범위를 좁힌다.
+운영자는 내부 Compose/readiness 단계가 아니라 **현재 상태와 증거**에서 시작한다.
 
 ```text
 이상 감지
    ↓
-서비스 상태 확인
+make status
    ↓
-문제가 발생한 기능 확인
+make logs
    ↓
-관련 로그 확인
+필요한 service raw evidence
    ↓
-모델 / GPU 상태 확인
+원인 수정 / Control Plane 작업
    ↓
-복구 작업
+make up
    ↓
-정상 동작 확인
+make status
 ```
 
-일상적인 지표와 대시보드는 [11. 관측성](./11_observability.md), Main Model 전환과 Runtime 제어는 [6. 모델 운영](./06_model_operations.md), 배포 복구 구조는 [10. 배포](./10_deployment.md)에서 설명한다.
+일상적인 지표와 Dashboard는 [11. 관측성](./11_observability.md), Main Model 전환과
+Runtime 제어는 [6. 모델 운영](./06_model_operations.md), lifecycle과 복구 책임은
+[10. 배포](./10_deployment.md)를 따른다.
 
 ---
 
-## 12.1 운영 점검 흐름
+## 12.1 첫 확인: `make status`
 
-장애 확인은 현재 서비스 상태에서 시작한다.
-
-| 단계 | 확인 내용 | 주요 수단 |
-|---|---|---|
-| 1. 서비스 상태 | Gateway와 Risk Signal Service 실행 상태 | `make status`, `/health` |
-| 2. 주요 기능 준비 상태 | Main Model, Embedding, Risk Runtime 상태 | `/ready`, `make ready-full` |
-| 3. 요청과 오류 | 실패한 API, 응답 코드, 오류 코드, 응답 시간 | Request Log Explorer |
-| 4. 모델 Runtime | Main / non-main Model Runtime 실행 상태 | Grafana, Runtime 상태 API |
-| 5. GPU / 컨테이너 | GPU 메모리, 요청 대기량, OOM(메모리 부족), 재시작 | Grafana, `make compose-diagnostics` |
-| 6. 상세 로그 | 서비스별 오류와 traceback | Loki / Grafana, `make compose-logs` |
-| 7. 복구 확인 | 전체 준비 상태와 대표 API 요청 | `make ready-full`, `make runtime-validate` |
-
----
-
-## 12.2 서비스 상태 확인
-
-### 기본 상태
-
-`make status`는 `.env`에 기록된 target을 읽어 app-only와 full-stack을
-자동으로 구분한다.
+`make status`는 target별 구현 차이를 숨기고 현재 operator-relevant state를 요약한다.
 
 ```bash
 make status
 ```
 
-장애 진단 중 readiness 계층만 다시 확인할 때는 target에 맞는 내부 명령을
-사용한다.
+full-stack에서는 다음 정보를 중심으로 본다.
 
-```bash
-make ready-local  # app-only
-make ready-full   # Linux/NVIDIA full-stack
-```
+- Platform/Gateway readiness
+- deployment target과 access profile
+- controllable Runtime의 `active / stopped / starting` desired state
+- container 관측 상태
+- effective topology에서 unavailable인 Runtime
+- 현재 readiness가 실패했다면 관련 dependency와 다음 행동
 
-| 확인 항목 | 의미 |
-|---|---|
-| `/health` | 해당 서비스 프로세스가 요청에 응답하는 상태 |
-| `/ready` | 주요 Runtime을 포함한 요청 처리 준비 상태 |
-| `make ready-local` | app-only Gateway / Risk Signal Service 상태 확인 |
-| `make ready-full` | full-stack Runtime 준비 상태와 대표 추론 경로 확인 |
+`stopped` 또는 policy상 `unavailable`인 optional Runtime은 곧바로 장애를 뜻하지 않는다.
+현재 configuration과 Runtime desired state에서 **필요한 capability가 serving 가능한가**를
+기준으로 판단한다.
 
-Gateway `/ready`가 `503`을 반환하면 응답에서 준비되지 않은 Runtime을 확인한다. `make ready-full`은 모델 로딩 중인 서비스와 아직 준비되지 않은 Runtime을 함께 표시한다.
-
-### Full-stack 진단
-
-`make ready-full` 실패 시 Compose 진단 정보가 자동으로 수집된다. 동일한 진단을 수동으로 다시 실행할 수 있다.
-
-```bash
-make compose-diagnostics
-```
-
-이 명령은 주요 서비스 상태와 최근 로그를 함께 출력하고, vLLM 설정 오류, GPU 메모리 부족, Engine 초기화 실패 등 주요 Runtime 오류 패턴을 확인한다.
+Gateway 자체가 응답하지 않거나 required dependency가 준비되지 않았으면 `status`는
+성공처럼 보이지 않고 `Attention`과 함께 `make logs`를 다음 행동으로 제시한다.
 
 ---
 
-## 12.3 요청과 오류 추적
+## 12.2 기본 로그: signal만 본다
 
-서비스가 실행 중이어도 특정 API 또는 특정 요청에서만 문제가 발생할 수 있다. Request Log Explorer에서는 요청 단위로 범위를 좁힌다.
+`make logs`의 기본 목적은 모든 로그를 보여주는 것이 아니라 **지금 확인할 가치가 있는
+application event를 좁히는 것**이다.
 
-```text
-오류 요청 확인
-      ↓
-Request ID / Route 확인
-      ↓
-Status Code / Error Code 확인
-      ↓
-응답 시간과 대상 Runtime 확인
-      ↓
-관련 서비스 로그 조회
+```bash
+make logs
 ```
 
-| 조회 기준 | 확인 내용 |
-|---|---|
-| Request ID | 특정 요청과 관련 로그 연결 |
-| Route | 영향받은 API 범위 |
-| Status Code | HTTP 응답 상태 |
-| Error Code | 애플리케이션 오류 유형 |
-| `Latency` | 요청 응답 시간 |
-| Token Usage | Chat 요청 처리량 변화 |
-| Service / Runtime | 연결된 서비스에서 오류가 발생한 위치 |
+기본 출력은 최근 structured request event 중 다음 신호에 집중한다.
 
-특정 요청의 오류가 확인되면 동일 시간대의 Gateway 로그와 해당 Runtime 로그를 함께 확인한다.
+- HTTP 4xx/5xx
+- `error_code`
+- `diagnostic_code`
+- readiness failure
 
-API Error Code와 응답 형식은 [API Reference](./reference/api_reference.md)를 참고한다.
+정상 요청까지 보고 싶을 때만 범위를 넓힌다.
+
+```bash
+make logs ALL=1
+```
+
+structured event에는 가능한 경우 다음 필드를 유지한다.
+
+- service
+- route
+- status code
+- latency
+- request ID
+- error / diagnostic code
+- token usage와 upstream response ID
+- readiness dependency summary
+
+이 구조를 통해 “로그를 많이 출력해야 진단 가능하다”가 아니라 **필요한 필드가
+일관되게 연결돼 있어야 진단 가능하다**는 원칙을 따른다.
+
+Prompt 원문, API key, Authorization header 같은 민감 정보는 일반 진단 근거로 사용하지 않는다.
 
 ---
 
-## 12.4 Model Runtime과 GPU 상태
+## 12.3 특정 service의 raw evidence
 
-모델 요청 문제는 응답 시간, 요청 대기량, GPU 자원 순서로 확인한다.
+structured event로 원인 범위를 좁힌 뒤 실제 process/runtime 출력이 필요할 때만 raw log를
+본다.
 
-### 응답 시간이 증가한 경우
-
-```text
-Gateway 응답 시간
-      ↓
-모델 요청 대기량
-      ↓
-GPU 사용량 / 메모리
-      ↓
-필요 시 KV Cache 상태 확인
+```bash
+make logs SERVICE=main-llm-vllm
+make logs SERVICE=gateway
 ```
 
-Grafana의 `vLLM Queue Depth`는 모델 요청 대기량을, `KV Cache Pressure`는 모델 처리에 사용하는 캐시 메모리 상태를 보여준다. 요청 대기량이 계속 증가하면 GPU 사용률과 메모리 여유를 함께 확인한다.
+checkout이 소유한 전체 raw service output을 bounded tail로 볼 때는:
 
-### Runtime 시작이 실패한 경우
+```bash
+make logs RAW=1
+```
+
+실시간으로 한 service를 추적할 때는:
+
+```bash
+make logs SERVICE=main-llm-vllm FOLLOW=1
+```
+
+raw log는 evidence이지 기본 operator UI가 아니다. 정상 상태 확인을 위해 10여 개
+container의 로그를 먼저 훑는 흐름을 만들지 않는다.
+
+Grafana Request Log Explorer와 Loki를 사용할 수 있는 환경에서는 request ID와
+`upstream_response_id`를 기준으로 Gateway event와 runtime 원본을 연결한다.
+
+---
+
+## 12.4 `make up` 실패 시 diagnostic artifact
+
+`make up`의 내부 단계가 실패하면 terminal에는 실패한 단계의 마지막 관련 출력과 전체
+evidence 경로가 표시된다.
+
+일반 implementation 단계의 출력은 다음 경로에 보존될 수 있다.
 
 ```text
-Runtime 상태
+.runtime/operator-logs/
+```
+
+full-stack readiness 실패 시 Compose diagnostic evidence는 다음 경로에 저장된다.
+
+```text
+.runtime/diagnostics/<timestamp>/
+├─ compose-ps.txt
+├─ gateway.log
+├─ runtime-controller.log
+├─ main-llm-vllm.log
+├─ ...
+└─ unhealthy-services.txt
+```
+
+기본 terminal에는 모든 파일 내용을 다시 출력하지 않고 다음과 같은 알려진 신호만
+요약한다.
+
+- unhealthy / exited / restarting container
+- vLLM batching configuration failure
+- KV-cache memory allocation failure
+- unsupported FP8 KV-cache 조합
+- vLLM engine initialization failure
+- container entrypoint executable failure
+
+분류되지 않은 장애도 raw evidence는 그대로 남는다. 분류기의 한계 때문에 evidence를
+버리거나 반대로 evidence 전체를 기본 화면에 쏟지 않는다.
+
+내부 단계 stdout/stderr 전체가 필요한 maintainer는 명시적으로:
+
+```bash
+PLATFORM_VERBOSE=1 make up
+```
+
+을 사용할 수 있다.
+
+---
+
+## 12.5 요청 오류를 좁히는 순서
+
+서비스가 READY여도 특정 요청만 실패할 수 있다.
+
+```text
+실패 요청
    ↓
-GPU 메모리 여유
+request ID / route
    ↓
-관련 Runtime 설정
+status + error_code
    ↓
-Runtime 로그
+diagnostic_code / upstream status
+   ↓
+관련 service raw log
+   ↓
+runtime/GPU metric
 ```
 
-Runtime 기동 명령과 GPU 자원 정책은 [6. 모델 운영](./06_model_operations.md)에 정리되어 있다. 실제
-Main Model profile·gate·컨테이너 관측 상태는 `GET /admin/main-model`에서 확인한다.
+대표적인 해석 기준:
 
-### OOM 또는 컨테이너 재시작
-
-Grafana에서 GPU Memory와 OOM / Restart 지표를 확인한 뒤 Compose 진단을 실행한다.
-
-```bash
-make compose-diagnostics
-```
-
-### 주요 Runtime 오류 메시지
-
-Compose 진단과 Runtime 로그에서 자주 확인하는 메시지는 다음과 같다.
-
-| 로그 메시지 | 확인 영역 |
+| 신호 | 우선 확인 |
 |---|---|
-| `No available memory for the cache blocks` | KV Cache와 GPU 메모리 여유 |
-| `Engine core initialization failed` | GPU OOM, Runtime 초기화 상태 |
-| `max_num_batched_tokens ... smaller than max_model_len` | vLLM batching 설정 |
-| `kv-cache is not supported with fp8 checkpoints` | Runtime 이미지와 KV Cache 설정 조합 |
-| container restart / OOM | GPU와 시스템 메모리 사용량 |
+| `401 / 403` | auth/access profile, `make auth-status`, `make auth-doctor` |
+| `MODEL_UNAVAILABLE` | 해당 Runtime desired state와 effective topology |
+| Main Model switch 관련 503 | Main Model operation/gate 상태 |
+| `UPSTREAM_*` | 대상 runtime raw log와 upstream response ID |
+| queue/latency 증가 | request event latency, vLLM queue, GPU/KV cache |
+| repeated 5xx | 같은 diagnostic code가 여러 request에 반복되는지 |
 
-세부 Runtime 설정은 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 확인한다.
-
----
-
-## 12.5 주요 장애 상황
-
-대표적인 증상과 첫 확인 지점은 다음과 같다.
-
-| 상황 | 우선 확인 | 다음 단계 |
-|---|---|---|
-| Gateway 접근 실패 | `make status`, Gateway `/health` | Gateway 로그와 Compose 상태 확인 |
-| `/ready`가 `503` | 응답에서 준비되지 않은 Runtime | 해당 Runtime 상태와 로그 확인 |
-| `make ready-full` 대기 시간 초과 | 모델 로딩 또는 Runtime 재시작 상태 | `make compose-diagnostics` |
-| Chat 요청 실패 | Main Model Runtime 상태 | Main Model 로그와 모델 전환 상태 확인 |
-| Embedding / Retrieval 실패 | Embedding Runtime 상태 | 해당 Runtime 실행 상태와 로그 확인 |
-| Risk 요청 실패 | Risk Signal Service와 Prompt Injection Detector Runtime | Risk Signal Service / risk-prompt 로그 확인 |
-| 응답 지연 증가 | 응답 시간, 요청 대기량, GPU | Request Log와 Runtime 대시보드 확인 |
-| OOM / 반복 재시작 | GPU 메모리와 여유 공간 | Runtime 설정과 GPU 자원 정책 확인 |
-| 401 / 403 증가 | 인증 설정과 현재 환경 | `make auth-status`, `make auth-doctor` |
-| 모니터링 데이터 누락 | Prometheus 수집 대상과 모니터링 서비스 상태 | Prometheus, Alloy, Loki 로그 확인 |
-
-### 모델 로딩 시간이 긴 경우
-
-최초 기동이나 새 모델 준비 과정에서는 Hugging Face 다운로드, 캐시 생성, Runtime 초기화로 준비 시간이 길어질 수 있다.
-
-`make ready-full`은 모델과 주요 Runtime의 준비 상태를 주기적으로 표시한다. 동일 Runtime이 계속 같은 상태에 머물거나 컨테이너가 반복 재시작하면 해당 로그를 확인한다.
-
-필요한 경우 준비 상태 확인 대기 시간을 실행 환경에 맞게 조정할 수 있다.
-
-```bash
-READY_FULL_TIMEOUT_SECONDS=2700 make ready-full
-```
-
-대기 시간 조정은 모델 로딩이 실제로 진행 중인 경우에 사용한다.
+공개 오류 계약은 [API Reference](./reference/api_reference.md)를 따른다.
 
 ---
 
-## 12.6 모델 전환 문제
+## 12.6 Runtime과 GPU 문제
 
-Main Model 전환 문제는 전환 진행 상태와 현재 Main Model 상태를 함께 확인한다.
+Runtime 문제는 **desired state → observed state → resource → raw evidence** 순으로 확인한다.
 
 ```text
-모델 전환 이상
-      ↓
-전환 진행 상태
-      ↓
-현재 Main Model 상태
-      ↓
-Runtime Controller / Main Model 로그
-      ↓
-복구 결과 확인
-      ↓
-Gateway 준비 상태 확인
+make status
+   ↓
+GET /admin/runtimes
+   ↓
+GPU / queue / KV cache metric
+   ↓
+make logs SERVICE=<runtime>
 ```
 
-전환 작업은 작업 ID(`operation_id`)로 조회한다.
-
-```bash
-curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model/operations/<operation_id>
-```
-
-전체 Runtime 상태와 GPU 자원 사용량은 다음 API에서 확인한다.
+전체 Runtime desired state와 resource projection:
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
   http://127.0.0.1:9400/admin/runtimes
 ```
 
-상세 확인 항목은 다음과 같다.
+Main Model state와 active profile은 Main Model Control API에서 확인한다.
 
-- 현재 활성 프로파일과 Main Model 실행 상태
-- 모델 전환의 현재 단계와 오류 정보
-- GPU 자원 사용량과 사용 가능한 여유
-- 자동 복구(rollback) 수행 여부와 결과
-- Gateway `/ready` 상태
+Runtime 로그에서 자주 의미가 큰 패턴:
 
-모델 전환 단계와 시작·중지, 자동 복구 동작은 [6. 모델 운영](./06_model_operations.md)에서 상세히 설명한다.
+| 패턴 | 의미 |
+|---|---|
+| `No available memory for the cache blocks` | KV-cache/GPU memory allocation 실패 |
+| `Engine core initialization failed` | vLLM engine 초기화 실패; GPU/resource policy 확인 |
+| `max_num_batched_tokens ... smaller than max_model_len` | batching configuration 불일치 |
+| `kv-cache is not supported with fp8 checkpoints` | runtime image와 KV-cache 설정 조합 오류 |
+| repeated restart / OOM | resource budget, driver/runtime, host memory 확인 |
 
----
-
-## 12.7 기동·변경 후 이상 상태
-
-Local lifecycle 또는 Control Plane 변경 직후 문제는 선택 target, 서비스 상태, Runtime 준비 상태 순서로 확인한다.
-
-```text
-실행 결과 확인
-      ↓
-선택 target / lifecycle 상태
-      ↓
-서비스 상태
-      ↓
-Gateway /health
-      ↓
-make ready-full
-      ↓
-관련 요청 / Runtime 로그
-```
-
-Main Model switch, Runtime transition, Configuration Apply에서 실패나 복구가 기록된 경우에는 다음 항목을 확인한다.
-
-- operation의 status·stage와 rollback/verification 결과
-- 선택 target과 persistent configuration이 기대한 상태인지
-- Gateway와 주요 서비스 상태
-- Main Model과 non-main Model Runtime 상태
-- `make ready-full` 결과
-
-Repository-owned local lifecycle과 component별 복구 책임은 [10. 배포](./10_deployment.md)에 정리되어 있다.
-
-배포 후 설정과 Compose 상태를 함께 확인할 때는 다음 명령을 사용한다.
-
-```bash
-make compose-config
-make compose-diagnostics
-```
+GPU budget과 Runtime activation/eviction 정책은 [6. 모델 운영](./06_model_operations.md)을 따른다.
 
 ---
 
-## 12.8 로그 상세 확인
+## 12.7 Main Model 전환 문제
 
-Request Log Explorer에서 대상 요청이나 서비스를 식별한 뒤 원본 로그(Raw Log)에서 애플리케이션과 Runtime 오류를 상세 확인한다.
-
-![Request Log Explorer - Raw Logs](../assets/screenshots/request_log_explorer_raw_logs.png)
-
-원본 로그 화면에서는 Gateway, Risk Signal Service, vLLM Runtime 등 서비스별 로그와 traceback을 확인할 수 있다.
-
-### Compose 로그
-
-full-stack 서비스 로그는 다음 명령으로 조회한다.
+Main Model 변경은 일반 lifecycle 재시작과 분리된 Control Plane operation이다.
 
 ```bash
-make compose-logs
+curl -H "Authorization: Bearer $ADMIN_API_KEY" \
+  http://127.0.0.1:9400/admin/main-model/operations/<operation_id>
 ```
 
-특정 서비스만 확인할 수 있다.
+확인할 항목:
 
-```bash
-bash scripts/compose/compose_logs.sh main-llm-vllm
-```
+- operation status/stage
+- active profile
+- gate 상태
+- target container observed state
+- validation/canary 결과
+- rollback 수행 여부
+- 마지막 오류/진단 정보
 
-또는 Docker Compose에서 직접 대상 Runtime의 최근 로그를 조회한다.
-
-```bash
-docker compose -f ops/compose/full-stack.private-network.yaml --env-file .env \
-  logs --tail=160 main-llm-vllm
-```
-
-```bash
-docker compose -f ops/compose/full-stack.private-network.yaml --env-file .env \
-  logs --tail=160 embedding-vllm
-```
-
-### app-only 로그
-
-app-only 실행 로그는 다음 명령으로 확인한다.
-
-```bash
-make logs
-```
-
-로그에서는 Request ID, Route, Status Code, `Latency`(응답 시간), Service, Error Code 등의 정보를 사용해 요청을 추적한다. Prompt 원문, API key, Authorization header와 같은 민감 정보는 운영 로그 확인 과정에서도 별도로 노출하지 않는다.
+전환 실패를 이유로 project state 전체를 reset하지 않는다. 해당 operation의 rollback과
+Main Model Control이 소유한 복구 경계를 먼저 사용한다.
 
 ---
 
-## 12.9 인증과 노출 설정 확인
+## 12.8 인증·노출 문제
 
-401 / 403 오류가 증가하거나 예상과 다른 호스트 포트가 노출되면 현재 Auth / Exposure 설정을 확인한다.
+예상하지 못한 401/403 또는 host port 노출은 현재 managed profile부터 확인한다.
 
 ```bash
 make auth-status
@@ -337,100 +270,109 @@ make auth-doctor
 make exposure-status
 ```
 
-설정 적용 전 결과는 plan 명령으로 미리 확인할 수 있다.
+변경은 plan을 먼저 본다.
 
 ```bash
 make auth-plan MODE=<auth-mode>
 make exposure-plan MODE=<exposure-mode>
 ```
 
-Auth mode와 Exposure mode의 설정 구조는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 네트워크 노출 방식은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
+일반 사용자의 접근 intent는 `make up ACCESS=local|private|edge`가 소유한다. 개별
+auth/exposure apply는 Advanced/legacy primitive이며 managed Access Profile을 종료하는
+변경이 될 수 있다.
 
 ---
 
-## 12.10 복구 후 검증
+## 12.9 복구와 재검증
 
-복구 작업 후에는 서비스 상태와 실제 요청 경로를 다시 확인한다.
-
-```text
-복구 작업
-   ↓
-서비스 상태
-   ↓
-주요 기능 준비 상태
-   ↓
-Runtime 검증
-   ↓
-대표 API 요청
-   ↓
-지표 / 로그 확인
-```
-
-full-stack 환경에서는 다음 순서로 확인한다.
+구성이나 source를 수정했거나 Runtime을 복구한 뒤 정상 lifecycle은 다시 `make up`으로
+수렴한다.
 
 ```bash
+make up
 make status
-make ready-full
-make runtime-validate
 ```
 
-대표 API 요청만 별도로 확인할 때는 다음 명령을 사용한다.
+`make up`은 필요한 artifact 준비, service reconciliation, readiness와 representative
+inference smoke까지 완료해야 성공한다. 별도의 ready/smoke operator command를 추가로
+실행해야 배포가 완료되는 구조가 아니다.
+
+GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/maintainer 검증인
+`make runtime-validate`를 추가한다.
+
+복구 완료 기준:
+
+- `make up` 성공
+- `make status`에서 required dependency가 READY
+- 필요한 Runtime이 의도한 desired state
+- 동일 error/diagnostic code의 재발이 없음
+- GPU/queue/KV cache가 운영 범위
+- 변경 대상 capability의 실제 요청이 정상
+
+---
+
+## 12.10 Reset과 purge를 장애 복구와 혼동하지 않는다
+
+`reset`과 `purge`는 진단 명령이 아니다. 일반 장애를 만날 때 먼저 실행하면 원인 evidence를
+지우고 불필요한 image/model download를 유발할 수 있다.
+
+### Local state 초기화
 
 ```bash
-make smoke
+make reset
+make reset CONFIRM=reset
 ```
 
-복구 완료는 다음 상태를 기준으로 한다.
+`reset`은 configuration/runtime state와 저비용 local artifact를 초기화하지만
+project-built image, repository-local model cache와 Docker volume은 보존한다.
 
-- 필요한 서비스가 실행 중
-- Gateway `/health` 정상
-- 주요 Runtime이 요청 처리 준비 상태
-- 대표 Chat / Embedding / Risk 요청 성공
-- GPU와 Runtime 지표가 정상 범위
-- 동일 Error Code 또는 Runtime crash 재발 없음
+### Project-owned artifact 폐기
 
----
+```bash
+make purge SCOPE=cache
+make purge SCOPE=cache CONFIRM=purge
 
-## 12.11 주요 운영 명령
+make purge SCOPE=all
+make purge SCOPE=all CONFIRM=purge
+```
 
-### 자주 사용하는 명령
-
-| 목적 | 명령 |
-|---|---|
-| 서비스 상태 확인 | `make status` |
-| 전체 Runtime 준비 상태 확인 | `make ready-full` |
-| 대표 API 요청 확인 | `make smoke` |
-| Compose 상태와 로그 진단 | `make compose-diagnostics` |
-| Compose 로그 조회 | `make compose-logs` |
-| Runtime 검증 | `make runtime-validate` |
-
-### 추가 진단 명령
-
-| 목적 | 명령 |
-|---|---|
-| app-only 준비 상태 | `make ready-local` |
-| target 상태 요약 | `make status` |
-| app-only 로그 조회 | `make logs` |
-| 인증 상태 확인 | `make auth-status` |
-| 인증 진단 | `make auth-doctor` |
-| 네트워크 노출 상태 확인 | `make exposure-status` |
-
-명령의 검증 범위는 [8. 테스트와 검증](./08_testing_validation.md), 실행 환경별 차이는 [4. 실행 환경과 모드](./04_runtime_modes.md)를 참고한다.
+`purge`는 plan-first이며 project ownership이 증명되는 artifact만 제거한다. global
+Hugging Face cache, daemon-wide BuildKit cache와 unrelated Docker resource는 제거하지 않는다.
 
 ---
 
-## 12.12 주요 파일과 관련 문서
+## 12.11 Operator command reference
 
-| 영역 | 주요 파일 | 역할 |
+| 목적 | 명령 |
+|---|---|
+| 시작/현재 상태로 수렴 | `make up` |
+| 현재 상태와 policy state | `make status` |
+| 오류/readiness structured event | `make logs` |
+| 모든 structured request event | `make logs ALL=1` |
+| 특정 service raw evidence | `make logs SERVICE=<id>` |
+| checkout 실행 리소스 정지 | `make down` |
+| local state 초기화 | `make reset` |
+| project-owned artifact 폐기 | `make purge SCOPE=cache|all` |
+
+정상 operator lifecycle은 이 표에서 끝난다. 내부 readiness, smoke, Compose diagnostics와
+clean script는 `make up`의 구현 또는 maintainer 도구다.
+
+---
+
+## 12.12 구현과 evidence 위치
+
+| 영역 | 구현 / evidence | 역할 |
 |---|---|---|
-| 전체 준비 상태 | `scripts/ops/ready_full.sh` | 주요 Runtime 대기, 추론 준비 확인, 실패 진단 |
-| 대표 API 확인 | `scripts/ops/smoke_test.sh` | 대표 API 요청 검증 |
-| Compose 진단 | `scripts/compose/compose_diagnostics.sh` | 서비스 상태와 주요 Runtime 오류 패턴 확인 |
-| Compose 로그 | `scripts/compose/compose_logs.sh` | full-stack 로그 조회 |
-| Runtime 검증 | `scripts/validation/runtime_validation.py` | vLLM API·monitoring 실제 연결 검증 |
-| Runtime 제어 | Gateway Runtime Control API | Main / non-main Model Runtime 상태 확인과 제어 |
+| Operator convergence | `scripts/platform_cli.py` | target resolution, artifact 준비, startup/readiness orchestration |
+| Structured event | `.runtime/request-events/*.jsonl*` | request/error/readiness event의 host 원본 |
+| Operator step output | `.runtime/operator-logs/` | 실패한 내부 단계의 전체 stdout/stderr |
+| Full-stack diagnostics | `.runtime/diagnostics/` | service state와 bounded raw log evidence |
+| Strict readiness | `scripts/ops/ready_full.sh` | `make up` 내부 serving gate |
+| Representative smoke | `scripts/ops/smoke_test.sh` | active/effective Runtime inference 검증 |
+| Compose diagnostics | `scripts/compose/compose_diagnostics.sh` | raw evidence 보존 + known-pattern summary |
+| Runtime qualification | `scripts/validation/runtime_validation.py` | live GPU/runtime 검증 |
 
-관련 문서는 다음과 연결된다.
+관련 문서:
 
 - [4. 실행 환경과 모드](./04_runtime_modes.md)
 - [5. 설정 체계와 Source of Truth](./05_configuration.md)
@@ -438,4 +380,5 @@ make smoke
 - [8. 테스트와 검증](./08_testing_validation.md)
 - [10. 배포](./10_deployment.md)
 - [11. 관측성](./11_observability.md)
+- [ADR-0039](./adr/0039-operator-intent-lifecycle-and-diagnostics.md)
 - [API Reference](./reference/api_reference.md)

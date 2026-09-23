@@ -120,8 +120,8 @@ make status
 실제 Main Model, Embedding, Prompt Injection와 연결되는 요청 흐름이 바뀌면 full-stack까지 확인한다.
 
 ```bash
-make compose-up
-make ready-full
+make up
+make up
 ```
 
 ### Gateway / Risk Signal Service 로직 변경
@@ -254,8 +254,8 @@ make validate
 새 GPU Runtime이 추가되면 실제 실행까지 검증한다.
 
 ```bash
-make compose-up
-make ready-full
+make up
+make up
 make runtime-validate
 ```
 
@@ -363,8 +363,8 @@ make build-vllm-unified-image
 Runtime 확인:
 
 ```bash
-make compose-up
-make ready-full
+make up
+make up
 make runtime-validate
 ```
 
@@ -396,14 +396,14 @@ Runtime Validation
 ```bash
 make render-runtime-assets
 make validate
-make compose-config
+bash scripts/compose/compose_config.sh
 ```
 
 실행 환경까지 반영할 경우:
 
 ```bash
-make compose-up
-make ready-full
+make up
+make up
 ```
 
 ### 노출 설정
@@ -421,10 +421,10 @@ Effective Host Ports
 ```bash
 python scripts/compose/render_exposure_overrides.py
 make validate
-make compose-config
+bash scripts/compose/compose_config.sh
 ```
 
-일반 접근 범위는 `make setup ACCESS=...`으로 선택한다. 아래 개별 명령은 managed
+일반 접근 범위는 `make up ACCESS=...`으로 선택한다. 아래 개별 명령은 managed
 Access Profile을 종료하고 Advanced/legacy 설정으로 전환할 때만 사용한다.
 
 ```bash
@@ -433,7 +433,7 @@ make exposure-plan MODE=<private_network|master_open>
 
 ### Base Compose
 
-`ops/compose/full-stack.private-network.yaml` 변경은 선택 target의 Compose topology 변경이다. `make compose-config`로 effective 구성을 확인하고 실제 적용 시 canonical `make up`과 readiness까지 검증한다.
+`ops/compose/full-stack.private-network.yaml` 변경은 선택 target의 Compose topology 변경이다. `bash scripts/compose/compose_config.sh`로 effective 구성을 확인하고 실제 적용 시 canonical `make up`과 readiness까지 검증한다.
 
 실행 구조와 네트워크는 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
 
@@ -475,7 +475,7 @@ make validate
 실제 데이터까지 확인할 경우:
 
 ```bash
-make compose-up
+make up
 make runtime-validate
 ```
 
@@ -518,11 +518,11 @@ Platform Build가 변경된 경우 검증 뒤 선택 target의 build entry point
 
 ```bash
 make check
-make build
+make up
 ```
 
 `scripts/platform_cli.py`나 lifecycle/ops helper 변경은 target resolution과
-`setup/build/prepare/up/status/down`의 canonical local lifecycle, readiness에 영향을 줄 수 있다.
+`up/status/down/logs/reset/purge`의 canonical operator lifecycle, artifact convergence와 readiness에 영향을 줄 수 있다.
 대상 환경 검증은 [10. 배포](./10_deployment.md)의 완료 기준까지 이어진다. 단순 문서나
 GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 않는다.
 
@@ -534,27 +534,27 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 
 | 변경 유형 | 기본 검증 | 실행 환경 확인 | 빌드 / 배포 범위 |
 |---|---|---|---|
-| Gateway / Risk Signal Service Python | `make validate`, `make test` | `make ready-local` | Platform / Rolling 중심 |
+| Gateway / Risk Signal Service Python | `make validate`, `make test` | `make status` | Platform / Rolling 중심 |
 | API / Schema | `make validate`, `make test` | app-only 또는 full-stack | Platform Image |
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
 | Main Model Profile | config/profile 검증 | model prepare + switch + `ready-full` | Main Model / Full 가능 |
 | Unified vLLM | Unified Image Build | `ready-full`, `runtime-validate` | Runtime Image / Full |
-| Compose / Exposure | `make validate`, `make compose-config` | `make ready-full` | Compose / Full 가능 |
+| Compose / Exposure | `make validate`, `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
 | 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
 
-전체 application 품질 gate와 선택 target image build:
+전체 application 품질 gate와 선택 target convergence:
 
 ```bash
 make check
-make build
+make up
 ```
 
 GPU와 vLLM까지 포함한 변경:
 
 ```bash
-make compose-up
-make ready-full
+make up
+make up
 make runtime-validate
 ```
 
@@ -592,13 +592,13 @@ make runtime-validate
 
 | 작업 | 주요 위치 | 기본 검증 | 실행 환경 확인 |
 |---|---|---|---|
-| API endpoint | Router + contract + schema/OpenAPI | `make validate`, `make test` | `ready-local` / `ready-full` |
+| API endpoint | Router + contract + schema/OpenAPI | `make validate`, `make test` | `make status` / `make up` |
 | Request parameter | `model_serving.yaml` + contract/schema | 생성 파일 + validate/test | 대상 API |
-| Gateway logic | `src/ai_model_serving/` | validate/test | `make ready-local` |
-| Main Model Profile | `main_model_profiles.yaml` | config/profile 검증 | prepare + switch + readiness |
+| Gateway logic | `src/ai_model_serving/` | validate/test | `make status` |
+| Main Model Profile | `main_model_profiles.yaml` | config/profile 검증 | explicit prepare + switch + `make up` |
 | 모델 추가 | catalog + serving + 모델 참고 문서 + compose | `validate` | full-stack + runtime validation |
-| vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | ready-full + runtime validation |
-| Service port | `services.yaml` | 생성 파일 + validate | compose-config + full-stack |
+| vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | `make up` + runtime validation |
+| Service port | `services.yaml` | 생성 파일 + validate | implementation Compose config + `make up` |
 | Exposure | `exposure_profiles.yaml` | Compose override 재생성 + validate | effective port 확인 |
 | Dashboard | Dashboard JSON | `make validate` | Grafana / runtime validation |
 | Workflow | `.github/workflows/` | GitHub 문법 + `make check` | 해당 workflow |
@@ -616,11 +616,8 @@ make test
 # Source Config에서 생성 파일 갱신
 make render-runtime-assets
 
-# 선택 target Image Build
-make build
-
-# Full-stack 준비 상태
-make ready-full
+# 선택 target에 필요한 artifact + runtime 수렴
+make up
 
 # GPU / vLLM / Monitoring Runtime 검증
 make runtime-validate
