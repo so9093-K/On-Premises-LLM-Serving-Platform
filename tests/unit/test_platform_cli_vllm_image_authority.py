@@ -20,8 +20,8 @@ def test_local_build_uses_shared_vllm_image_authority(monkeypatch):
     )
     monkeypatch.setattr(
         platform_cli,
-        "_run",
-        lambda *command, env=None: commands.append((command, env)),
+        "_run_step",
+        lambda _label, *command, env=None: commands.append((command, env)),
     )
     monkeypatch.setattr(platform_cli, "resolve_local_image_id", lambda image: new_id)
     monkeypatch.setattr(

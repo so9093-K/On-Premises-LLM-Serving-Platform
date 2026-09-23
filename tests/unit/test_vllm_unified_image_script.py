@@ -195,8 +195,8 @@ def test_target_rebuild_does_not_treat_local_image_id_as_external(monkeypatch):
     )
     monkeypatch.setattr(
         platform_cli,
-        "_run",
-        lambda *command, env=None: commands.append((command, env)),
+        "_run_step",
+        lambda _label, *command, env=None: commands.append((command, env)),
     )
     monkeypatch.setattr(
         platform_cli,
