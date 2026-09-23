@@ -28,7 +28,7 @@ artifact 폐기를 같은 명령에 두면 안 된다.
 
 | Intent | Command | Contract |
 |---|---|---|
-| 사용 가능한 상태로 수렴 | `make up` | 최초 bootstrap, 필요한 build/cache 준비, 시작, readiness와 representative smoke를 내부적으로 수행 |
+| 사용 가능한 상태로 수렴 | `make up` | 최초 bootstrap, 필요한 build/cache 준비와 시작을 수렴하고 target-appropriate serving gate를 내부적으로 수행 |
 | 현재 상태 확인 | `make status` | health/runtime policy를 요약하고 주의할 항목과 다음 행동을 표시 |
 | 실행 리소스 정지 | `make down` | 이 checkout이 소유한 process/container/network를 정지하고 재사용 artifact는 보존 |
 | 운영 로그 확인 | `make logs` | 기본은 error/readiness structured event, 필요할 때 all/raw/service/follow로 확장 |
@@ -53,7 +53,7 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
 - local project image가 현재 clean source와 일치하면 재사용한다.
 - local image가 없거나 stale하면 Docker cache를 사용해 필요한 artifact를 다시 만든다.
 - pinned Main Model snapshot은 local cache를 먼저 확인하고 없을 때만 다운로드한다.
-- target별 runtime을 시작하고 readiness 및 representative inference path를 검증한다.
+- target별 runtime을 시작하고 serving gate를 검증한다. managed dynamic은 strict readiness와 representative inference path까지, static target은 외부 Main dependency를 포함한 Gateway readiness까지 확인한다.
 
 이 단계들의 script는 구현 계층으로 남을 수 있지만 동명의 public Make alias를 두지 않는다.
 

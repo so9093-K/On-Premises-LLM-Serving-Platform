@@ -282,3 +282,23 @@ def test_access_change_plan_uses_visible_step(
     assert platform_cli.setup_target(target, None, None, "private", False) is False
     assert len(visible) == 1
     assert hidden == []
+
+
+def test_raw_logs_include_native_metal_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    app_logs = tmp_path / "logs"
+    metal_logs = tmp_path / "metal"
+    app_logs.mkdir()
+    metal_logs.mkdir()
+    (metal_logs / "runtime.log").write_text("metal-ready\n", encoding="utf-8")
+    monkeypatch.setattr(platform_logs, "LOCAL_LOGS", app_logs)
+    monkeypatch.setattr(platform_logs, "NATIVE_METAL_LOGS", metal_logs)
+    monkeypatch.setattr(platform_logs, "_owned_containers", lambda service=None: [])
+
+    assert platform_logs._raw_logs("metal", tail=10, follow=False) == 0
+    output = capsys.readouterr().out
+    assert "runtime.log" in output
+    assert "metal-ready" in output

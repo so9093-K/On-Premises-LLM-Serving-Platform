@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 REQUEST_EVENTS = ROOT / ".runtime" / "request-events"
 LOCAL_LOGS = ROOT / "logs"
+NATIVE_METAL_LOGS = ROOT / ".runtime" / "metal" / "logs"
 
 
 def _tail_lines(path: Path, limit: int) -> list[str]:
@@ -116,9 +117,14 @@ def _raw_logs(service: str | None, *, tail: int, follow: bool) -> int:
             subprocess.run(command, cwd=ROOT, check=False)
         return 0
 
-    files = sorted(LOCAL_LOGS.glob("*.log"))
+    app_files = sorted(LOCAL_LOGS.glob("*.log"))
+    metal_files = sorted(NATIVE_METAL_LOGS.glob("*.log"))
     if service:
-        files = [path for path in files if service in path.stem]
+        files = [path for path in app_files if service in path.stem]
+        if service in {"metal", "main-llm-vllm", "main_model"}:
+            files += metal_files
+    else:
+        files = app_files + metal_files
     if not files:
         print("No matching project logs found.")
         return 0

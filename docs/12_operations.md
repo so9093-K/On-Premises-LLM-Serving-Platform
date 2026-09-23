@@ -293,8 +293,9 @@ make up
 make status
 ```
 
-`make up`은 필요한 artifact 준비, service reconciliation, readiness와 representative
-inference smoke까지 완료해야 성공한다. 별도의 ready/smoke operator command를 추가로
+`make up`은 필요한 artifact 준비와 service reconciliation 뒤 target이 소유한 serving gate를
+완료해야 성공한다. managed dynamic target은 strict readiness와 representative inference smoke,
+static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 별도의 ready/smoke operator command를 추가로
 실행해야 배포가 완료되는 구조가 아니다.
 
 GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/maintainer 검증인
@@ -302,8 +303,7 @@ GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/m
 
 복구 완료 기준:
 
-- `make up` 성공
-- `make status`에서 required dependency가 READY
+- `make up` 성공\n- `make status`에서 required dependency가 READY
 - 필요한 Runtime이 의도한 desired state
 - 동일 error/diagnostic code의 재발이 없음
 - GPU/queue/KV cache가 운영 범위

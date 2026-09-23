@@ -174,7 +174,7 @@ make status
 ```
 
 `make up`은 내부적으로 environment sync, 필요한 image/model cache 준비, exposure profile 적용,
-Main Model boot projection, Compose preflight, readiness와 representative smoke를 수행한다.
+Main Model boot projection과 Compose preflight를 수행한다. managed dynamic target은 strict readiness와 representative smoke까지 확인하고 static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
 세부 Compose/readiness script는 maintainer 진단용 implementation이며 operator command가 아니다.
 
 Main Model의 실제 실행 profile은 persisted runtime state와 boot policy를 반영해 결정된다.

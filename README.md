@@ -32,8 +32,9 @@ Gateway를 중심으로 Model Runtime, Risk Signal Service, Runtime Controller�
 
 운영자는 내부 build·cache·Compose 단계를 조립하지 않는다. 첫 실행에서 target과 접근
 범위만 선택하면 `make up`이 필요한 Python environment, persistent configuration,
-project-owned image, Main Model cache, service startup, readiness와 representative smoke를
-순서대로 수렴시킨다.
+project-owned image, Main Model cache와 service startup을 수렴시킨다. managed dynamic target은
+strict readiness와 representative smoke까지, static target은 외부 Main dependency를 포함한
+Gateway readiness까지 완료 조건으로 확인한다.
 
 | Target | 요구사항 |
 |---|---|

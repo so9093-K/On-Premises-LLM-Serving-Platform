@@ -10,7 +10,7 @@ make up TARGET=<deployment-target>
           ↓
 configuration / image / model cache convergence
           ↓
-runtime startup + readiness + smoke
+runtime startup + target readiness\n          ↓\nmanaged dynamic: representative smoke
           ↓
 make status
           ↓
@@ -29,7 +29,7 @@ Repository가 소유하는 canonical lifecycle은 다음 명령이다.
 
 | 단계 | 명령 | 책임 |
 |---|---|---|
-| 초기화 + 수렴 | `make up TARGET=<id>` | target·access profile·persistent `.env`, 필요한 image/model cache와 runtime 수렴 |
+| 초기화 + 수렴 | `make up TARGET=<id>` | target·access profile·persistent `.env`, 필요한 image/model cache와 runtime, target-appropriate serving gate 수렴 |
 
 
 | 기동 | `make up` | target topology 기동과 readiness |
