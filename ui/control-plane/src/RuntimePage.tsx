@@ -64,6 +64,15 @@ function operationIdFromError(error: unknown): string | null {
   return typeof operationId === 'string' ? operationId : null;
 }
 
+function criticalityLabel(value: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    primary_user_path: '주요 요청 경로',
+    retrieval_support_path: '검색 지원 경로',
+    risk_support_path: '위험 신호 지원',
+  };
+  return value ? labels[value] ?? value : '—';
+}
+
 function verificationSummary(operation: RuntimeOperationResponse): string {
   const verification = operation.verification;
   if (typeof verification !== 'object' || verification === null) {
@@ -242,46 +251,50 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
         <table className="runtime-table">
           <thead>
             <tr>
-              <th>Runtime</th>
-              <th>Desired</th>
-              <th>Observed container</th>
+              <th>런타임</th>
+              <th>원하는 상태</th>
+              <th>실제 상태</th>
               <th>VRAM</th>
-              <th>Priority</th>
-              <th>Actions</th>
+              <th>역할</th>
+              <th>작업</th>
             </tr>
           </thead>
           <tbody>
-            {runtimes.map((runtime) => (
-              <tr key={runtime.service_key}>
-                <td>
-                  <strong>{runtime.service_key}</strong>
-                  {runtime.active_profile ? <small>{runtime.active_profile}</small> : null}
-                </td>
-                <td><Label>{runtime.state}</Label></td>
-                <td>{runtime.container_status}</td>
-                <td>{displayNumber(runtime.vram_fraction)}</td>
-                <td>{runtime.criticality ?? '—'}</td>
-                <td className="runtime-actions">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={actionPending || runtime.state === 'starting'}
-                    onClick={() => planMutation.mutate({ serviceKey: runtime.service_key, desiredState: 'active', force: false })}
-                  >
-                    Start plan
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDanger
-                    isDisabled={actionPending || runtime.state === 'starting'}
-                    onClick={() => planMutation.mutate({ serviceKey: runtime.service_key, desiredState: 'stopped', force: false })}
-                  >
-                    Stop plan
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {runtimes.map((runtime) => {
+              const nextState: DesiredState = runtime.state === 'active' ? 'stopped' : 'active';
+              const starting = runtime.state === 'starting';
+              return (
+                <tr key={runtime.service_key}>
+                  <td>
+                    <strong>{runtimeDisplayName(runtime.service_key)}</strong>
+                    <small><code>{runtime.service_key}</code>{runtime.active_profile ? ` · ${runtime.active_profile}` : ''}</small>
+                  </td>
+                  <td><Label>{runtimeStateLabel(runtime.state)}</Label></td>
+                  <td>{runtimeStateLabel(runtime.container_status)}</td>
+                  <td>{formatPercent(runtime.vram_fraction)}</td>
+                  <td>{criticalityLabel(runtime.criticality)}</td>
+                  <td className="runtime-actions">
+                    {starting ? (
+                      <Button size="sm" variant="secondary" isDisabled>변경 진행 중</Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDanger={runtime.state === 'active'}
+                        isDisabled={actionPending}
+                        onClick={() => planMutation.mutate({
+                          serviceKey: runtime.service_key,
+                          desiredState: nextState,
+                          force: false,
+                        })}
+                      >
+                        {runtime.state === 'active' ? '중지 검토' : '시작 검토'}
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -290,33 +303,33 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
 
       {review ? (
         <Card className="review-card">
-          <CardTitle>Runtime change review — {review.service_key}</CardTitle>
+          <CardTitle>런타임 변경 검토 · {runtimeDisplayName(review.service_key)}</CardTitle>
           <CardBody>
             <div className="review-grid">
               <dl className="facts compact-facts">
-                <dt>Desired state before</dt><dd>{review.current_state}</dd>
-                <dt>Desired state after</dt><dd>{review.desired_state}</dd>
-                <dt>Observed container</dt><dd>{selectedRuntime?.container_status ?? '—'}</dd>
-                <dt>Would change</dt><dd>{review.no_op ? 'No' : 'Yes'}</dd>
-                <dt>Can apply</dt><dd>{review.admissible ? 'Yes' : 'No'}</dd>
-                <dt>Auto-stop allowed</dt><dd>{review.force ? 'Yes' : 'No'}</dd>
-                <dt>Auto-stop required</dt><dd>{review.requires_force ? 'Yes' : 'No'}</dd>
+                <dt>현재 원하는 상태</dt><dd>{runtimeStateLabel(review.current_state)}</dd>
+                <dt>변경 후 상태</dt><dd>{runtimeStateLabel(review.desired_state)}</dd>
+                <dt>현재 실제 상태</dt><dd>{runtimeStateLabel(selectedRuntime?.container_status ?? 'unavailable')}</dd>
+                <dt>실제 변경 발생</dt><dd>{yesNoLabel(!review.no_op)}</dd>
+                <dt>적용 가능</dt><dd>{yesNoLabel(review.admissible)}</dd>
+                <dt>자동 중지 허용</dt><dd>{yesNoLabel(review.force)}</dd>
+                <dt>자동 중지 필요</dt><dd>{yesNoLabel(review.requires_force)}</dd>
               </dl>
               <dl className="facts compact-facts">
-                <dt>GPU before</dt><dd>{displayNumber(review.budget.before.used)} / {displayNumber(review.budget.before.ceiling)}</dd>
-                <dt>GPU after</dt><dd>{displayNumber(review.budget.after.used)} / {displayNumber(review.budget.after.ceiling)}</dd>
-                <dt>Start</dt><dd>{review.start.length ? review.start.join(', ') : '—'}</dd>
-                <dt>Stop</dt><dd>{review.stop.length ? review.stop.join(', ') : '—'}</dd>
-                <dt>Prerequisites</dt><dd>{review.prerequisites.length ? review.prerequisites.join(', ') : '—'}</dd>
+                <dt>GPU 사용 전</dt><dd>{formatPercent(review.budget.before.used)} / 상한 {formatPercent(review.budget.before.ceiling)}</dd>
+                <dt>GPU 사용 후</dt><dd>{formatPercent(review.budget.after.used)} / 상한 {formatPercent(review.budget.after.ceiling)}</dd>
+                <dt>시작 대상</dt><dd>{review.start.length ? review.start.map(runtimeDisplayName).join(', ') : '—'}</dd>
+                <dt>중지 대상</dt><dd>{review.stop.length ? review.stop.map(runtimeDisplayName).join(', ') : '—'}</dd>
+                <dt>선행 조건</dt><dd>{review.prerequisites.length ? review.prerequisites.join(', ') : '—'}</dd>
               </dl>
             </div>
 
             {review.impact.length ? (
               <div className="impact-block">
-                <strong>Service impact</strong>
+                <strong>서비스 영향</strong>
                 <ul>
                   {review.impact.map((item) => (
-                    <li key={`${item.service_key}:${item.action}`}>{item.service_key}: {item.action} ({item.criticality ?? 'unspecified'})</li>
+                    <li key={`${item.service_key}:${item.action}`}>{runtimeDisplayName(item.service_key)}: {item.action} ({criticalityLabel(item.criticality)})</li>
                   ))}
                 </ul>
               </div>
@@ -353,23 +366,23 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
 
       {operationId !== null ? (
         <Card>
-          <CardTitle>Verification details</CardTitle>
+          <CardTitle>적용 결과</CardTitle>
           <CardBody>
-            {operationQuery.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="Verification details loading" /> 적용 결과를 불러오는 중입니다.</div> : null}
+            {operationQuery.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="런타임 적용 결과 불러오는 중" /> 적용 결과를 불러오는 중입니다.</div> : null}
             {operationQuery.isError ? <Alert isInline variant="danger" title="적용 결과를 불러오지 못했습니다.">{errorMessage(operationQuery.error)}</Alert> : null}
             {operationQuery.data ? (
               <>
                 <dl className="facts operation-facts">
-                  <dt>Operation</dt><dd>{operationQuery.data.operation_id}</dd>
-                  <dt>Status</dt><dd>{operationQuery.data.status}</dd>
-                  <dt>Phase</dt><dd>{operationQuery.data.phase}</dd>
-                  <dt>Runtime</dt><dd>{operationQuery.data.service_key}</dd>
-                  <dt>Desired state</dt><dd>{operationQuery.data.desired_state}</dd>
-                  <dt>Reviewed change</dt><dd>{operationQuery.data.reviewed_plan ? 'Yes' : 'No'}</dd>
-                  <dt>Actor</dt><dd>{operationQuery.data.actor.actor_id}</dd>
-                  <dt>Request ID</dt><dd>{operationQuery.data.request_id}</dd>
-                  <dt>Verification</dt><dd>{verificationSummary(operationQuery.data)}</dd>
-                  <dt>Persisted</dt><dd>{operationQuery.data.durable ? 'Yes' : 'No'}</dd>
+                  <dt>작업 ID</dt><dd><code>{operationQuery.data.operation_id}</code></dd>
+                  <dt>상태</dt><dd>{runtimeStateLabel(operationQuery.data.status)}</dd>
+                  <dt>단계</dt><dd>{operationQuery.data.phase}</dd>
+                  <dt>런타임</dt><dd>{runtimeDisplayName(operationQuery.data.service_key)}</dd>
+                  <dt>원하는 상태</dt><dd>{runtimeStateLabel(operationQuery.data.desired_state)}</dd>
+                  <dt>검토한 계획 사용</dt><dd>{yesNoLabel(operationQuery.data.reviewed_plan)}</dd>
+                  <dt>실행 주체</dt><dd><code>{operationQuery.data.actor.actor_id}</code></dd>
+                  <dt>요청 ID</dt><dd><code>{operationQuery.data.request_id}</code></dd>
+                  <dt>검증</dt><dd>{verificationSummary(operationQuery.data)}</dd>
+                  <dt>영구 기록</dt><dd>{yesNoLabel(operationQuery.data.durable)}</dd>
                 </dl>
                 {operationQuery.data.verification ? <pre className="evidence-json">{JSON.stringify(operationQuery.data.verification, null, 2)}</pre> : null}
               </>
