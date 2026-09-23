@@ -13,6 +13,8 @@ body,
 
 body {
   min-width: 320px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }
 
 button,
@@ -124,8 +126,13 @@ input {
 }
 
 .content {
-  padding: 1.5rem;
+  padding: 1.75rem;
   min-width: 0;
+}
+
+.content > section {
+  width: min(100%, 90rem);
+  margin-inline: auto;
 }
 
 .page-grid {
@@ -143,6 +150,27 @@ input {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
   gap: 1rem;
+}
+
+.overview-priority-grid-single {
+  grid-template-columns: 1fr;
+}
+
+.overview-attention-card {
+  border-top: 0.25rem solid var(--pf-t--global--color--status--warning--default, #f0ab00);
+}
+
+.overview-policy-card {
+  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+}
+
+.overview-policy-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.overview-policy-list p {
+  margin: 0;
 }
 
 .overview-status-card {
@@ -262,6 +290,43 @@ input {
   gap: 0.5rem;
 }
 
+.capability-grid {
+  display: grid;
+  gap: 0;
+}
+
+.capability-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+}
+
+.capability-item:first-child {
+  padding-top: 0;
+}
+
+.capability-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.capability-item strong,
+.capability-item small {
+  display: block;
+}
+
+.capability-item small {
+  margin-top: 0.2rem;
+  color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.capability-item > .pf-v6-c-label {
+  flex: 0 0 auto;
+}
+
 .runtime-page {
   display: grid;
   gap: 1rem;
@@ -277,6 +342,15 @@ input {
 .page-heading h1,
 .page-heading p {
   margin: 0;
+}
+
+.page-heading h1 {
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.page-heading p {
+  max-width: 70rem;
 }
 
 .page-heading p {
@@ -307,7 +381,7 @@ input {
 .runtime-table td {
   text-align: left;
   vertical-align: top;
-  padding: 0.75rem;
+  padding: 0.875rem;
   border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
 }
 
@@ -713,4 +787,112 @@ input {
   .activity-filters > button {
     flex: 1 1 auto;
   }
+
+  .gpu-budget-summary,
+  .capability-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+
+.gpu-budget-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.gpu-budget-summary strong {
+  font-size: 1.125rem;
+}
+
+.gpu-budget-summary span {
+  color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.gpu-budget-track {
+  position: relative;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--pf-t--global--background--color--secondary--default, #f0f0f0);
+}
+
+.gpu-budget-used {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pf-t--global--color--brand--default, #06c);
+}
+
+.gpu-budget-ceiling {
+  position: absolute;
+  top: -0.25rem;
+  bottom: -0.25rem;
+  width: 0.125rem;
+  background: var(--pf-t--global--text--color--regular, #151515);
+}
+
+.operator-details,
+.context-note {
+  margin-top: 0.875rem;
+}
+
+.operator-details summary,
+.context-note summary {
+  cursor: pointer;
+  color: var(--pf-t--global--color--brand--default, #06c);
+  font-weight: 600;
+}
+
+.operator-details .facts {
+  margin-top: 0.75rem;
+}
+
+.context-note {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+  border-radius: 0.375rem;
+  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+}
+
+.context-note p {
+  margin: 0.625rem 0 0;
+  max-width: 72rem;
+}
+
+.configuration-sync-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.empty-state {
+  max-width: 42rem;
+  padding: 1.25rem;
+  border-radius: 0.375rem;
+  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+}
+
+.empty-state strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.empty-state p {
+  margin: 0.375rem 0 0;
+  color: var(--pf-t--global--text--color--subtle, #6a6e73);
+}
+
+.current-state-text {
+  color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  font-weight: 600;
+}
+
+.compact-loading {
+  min-height: auto;
+  margin-top: 0.75rem;
 }

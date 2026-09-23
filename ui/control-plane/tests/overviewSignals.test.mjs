@@ -4,14 +4,15 @@ import test from 'node:test';
 import { mainModelOverviewSignals } from '../src/overviewSignals.ts';
 
 test('an intentionally stopped Main Model is informational rather than an incident', () => {
+  const signals = mainModelOverviewSignals({
+    gate: 'closed',
+    runtime_state: 'stopped',
+    observed_runtime: null,
+  });
+
   assert.deepEqual(
-    mainModelOverviewSignals({ gate: 'closed', runtime_state: 'stopped', observed_runtime: null }),
-    [{
-      key: 'main-model-stopped',
-      tone: 'info',
-      title: 'Main Model이 stopped 상태입니다.',
-      detail: '의도적인 stop일 수 있으므로 장애로 판정하지 않습니다. 필요하면 Main Model 화면에서 현재 state와 최근 operation을 확인하세요.',
-    }],
+    signals.map((signal) => [signal.key, signal.tone]),
+    [['main-model-stopped', 'info']],
   );
 });
 

@@ -22,7 +22,7 @@ const MAIN_MODEL_SWITCH_FLOW = [
   {
     stage: 'preparing',
     label: '대상 모델 준비',
-    description: '고정된 model/revision snapshot과 실행 준비 상태를 확인합니다.',
+    description: '고정된 모델/revision snapshot과 실행 준비 상태를 확인합니다.',
   },
   {
     stage: 'draining',
@@ -37,12 +37,12 @@ const MAIN_MODEL_SWITCH_FLOW = [
   {
     stage: 'starting',
     label: '대상 런타임 시작',
-    description: '선택한 profile의 image와 resource policy로 런타임을 시작합니다.',
+    description: '선택한 프로필의 이미지와 리소스 정책으로 런타임을 시작합니다.',
   },
   {
     stage: 'validating',
     label: '런타임 검증',
-    description: 'health, model identity와 profile capability canary를 확인합니다.',
+    description: '상태, 모델 identity와 프로필 기능 canary를 확인합니다.',
   },
 ] as const;
 
@@ -57,7 +57,7 @@ const SPECIAL_STAGE_PRESENTATION: Record<string, { label: string; description: s
   },
   failed: {
     label: '전환 실패',
-    description: '전환이 완료되지 않았습니다. 오류와 현재 control state를 확인하세요.',
+    description: '전환이 완료되지 않았습니다. 오류와 현재 제어 상태를 확인하세요.',
   },
   rollback_failed: {
     label: '복구 실패',
@@ -73,7 +73,7 @@ export function mainModelOperationStagePresentation(stage: string): {
   if (flow) return { label: flow.label, description: flow.description };
   return SPECIAL_STAGE_PRESENTATION[stage] ?? {
     label: stage,
-    description: 'Controller가 보고한 현재 operation stage입니다.',
+    description: 'Controller가 보고한 현재 작업 단계입니다.',
   };
 }
 
@@ -119,8 +119,8 @@ export function mainModelResourcePolicyLabel(
   profile: { resource_variant?: string | null },
 ): string {
   return profile.resource_variant
-    ? `Override · ${profile.resource_variant}`
-    : 'Reference policy';
+    ? `GPU 정책 override · ${profile.resource_variant}`
+    : '기준 리소스 정책';
 }
 
 type MainModelComparableProfile = {

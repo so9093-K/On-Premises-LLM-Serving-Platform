@@ -22,7 +22,26 @@
   검사가 양쪽 code 집합 일치를 고정한다.
 - `Qwen/Qwen2.5-Omni-7B` Thinker profile을 추가하고 `verified`로 승격했다. Gateway에서 text/image/audio/video 입력→text 응답, media boot canary·rollback, structured output, logprobs, logit bias와 streaming 계약을 실제 런타임으로 검증했다. tool calling은 안정적인 parser/template 경로가 없어 비활성이고, 음성 출력은 이번 플랫폼 범위에 포함하지 않는다.
 
+### Fixed
+
+- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
+  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
+  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
+  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+
 ### Changed
+
+- Control Plane Console의 기본 operator vocabulary를 한국어 우선으로 수렴했다. navigation,
+  page heading, 상태와 action은 운영 의도를 먼저 표현하고 service key, profile ID, error code,
+  revision/digest/request ID 같은 기술 식별자는 secondary/detail evidence로 보존한다.
+  Frontend는 OS/hostname을 추론하지 않고 기존 Bootstrap `deployment.features`와
+  `lifecycle_owner`만으로 UI를 구성한다. static/macOS target에서 제어 메뉴가 없는 경우
+  Overview의 지원 기능이 `외부 관리`와 `제공하지 않음`을 구분해 기능 미구현·권한 오류처럼
+  보이지 않게 한다. 정상 Overview는 조용하게 유지하고 실제 attention만 강조하며, Runtime
+  action은 현재 state에 가능한 시작/중지 하나만 노출한다. Configuration revision 상세,
+  raw operation evidence와 diagnostic identifier는 필요할 때 펼치는 계층으로 내렸다.
+  ([ADR-0040](docs/adr/0040-control-plane-korean-capability-ux.md))
+
 
 - Operator lifecycle을 intent 기반 `make up/status/down/logs/reset/purge`로 수렴했다. 첫
   `make up TARGET=<id>`이 persistent configuration, 필요한 local image와 pinned Main
@@ -213,12 +232,6 @@
 - 12B(`gemma4-12b-unified-fp8`) 프로필의 `--max-model-len`/`--max-num-batched-tokens`를 20000 → 50000으로 올렸다. `--max-num-seqs`(2)·`--gpu-memory-utilization`(0.76)은 그대로 두고 실제 배포 서버에서 boot/health/`/metrics` 검증까지 완료했다. profiling이 커진 배치만큼 activation 메모리를 더 확보하면서 KV cache pool(`num_gpu_blocks`)이 20707→16638로 줄어, 엔진 VRAM 사용량은 오히려 35.2GiB→30.2GiB로 감소했다. ([ADR-0015](docs/adr/0015-main-llm-20k-o3-runtime-target.md))
 
 ### Fixed
-
-- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
-  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
-  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
-  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
-
 
 - 기본 `main_only` Runtime Startup Profile에서 Embedding 계열을 의도적으로 `stopped`로 둔 상태인데도 `ready-full` smoke가 `/v1/embeddings`를 필수 probe처럼 호출해 `503 MODEL_UNAVAILABLE`로 정상 기동을 실패 처리하던 문제를 고쳤다. Smoke는 이제 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로 non-main probe 대상을 정한다. `stopped` 또는 resource-policy unavailable Runtime은 해당 Runtime 전용 probe를 건너뛰고, `active` Runtime은 계속 실제 inference 성공을 요구한다. `starting`, 상태 누락, 알 수 없는 상태는 silent skip하지 않고 fail-closed한다. Startup Profile은 초기 상태만 소유하며 기동 뒤 Runtime Control로 변경된 현재 상태가 readiness 판단에 반영된다.
 - `make up`이 deferred runtime 컨테이너 생성 단계에서 중단되던 문제를 고쳤다. `docker compose create`는 `--no-deps`를 받지 않아 Compose가 `unknown flag`로 즉시 실패했고, `set -e`가 걸린 `compose_up.sh`는 그 지점에서 멈춰 뒤따르는 config service 재생성과 fingerprint 상태 기록이 실행되지 않았다. 핵심 서비스는 이미 기동된 뒤라 운영자는 정상 동작하는 스택과 오류로 끝난 명령을 동시에 마주했다. deferred runtime은 `compose up --no-deps --no-start`로 생성되어 의존 서비스를 함께 올리지 않고 `Created` 상태로 남으며, lifecycle 명령은 선언한 단계를 끝까지 수행한다.

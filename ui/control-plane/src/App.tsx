@@ -10,6 +10,7 @@ import { MainModelPage } from './MainModelPage';
 import { OperationsPage } from './OperationsPage';
 import { OverviewPage } from './OverviewPage';
 import { RuntimePage } from './RuntimePage';
+import { deploymentTargetLabel, t } from './uiText';
 
 const SUPPORTED_BOOTSTRAP_VERSION = 4;
 
@@ -20,26 +21,26 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
-  { path: '/', label: 'Overview', enabled: () => true },
+  { path: '/', label: t('nav.overview'), enabled: () => true },
   {
     path: '/runtimes',
-    label: 'Runtimes',
+    label: t('nav.runtimes'),
     enabled: (bootstrap) => bootstrap.deployment.features.includes('runtime_control'),
   },
   {
     path: '/main-model',
-    label: 'Main Model',
+    label: t('nav.mainModel'),
     enabled: (bootstrap) => bootstrap.deployment.features.includes('model_switching'),
   },
-  { path: '/configuration', label: 'Configuration', enabled: () => true },
-  { path: '/operations', label: 'Activity', enabled: () => true },
+  { path: '/configuration', label: t('nav.configuration'), enabled: () => true },
+  { path: '/operations', label: t('nav.activity'), enabled: () => true },
 ];
 
 function LoadingScreen() {
   return (
     <main className="centered-state" aria-live="polite">
-      <Spinner aria-label="Control Plane bootstrap loading" />
-      <p>Control Plane 정보를 불러오는 중입니다.</p>
+      <Spinner aria-label="Control Plane 정보 불러오는 중" />
+      <p>{t('common.loading')}</p>
     </main>
   );
 }
@@ -64,7 +65,7 @@ function AuthGate() {
     event.preventDefault();
     const token = draft.trim();
     if (!token) {
-      setError('Admin key를 입력하세요.');
+      setError('관리자 키를 입력하세요.');
       return;
     }
     setSubmitting(true);
@@ -75,9 +76,9 @@ function AuthGate() {
       setDraft('');
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
-        setError('Admin key가 유효하지 않습니다.');
+        setError('관리자 키가 유효하지 않습니다.');
       } else {
-        setError(reason instanceof Error ? reason.message : 'Admin 인증 확인에 실패했습니다.');
+        setError(reason instanceof Error ? reason.message : '관리자 인증 확인에 실패했습니다.');
       }
     } finally {
       setSubmitting(false);
@@ -87,14 +88,14 @@ function AuthGate() {
   return (
     <main className="auth-shell">
       <Card className="auth-card">
-        <CardTitle>Admin 인증</CardTitle>
+        <CardTitle>관리자 인증</CardTitle>
         <CardBody>
           <p>
-            이 Access Profile은 Admin Bearer 인증이 필요합니다. Key는 이 브라우저 탭의 메모리에만
+            현재 접근 프로필은 관리자 Bearer 인증이 필요합니다. 키는 이 브라우저 탭의 메모리에만
             유지되며 새로고침하면 사라집니다.
           </p>
           <form className="auth-form" onSubmit={submit}>
-            <label htmlFor="admin-key">Admin key</label>
+            <label htmlFor="admin-key">관리자 키</label>
             <input
               id="admin-key"
               type="password"
@@ -117,7 +118,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
   const { token, clearToken } = useAdminSession();
   const sections = SECTIONS.filter((section) => section.enabled(bootstrap));
   const externalLinks = [
-    ['API Docs', bootstrap.links.docs],
+    [t('link.apiDocs'), bootstrap.links.docs],
     ['Grafana', bootstrap.links.grafana],
   ] as const;
 
@@ -125,15 +126,15 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
     <div className="console-shell">
       <header className="topbar">
         <div>
-          <strong>AI Model Serving Control Plane</strong>
-          <span>{bootstrap.deployment.display_name}</span>
+          <strong>AI 모델 서빙 Control Plane</strong>
+          <span>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</span>
         </div>
         {bootstrap.access.admin_auth_required ? (
-          <Button variant="secondary" onClick={clearToken}>Admin key 지우기</Button>
+          <Button variant="secondary" onClick={clearToken}>관리자 키 지우기</Button>
         ) : null}
       </header>
       <div className="workspace">
-        <aside className="sidebar" aria-label="Control Plane navigation">
+        <aside className="sidebar" aria-label="Control Plane 탐색">
           <nav>
             {sections.map((section) => (
               <NavLink key={section.path} to={section.path} end={section.path === '/'}>
@@ -175,14 +176,14 @@ export default function App() {
     return <LoadingScreen />;
   }
   if (bootstrapQuery.isError) {
-    return <FailureScreen title="Control Plane bootstrap을 불러오지 못했습니다.">{bootstrapQuery.error.message}</FailureScreen>;
+    return <FailureScreen title="Control Plane 정보를 불러오지 못했습니다.">{bootstrapQuery.error.message}</FailureScreen>;
   }
 
   const bootstrap = bootstrapQuery.data;
   if (bootstrap.bootstrap_version !== SUPPORTED_BOOTSTRAP_VERSION) {
     return (
       <FailureScreen title="지원하지 않는 Control Plane 계약입니다.">
-        현재 Console은 bootstrap version {SUPPORTED_BOOTSTRAP_VERSION}만 지원합니다. 안전을 위해 모든 operation을 잠급니다.
+        현재 Console은 bootstrap version {SUPPORTED_BOOTSTRAP_VERSION}만 지원합니다. 안전을 위해 모든 변경 작업을 잠급니다.
       </FailureScreen>
     );
   }

@@ -11,6 +11,19 @@ import {
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
+import {
+  accessProfileLabel,
+  CAPABILITY_KEYS,
+  capabilityPresentation,
+  controlModeLabel,
+  deploymentTargetLabel,
+  formatFraction,
+  implementationStatusLabel,
+  lifecycleOwnerLabel,
+  qualificationStatusLabel,
+  runtimeStateLabel,
+  t,
+} from './uiText';
 
 type OverviewPageProps = {
   bootstrap: BootstrapResponse;
@@ -18,40 +31,11 @@ type OverviewPageProps = {
   onUnauthorized: () => void;
 };
 
-function displayNumber(value: number | null | undefined): string {
-  return typeof value === 'number' ? value.toFixed(2) : '—';
-}
-
 function runtimeStateCount(
   runtimes: RuntimeListResponse['runtimes'],
   state: RuntimeListResponse['runtimes'][number]['state'],
 ): number {
   return runtimes.filter((runtime) => runtime.state === state).length;
-}
-
-function implementationStatusLabel(status: string): string {
-  if (status === 'implemented') return 'Implemented';
-  if (status === 'planned') return 'Planned';
-  return status;
-}
-
-function qualificationStatusLabel(status: string): string {
-  if (status === 'verified') return 'Verified';
-  if (status === 'unverified') return 'Unverified';
-  return status;
-}
-
-function featureLabel(feature: string): string {
-  const labels: Record<string, string> = {
-    chat: 'Chat',
-    embeddings: 'Embeddings',
-    retrieval: 'Retrieval',
-    risk: 'Risk signals',
-    runtime_control: 'Runtime control',
-    model_switching: 'Model switching',
-    gpu_admission: 'GPU admission',
-  };
-  return labels[feature] ?? feature;
 }
 
 function signalColor(tone: OverviewSignalTone): 'blue' | 'orange' | 'red' {
@@ -65,11 +49,14 @@ function mainModelSummary(
   pending: boolean,
   mainModel: ReturnType<typeof fetchMainModel> extends Promise<infer T> ? T | undefined : never,
 ): string {
-  if (!enabled) return 'externally managed';
-  if (pending) return 'checking';
-  if (!mainModel) return 'unavailable';
-  if (mainModel.runtime_state === 'stopped') return 'stopped';
-  return `${mainModel.gate} · ${mainModel.observed_runtime?.status ?? 'not observed'}`;
+  if (!enabled) return '외부 / 네이티브 관리';
+  if (pending) return '확인 중';
+  if (!mainModel) return '상태 확인 불가';
+  if (mainModel.runtime_state === 'stopped') return '중지됨';
+  const observed = mainModel.observed_runtime?.status
+    ? runtimeStateLabel(mainModel.observed_runtime.status)
+    : '관측값 없음';
+  return `${runtimeStateLabel(mainModel.gate)} · ${observed}`;
 }
 
 export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageProps) {
@@ -127,256 +114,280 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     || mainModelQuery.isError
     || attentionSignals.length > 0
   );
+  const hasPolicyNotice = (
+    informationalSignals.length > 0
+    || unavailableTopology.length > 0
+    || !bootstrap.configuration.write_available
+    || bootstrap.deployment.lifecycle_owner === 'external'
+  );
+
   const operatorStatus = checking
-    ? { label: 'Checking current state', color: 'blue' as const }
+    ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
-      ? { label: 'Review current state', color: 'orange' as const }
-      : { label: 'No current action indicated', color: 'green' as const };
+      ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
+      : { label: '정상', color: 'green' as const, description: '현재 즉시 조치가 필요한 항목은 없습니다.' };
+
+  const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
+    feature,
+    bootstrap.deployment.features,
+    bootstrap.deployment.lifecycle_owner,
+  ));
 
   return (
     <section className="overview-page">
       <div className="page-heading">
         <div>
-          <h1>Overview</h1>
-          <p>현재 모델, Runtime, Configuration, 접근 방식과 관측 상태를 한곳에서 확인합니다.</p>
+          <h1>개요</h1>
+          <p>현재 서비스 상태, 실행 환경과 운영자가 할 수 있는 작업을 한눈에 확인합니다.</p>
         </div>
         <Button variant="secondary" onClick={refresh} isDisabled={refreshing}>
-          {refreshing ? '새로고침 중…' : '새로고침'}
+          {refreshing ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 
-      <div className="overview-priority-grid">
+      <div className={`overview-priority-grid ${hasAttention ? '' : 'overview-priority-grid-single'}`}>
         <Card className="overview-status-card">
-          <CardTitle>Operator status</CardTitle>
+          <CardTitle>운영 상태</CardTitle>
           <CardBody>
             <div className="overview-status-heading">
               <Label color={operatorStatus.color}>{operatorStatus.label}</Label>
-              <strong>현재 Control Plane 신호를 기준으로 판단합니다.</strong>
+              <strong>{operatorStatus.description}</strong>
             </div>
-            <p className="overview-muted">
-              이 요약은 전체 서비스 SLO나 `/ready` 결과를 대신하지 않습니다. 현재 제어 상태에서 운영자가 바로 확인할 항목이 있는지만 보여줍니다.
-            </p>
             <dl className="facts overview-status-facts">
-              <dt>Main Model</dt>
+              <dt>메인 모델</dt>
               <dd>{mainModelSummary(modelSwitchingEnabled, mainModelQuery.isPending, mainModel)}</dd>
-              <dt>Runtimes</dt>
-              <dd>{runtimeControlEnabled ? `${runtimeStateCount(runtimes, 'active')} active · ${runtimeStateCount(runtimes, 'starting')} starting` : 'externally managed'}</dd>
-              <dt>Configuration</dt>
-              <dd>{bootstrap.configuration.write_available ? 'write available' : 'read-only / unavailable'}</dd>
+              <dt>런타임</dt>
+              <dd>
+                {runtimeControlEnabled
+                  ? `${runtimeStateCount(runtimes, 'active')}개 실행 중 · ${runtimeStateCount(runtimes, 'starting')}개 시작 중`
+                  : '외부 / 네이티브 관리'}
+              </dd>
+              <dt>설정</dt>
+              <dd>{bootstrap.configuration.write_available ? '변경 가능' : '읽기 전용 / 변경 불가'}</dd>
             </dl>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardTitle>Needs attention</CardTitle>
-          <CardBody>
-            <div className="overview-signal-list">
-              {runtimesQuery.isError ? (
-                <div className="overview-signal">
-                  <Label color="orange">Runtime</Label>
-                  <div>
-                    <strong>Runtime 상태를 조회하지 못했습니다.</strong>
-                    <small>{apiErrorMessage(runtimesQuery.error)}</small>
-                    <Link className="overview-inline-action" to="/runtimes">Runtimes에서 확인 →</Link>
-                  </div>
-                </div>
-              ) : null}
-              {mainModelQuery.isError ? (
-                <div className="overview-signal">
-                  <Label color="orange">Main Model</Label>
-                  <div>
-                    <strong>Main Model 상태를 조회하지 못했습니다.</strong>
-                    <small>{apiErrorMessage(mainModelQuery.error)}</small>
-                    <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link>
-                  </div>
-                </div>
-              ) : null}
-              {attentionSignals.map((signal) => (
-                <div className="overview-signal" key={signal.key}>
-                  <Label color={signalColor(signal.tone)}>{signal.tone}</Label>
-                  <div>
-                    <strong>{signal.title}</strong>
-                    <small>{signal.detail}</small>
-                    {modelSwitchingEnabled ? (
-                      <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-              {!hasAttention && !checking ? (
-                <p className="overview-no-attention">현재 Control Plane 신호에서 즉시 조치가 필요한 항목은 없습니다.</p>
-              ) : null}
-              {checking ? (
-                <div className="inline-loading">
-                  <Spinner size="md" aria-label="Overview current state loading" />
-                  현재 상태를 확인하는 중입니다.
-                </div>
-              ) : null}
-            </div>
-
-            {(informationalSignals.length > 0 || unavailableTopology.length > 0 || !bootstrap.configuration.write_available) ? (
-              <div className="overview-policy-notices">
-                <strong>Policy / informational</strong>
-                {informationalSignals.map((signal) => (
-                  <p key={signal.key}>
-                    {signal.title} {signal.detail}
-                    {modelSwitchingEnabled ? (
-                      <> <Link className="overview-inline-action" to="/main-model">Main Model에서 확인 →</Link></>
-                    ) : null}
-                  </p>
-                ))}
-                {unavailableTopology.length ? (
-                  <p>
-                    {unavailableTopology.length}개 Runtime이 현재 resource policy의 composition constraint로 unavailable합니다.
-                    장애나 GPU 지원 판정이 아닙니다.{' '}
-                    <Link className="overview-inline-action" to="/runtimes">Runtimes에서 확인 →</Link>
-                  </p>
-                ) : null}
-                {!bootstrap.configuration.write_available ? (
-                  <p>
-                    현재 target에서는 Configuration write가 unavailable합니다. 읽기 상태 자체의 오류를 뜻하지 않습니다.{' '}
-                    <Link className="overview-inline-action" to="/configuration">Configuration에서 확인 →</Link>
-                  </p>
-                ) : null}
+            {checking ? (
+              <div className="inline-loading compact-loading">
+                <Spinner size="md" aria-label="현재 상태 확인 중" />
+                현재 상태를 확인하는 중입니다.
               </div>
             ) : null}
           </CardBody>
         </Card>
+
+        {hasAttention ? (
+          <Card className="overview-attention-card">
+            <CardTitle>확인 필요</CardTitle>
+            <CardBody>
+              <div className="overview-signal-list">
+                {runtimesQuery.isError ? (
+                  <div className="overview-signal">
+                    <Label color="orange">런타임</Label>
+                    <div>
+                      <strong>런타임 상태를 조회하지 못했습니다.</strong>
+                      <small>{apiErrorMessage(runtimesQuery.error)}</small>
+                      <Link className="overview-inline-action" to="/runtimes">런타임에서 확인 →</Link>
+                    </div>
+                  </div>
+                ) : null}
+                {mainModelQuery.isError ? (
+                  <div className="overview-signal">
+                    <Label color="orange">메인 모델</Label>
+                    <div>
+                      <strong>메인 모델 상태를 조회하지 못했습니다.</strong>
+                      <small>{apiErrorMessage(mainModelQuery.error)}</small>
+                      <Link className="overview-inline-action" to="/main-model">메인 모델에서 확인 →</Link>
+                    </div>
+                  </div>
+                ) : null}
+                {attentionSignals.map((signal) => (
+                  <div className="overview-signal" key={signal.key}>
+                    <Label color={signalColor(signal.tone)}>상태</Label>
+                    <div>
+                      <strong>{signal.title}</strong>
+                      <small>{signal.detail}</small>
+                      {modelSwitchingEnabled ? (
+                        <Link className="overview-inline-action" to="/main-model">메인 모델에서 확인 →</Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        ) : null}
       </div>
+
+      {hasPolicyNotice ? (
+        <Card className="overview-policy-card">
+          <CardTitle>운영 참고</CardTitle>
+          <CardBody className="overview-policy-list">
+            {bootstrap.deployment.lifecycle_owner === 'external' ? (
+              <p>
+                이 실행 환경의 메인 런타임 lifecycle은 외부 또는 네이티브 구성요소가 관리합니다.
+                Control Plane은 서버가 선언한 지원 기능만 표시하며, 숨겨진 메뉴는 오류나 권한 부족을 뜻하지 않습니다.
+              </p>
+            ) : null}
+            {informationalSignals.map((signal) => (
+              <p key={signal.key}>{signal.title} {signal.detail}</p>
+            ))}
+            {unavailableTopology.length ? (
+              <p>
+                {unavailableTopology.length}개 런타임은 현재 리소스 정책상 동시에 실행하지 않도록 제외되어 있습니다.
+                GPU 지원 여부나 장애 판정이 아닙니다.{' '}
+                <Link className="overview-inline-action" to="/runtimes">런타임에서 이유 확인 →</Link>
+              </p>
+            ) : null}
+            {!bootstrap.configuration.write_available ? (
+              <p>
+                현재 실행 환경에서는 설정 변경을 사용할 수 없습니다. 상태 조회 자체의 오류를 뜻하지 않습니다.{' '}
+                <Link className="overview-inline-action" to="/configuration">설정에서 확인 →</Link>
+              </p>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
 
       <div className="page-grid overview-primary-grid">
         <Card>
-          <CardTitle>Main Model</CardTitle>
+          <CardTitle>메인 모델</CardTitle>
           <CardBody>
             {!modelSwitchingEnabled ? (
-              <dl className="facts">
-                <dt>Runtime ownership</dt><dd>{bootstrap.deployment.lifecycle_owner}</dd>
-                <dt>Control mode</dt><dd>{bootstrap.deployment.control_mode}</dd>
-              </dl>
+              <>
+                <dl className="facts">
+                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                </dl>
+                <p className="overview-muted overview-ownership-note">
+                  이 실행 환경에서는 Control Plane이 메인 모델 전환을 수행하지 않습니다.
+                </p>
+              </>
             ) : mainModelQuery.isPending ? (
-              <div className="inline-loading"><Spinner size="md" aria-label="Main Model 상태 loading" /> 상태를 불러오는 중입니다.</div>
+              <div className="inline-loading"><Spinner size="md" aria-label="메인 모델 상태 불러오는 중" /> 상태를 불러오는 중입니다.</div>
             ) : mainModel ? (
               <dl className="facts">
-                <dt>Public model alias</dt><dd>{mainModel.public_model}</dd>
-                <dt>Active profile</dt><dd>{mainModel.active_profile?.display_name ?? '—'}</dd>
-                <dt>Gate</dt>
-                <dd><Label color={mainModel.gate === 'open' ? 'green' : 'orange'}>{mainModel.gate}</Label></dd>
-                <dt>Runtime state</dt><dd>{mainModel.runtime_state}</dd>
-                <dt>Observed status</dt><dd>{mainModel.observed_runtime?.status ?? 'unavailable'}</dd>
-                <dt>Observed health</dt><dd>{mainModel.observed_runtime?.health ?? '—'}</dd>
+                <dt>공개 모델 이름</dt><dd>{mainModel.public_model}</dd>
+                <dt>현재 프로필</dt><dd>{mainModel.active_profile?.display_name ?? '—'}</dd>
+                <dt>요청 상태</dt>
+                <dd><Label color={mainModel.gate === 'open' ? 'green' : 'orange'}>{runtimeStateLabel(mainModel.gate)}</Label></dd>
+                <dt>런타임 상태</dt><dd>{runtimeStateLabel(mainModel.runtime_state)}</dd>
+                <dt>실제 상태</dt><dd>{runtimeStateLabel(mainModel.observed_runtime?.status ?? 'unavailable')}</dd>
+                <dt>상태 확인</dt><dd>{runtimeStateLabel(mainModel.observed_runtime?.health ?? 'unavailable')}</dd>
               </dl>
             ) : (
-              <p className="overview-muted">Main Model 상태를 표시할 수 없습니다.</p>
+              <p className="overview-muted">메인 모델 상태를 표시할 수 없습니다.</p>
             )}
             {modelSwitchingEnabled ? (
               <div className="overview-card-actions">
-                <Link to="/main-model">Main Model 운영으로 이동 →</Link>
+                <Link to="/main-model">메인 모델 운영으로 이동 →</Link>
               </div>
             ) : null}
           </CardBody>
         </Card>
 
         <Card>
-          <CardTitle>Model Runtimes & GPU</CardTitle>
+          <CardTitle>런타임과 GPU</CardTitle>
           <CardBody>
             {!runtimeControlEnabled ? (
-              <dl className="facts">
-                <dt>Runtime ownership</dt><dd>{bootstrap.deployment.lifecycle_owner}</dd>
-                <dt>Control mode</dt><dd>{bootstrap.deployment.control_mode}</dd>
-              </dl>
+              <>
+                <dl className="facts">
+                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                </dl>
+                <p className="overview-muted overview-ownership-note">
+                  이 실행 환경에서는 런타임 시작·중지와 GPU 실행 가능성 판단을 외부 구성요소가 관리합니다.
+                </p>
+              </>
             ) : runtimesQuery.isPending ? (
-              <div className="inline-loading"><Spinner size="md" aria-label="Runtime 상태 loading" /> 상태를 불러오는 중입니다.</div>
+              <div className="inline-loading"><Spinner size="md" aria-label="런타임 상태 불러오는 중" /> 상태를 불러오는 중입니다.</div>
             ) : (
               <dl className="facts">
-                <dt>Active</dt><dd>{runtimeStateCount(runtimes, 'active')}</dd>
-                <dt>Starting</dt><dd>{runtimeStateCount(runtimes, 'starting')}</dd>
-                <dt>Stopped</dt><dd>{runtimeStateCount(runtimes, 'stopped')}</dd>
-                <dt>Unavailable</dt>
-                <dd>
-                  <Label color={unavailableTopology.length ? 'orange' : 'green'}>
-                    {unavailableTopology.length}
-                  </Label>
-                </dd>
-                <dt>GPU ceiling</dt><dd>{displayNumber(budget?.ceiling)}</dd>
-                <dt>GPU used</dt><dd>{displayNumber(budget?.used)}</dd>
-                <dt>GPU free</dt><dd>{displayNumber(budget?.free)}</dd>
+                <dt>실행 중</dt><dd>{runtimeStateCount(runtimes, 'active')}</dd>
+                <dt>시작 중</dt><dd>{runtimeStateCount(runtimes, 'starting')}</dd>
+                <dt>중지됨</dt><dd>{runtimeStateCount(runtimes, 'stopped')}</dd>
+                <dt>정책상 제외</dt>
+                <dd><Label color={unavailableTopology.length ? 'orange' : 'green'}>{unavailableTopology.length}</Label></dd>
+                <dt>GPU 상한</dt><dd>{formatFraction(budget?.ceiling)}</dd>
+                <dt>GPU 사용</dt><dd>{formatFraction(budget?.used)}</dd>
+                <dt>GPU 여유</dt><dd>{formatFraction(budget?.free)}</dd>
               </dl>
             )}
             {runtimeControlEnabled ? (
               <div className="overview-card-actions">
-                <Link to="/runtimes">Runtime 운영으로 이동 →</Link>
+                <Link to="/runtimes">런타임 운영으로 이동 →</Link>
               </div>
             ) : null}
           </CardBody>
         </Card>
 
         <Card>
-          <CardTitle>Configuration</CardTitle>
+          <CardTitle>설정</CardTitle>
           <CardBody>
             <dl className="facts">
-              <dt>Schema</dt><dd>v{bootstrap.configuration.schema_version}</dd>
-              <dt>Revision</dt><dd>{bootstrap.configuration.revision}</dd>
-              <dt>Write</dt>
+              <dt>스키마</dt><dd>v{bootstrap.configuration.schema_version}</dd>
+              <dt>리비전</dt><dd>{bootstrap.configuration.revision}</dd>
+              <dt>변경</dt>
               <dd><Label color={bootstrap.configuration.write_available ? 'green' : 'orange'}>
-                {bootstrap.configuration.write_available ? 'available' : 'unavailable'}
+                {bootstrap.configuration.write_available ? '가능' : '사용할 수 없음'}
               </Label></dd>
             </dl>
             <div className="overview-card-actions">
-              <Link to="/configuration">Configuration으로 이동 →</Link>
+              <Link to="/configuration">설정으로 이동 →</Link>
             </div>
           </CardBody>
         </Card>
-
       </div>
 
       <div className="page-grid overview-secondary-grid">
         <Card>
-          <CardTitle>Runtime environment & access</CardTitle>
+          <CardTitle>실행 환경과 접근</CardTitle>
           <CardBody>
             <dl className="facts">
-              <dt>Environment</dt><dd>{bootstrap.deployment.display_name}</dd>
-              <dt>Environment ID</dt><dd>{bootstrap.deployment.target}</dd>
-              <dt>Runtime backend</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
-              <dt>Lifecycle owner</dt><dd>{bootstrap.deployment.lifecycle_owner}</dd>
-              <dt>Control mode</dt><dd>{bootstrap.deployment.control_mode}</dd>
-              <dt>Implementation</dt><dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)}</dd>
-              <dt>Qualification</dt><dd>{qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
-              <dt>Access profile</dt><dd>{bootstrap.access.profile}</dd>
-              <dt>Admin auth</dt><dd>{bootstrap.access.admin_auth_required ? 'required' : 'not required'}</dd>
+              <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
+              <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
+              <dt>런타임 백엔드</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
+              <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+              <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+              <dt>구현 상태</dt><dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)}</dd>
+              <dt>검증 상태</dt><dd>{qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
+              <dt>접근 프로필</dt><dd>{accessProfileLabel(bootstrap.access.profile)}</dd>
+              <dt>관리자 인증</dt><dd>{bootstrap.access.admin_auth_required ? '필요' : '필요 없음'}</dd>
             </dl>
-            <p className="overview-muted overview-ownership-note">
-              {bootstrap.deployment.lifecycle_owner === 'external'
-                ? '이 target의 Main runtime lifecycle은 외부/native owner가 관리합니다. Console은 선언된 capability 밖의 Runtime Control이나 Main Model switching을 제공하지 않습니다.'
-                : '이 target의 managed runtime lifecycle과 Main Model operation은 Platform Control Plane이 소유합니다.'}
-            </p>
           </CardBody>
         </Card>
 
         <Card>
-          <CardTitle>Platform & observability</CardTitle>
+          <CardTitle>플랫폼과 관측</CardTitle>
           <CardBody>
             <dl className="facts">
-              <dt>Version</dt><dd>{bootstrap.platform.version}</dd>
-              <dt>Release</dt><dd>{release}</dd>
-              <dt>Observability</dt><dd>{bootstrap.monitoring.available ? 'available' : 'unavailable'}</dd>
-              <dt>Grafana</dt><dd>{bootstrap.monitoring.grafana_available ? 'available' : 'unavailable'}</dd>
+              <dt>버전</dt><dd>{bootstrap.platform.version}</dd>
+              <dt>릴리스</dt><dd>{release}</dd>
+              <dt>관측 기능</dt><dd>{bootstrap.monitoring.available ? '사용 가능' : '사용할 수 없음'}</dd>
+              <dt>Grafana</dt><dd>{bootstrap.monitoring.grafana_available ? '사용 가능' : '사용할 수 없음'}</dd>
             </dl>
             <div className="overview-card-actions">
               {bootstrap.links.docs ? (
-                <a href={bootstrap.links.docs} target="_blank" rel="noreferrer">API Docs에서 사용법 확인 ↗</a>
+                <a href={bootstrap.links.docs} target="_blank" rel="noreferrer">API 문서에서 사용법 확인 ↗</a>
               ) : null}
               {bootstrap.links.grafana ? (
                 <a href={bootstrap.links.grafana} target="_blank" rel="noreferrer">Grafana에서 진단 ↗</a>
               ) : null}
-              <Link to="/operations">Activity에서 변경 이력 확인 →</Link>
+              <Link to="/operations">활동에서 변경 이력 확인 →</Link>
             </div>
           </CardBody>
         </Card>
 
         <Card>
-          <CardTitle>Capabilities</CardTitle>
-          <CardBody className="capability-list">
-            {bootstrap.deployment.features.map((feature) => <Label key={feature}>{featureLabel(feature)}</Label>)}
+          <CardTitle>지원 기능</CardTitle>
+          <CardBody className="capability-grid">
+            {capabilities.map((capability) => (
+              <div className="capability-item" key={capability.key}>
+                <div>
+                  <strong>{capability.label}</strong>
+                  <small>{capability.detail}</small>
+                </div>
+                <Label color={capability.tone}>{capability.status}</Label>
+              </div>
+            ))}
           </CardBody>
         </Card>
       </div>
