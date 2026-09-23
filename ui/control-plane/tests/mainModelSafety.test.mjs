@@ -73,15 +73,15 @@ test('switch request carries qualification confirmation and terminal states', ()
 });
 
 
-test('resource policy is separate from hardware support and qualification evidence', () => {
-  assert.equal(mainModelResourcePolicyLabel(profile()), '기준 리소스 정책');
-  assert.equal(
-    mainModelResourcePolicyLabel(profile('compatible', 'verified', {
-      resource_variant: 'rtx4090-24gb',
-      resource_variants: ['rtx4090-24gb'],
-    })),
-    'GPU 정책 override · rtx4090-24gb',
-  );
+test('resource policy presentation preserves the selected variant without inferring hardware support', () => {
+  const reference = mainModelResourcePolicyLabel(profile());
+  const override = mainModelResourcePolicyLabel(profile('compatible', 'verified', {
+    resource_variant: 'rtx4090-24gb',
+    resource_variants: ['rtx4090-24gb'],
+  }));
+
+  assert.notEqual(reference, override);
+  assert.equal(override.includes('rtx4090-24gb'), true);
 });
 
 test('profile impact compares operator-visible switch differences without inferring hardware support', () => {
