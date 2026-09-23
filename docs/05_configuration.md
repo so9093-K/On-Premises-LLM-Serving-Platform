@@ -356,11 +356,11 @@ Main Model profile의 `gpu_memory_utilization`과 GPU budget은 하나의 resour
 `configs/access_profiles.yaml`이 인증·노출·bind의 지원 조합을 resolve한다.
 
 ```bash
-make setup TARGET=<id> ACCESS=local
+make up TARGET=<id> ACCESS=local
 ```
 
-기존 `.env`에 profile을 적용할 때는 첫 실행이 계획만 표시한다. 확인 후
-`CONFIRM=access`를 지정한다. `ACCESS_PROFILE`이 없는 기존 환경은 자동 이관하지 않는다.
+기존 `.env`에 profile을 적용할 때는 `make up ACCESS=...`의 첫 실행이 계획만 표시한다. 확인 후
+같은 `make up`에 `CONFIRM=access`를 지정한다. `ACCESS_PROFILE`이 없는 기존 환경은 자동 이관하지 않는다.
 
 인증과 네트워크 노출 profile은 Advanced/legacy primitive로 계속 분리 관리한다.
 개별 `auth-apply` 또는 `exposure-apply`를 적용하면 `ACCESS_PROFILE`을 비워 managed
@@ -560,7 +560,7 @@ make validate
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
 ```bash
-make compose-config
+bash scripts/compose/compose_config.sh
 make exposure-status
 ```
 
@@ -578,9 +578,9 @@ make exposure-status
 | Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
 | Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
 | GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `make compose-config` |
+| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `bash scripts/compose/compose_config.sh` |
 | Exposure mode | `exposure_profiles.yaml` | host publish 범위 | `make validate`, exposure 적용, Compose 재적용 |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make setup ACCESS=...` |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make up ACCESS=...` |
 | Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
 | Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make sync-env`, `make validate` |
@@ -614,7 +614,7 @@ make exposure-status
 
 ```bash
 make validate
-make compose-config        # Compose 관련 변경 시
+bash scripts/compose/compose_config.sh        # Compose 관련 변경 시
 make exposure-status       # exposure/auth 관련 변경 시
 ```
 

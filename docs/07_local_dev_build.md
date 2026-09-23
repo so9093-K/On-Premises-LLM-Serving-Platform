@@ -1,41 +1,32 @@
 # 7. 로컬 개발과 빌드
 
-AI Model Serving Platform의 로컬 개발은 **application 개발**, **full-stack 통합 확인**, **Docker image build**, **release package 생성**으로 나뉜다.
-
-일반 사용자가 이 단계를 직접 조립하지는 않는다. 로컬 lifecycle의 공개 진입점은
-`setup → build → prepare → up/status/down`이며, 이 문서의 개별 build·runtime 명령은 변경 범위
-확인과 장애 진단을 위한 내부 단계다. 명령별 책임과 삭제 범위는
-[ADR-0023](adr/0023-local-lifecycle-command-boundaries.md)을 따른다.
+AI Model Serving Platform은 **operator lifecycle**과 **developer/maintainer tooling**을
+분리한다. 일반 사용자는 build, model download, Compose readiness 단계를 직접 조립하지
+않는다.
 
 ```bash
-make setup TARGET=macos-metal-static ACCESS=local   # 또는 linux-nvidia-dynamic
-make build
-HF_TOKEN=hf_xxx make prepare
+# 최초 1회
+HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
+
+# 이후
 make up
 make status
+make logs
 make down
 ```
 
-일반적인 개발 흐름은 코드 변경 후 정적 검증과 테스트를 수행하고, 변경 범위에 맞는 실행 환경에서 동작을 확인하는 순서로 진행한다.
+`make up`은 필요한 runtime Python environment, target configuration, project-owned image,
+Main Model cache, runtime startup와 strict readiness/smoke를 현재 상태에 맞춰 수렴한다.
+이미 현재 source와 맞는 image와 pinned model snapshot은 재사용한다.
 
-```text
-코드 변경
-   ↓
-make validate
-   ↓
-make test
-   ↓
-실행 환경 선택
-   ├─ app-only  → application layer 확인
-   └─ full-stack → 실제 vLLM / GPU 통합 확인
-   ↓
-필요한 Artifact Build
-   ├─ Platform Image
-   ├─ Unified vLLM Image
-   └─ Release ZIP
-```
+개발자는 코드 변경 검증을 위해 `make app-check` 또는 `make check`를 사용한다.
+개별 image build, runtime validation, package 생성과 implementation script는 변경 범위를
+검증하기 위한 developer/maintainer surface이며 정상 operator lifecycle을 확장하지 않는다.
 
-Runtime 구조와 실행 모드는 [4. 실행 환경과 모드](./04_runtime_modes.md), 설정 파일과 환경변수는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 상세 테스트 구성은 [8. 테스트와 검증](./08_testing_validation.md)에서 설명한다.
+명령 책임과 파괴 범위는 [ADR-0039](adr/0039-operator-intent-lifecycle-and-diagnostics.md)을
+따른다. Runtime 구조와 실행 모드는 [4. 실행 환경과 모드](./04_runtime_modes.md), 설정 파일과
+환경변수는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 상세 테스트 구성은
+[8. 테스트와 검증](./08_testing_validation.md)에서 설명한다.
 
 ---
 
@@ -174,11 +165,11 @@ Source / Config 변경
    ↓
 make check
    ↓
-make build    (image 입력이 바뀐 경우만)
-   ↓
-make prepare  (model 입력이 바뀌었거나 cache가 없는 경우만)
-   ↓
 make up
+   ↓
+필요한 image/cache만 자동 수렴
+   ↓
+strict readiness + representative smoke
 ```
 
 `make validate`와 `make test`가 검사하는 세부 항목은 [8. 테스트와 검증](./08_testing_validation.md)에서 다룬다.
@@ -217,10 +208,10 @@ Developer Host
 ### 상태 확인
 
 ```bash
-make ready-local
+make status
 ```
 
-`make ready-local`은 Gateway와 Risk Signal Service의 localhost `/health`를 확인한다.
+app-only에서 `make status`는 Gateway와 Risk Signal Service의 application health를 확인한다.
 
 app-only는 다음과 같은 application layer 작업에 적합하다.
 
@@ -245,20 +236,17 @@ app-only와 full-stack의 구조적 차이는 [4.1 실행 모드](./04_runtime_m
 
 full-stack은 Docker Compose를 사용해 application, model runtime, control plane, observability를 함께 실행한다.
 
-### 환경 준비
+### 환경 준비와 기동
 
-새로운 full-stack 개발 환경은 target을 한 번 선택해 준비한다. `.env`가 없으면 target
-기본 profile과 endpoint를 포함해 생성한다.
+새로운 full-stack 개발 환경은 첫 `make up`에서 target을 한 번 선택한다. `.env`가 없으면
+target 기본 profile과 endpoint를 생성하고, 필요한 image와 Main Model snapshot만 준비한다.
 
 ```bash
-make setup TARGET=linux-nvidia-dynamic ACCESS=local
-make build
-HF_TOKEN=hf_xxx make prepare
+HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-`build`는 선택 target에서 이 저장소가 소유한 Platform/Unified vLLM image만 만들고,
-`prepare`는 선택된 Main Model만 준비한다. non-main model은
-각 기능을 활성화할 때 별도로 준비하며, 일반 재기동에서는 `prepare`를 반복하지 않는다.
+일반 재기동은 `make up` 하나다. local image가 현재 clean source와 일치하고 pinned model
+snapshot이 이미 cache에 있으면 재사용한다.
 
 Compose용 `.env`만 직접 생성해야 하는 유지보수 상황에서는 다음 내부 명령을 사용한다.
 
@@ -276,9 +264,9 @@ make up
 
 기본 `main_only` profile은 Main Model만 준비하고 non-main Model Runtime은 stopped 상태로
 생성한다. Retrieval runtime도 처음부터 필요하면
-`RUNTIME_STARTUP_PROFILE=retrieval_ready make compose-up`을 명시한다.
+`RUNTIME_STARTUP_PROFILE=retrieval_ready make up`을 명시한다.
 
-내부적으로 `compose-up`은 다음 준비 작업을 수행한 뒤 effective Compose stack을 기동한다.
+내부적으로 `scripts/compose/compose_up.sh`는 다음 준비 작업을 수행한 뒤 effective Compose stack을 기동한다.
 
 1. `.env` contract 검증
 2. runtime secret 준비
@@ -288,7 +276,7 @@ make up
 6. 선택된 Main Model의 Hugging Face cache 준비
 7. 서비스 기동
 
-Preflight와 기동은 같은 `base → exposure override → boot override` 순서를 사용한다. `compose-up`에서 생성한 boot 파일을 `--boot-override`로 전달하므로 preflight 중 persisted state를 다시 읽어 다른 프로필을 고르지 않는다. Preflight를 단독 실행하면 기존 boot resolver로 임시 override를 만들고 종료 시 삭제한다.
+Preflight와 기동은 같은 `base → exposure override → boot override` 순서를 사용한다. `scripts/compose/compose_up.sh`에서 생성한 boot 파일을 `--boot-override`로 전달하므로 preflight 중 persisted state를 다시 읽어 다른 프로필을 고르지 않는다. Preflight를 단독 실행하면 기존 boot resolver로 임시 override를 만들고 종료 시 삭제한다.
 
 정상 preflight 뒤에는 같은 `docker compose config` 검사를 반복하지 않는다. 기존 정책에 따라 명시적으로 preflight를 생략한 경우에만 별도 config 검사를 실행한다.
 
@@ -303,8 +291,8 @@ make status
 ```
 
 `make up`은 Gateway와 vLLM dependency readiness 및 실제 inference path까지 확인한 뒤
-성공한다. 이후 `make status`는 현재 상태만 짧게 확인한다. 세부 readiness만 다시 실행할
-때는 내부 명령 `make ready-full`을 사용한다.
+성공한다. 이후 `make status`는 현재 상태를 짧게 확인한다. 특정 readiness implementation만
+분리해 디버깅해야 하는 maintainer는 `bash scripts/ops/ready_full.sh`를 직접 실행한다.
 
 Full-stack은 다음 작업에 사용한다.
 
@@ -334,25 +322,13 @@ Platform Image는 Gateway, Risk Signal Service, Runtime Controller 등 applicati
 ai-model-serving-platform:<VERSION>
 ```
 
-### 선택 target 전체 Build
+### Operator lifecycle의 image convergence
 
-```bash
-make build
-```
+일반 운영자는 target image를 별도 명령으로 먼저 만들지 않는다. `make up`이 external
+registry digest는 보존하고, project-owned local image는 현재 source와의 일치 여부를
+확인해 필요한 경우 Docker cache를 사용해 다시 만든다.
 
-`make build`는 `.env`의 deployment target을 읽고 이 저장소가 소유한 image만 만든다.
-모델 weight 다운로드와 서비스 시작, 정적 검증·테스트는 섞지 않는다.
-
-```text
-linux-nvidia-dynamic  → Platform + Unified vLLM image
-linux-nvidia-static   → Platform image (Main runtime은 external)
-macos-metal-static    → Platform image (MLX runtime은 native environment)
-```
-
-Docker cache를 재사용하지 않고 같은 target의 project-owned image를 다시 만들 때만
-`make rebuild`를 사용한다. 기존 BuildKit cache를 삭제하는 명령은 아니다.
-`rebuild`도 모델을 다시 다운로드하거나 서비스를 시작하지 않는다. 소스 변경 검증은
-별도 책임인 `make check`를 먼저 실행한다.
+특정 image 자체를 개발·CI 목적으로 검증하는 명령은 아래 developer build surface가 소유한다.
 
 ### Image만 Build
 
@@ -364,9 +340,9 @@ make build-image
 
 | 명령 | 범위 |
 |---|---|
-| `make build` | 선택 target의 저장소 소유 image 전체, Docker cache 사용 |
-| `make rebuild` | 같은 project-owned image 전체, Docker `--no-cache` 사용; 기존 cache 보존 |
+| `make up` | 정상 lifecycle에서 필요한 project-owned image만 수렴 |
 | `make build-image` | Platform Image Build + image 내부 application 확인 |
+| `make build-vllm-unified-image` | Unified vLLM Image 직접 Build |
 
 `PLATFORM_IMAGE` 환경변수로 build tag를 지정할 수 있으며, 기본값은 `ai-model-serving-platform:<VERSION>`이다.
 
@@ -447,7 +423,7 @@ Unified vLLM Image는 다음 변경에서 다시 빌드한다.
 Unified vLLM build 입력이 바뀌면 운영자가 새 image를 명시적으로 빌드한다. 자동 감지와
 registry publish는 현재 구성하지 않으며, 향후 자동화 원칙은 [9. 자동화 경계](./09_cicd.md)에서 설명한다.
 
-target-aware `make build`는 로컬에서 빌드한 Unified image tag를 Docker의 content-addressed
+`make up`의 artifact convergence는 로컬에서 빌드한 Unified image tag를 Docker의 content-addressed
 `sha256:...` image ID로 해석하고, `.env`에서 그 build tag와 정확히 일치하는 unified
 image 값만 고정한다. 운영자가 별도로 지정한 image ref는 추측해서 덮어쓰지 않는다.
 다른 host나 외부 automation에서 같은 artifact를 사용하려면 publish된 registry의
@@ -455,16 +431,16 @@ image 값만 고정한다. 운영자가 별도로 지정한 image ref는 추측�
 
 ### 반복 개발과 재빌드
 
-앱 코드만 바뀌었다면 내부 `make build-image`로 Platform image만 확인할 수 있다. target
-전체 image build는 Docker cache를 사용하며, runtime patch나 base 입력을 cache 없이
-다시 확인해야 할 때만 다음 명령을 사용한다.
+앱 코드만 바뀌었다면 developer command `make build-image`로 Platform image만 확인할 수
+있다. Unified runtime patch나 base 입력을 cache 없이 재현해야 하는 maintainer 검증은
+implementation script에 `PROJECT_BUILD_NO_CACHE=1`을 명시한다.
 
 ```bash
-make rebuild
+PROJECT_BUILD_NO_CACHE=1 bash scripts/build/build_vllm_unified_image.sh
 ```
 
-`build`와 `rebuild` 모두 모델 weight를 다운로드하지 않는다. 선택 Main Model download는
-`prepare`, non-main model 준비는 각 기능의 운영 경로가 소유한다.
+정상 operator lifecycle에서는 `make up`이 필요한 image와 model cache를 수렴하므로 별도의
+build/prepare 순서를 요구하지 않는다.
 
 ---
 
@@ -508,72 +484,64 @@ Release ZIP은 배포에 필요한 artifact와 `tests/`를 함께 담는다. CI�
 
 ---
 
-## 7.8 전체 종료·정리·초기화
+## 7.8 종료·초기화·폐기
 
-일반 종료는 현재 `.env` target만 멈추며 image, volume, 모델 cache를 보존한다.
+일반 종료는 checkout이 소유한 실행 리소스를 정지하고 image, model cache와 persistent
+configuration을 보존한다. `.env`가 일부 손상되거나 없어도 checkout ownership label/PID
+기반 fallback을 같은 `make down`이 소유한다.
 
 ```bash
 make down
 ```
 
-target 설정이 바뀌었거나 `.env`가 없어도 이 checkout이 만든 모든 host process와 Compose
-container/network를 내리려면 `make down-all`을 사용한다. Compose project name을
-하드코딩하지 않고 Docker의 working-directory label로 소유권을 판정하며 image, volume,
-모델 cache는 삭제하지 않는다.
-
-저비용 build/test 산출물만 정리할 때는 `make clean`을 사용한다. 삭제 대상 확인과 로그
-포함은 별도 target 대신 같은 명령의 옵션이다.
-
-```bash
-make clean DRY_RUN=1
-make clean LOGS=1
-```
-
-처음부터 다시 구성하기 위한 project-local 초기화는 파괴적이므로 기본 실행이 계획만 출력한다.
+local configuration/runtime state를 처음부터 다시 만들고 싶을 때는 `reset`을 사용한다.
+기본 실행은 plan-only다.
 
 ```bash
 make reset
 make reset CONFIRM=reset
 ```
 
-확인 후 적용하면 `down-all` 범위, 프로젝트가 빌드한 local image, `.env`, `.venv`,
-`.runtime`, 로그·산출물과 repository-local model cache를 제거한다. Docker volume과
-daemon 공용 BuildKit cache, 프로젝트 label이 없는 registry image, 다른 checkout의 Docker resource와 사용자의 global
-Hugging Face cache는 제거하지 않는다. daemon 전체에 영향을 주는 prune은 lifecycle에
-포함하지 않는다.
+`reset`은 `.env`, `.venv`, `.runtime`, process log/run file과 저비용 build/test
+artifact를 제거하지만 project-built image와 repository-local model cache, Docker volume은
+보존한다.
+
+비싼 재사용 artifact까지 버려 디스크를 회수하려면 `purge`를 사용한다.
+
+```bash
+make purge SCOPE=cache
+make purge SCOPE=cache CONFIRM=purge
+
+make purge SCOPE=all
+make purge SCOPE=all CONFIRM=purge
+```
+
+`cache` scope는 project-owned image, repository-local model cache, identifiable project
+Compose volume과 diagnostic/build artifact를 제거하고 configuration state는 보존한다.
+`all`은 여기에 reset 범위를 추가한다.
+
+어느 scope도 global Hugging Face cache, daemon-wide BuildKit cache, 다른 checkout/image/volume을
+삭제하지 않는다. daemon 전체 prune은 repository lifecycle에 포함하지 않는다.
+
+저비용 repository artifact만 maintainer가 직접 정리해야 하는 경우
+`bash scripts/ops/clean_project.sh --dry-run`으로 implementation 범위를 먼저 확인한다.
 
 ---
 
-## 7.9 빌드 결과 확인
-
-작업별 확인 방법은 다음과 같다.
+## 7.9 결과 확인
 
 | 작업 | 확인 명령 | 확인 범위 |
 |---|---|---|
-| app-only | `make ready-local` | Gateway / Risk Signal Service health |
-| full-stack | `make ready-full` | Gateway readiness + vLLM + inference path |
-| Platform Image | `make build-image` | Docker build + application import |
-| 선택 target image | `make build` | target별 저장소 소유 image 전체 |
-| cache 재사용 없는 재빌드 | `make rebuild` | project-owned 범위 + Docker `--no-cache`; cache 자체는 보존 |
-| Compose config | `make compose-config` | effective Compose config rendering |
-| 서비스 상태 | `make status` | 현재 service / process 상태 |
+| app-only/full-stack 현재 상태 | `make status` | Gateway readiness와 현재 Runtime policy state |
+| 정상 lifecycle convergence | `make up` | 필요한 artifact 준비 + startup + strict readiness/smoke |
+| Platform Image 직접 검증 | `make build-image` | Docker build + application import |
+| Unified vLLM Image 직접 검증 | `make build-vllm-unified-image` | CUDA runtime image build |
+| 서비스/Runtime raw log | `make logs SERVICE=<id>` | 선택 service의 bounded raw evidence |
 | Release ZIP | `make package` | package validation + ZIP 생성 |
 
-`make compose-up`은 기동 전에 Docker, GPU, host port, secret을 preflight로 확인한다.
-
-실행 중인 stack의 기본 상태를 확인하려면 다음 명령을 사용한다.
-
-```bash
-make status
-```
-
-Compose 환경에서 로그가 필요한 경우에는 다음 명령을 사용할 수 있다.
-
-```bash
-make compose-logs
-```
-
-상세 runtime 검증과 장애 진단은 [8. 테스트와 검증](./08_testing_validation.md), [11. 관측성과 장애 대응](./11_observability.md)에서 다룬다.
+Compose effective config만 확인하는 maintainer 작업은
+`bash scripts/compose/compose_config.sh`를 사용한다. 일반 운영에서는 `make up` preflight가
+같은 effective configuration을 검증한다.
 
 ---
 
@@ -581,20 +549,18 @@ make compose-logs
 
 | 목적 | 명령 |
 |---|---|
-| target 환경·`.env` 최초 준비 | `make setup TARGET=<id> [ACCESS=local\|private\|edge]` (기본 `local`) |
-| 선택 target image 빌드 | `make build` |
-| 선택 Main Model 준비 | `HF_TOKEN=... make prepare` |
-| target 전체 시작 | `make up` |
-| target 통합 상태 | `make status` |
-| target 전체 종료 | `make down` |
-| checkout 소유 runtime 전체 종료 | `make down-all` |
-| 프로젝트 로컬 상태 초기화 plan / 적용 | `make reset` / `make reset CONFIRM=reset` |
-| application 변경 검증 | `make check` |
-| 내부 build·진단·운영 명령 | `make help-all` |
+| 최초 target 선택 + 전체 시작 | `make up TARGET=<id> [ACCESS=local|private|edge]` |
+| 이후 전체 시작/수렴 | `make up` |
+| 통합 상태 | `make status` |
+| 운영 event / log | `make logs` |
+| 전체 종료 | `make down` |
+| local state 초기화 | `make reset` |
+| project cache/artifact 폐기 | `make purge SCOPE=cache|all` |
+| application 변경 검증 | `make app-check` |
+| repository 전체 검증 | `make check` |
 
-`validate`, `test`, 개별 image build, readiness, Compose와 Metal lifecycle 명령은
-없어진 것이 아니라 위 공개 workflow가 재사용하는 내부 단계다. 해당 계층만 직접
-진단하거나 release artifact를 유지보수할 때 `make help-all`에서 사용한다.
+개별 image build, readiness, smoke, Compose/Metal lifecycle script는 operator command가 아니라
+developer/maintainer implementation surface다.
 
 ---
 
