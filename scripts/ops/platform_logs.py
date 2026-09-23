@@ -29,7 +29,7 @@ def _tail_lines(path: Path, limit: int) -> list[str]:
     return list(rows)
 
 
-def _structured_events(limit: int) -> int:
+def _structured_events(limit: int, *, all_events: bool = False) -> int:
     files = sorted(
         REQUEST_EVENTS.glob("*.jsonl*"),
         key=lambda path: path.stat().st_mtime if path.exists() else 0,
@@ -41,12 +41,21 @@ def _structured_events(limit: int) -> int:
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if isinstance(payload, dict):
+            if not isinstance(payload, dict):
+                continue
+            status = payload.get("status_code")
+            important = (
+                payload.get("error_code") is not None
+                or payload.get("diagnostic_code") is not None
+                or payload.get("readiness_status") not in (None, "ready")
+                or (isinstance(status, int) and status >= 400)
+            )
+            if all_events or important:
                 records.append(payload)
     if not records:
         return 0
 
-    print("Recent application events")
+    print("Recent application events" if all_events else "Recent error and readiness events")
     for event in records:
         service = str(event.get("service") or "-")
         route = str(event.get("route") or event.get("event") or "-")
@@ -131,15 +140,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tail", type=int, default=30)
     parser.add_argument("--follow", action="store_true")
     parser.add_argument("--raw", action="store_true")
+    parser.add_argument("--all-events", action="store_true")
     args = parser.parse_args(arv)
     if args.tail < 1:
         parser.error("--tail must be positive")
     if args.raw or args.service or args.follow:
         return _raw_logs(args.service, tail=args.tail, follow=args.follow)
-    count = _structured_events(args.tail)
+    count = _structured_events(args.tail, all_events=args.all_events)
     if count == 0:
         print("No structured application events found.")
-        print("Use make status for health, or make logs RAW=1 for raw service output.")
+        print("Use make status for health, make logs ALL=1 for all request events, or RAW=1 for raw service output.")
     else:
         print("")
         print("For raw evidence: make logs SERVICE=<service> or make logs RAW=1")

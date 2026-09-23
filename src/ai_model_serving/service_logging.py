@@ -47,6 +47,16 @@ def scrub_for_log(value: Any) -> Any:
     return value
 
 
+def _configured_log_level() -> int:
+    raw = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
+    level = logging.getLevelNamesMapping().get(raw)
+    if not isinstance(level, int):
+        raise ValueError(
+            "LOG_LEVEL must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL"
+        )
+    return level
+
+
 def service_logger(service: str) -> logging.Logger:
     logger = logging.getLogger(f"ai_model_serving.{service}")
     if not logger.handlers:
@@ -54,7 +64,7 @@ def service_logger(service: str) -> logging.Logger:
         handler.setFormatter(logging.Formatter("%(message)s"))
         logger.addHandler(handler)
     logger.propagate = False
-    logger.setLevel(logging.INFO)
+    logger.setLevel(_configured_log_level())
     return logger
 
 
