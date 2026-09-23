@@ -29,7 +29,7 @@ def prepare_model_snapshot(
     cache_dir: Path,
     token: str | None = None,
 ) -> PreparedModelSnapshot:
-    """Download and locally re-open one exact revision in the HF hub cache.
+    """Reuse or download and locally re-open one exact revision in the HF hub cache.
 
     ``cache_dir`` is the hub cache root (normally ``HF_HOME/hub``), not
     ``HF_HOME`` itself. Keeping that boundary explicit prevents the preparer and
@@ -41,14 +41,25 @@ def prepare_model_snapshot(
     resolved_token = token or os.environ.get("HF_TOKEN") or os.environ.get(
         "HUGGING_FACE_HUB_TOKEN"
     )
-    downloaded = Path(
-        snapshot_download(
-            repo_id=model_id,
-            revision=revision,
-            cache_dir=str(cache_dir),
-            token=resolved_token or None,
+    try:
+        downloaded = Path(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                cache_dir=str(cache_dir),
+                token=resolved_token or None,
+                local_files_only=True,
+            )
         )
-    )
+    except Exception:
+        downloaded = Path(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                cache_dir=str(cache_dir),
+                token=resolved_token or None,
+            )
+        )
     verified = Path(
         snapshot_download(
             repo_id=model_id,
