@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--profile", choices=PROFILES, required=True)
     args = parser.parse_args(argv)
-    context = "setup-dev" if args.profile == "development" else "setup"
+    context = "setup-dev" if args.profile == "development" else "make up"
     quiet = args.profile == "runtime" and os.environ.get("PLATFORM_VERBOSE") != "1"
     try:
         _run_bootstrap_step(
@@ -145,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.profile == "development":
         print("[setup-dev] ready: make check")
     else:
-        print("[setup] runtime Python environment ready")
+        print("[platform] ✓ Python environment")
     return 0
 
 
