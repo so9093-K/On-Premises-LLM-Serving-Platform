@@ -300,6 +300,7 @@ def test_raw_logs_include_native_metal_runtime(
     app_logs.mkdir()
     metal_logs.mkdir()
     (metal_logs / "runtime.log").write_text("metal-ready\n", encoding="utf-8")
+    monkeypatch.setattr(platform_logs, "ROOT", tmp_path)
     monkeypatch.setattr(platform_logs, "LOCAL_LOGS", app_logs)
     monkeypatch.setattr(platform_logs, "NATIVE_METAL_LOGS", metal_logs)
     monkeypatch.setattr(platform_logs, "_owned_containers", lambda service=None: [])

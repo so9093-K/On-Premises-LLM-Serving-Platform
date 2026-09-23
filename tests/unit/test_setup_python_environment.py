@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import runpy
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from scripts.build import setup_python_environment
 from scripts.build.setup_python_environment import build_sync_command
@@ -80,3 +83,20 @@ def test_quiet_runtime_bootstrap_hides_success_output(
 
     assert capsys.readouterr().out == ""
     assert not list((tmp_path / ".runtime" / "operator-logs").glob("*.log"))
+
+
+def test_runtime_bootstrap_failure_uses_platform_vocabulary(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(setup_python_environment, "ROOT", tmp_path)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        setup_python_environment._run_bootstrap_step(
+            [sys.executable, "-c", "raise SystemExit(7)"],
+            label="bootstrap failure",
+            quiet=True,
+        )
+
+    error = capsys.readouterr().err
+    assert "[platform] bootstrap failure failed" in error
+    assert "[setup]" not in error

@@ -103,7 +103,7 @@ def _run_bootstrap_step(
     if excerpt:
         print(excerpt, file=sys.stderr)
     print(
-        f"[setup] {label} failed; full output: {log_path.relative_to(ROOT)}",
+        f"[platform] {label} failed; full output: {log_path.relative_to(ROOT)}",
         file=sys.stderr,
     )
     raise subprocess.CalledProcessError(result.returncode, command)
