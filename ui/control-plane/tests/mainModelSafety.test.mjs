@@ -74,13 +74,13 @@ test('switch request carries qualification confirmation and terminal states', ()
 
 
 test('resource policy is separate from hardware support and qualification evidence', () => {
-  assert.equal(mainModelResourcePolicyLabel(profile()), 'Reference policy');
+  assert.equal(mainModelResourcePolicyLabel(profile()), '기준 리소스 정책');
   assert.equal(
     mainModelResourcePolicyLabel(profile('compatible', 'verified', {
       resource_variant: 'rtx4090-24gb',
       resource_variants: ['rtx4090-24gb'],
     })),
-    'Override · rtx4090-24gb',
+    'GPU 정책 override · rtx4090-24gb',
   );
 });
 

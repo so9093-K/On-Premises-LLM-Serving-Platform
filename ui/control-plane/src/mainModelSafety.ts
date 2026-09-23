@@ -119,8 +119,8 @@ export function mainModelResourcePolicyLabel(
   profile: { resource_variant?: string | null },
 ): string {
   return profile.resource_variant
-    ? `Override · ${profile.resource_variant}`
-    : 'Reference policy';
+    ? `GPU 정책 override · ${profile.resource_variant}`
+    : '기준 리소스 정책';
 }
 
 type MainModelComparableProfile = {
