@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   app-contract:
@@ -54,6 +54,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
@@ -65,17 +67,26 @@ jobs:
         run: |
           npm --prefix ui/control-plane ci
           npm --prefix ui/control-plane run build -- --outDir .dist-candidate --emptyOutDir
+      - name: Synchronize checked-in Console dist
+        run: |
+          rm -rf src/ai_model_serving/static/control-plane
+          mkdir -p src/ai_model_serving/static/control-plane
+          cp -R ui/control-plane/.dist-candidate/. src/ai_model_serving/static/control-plane/
       - name: Check Control Plane source and generated Console
         run: make console-check
-      - name: Capture generated Console candidate
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: control-plane-dist-candidate
-          path: ui/control-plane/.dist-candidate
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit generated Console dist
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ai_model_serving/static/control-plane
+          if git diff --cached --quiet; then
+            echo "Console dist already current."
+            exit 0
+          fi
+          git commit -m "build(console): generated Control Plane artifact를 갱신한다"
+          git push origin "HEAD:${HEAD_BRANCH}"
 
   platform-image:
     name: Platform image build and smoke
