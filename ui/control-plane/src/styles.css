@@ -1,7 +1,27 @@
 :root {
   font-family: var(--pf-t--global--font--family--body, system-ui, sans-serif);
-  color: var(--pf-t--global--text--color--regular, #151515);
-  background: var(--pf-t--global--background--color--primary--default, #fff);
+  color-scheme: dark;
+  --console-canvas: #292827;
+  --console-shell: #232221;
+  --console-surface: #333230;
+  --console-surface-raised: #3b3937;
+  --console-surface-hover: #403e3b;
+  --console-border: #4a4845;
+  --console-text: #f5f4f2;
+  --console-text-muted: #c7c4c0;
+  --console-focus: #8bc8ff;
+  --console-selection: rgba(139, 200, 255, 0.35);
+  color: var(--console-text);
+  background: var(--console-canvas);
+}
+
+html.pf-v6-theme-dark {
+  --pf-t--global--background--color--primary--default: var(--console-surface);
+  --pf-t--global--background--color--secondary--default: var(--console-surface-raised);
+  --pf-t--global--text--color--regular: var(--console-text);
+  --pf-t--global--text--color--subtle: var(--console-text-muted);
+  --pf-t--global--border--color--default: var(--console-border);
+  --pf-t--global--border--color--subtle: var(--console-border);
 }
 
 html,
@@ -9,6 +29,7 @@ body,
 #root {
   min-height: 100%;
   margin: 0;
+  background: var(--console-canvas);
 }
 
 body {
@@ -50,8 +71,8 @@ input {
   border: 1px solid var(--pf-t--global--border--color--default, #8a8d90);
   border-radius: 0.25rem;
   padding: 0.625rem 0.75rem;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  color: inherit;
+  background: var(--console-surface-raised);
+  color: var(--console-text);
 }
 
 .form-error {
@@ -63,6 +84,8 @@ input {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  color: var(--console-text);
+  background: var(--console-canvas);
 }
 
 .topbar {
@@ -72,8 +95,8 @@ input {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  background: var(--pf-t--global--background--color--primary--default, #fff);
+  border-bottom: 1px solid var(--console-border);
+  background: var(--console-shell);
 }
 
 .topbar > div {
@@ -94,8 +117,8 @@ input {
 
 .sidebar {
   padding: 1rem;
-  border-right: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+  border-right: 1px solid var(--console-border);
+  background: var(--console-shell);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -115,8 +138,12 @@ input {
   border-radius: 0.25rem;
 }
 
+.sidebar a:hover {
+  background: var(--console-surface-hover);
+}
+
 .sidebar nav a.active {
-  background: var(--pf-t--global--background--color--primary--default, #fff);
+  background: var(--console-surface-raised);
   font-weight: 600;
   box-shadow: inset 0.1875rem 0 var(--pf-t--global--color--brand--default, #06c);
 }
@@ -128,6 +155,7 @@ input {
 .content {
   padding: 1.75rem;
   min-width: 0;
+  background: var(--console-canvas);
 }
 
 .content > section {
@@ -161,7 +189,7 @@ input {
 }
 
 .overview-policy-card {
-  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+  --pf-v6-c-card--BackgroundColor: var(--console-surface-raised);
 }
 
 .overview-policy-list {
@@ -374,7 +402,7 @@ input {
 .runtime-table {
   width: 100%;
   border-collapse: collapse;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
+  background: var(--console-surface);
 }
 
 .runtime-table th,
@@ -391,7 +419,7 @@ input {
 
 .runtime-table th {
   white-space: nowrap;
-  background: var(--pf-t--global--background--color--secondary--default, #f5f5f5);
+  background: var(--console-surface-raised);
 }
 
 .runtime-table td strong,
@@ -671,9 +699,9 @@ input {
 .activity-event {
   min-width: 0;
   padding: 1rem;
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+  border: 1px solid var(--console-border);
   border-radius: 0.375rem;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
+  background: var(--console-surface);
 }
 
 .activity-event-header {
@@ -895,4 +923,78 @@ input {
 .compact-loading {
   min-height: auto;
   margin-top: 0.75rem;
+}
+
+
+/* Warm dark surface hierarchy. PatternFly owns semantic action/status colors. */
+.pf-v6-c-card {
+  --pf-v6-c-card--BackgroundColor: var(--console-surface);
+  --pf-v6-c-card--BorderColor: var(--console-border);
+}
+
+.pf-v6-c-card.pf-m-secondary,
+.pf-v6-c-card.overview-policy-card {
+  --pf-v6-c-card--BackgroundColor: var(--console-surface-raised);
+}
+
+.auth-card {
+  --pf-v6-c-card--BackgroundColor: var(--console-surface);
+}
+
+.table-scroll {
+  background: var(--console-surface);
+  border-color: var(--console-border);
+}
+
+.runtime-table tbody tr:hover {
+  background: var(--console-surface-hover);
+}
+
+.configuration-editor input,
+.configuration-editor select,
+.auth-form input {
+  border-color: var(--console-border);
+  background: var(--console-surface-raised);
+  color: var(--console-text);
+}
+
+.configuration-editor input::placeholder,
+.auth-form input::placeholder {
+  color: var(--console-text-muted);
+}
+
+.evidence-json,
+.context-note,
+.empty-state {
+  background: var(--console-surface-raised);
+  color: var(--console-text);
+}
+
+.gpu-budget-track {
+  background: var(--console-surface-raised);
+}
+
+.gpu-budget-ceiling {
+  background: var(--console-text);
+}
+
+.facts code,
+.runtime-table code,
+.evidence-json code {
+  color: var(--console-text-muted);
+}
+
+.console-shell a:focus-visible,
+.console-shell button:focus-visible,
+.console-shell input:focus-visible,
+.console-shell select:focus-visible,
+.auth-shell input:focus-visible,
+.auth-shell button:focus-visible {
+  outline: 0.125rem solid var(--console-focus);
+  outline-offset: 0.125rem;
+}
+
+::selection {
+  color: var(--console-text);
+  background: var(--console-selection);
 }
