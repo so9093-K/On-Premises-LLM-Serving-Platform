@@ -146,7 +146,7 @@ function mainModelActivity(operation: MainModelOperation, grafanaUrl: string | n
     phase: operation.stage,
     detail,
     metadata: [
-      { label: 'Operation ID', value: operation.id },
+      { label: '작업 ID', value: operation.id },
       { label: '클라이언트 요청 ID', value: operation.client_request_id ?? '—' },
       { label: '이전 프로필', value: operation.previous_profile ?? '—' },
       { label: '재시작 후 복구', value: operation.recovered_after_restart ? '예' : '아니요' },
@@ -173,10 +173,10 @@ function configurationActivity(operation: ConfigurationHistoryItem, grafanaUrl: 
     phase: operation.phase,
     detail: `${operation.changes.length}개 변경 · ${configurationVerification(operation)}`,
     metadata: [
-      { label: 'Operation ID', value: operation.operation_id },
-      { label: 'Request ID', value: operation.request_id },
-      { label: 'Actor', value: actorText(operation.actor) },
-      { label: 'Plan digest', value: operation.plan_digest },
+      { label: '작업 ID', value: operation.operation_id },
+      { label: '요청 ID', value: operation.request_id },
+      { label: '실행 주체', value: actorText(operation.actor) },
+      { label: '계획 digest', value: operation.plan_digest },
     ],
     diagnostics: (() => {
       const href = requestLogDiagnosticsUrl(grafanaUrl, operation.request_id, operation.updated_at);

@@ -174,11 +174,11 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
   }, [review, runtimesQuery.data]);
 
   if (runtimesQuery.isPending) {
-    return <div className="inline-loading"><Spinner size="lg" aria-label="Runtime 상태 loading" /> Runtime 상태를 불러오는 중입니다.</div>;
+    return <div className="inline-loading"><Spinner size="lg" aria-label="런타임 상태 불러오는 중" /> 런타임 상태를 불러오는 중입니다.</div>;
   }
 
   if (runtimesQuery.isError) {
-    return <Alert isInline variant="danger" title="Runtime 상태를 불러오지 못했습니다.">{errorMessage(runtimesQuery.error)}</Alert>;
+    return <Alert isInline variant="danger" title="런타임 상태를 불러오지 못했습니다.">{errorMessage(runtimesQuery.error)}</Alert>;
   }
 
   const { runtimes, budget } = runtimesQuery.data;
@@ -299,7 +299,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
         </table>
       </div>
 
-      {planMutation.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="Runtime 변경 계산 중" /> 변경 영향을 계산하는 중입니다.</div> : null}
+      {planMutation.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="런타임 변경 계산 중" /> 변경 영향을 계산하는 중입니다.</div> : null}
 
       {review ? (
         <Card className="review-card">
@@ -349,7 +349,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
                     force: true,
                   })}
                 >
-                  필요한 Runtime 자동 중지를 허용하고 다시 계산
+                  필요한 런타임 자동 중지를 허용하고 다시 계산
                 </Button>
               ) : null}
               <Button

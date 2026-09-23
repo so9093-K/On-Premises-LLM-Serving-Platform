@@ -108,6 +108,18 @@ function draftFromEffective(
   return value === null || value === undefined ? '' : String(value);
 }
 
+function applyStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    verified: '검증 완료',
+    noop: '변경 없음',
+    rejected: '거부됨',
+    pending: '진행 중',
+    failed: '실패',
+    recovered_after_restart: '재시작 후 복구',
+  };
+  return labels[status] ?? status;
+}
+
 function riskColor(risk: string): 'grey' | 'blue' | 'orange' | 'red' {
   if (risk === 'critical' || risk === 'high') return 'red';
   if (risk === 'medium') return 'orange';
@@ -273,7 +285,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       {!writeStatus.available ? (
         <Alert isInline variant="warning" title="설정 변경 기능을 사용할 수 없습니다.">
           이유: {writeStatus.reason ?? '알 수 없음'} · resolver revision: {writeStatus.resolver_revision} · runtime revision: {writeStatus.runtime_revision}
-          {writeStatus.pending_operations !== null ? ` · pending operations: ${writeStatus.pending_operations}` : ''}
+          {writeStatus.pending_operations !== null ? ` · 진행 중 작업: ${writeStatus.pending_operations}` : ''}
         </Alert>
       ) : null}
       {actionError ? <Alert isInline variant="danger" title="설정 작업을 완료하지 못했습니다.">{actionError}</Alert> : null}
@@ -475,7 +487,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
           <CardBody>
             <dl className="facts operation-facts">
               <dt>작업 ID</dt><dd><code>{lastApply.operation_id}</code></dd>
-              <dt>상태</dt><dd>{lastApply.status}</dd>
+              <dt>상태</dt><dd>{applyStatusLabel(lastApply.status)}</dd>
               <dt>변경됨</dt><dd>{yesNoLabel(lastApply.changed)}</dd>
               <dt>revision</dt><dd>{lastApply.revision}</dd>
               <dt>저장소 revision</dt><dd>{lastApply.verification.store_revision ?? '—'}</dd>

@@ -81,6 +81,17 @@ function vramImpactLabel(delta: number): string {
   return `${delta > 0 ? '+' : ''}${delta.toFixed(2)}`;
 }
 
+function operationStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending: '대기 중',
+    running: '진행 중',
+    completed: '완료',
+    failed: '실패',
+    rollback_failed: '복구 실패',
+  };
+  return labels[status] ?? status;
+}
+
 function operationVariant(status: string): 'success' | 'warning' | 'danger' | 'info' {
   if (status === 'completed') return 'success';
   if (status === 'failed') return 'warning';
@@ -98,7 +109,7 @@ function OperationProgress({ operation }: { operation: MainModelOperationRespons
         {operation.error ? <p><strong>오류:</strong> {operation.error}</p> : null}
         {operation.rollback_error ? <p><strong>복구 오류:</strong> {operation.rollback_error}</p> : null}
       </Alert>
-      <ol className="operation-progress" aria-label="Main Model 전환 진행 단계">
+      <ol className="operation-progress" aria-label="메인 모델 전환 진행 단계">
         {steps.map((step) => (
           <li key={step.stage} data-state={step.state}>
             <span className="operation-progress-marker" aria-hidden="true" />
@@ -113,7 +124,7 @@ function OperationProgress({ operation }: { operation: MainModelOperationRespons
         <dt>작업 ID</dt><dd><code>{operation.id}</code></dd>
         <dt>요청 프로필</dt><dd>{operation.requested_profile}</dd>
         <dt>이전 프로필</dt><dd>{operation.previous_profile ?? '—'}</dd>
-        <dt>작업 상태</dt><dd>{operation.status}</dd>
+        <dt>작업 상태</dt><dd>{operationStatusLabel(operation.status)}</dd>
         <dt>현재 단계</dt><dd>{presentation.label} <code>({operation.stage})</code></dd>
       </dl>
     </>
@@ -324,11 +335,11 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
 
       {reviewProfile ? (
         <Card className="review-card">
-          <CardTitle>Profile switch review</CardTitle>
+          <CardTitle>프로필 전환 검토</CardTitle>
           <CardBody>
             <p className="configuration-help profile-comparison-intro">
-              전환 전에 현재 profile과 후보 profile의 운영 계약 차이를 확인합니다.
-              Compatibility, evidence, resource policy는 서로 다른 의미이며 이 비교는 hardware support 판정이 아닙니다.
+              전환 전에 현재 프로필과 후보 프로필의 운영 계약 차이를 확인합니다.
+              호환성, 검증 근거, 리소스 정책은 서로 다른 정보이며 이 비교만으로 GPU 지원 여부를 판정하지 않습니다.
             </p>
 
             {active && switchImpact ? (
@@ -336,43 +347,43 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
                 <div className="table-scroll profile-comparison-scroll">
                   <table className="runtime-table profile-comparison-table">
                     <thead>
-                      <tr><th>Dimension</th><th>Current</th><th>Target</th><th>Change</th></tr>
+                      <tr><th>항목</th><th>현재</th><th>전환 대상</th><th>변경</th></tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td><strong>Profile</strong></td>
+                        <td><strong>프로필</strong></td>
                         <td>{active.display_name}<small><code>{active.id}</code></small></td>
                         <td>{reviewProfile.display_name}<small><code>{reviewProfile.id}</code></small></td>
-                        <td><Label color="blue">switch</Label></td>
+                        <td><Label color="blue">전환</Label></td>
                       </tr>
                       <tr>
-                        <td><strong>Compatibility</strong></td>
+                        <td><strong>호환성</strong></td>
                         <td><Label color={compatibilityVariant(active.compatibility.status)}>{compatibilityLabel(active.compatibility.status)}</Label></td>
                         <td><Label color={compatibilityVariant(reviewProfile.compatibility.status)}>{compatibilityLabel(reviewProfile.compatibility.status)}</Label></td>
-                        <td>{switchImpact.compatibilityChanged ? <Label color="blue">changes</Label> : <Label color="grey">unchanged</Label>}</td>
+                        <td>{switchImpact.compatibilityChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>Profile evidence</strong></td>
+                        <td><strong>검증 근거</strong></td>
                         <td><Label color={qualificationVariant(active.qualification.status)}>{qualificationLabel(active.qualification.status)}</Label></td>
                         <td><Label color={qualificationVariant(reviewProfile.qualification.status)}>{qualificationLabel(reviewProfile.qualification.status)}</Label></td>
                         <td>{switchImpact.qualificationChanged ? <Label color="blue">changes</Label> : <Label color="grey">unchanged</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>Resource policy</strong></td>
+                        <td><strong>리소스 정책</strong></td>
                         <td>{mainModelResourcePolicyLabel(active)}</td>
                         <td>{mainModelResourcePolicyLabel(reviewProfile)}</td>
                         <td>{switchImpact.resourcePolicyChanged ? <Label color="blue">changes</Label> : <Label color="grey">unchanged</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>Inputs</strong></td>
-                        <td>{active.capabilities.deployed_input.join(', ')}</td>
-                        <td>{reviewProfile.capabilities.deployed_input.join(', ')}</td>
+                        <td><strong>입력</strong></td>
+                        <td>{inputList(active.capabilities.deployed_input)}</td>
+                        <td>{inputList(reviewProfile.capabilities.deployed_input)}</td>
                         <td>{inputImpactLabel(switchImpact.addedInputs, switchImpact.removedInputs)}</td>
                       </tr>
                       <tr>
-                        <td><strong>VRAM fraction</strong></td>
-                        <td>{active.vram_fraction.toFixed(2)}</td>
-                        <td>{reviewProfile.vram_fraction.toFixed(2)}</td>
+                        <td><strong>VRAM</strong></td>
+                        <td>{formatPercent(active.vram_fraction)}</td>
+                        <td>{formatPercent(reviewProfile.vram_fraction)}</td>
                         <td>{vramImpactLabel(switchImpact.vramFractionDelta)}</td>
                       </tr>
                     </tbody>
@@ -381,49 +392,49 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
 
                 <div className="profile-impact-stack">
                   {switchImpact.removedInputs.length ? (
-                    <Alert isInline variant="warning" title="입력 capability가 줄어듭니다.">
-                      현재 profile에서 가능한 {switchImpact.removedInputs.join(', ')} 입력이 전환 뒤에는 제공되지 않습니다.
+                    <Alert isInline variant="warning" title="지원 입력이 줄어듭니다.">
+                      현재 프로필에서 가능한 {inputList(switchImpact.removedInputs)} 입력이 전환 뒤에는 제공되지 않습니다.
                     </Alert>
                   ) : null}
                   {switchImpact.addedInputs.length ? (
-                    <Alert isInline variant="info" title="입력 capability가 추가됩니다.">
-                      전환 뒤 {switchImpact.addedInputs.join(', ')} 입력 capability가 추가됩니다.
+                    <Alert isInline variant="info" title="지원 입력이 추가됩니다.">
+                      전환 뒤 {inputList(switchImpact.addedInputs)} 입력이 추가됩니다.
                     </Alert>
                   ) : null}
                   {switchImpact.resourcePolicyChanged ? (
-                    <Alert isInline variant="info" title="적용 resource policy가 달라집니다.">
+                    <Alert isInline variant="info" title="적용 리소스 정책이 달라집니다.">
                       {mainModelResourcePolicyLabel(active)} → {mainModelResourcePolicyLabel(reviewProfile)}.
-                      이 차이는 GPU 제품의 지원/미지원 판정이 아니라 선택된 runtime resource-policy 차이입니다.
+                      이 차이는 GPU 제품의 지원 여부가 아니라 선택한 런타임 리소스 정책의 차이입니다.
                     </Alert>
                   ) : null}
                 </div>
               </>
             ) : (
-              <Alert isInline variant="info" title="현재 active profile이 없습니다.">
-                현재 상태와의 차이를 계산할 수 없어 target profile 정보만 표시합니다.
+              <Alert isInline variant="info" title="현재 사용 중인 프로필이 없습니다.">
+                현재 상태와의 차이를 계산할 수 없어 전환 대상 프로필 정보만 표시합니다.
               </Alert>
             )}
 
             <details className="profile-target-details">
-              <summary>Target identity</summary>
+              <summary>전환 대상 상세 정보</summary>
               <dl className="facts compact-facts">
-                <dt>Target</dt><dd>{reviewProfile.display_name} ({reviewProfile.id})</dd>
-                <dt>Upstream</dt><dd>{reviewProfile.upstream_model_id}</dd>
-                <dt>Revision</dt><dd><code>{reviewProfile.revision}</code></dd>
-                <dt>Runtime image</dt><dd><code>{reviewProfile.runtime_image}</code></dd>
+                <dt>대상 프로필</dt><dd>{reviewProfile.display_name} ({reviewProfile.id})</dd>
+                <dt>업스트림 모델</dt><dd>{reviewProfile.upstream_model_id}</dd>
+                <dt>revision</dt><dd><code>{reviewProfile.revision}</code></dd>
+                <dt>런타임 이미지</dt><dd><code>{reviewProfile.runtime_image}</code></dd>
               </dl>
             </details>
 
             {requiresConfirmation ? (
-              <Alert isInline variant="warning" title="Profile evidence 확인이 필요합니다.">
-                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 profile의 repository-governed qualification evidence가 verified 상태가 아님을 확인하는 절차입니다.</p>
+              <Alert isInline variant="warning" title="프로필 검증 근거 확인이 필요합니다.">
+                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 프로필의 저장소 기반 검증 근거가 검증 완료 상태가 아님을 확인하는 절차입니다.</p>
                 <label>
                   <input
                     type="checkbox"
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.currentTarget.checked)}
                   />{' '}
-                  Profile evidence 상태를 확인했고 전환을 진행합니다.
+                  검증 근거 상태를 확인했고 전환을 진행합니다.
                 </label>
               </Alert>
             ) : null}
@@ -441,10 +452,10 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
 
       {operationId ? (
         <Card>
-          <CardTitle>Switch progress</CardTitle>
+          <CardTitle>전환 진행 상황</CardTitle>
           <CardBody>
             {operationQuery.isPending ? (
-              <div className="inline-loading"><Spinner size="md" aria-label="Main Model switch loading" /> 전환 상태를 확인하는 중입니다.</div>
+              <div className="inline-loading"><Spinner size="md" aria-label="메인 모델 전환 상태 불러오는 중" /> 전환 상태를 확인하는 중입니다.</div>
             ) : operationQuery.isError ? (
               <Alert isInline variant="danger" title="전환 상태를 불러오지 못했습니다.">{apiErrorMessage(operationQuery.error)}</Alert>
             ) : operationQuery.data ? (
@@ -454,13 +465,13 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
         </Card>
       ) : status.last_operation ? (
         <Card>
-          <CardTitle>Latest switch</CardTitle>
+          <CardTitle>최근 전환</CardTitle>
           <CardBody>
             <dl className="facts">
-              <dt>Operation ID</dt><dd><code>{status.last_operation.id}</code></dd>
-              <dt>Requested profile</dt><dd>{status.last_operation.requested_profile}</dd>
-              <dt>Status</dt><dd>{status.last_operation.status}</dd>
-              <dt>Stage</dt><dd>{mainModelOperationStagePresentation(status.last_operation.stage).label} <code>({status.last_operation.stage})</code></dd>
+              <dt>작업 ID</dt><dd><code>{status.last_operation.id}</code></dd>
+              <dt>요청 프로필</dt><dd>{status.last_operation.requested_profile}</dd>
+              <dt>상태</dt><dd>{operationStatusLabel(status.last_operation.status)}</dd>
+              <dt>단계</dt><dd>{mainModelOperationStagePresentation(status.last_operation.stage).label} <code>({status.last_operation.stage})</code></dd>
             </dl>
           </CardBody>
         </Card>

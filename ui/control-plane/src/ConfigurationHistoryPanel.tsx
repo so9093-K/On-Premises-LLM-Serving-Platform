@@ -46,7 +46,7 @@ function isRevisionConflict(error: unknown): boolean {
 
 function errorMessage(error: unknown): string {
   if (isRevisionConflict(error)) {
-    return 'Configuration revision이 변경되어 기존 rollback 검토를 사용할 수 없습니다. 최신 상태에서 새 Plan을 검토하세요.';
+    return '설정 revision이 변경되어 기존 복원 검토를 사용할 수 없습니다. 최신 상태에서 새 계획을 검토하세요.';
   }
   return apiErrorMessage(error);
 }
@@ -316,7 +316,7 @@ export function ConfigurationHistoryPanel({
           <CardBody>
             <dl className="facts operation-facts">
               <dt>작업 ID</dt><dd><code>{lastRollback.operation_id}</code></dd>
-              <dt>상태</dt><dd>{lastRollback.status}</dd>
+              <dt>상태</dt><dd>{historyStatusLabel(lastRollback.status)}</dd>
               <dt>복원 대상 revision</dt><dd>{lastRollback.target_revision}</dd>
               <dt>새 revision</dt><dd>{lastRollback.revision}</dd>
               <dt>변경됨</dt><dd>{lastRollback.changed ? '예' : '아니요'}</dd>
