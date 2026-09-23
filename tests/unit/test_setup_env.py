@@ -190,8 +190,8 @@ def test_platform_setup_stops_cleanly_after_access_plan(tmp_path, monkeypatch, c
     monkeypatch.setattr(platform_cli, 'ENV_PATH', out)
     monkeypatch.setattr(
         platform_cli,
-        '_run_step',
-        lambda label, *command, env=None: commands.append(command),
+        '_run',
+        lambda *command, env=None: commands.append(command),
     )
     target = platform_cli.load_deployment_target(
         platform_cli.TARGETS_PATH, 'linux-nvidia-dynamic'

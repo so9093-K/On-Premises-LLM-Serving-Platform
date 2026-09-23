@@ -693,7 +693,7 @@ def build_parser() -> KoreanArgumentParser:
     parser.add_argument(
         "--access-profile",
         choices=ACCESS_PROFILE_CHOICES,
-        help="사용자 접근 의도입니다. 최초 setup 기본값은 local입니다. (local|private|edge)",
+        help="사용자 접근 의도입니다. 최초 make up 기본값은 local입니다. (local|private|edge)",
     )
     parser.add_argument(
         "--confirm-access",

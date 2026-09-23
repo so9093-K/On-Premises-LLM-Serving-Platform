@@ -195,7 +195,11 @@ def setup_target(
             command += ["--access-profile", access_profile]
         if confirm_access:
             command += ["--confirm-access"]
-        _run_step("Synchronizing platform configuration", *command)
+        if access_profile and not confirm_access:
+            print("[platform] Reviewing access configuration...")
+            _run(*command)
+        else:
+            _run_step("Synchronizing platform configuration", *command)
         if access_profile:
             current = _env_values()
             if access_profile_mismatches(access_profile, current):
@@ -585,7 +589,15 @@ def status_target(target: DeploymentTarget) -> int:
     print(f"Target        {target.target_id}")
     access = values.get("ACCESS_PROFILE") or "legacy/custom"
     print(f"Access        {access}")
-    print(f"Gateway       {'READY' if code == 200 else 'UNAVAILABLE'}")
+    if code == 200:
+        gateway_status = "READY"
+    elif code == 503:
+        gateway_status = "NOT_READY"
+    elif code == 0:
+        gateway_status = "UNAVAILABLE"
+    else:
+        gateway_status = f"ERROR_HTTP_{code}"
+    print(f"Gateway       {gateway_status}")
 
     if values.get("BUILD_PROFILE") != "local" and code:
         runtime_code, runtime_doc = _gateway_json(values, "/admin/runtimes", admin=True)
@@ -624,6 +636,8 @@ def status_target(target: DeploymentTarget) -> int:
                 attention.append(f"{name}: {detail}")
     if code == 0:
         attention.append("Gateway is not reachable")
+    elif code == 503 and not attention:
+        attention.append("Gateway is not ready")
     elif code not in (200, 503):
         attention.append(f"Gateway readiness returned HTTP {code}")
 

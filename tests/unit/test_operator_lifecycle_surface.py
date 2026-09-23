@@ -211,3 +211,72 @@ def test_compose_diagnostic_timestamp_is_ascii_utc() -> None:
 
     assert 'date -u +%Y%m%dT%H%M%SZ' in script
     assert "Â" not in script
+
+
+def test_full_stack_status_fails_closed_on_bare_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = platform_cli.load_deployment_target(
+        platform_cli.TARGETS_PATH,
+        "linux-nvidia-dynamic",
+    )
+    monkeypatch.setattr(
+        platform_cli,
+        "_env_values",
+        lambda: {
+            "BUILD_PROFILE": "compose",
+            "ACCESS_PROFILE": "local",
+        },
+    )
+    responses = iter(
+        [
+            (503, {"status": "not_ready", "dependencies": []}),
+            (200, {"runtimes": [], "topology": []}),
+        ]
+    )
+    monkeypatch.setattr(
+        platform_cli,
+        "_gateway_json",
+        lambda *args, **kwargs: next(responses),
+    )
+
+    assert platform_cli.status_target(target) == 1
+    output = capsys.readouterr().out
+    assert "Gateway       NOT_READY" in output
+    assert "Gateway is not ready" in output
+
+
+def test_access_change_plan_uses_visible_step(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "BUILD_PROFILE=compose\n"
+        "AUTH_MODE=local_open\n"
+        "EXPOSURE_MODE=master_open\n"
+        "EXPOSURE_AUDIENCE=private_lan\n",
+        encoding="utf-8",
+    )
+    target = platform_cli.load_deployment_target(
+        platform_cli.TARGETS_PATH,
+        "linux-nvidia-dynamic",
+    )
+    visible: list[tuple[str, ...]] = []
+    hidden: list[tuple[str, ...]] = []
+    monkeypatch.setattr(platform_cli, "ENV_PATH", env_path)
+    monkeypatch.setattr(
+        platform_cli,
+        "_run",
+        lambda *command, env=None: visible.append(command),
+    )
+    monkeypatch.setattr(
+        platform_cli,
+        "_run_step",
+        lambda _label, *command, env=None: hidden.append(command),
+    )
+
+    assert platform_cli.setup_target(target, None, None, "private", False) is False
+    assert len(visible) == 1
+    assert hidden == []
