@@ -443,9 +443,13 @@ Strict Smoke Validation
 | `/ready` | 필요한 dependency가 ready |
 | `make ready-full` | main-model gate와 대표 inference 경로가 실제로 동작함 |
 
-`ready-full`은 실패를 무시하는 별도 inference warmup을 수행하지 않는다. Smoke가
-Chat(Structured Output 포함), Risk, 일반 Embedding, Korean Embedding 경로를 실제
-요청으로 검증하며, 실패하면 full-stack readiness도 실패한다.
+`ready-full`은 실패를 무시하는 별도 inference warmup을 수행하지 않는다. Smoke는
+Chat(Structured Output 포함)과 Risk 경로를 실제 요청으로 검증하고, non-main Model
+Runtime은 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로
+probe 대상을 결정한다. `active` Runtime의 inference 실패는 full-stack readiness 실패이며,
+의도적으로 `stopped`이거나 resource policy로 unavailable인 Runtime은 해당 Runtime
+자체를 요구하는 probe를 보내지 않는다. `starting` 또는 현재 상태를 확정할 수 없는
+Runtime은 조용히 건너뛰지 않고 readiness를 실패시킨다.
 
 ---
 

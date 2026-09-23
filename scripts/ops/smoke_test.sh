@@ -26,7 +26,7 @@ SMOKE_MAX_REQUEST_SECONDS="${SMOKE_MAX_REQUEST_SECONDS:-${REQUEST_TIMEOUT_SECOND
 SMOKE_MAX_LATENCY_MS="${SMOKE_MAX_LATENCY_MS:-0}"
 SMOKE_RETRY_ATTEMPTS="${SMOKE_RETRY_ATTEMPTS:-3}"
 SMOKE_RETRY_DELAY_SECONDS="${SMOKE_RETRY_DELAY_SECONDS:-5}"
-SMOKE_SKIP_RUNTIMES="${SMOKE_SKIP_RUNTIMES:-}"
+SMOKE_NON_SERVING_RUNTIMES=""
 
 # 모델 식별자는 운영 설정이 소유한다. 이 스크립트는 어떤 모델을 배포 gate로
 # 확인할지(대표 chat, 기본/검색 embedding, prompt risk)만 결정한다.
@@ -279,14 +279,32 @@ else:
 PY
 }
 
+load_runtime_probe_selection() {
+  local -a runtime_args=(
+    --runtime "$SMOKE_DEFAULT_EMBEDDING_RUNTIME"
+    --runtime "$SMOKE_RETRIEVAL_RUNTIME"
+  )
+  if [[ "$SMOKE_PROMPT_DETECTOR_ENABLED" == "1" ]]; then
+    runtime_args+=(--runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME")
+  fi
+
+  get_json gateway-runtimes "$GATEWAY_BASE_URL/admin/runtimes" admin
+  if ! SMOKE_NON_SERVING_RUNTIMES="$(
+    "$PYTHON_BIN" scripts/runtime/smoke_runtime_selection.py "${runtime_args[@]}" < "$tmp_json"
+  )"; then
+    echo "[smoke] failed to resolve runtime probe selection from current Gateway runtime state" >&2
+    return 1
+  fi
+}
+
 skip_runtime() {
   local runtime="$1"
-  # effective topology에서 비활성인 runtime 또는 startup profile에서 deferred인
-  # runtime에는 그 runtime 자체를 요구하는 probe를 보내지 않는다.
+  # detector 자체가 비활성인 경우와 현재 effective topology/desired state에서 serving
+  # 대상이 아닌 runtime에는 그 runtime 자체를 요구하는 probe를 보내지 않는다.
   if [[ "$runtime" == "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME" && "$SMOKE_PROMPT_DETECTOR_ENABLED" != "1" ]]; then
     return 0
   fi
-  case ",${SMOKE_SKIP_RUNTIMES}," in
+  case ",${SMOKE_NON_SERVING_RUNTIMES}," in
     *",${runtime},"*) return 0 ;;
     *) return 1 ;;
   esac
@@ -298,6 +316,7 @@ get_json gateway-ready "$GATEWAY_BASE_URL/ready" admin
 assert_json ready
 get_json gateway-models "$GATEWAY_BASE_URL/v1/models"
 assert_json models
+load_runtime_probe_selection
 
 # Aggregate는 Prompt Detector가 unavailable이어도 local PII/Secret detector로 계속
 # 제공된다. resource-aware topology가 detector 하나를 제외했다고 전체 Risk path 검증까지
@@ -334,7 +353,7 @@ post_json_with_retry chat "$GATEWAY_BASE_URL/v1/chat/completions" \
 assert_json chat
 
 if skip_runtime "$SMOKE_DEFAULT_EMBEDDING_RUNTIME"; then
-  echo "[smoke] embedding runtime is deferred; skipping ${SMOKE_DEFAULT_EMBEDDING_MODEL} probe" >&2
+  echo "[smoke] ${SMOKE_DEFAULT_EMBEDDING_RUNTIME} runtime is not serving by current policy; skipping ${SMOKE_DEFAULT_EMBEDDING_MODEL} probe" >&2
 else
   post_json_with_retry embedding "$GATEWAY_BASE_URL/v1/embeddings" \
     "{\"model\":\"${SMOKE_DEFAULT_EMBEDDING_MODEL}\",\"input\":[\"smoke test embedding\"]}"
@@ -344,7 +363,7 @@ fi
 if [[ "$SMOKE_RETRIEVAL_MODEL" == "$SMOKE_DEFAULT_EMBEDDING_MODEL" ]]; then
   echo "[smoke] retrieval model matches default embedding model; skipping duplicate embedding probe" >&2
 elif skip_runtime "$SMOKE_RETRIEVAL_RUNTIME"; then
-  echo "[smoke] ${SMOKE_RETRIEVAL_RUNTIME} runtime is deferred; skipping ${SMOKE_RETRIEVAL_MODEL} probe" >&2
+  echo "[smoke] ${SMOKE_RETRIEVAL_RUNTIME} runtime is not serving by current policy; skipping ${SMOKE_RETRIEVAL_MODEL} probe" >&2
 else
   post_json_with_retry embedding-ko "$GATEWAY_BASE_URL/v1/embeddings" \
     "{\"model\":\"${SMOKE_RETRIEVAL_MODEL}\",\"input\":[\"smoke test Korean retrieval embedding\"]}"

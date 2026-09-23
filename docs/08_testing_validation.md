@@ -345,10 +345,12 @@ Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 �
 | `/v1/models` | logical model registry 노출 |
 | `/v1/risk/assessments` | Risk aggregate inference path |
 | `/v1/chat/completions` | Main Model의 strict JSON Schema structured-output path |
-| `/v1/embeddings` / `local-embed` | 일반 embedding path |
-| `/v1/embeddings` / `local-embed-ko` | Korean retrieval embedding path |
+| `/v1/embeddings` / `local-embed` | 현재 active인 일반 embedding path |
+| `/v1/embeddings` / `local-embed-ko` | 현재 active인 Korean retrieval embedding path |
 
 Risk Signal Service host port를 사용할 수 있는 exposure에서는 Risk Signal Service health/readiness와 detector API도 함께 확인한다.
+
+`make smoke`는 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
 
 `make ready-full`은 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
 
