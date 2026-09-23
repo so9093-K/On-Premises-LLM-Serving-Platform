@@ -26,10 +26,11 @@
 
 - Operator lifecycle을 intent 기반 `make up/status/down/logs/reset/purge`로 수렴했다. 첫
   `make up TARGET=<id>`이 persistent configuration, 필요한 local image와 pinned Main
-  Model cache, runtime startup, readiness와 representative smoke를 내부적으로 수렴하며,
-  이후 재기동은 `make up` 하나로 처리한다. 단계별 `setup/build/rebuild/prepare`,
-  `down-all`, `ready-*`, `smoke`, `compose-*`, `clean`, `help-all` Make alias는
-  public surface에서 제거했다. ([ADR-0039](docs/adr/0039-operator-intent-lifecycle-and-diagnostics.md))
+  Model cache와 runtime startup을 내부적으로 수렴한다. managed dynamic target은 strict
+  readiness와 representative smoke까지, static target은 외부 Main dependency를 포함한
+  Gateway readiness까지 완료 조건으로 확인하며 이후 재기동은 `make up` 하나로 처리한다. 단계별 `setup/build/rebuild/prepare`,
+  `down-all`, `ready-*`, `smoke`, `compose-*`, `clean`, `help-all`, `init-env-compose`,
+  `sync-env`, `static-compose-config` Make alias는 public surface에서 제거했다. ([ADR-0039](docs/adr/0039-operator-intent-lifecycle-and-diagnostics.md))
 - 운영 로그는 raw firehose 대신 error/readiness structured event를 기본으로 보여준다.
   `make logs ALL=1`은 전체 request event, `SERVICE=<id>`/`RAW=1`은 bounded raw evidence,
   `FOLLOW=1`은 명시적 live tail을 제공한다. readiness failure의 full raw service log는

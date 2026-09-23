@@ -102,7 +102,8 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
 
 `setup`, `build`, `rebuild`, `prepare`, `down-all`, `compose-up`,
 `compose-config`, `ready-local`, `ready-full`, `smoke`, `compose-down`,
-`compose-restart`, `compose-logs`, `compose-diagnostics`, `clean`, `help-all`.
+`compose-restart`, `compose-logs`, `compose-diagnostics`, `clean`, `help-all`,
+`init-env-compose`, `sync-env`, `static-compose-config`.
 
 CI, qualification, release와 maintainer 작업에 필요한 기능 자체는 해당 script 또는
 developer-specific target에 남길 수 있다. 구현 script의 존재는 operator command를
@@ -129,6 +130,7 @@ command 또는 implementation script를 선택한다.
 ## Migration notes
 
 - 첫 설치 문서는 `setup/build/prepare/up`에서 `up TARGET=...`으로 변경한다.
+- full-stack env 생성·migration과 static Compose projection은 `make up`이 정상 lifecycle에서 소유하며, 분리 진단이 필요한 maintainer만 implementation script를 직접 사용한다.
 - 기존 `down-all` 사용 목적은 `down`이 흡수한다.
 - `clean`의 저비용 repository maintenance 기능은 script implementation으로만 남는다.
 - 기존 `reset`에서 image/model cache 삭제 책임을 제거하고 해당 책임을 `purge`로 이동한다.
