@@ -10,6 +10,7 @@
   --console-text: #f5f4f2;
   --console-text-muted: #c7c4c0;
   --console-focus: #8bc8ff;
+  --console-selection: rgba(139, 200, 255, 0.35);
   color: var(--console-text);
   background: var(--console-canvas);
 }
@@ -931,7 +932,8 @@ input {
   --pf-v6-c-card--BorderColor: var(--console-border);
 }
 
-.pf-v6-c-card.pf-m-secondary {
+.pf-v6-c-card.pf-m-secondary,
+.pf-v6-c-card.overview-policy-card {
   --pf-v6-c-card--BackgroundColor: var(--console-surface-raised);
 }
 
@@ -994,5 +996,5 @@ input {
 
 ::selection {
   color: var(--console-text);
-  background: color-mix(in srgb, var(--console-focus) 35%, transparent);
+  background: var(--console-selection);
 }
