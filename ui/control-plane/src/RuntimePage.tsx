@@ -18,16 +18,18 @@ import {
   runtimePlanRequiresForceReview,
 } from './runtimeSafety';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import { formatFraction, formatPercent, runtimeStateLabel, t, yesNoLabel } from './uiText';
 
 type DesiredState = 'active' | 'stopped';
 type RuntimeTopologyItem = NonNullable<RuntimeListResponse['topology']>[number];
 
 function runtimeDisplayName(serviceKey: string): string {
   const names: Record<string, string> = {
-    main_llm: 'Main Model',
-    embedding: 'Embedding',
-    embedding_ko: 'Korean Embedding',
-    prompt_injection_detector: 'Prompt Injection Detector',
+    main: '메인 모델',
+    main_llm: '메인 모델',
+    embedding: '임베딩',
+    embedding_ko: '한국어 임베딩',
+    prompt_injection_detector: '프롬프트 인젝션 탐지기',
   };
   return names[serviceKey] ?? serviceKey;
 }
@@ -37,9 +39,9 @@ function topologyReason(item: RuntimeTopologyItem): string {
     item.reason_code === 'MAIN_RESOURCE_POLICY_COMPOSITION_CONSTRAINT'
     && item.main_resource_variant
   ) {
-    return `현재 Main resource policy ${item.main_resource_variant}와의 검토된 runtime composition constraint 때문에 effective topology에서 제외되었습니다. GPU 제품 자체의 지원 여부를 뜻하지 않습니다.`;
+    return `현재 메인 모델 리소스 정책(${item.main_resource_variant})과 함께 실행하지 않도록 구성되어 있습니다. GPU 제품 자체의 지원 여부나 장애를 뜻하지 않습니다.`;
   }
-  return '현재 effective topology에서 사용할 수 없습니다. GPU 제품 자체의 지원 여부를 뜻하지 않습니다.';
+  return '현재 실행 환경의 유효 구성에서 사용할 수 없습니다. GPU 제품 자체의 지원 여부나 장애를 뜻하지 않습니다.';
 }
 
 type RuntimePageProps = {
@@ -47,13 +49,9 @@ type RuntimePageProps = {
   onUnauthorized: () => void;
 };
 
-function displayNumber(value: number | null | undefined): string {
-  return typeof value === 'number' ? value.toFixed(2) : '—';
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError && isRuntimePlanChanged(error)) {
-    return `${error.message} 현재 상태가 검토 시점과 달라졌으므로 새 Plan을 확인하세요.`;
+    return `${error.message} 현재 상태가 검토 시점과 달라졌으므로 변경 내용을 다시 확인하세요.`;
   }
   return apiErrorMessage(error);
 }
@@ -184,49 +182,53 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
     <section className="runtime-page">
       <div className="page-heading">
         <div>
-          <h1>Runtimes</h1>
-          <p>Runtime 시작·중지로 발생할 변경과 GPU 영향을 확인한 뒤 적용하고, 실제 상태가 수렴했는지 검증합니다.</p>
+          <h1>런타임</h1>
+          <p>현재 실행 상태와 GPU 여유를 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
         </div>
         <Button variant="secondary" onClick={() => runtimesQuery.refetch()} isDisabled={runtimesQuery.isFetching}>
-          {runtimesQuery.isFetching ? '새로고침 중…' : '새로고침'}
+          {runtimesQuery.isFetching ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 
       {budget ? (
         <Card>
-          <CardTitle>GPU capacity</CardTitle>
+          <CardTitle>GPU 메모리 예산</CardTitle>
           <CardBody>
-            <dl className="facts compact-facts">
-              <dt>Ceiling</dt><dd>{displayNumber(budget.ceiling)}</dd>
-              <dt>Used</dt><dd>{displayNumber(budget.used)}</dd>
-              <dt>Free</dt><dd>{displayNumber(budget.free)}</dd>
-            </dl>
+            <div className="gpu-budget-summary">
+              <strong>{formatPercent(budget.used)} 사용</strong>
+              <span>운영 상한 {formatPercent(budget.ceiling)} · 여유 {formatPercent(budget.free)}</span>
+            </div>
+            <div className="gpu-budget-track" aria-label={`GPU 사용 ${formatPercent(budget.used)}, 운영 상한 ${formatPercent(budget.ceiling)}`}>
+              <span className="gpu-budget-used" style={{ width: `${Math.min(100, Math.max(0, budget.used * 100))}%` }} />
+              <span className="gpu-budget-ceiling" style={{ left: `${Math.min(100, Math.max(0, budget.ceiling * 100))}%` }} />
+            </div>
+            <p className="configuration-help">상한은 동시에 실행할 수 있는 런타임 조합을 판단하는 운영 기준입니다.</p>
           </CardBody>
         </Card>
       ) : (
-        <Alert isInline variant="warning" title="GPU budget 관측을 사용할 수 없습니다.">
-          Runtime 상태는 표시하지만 자원 영향은 변경 검토 결과를 기준으로 판단하세요.
+        <Alert isInline variant="warning" title="GPU 예산 정보를 사용할 수 없습니다.">
+          런타임 상태는 표시하지만 자원 영향은 변경 검토 결과를 기준으로 판단하세요.
         </Alert>
       )}
 
       {unavailableTopology.length ? (
         <Card>
-          <CardTitle>Unavailable runtimes</CardTitle>
+          <CardTitle>현재 사용할 수 없는 런타임</CardTitle>
           <CardBody>
             <p className="overview-muted">
-              선언에는 존재하지만 현재 effective topology에서는 제어·기동 대상에서 제외된 Runtime입니다.
+              선언에는 존재하지만 현재 리소스 정책에서는 제어·시작 대상에서 제외된 런타임입니다.
             </p>
             {unavailableTopology.map((item) => (
               <div className="impact-block" key={item.service_key}>
                 <p>
                   <strong>{runtimeDisplayName(item.service_key)}</strong>{' '}
-                  <Label color="orange">Unavailable</Label>
+                  <Label color="orange">정책상 제외</Label>
                 </p>
                 <p>{topologyReason(item)}</p>
                 <dl className="facts compact-facts">
-                  <dt>Service key</dt><dd>{item.service_key}</dd>
-                  <dt>Capability</dt><dd>{item.features.join(', ') || '—'}</dd>
-                  <dt>Resource policy</dt><dd>{item.main_resource_variant ?? '—'}</dd>
+                  <dt>서비스 키</dt><dd>{item.service_key}</dd>
+                  <dt>지원 기능</dt><dd>{item.features.join(', ') || '—'}</dd>
+                  <dt>리소스 정책</dt><dd>{item.main_resource_variant ?? '—'}</dd>
                 </dl>
               </div>
             ))}
@@ -234,7 +236,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
         </Card>
       ) : null}
 
-      {actionError ? <Alert isInline variant="danger" title="Runtime operation을 완료하지 못했습니다.">{actionError}</Alert> : null}
+      {actionError ? <Alert isInline variant="danger" title="런타임 작업을 완료하지 못했습니다.">{actionError}</Alert> : null}
 
       <div className="table-scroll">
         <table className="runtime-table">
