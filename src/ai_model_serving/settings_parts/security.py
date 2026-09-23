@@ -32,7 +32,7 @@ def build_security_settings(
     api_keys = frozenset(key.strip() for key in env("API_KEYS", "change-me").split(",") if key.strip())
     if api_key_required and non_local_env:
         if not api_keys or any(is_default_secret(key) for key in api_keys):
-            raise RuntimeError("API_KEYS must be set to non-default values when APP_ENV is not local/test/development. Run `make init-env-compose` to generate safe local secrets.")
+            raise RuntimeError("API_KEYS must be set to non-default values when APP_ENV is not local/test/development. Initialize with `make up TARGET=<deployment-target>` or set non-default API_KEYS in the existing .env.")
 
     auth_mode = env("AUTH_MODE", str(security_cfg.get("auth_mode", "custom"))).strip() or "custom"
     internal_service_token = env("INTERNAL_SERVICE_TOKEN", str(security_cfg.get("internal_service_token", "change-me-internal")))
@@ -46,7 +46,7 @@ def build_security_settings(
         and non_local_env
         and is_default_secret(internal_service_token)
     ):
-        raise RuntimeError("INTERNAL_SERVICE_TOKEN must be set to a non-default value when INTERNAL_SERVICE_AUTH_REQUIRED=true outside local/test/development. Run `make init-env-compose` to generate one.")
+        raise RuntimeError("INTERNAL_SERVICE_TOKEN must be set to a non-default value when INTERNAL_SERVICE_AUTH_REQUIRED=true outside local/test/development. Initialize with `make up TARGET=<deployment-target>` or set a non-default value in the existing .env.")
 
     admin_api_key_required = as_bool(
         env("ADMIN_API_KEY_REQUIRED", str(security_cfg.get("admin_api_key_required", False))),
@@ -56,7 +56,7 @@ def build_security_settings(
     admin_api_keys = frozenset(key.strip() for key in admin_keys_env.split(",") if key.strip())
     if admin_api_key_required and non_local_env:
         if not admin_api_keys or any(is_default_secret(key) for key in admin_api_keys):
-            raise RuntimeError("ADMIN_API_KEY or ADMIN_API_KEYS must be set to non-default values when ADMIN_API_KEY_REQUIRED=true outside local/test/development. Run `make init-env-compose` to generate one.")
+            raise RuntimeError("ADMIN_API_KEY or ADMIN_API_KEYS must be set to non-default values when ADMIN_API_KEY_REQUIRED=true outside local/test/development. Initialize with `make up TARGET=<deployment-target>` or set a non-default value in the existing .env.")
 
     admin_endpoints_internal_only = as_bool(
         env("ADMIN_ENDPOINTS_INTERNAL_ONLY", str(security_cfg.get("admin_endpoints_internal_only", False))),

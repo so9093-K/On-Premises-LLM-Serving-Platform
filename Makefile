@@ -13,7 +13,7 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status down check app-check init-env-local init-env-compose sync-env static-compose-config metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate qualification-candidate qualification-promote qualification-status-promote perf-smoke perf-sweep perf-run perf-gate perf-promote perf-report auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate qualification-candidate qualification-promote qualification-status-promote perf-smoke perf-sweep perf-run perf-gate perf-promote perf-report auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev
 
 PUBLIC_TARGETS := up status down logs reset purge
@@ -76,15 +76,6 @@ help:
 	done
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local
-
-init-env-compose: ## compose용 .env 생성 (기존 .env가 있으면 실패)
-	$(PYTHON) scripts/config/setup_env.py --profile compose
-
-sync-env: ## .env 키 동기화 + repository-managed image digest 수렴
-	$(PYTHON) scripts/config/setup_env.py --sync-env --env-file "$(if $(ENV_FILE),$(ENV_FILE),.env)"
-
-static-compose-config: ## static Gateway의 분리된 Compose 정의 출력
-	bash scripts/compose/static_main_compose.sh config
 
 metal-doctor: ## Apple Silicon과 고정 MLX runtime 설정 확인
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py doctor
