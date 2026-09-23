@@ -43,7 +43,7 @@ SUPERVISOR_LOG_PATH = NATIVE_LOG_DIR / "supervisor.log"
 # 있으므로 install이 다른 checkout 소유를 감지하면 거부한다.
 SUPERVISOR_LABEL = "com.ai-model-serving.metal"
 # 생성된 plist는 절대 경로와 resolved snapshot을 담는 host state다. 저장소에 커밋하면
-# 영구히 drift하는 생성물이 되므로 .runtime/ 아래에만 둔다(gitignore + make clean 범위).
+# 영구히 drift하는 생성물이 되므로 .runtime/ 아래에만 둔다(gitignore + project cleanup 범위).
 SUPERVISOR_PLIST = ROOT / ".runtime" / "metal" / f"{SUPERVISOR_LABEL}.plist"
 
 

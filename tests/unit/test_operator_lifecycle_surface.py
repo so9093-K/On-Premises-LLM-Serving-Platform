@@ -107,3 +107,107 @@ def test_local_image_match_requires_current_clean_revision(
 
     monkeypatch.setattr(platform_cli, "_source_provenance", lambda: ("abc", "dirty"))
     assert platform_cli._local_image_matches_source("sha256:local") is False
+
+
+USER_FACING_LIFECYCLE_DOCS = (
+    "README.md",
+    "scripts/README.md",
+    "docs/04_runtime_modes.md",
+    "docs/05_configuration.md",
+    "docs/07_local_dev_build.md",
+    "docs/08_testing_validation.md",
+    "docs/09_cicd.md",
+    "docs/10_deployment.md",
+    "docs/12_operations.md",
+    "docs/13_change_guide.md",
+    "docs/appendix.md",
+)
+
+
+def test_user_facing_docs_do_not_restore_removed_operator_aliases() -> None:
+    import re
+
+    removed = (
+        "setup",
+        "build",
+        "rebuild",
+        "prepare",
+        "down-all",
+        "compose-up",
+        "compose-config",
+        "ready-local",
+        "ready-full",
+        "smoke",
+        "compose-down",
+        "compose-restart",
+        "compose-logs",
+        "compose-diagnostics",
+        "clean",
+        "help-all",
+    )
+    patterns = {
+        name: re.compile(rf"make {re.escape(name)}(?=\\s|$)")
+        for name in removed
+    }
+    for relative in USER_FACING_LIFECYCLE_DOCS:
+        content = (ROOT / relative).read_text(encoding="utf-8")
+        for name, pattern in patterns.items():
+            assert pattern.search(content) is None, f"{relative} restores make {name}"
+
+
+def test_platform_logs_main_accepts_explicit_argv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(platform_logs, "REQUEST_EVENTS", tmp_path / "missing-events")
+
+    assert platform_logs.main([]) == 0
+    assert "No structured application events found." in capsys.readouterr().out
+
+
+def test_app_only_status_uses_process_health_instead_of_model_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = platform_cli.load_deployment_target(
+        platform_cli.TARGETS_PATH,
+        "linux-nvidia-dynamic",
+    )
+    monkeypatch.setattr(
+        platform_cli,
+        "_env_values",
+        lambda: {
+            "BUILD_PROFILE": "local",
+            "ACCESS_PROFILE": "local",
+        },
+    )
+    monkeypatch.setattr(
+        platform_cli,
+        "_gateway_probe",
+        lambda values, path: ("http://127.0.0.1:9400/health", path == "/health"),
+    )
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(platform_cli.subprocess, "run", lambda *args, **kwargs: Result())
+    monkeypatch.setattr(
+        platform_cli,
+        "_gateway_json",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("app-only status must not require /ready")
+        ),
+    )
+
+    assert platform_cli.status_target(target) == 0
+    output = capsys.readouterr().out
+    assert "Platform      READY" in output
+    assert "Applications  READY" in output
+
+
+def test_compose_diagnostic_timestamp_is_ascii_utc() -> None:
+    script = (ROOT / "scripts/compose/compose_diagnostics.sh").read_text(encoding="utf-8")
+
+    assert 'date -u +%Y%m%dT%H%M%SZ' in script
+    assert "Â" not in script

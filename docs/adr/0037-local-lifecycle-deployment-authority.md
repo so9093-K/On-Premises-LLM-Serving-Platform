@@ -1,6 +1,6 @@
 # ADR-0037: Local lifecycle owns deployment; remove the remote release state machine
 
-- Status: Accepted
+- Status: Accepted; operator command surface refined by [ADR-0039](./0039-operator-intent-lifecycle-and-diagnostics.md)
 - Date: 2026-09-20
 - Refines: [ADR-0013](./0013-env-lifecycle-non-destructive-sync.md), [ADR-0023](./0023-local-lifecycle-command-boundaries.md), [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md)
 
@@ -13,9 +13,7 @@ That path owned remote transport, `rolling/full` mode selection, immutable relea
 `current/runtime-current` symlink switching, target `.env` mutation, runtime image promotion,
 changed-service calculation, readiness and automatic release rollback.
 
-The platform has since converged on a different operating model:
-
-- target-aware local lifecycle: `make setup → build → prepare → up/status/down`
+At the time of this decision, the platform had converged on a target-aware local lifecycle. ADR-0039 later refined that command surface so the same deployment authority is now entered through `make up/status/down/logs/reset/purge`.
 - Runtime Controller for non-main runtime mutations
 - Main Model Control for Main Model switching and rollback
 - Configuration Plan/Apply/Verify semantics
@@ -30,18 +28,11 @@ convergence/rollback. That duplicates authority and makes runtime behavior depen
 
 ### 1. The canonical deployment lifecycle is the target-aware local lifecycle
 
-For repository-owned targets, deployment state is applied from the host checkout/workspace through:
+For repository-owned targets, deployment state is applied from the host checkout/workspace.
+ADR-0039 now exposes that authority through `make up`, with build/model preparation kept as
+internal convergence steps rather than separate operator commands.
 
-```text
-make setup
-make build
-make prepare
-make up
-make status
-make down
-```
-
-`make up` owns full-stack composition and readiness for the selected target. Runtime and Main
+`make up` owns artifact convergence, full-stack composition and readiness for the selected target. Runtime and Main
 Model mutations after startup are owned by their Control Plane APIs, not by a separate release
 executor.
 

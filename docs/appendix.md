@@ -29,7 +29,7 @@
 | Implementation Status | Deployment Target이 실행 가능한 구현 상태인지 나타내는 상태. | `implementation_status` |
 | Qualification | 특정 Main Model 또는 Deployment Target의 실제 검증 근거가 충족됐는지 나타내는 상태. | `qualification.status`, `qualification_status` |
 | Readiness | 서비스와 필요한 Model Runtime이 실제 요청을 처리할 준비가 된 상태. | `/ready` |
-| Smoke Test | 대표 API 요청을 실제 실행해 주요 요청 경로를 확인하는 검증. | `make smoke` |
+| Smoke Test | 대표 API 요청을 실제 실행해 주요 요청 경로를 확인하는 내부 serving gate. | `scripts/ops/smoke_test.sh` |
 | Runtime Validation | GPU, serving engine, Model Runtime 등 실제 실행 환경을 확인하는 검증. | `make runtime-validate` |
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |

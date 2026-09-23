@@ -9,7 +9,7 @@ PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || comma
 source scripts/lib/compose_context.sh
 compose_context_init "$ROOT"
 TAIL_LINES="${COMPOSE_DIAGNOSTIC_TAIL_LINES:-120}"
-STAMP="$(date -u +%Y%m%dT%H%M%SÂ)"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 DIAGNOSTIC_DIR="${COMPOSE_DIAGNOSTIC_DIR:-$ROOT/.runtime/diagnostics/${STAMP}}"
 mkdir -p "$DIAGNOSTIC_DIR"
 GPU_AVOID_ABOVE="$("$PYTHON_BIN" - <<'PY' 2>/dev/null || echo "configs/gpu_budgets.yaml avoid_above"

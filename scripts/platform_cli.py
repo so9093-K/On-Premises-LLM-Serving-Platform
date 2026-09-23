@@ -113,7 +113,7 @@ def _main_profile(target: DeploymentTarget, values: dict[str, str]) -> str:
     key = "MAIN_MODEL_STATIC_PROFILE" if target.control_mode == "static" else "MAIN_MODEL_BOOT_PROFILE"
     profile = values.get(key, "")
     if not profile:
-        raise RuntimeError(f"{key} is missing from .env; rerun setup for target {target.target_id}")
+        raise RuntimeError(f"{key} is missing from .env; rerun make up for target {target.target_id}")
     return profile
 
 
@@ -220,7 +220,7 @@ def setup_target(
             command += ["--access-profile", access_profile]
         if target.control_mode == "static" and not target.gateway_runtime_host and not main_base_url:
             raise RuntimeError(
-                f"static target {target.target_id!r} needs MAIN_URL=http(s)://... on first setup"
+                f"static target {target.target_id!r} needs MAIN_URL=http(s)://... on first make up"
             )
         _run_step("Creating platform configuration", *command)
 
@@ -552,6 +552,31 @@ def _gateway_json(
 
 def status_target(target: DeploymentTarget) -> int:
     values = _env_values()
+    if values.get("BUILD_PROFILE") == "local":
+        process_status = subprocess.run(
+            ["bash", "scripts/ops/status_services.sh", "--local"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        url, gateway_ready = _gateway_probe(values, "/health")
+        ready = process_status.returncode == 0 and gateway_ready
+        print(f"Platform      {'READY' if ready else 'DEGRADED'}")
+        print(f"Target        {target.target_id}")
+        print(f"Access        {values.get('ACCESS_PROFILE') or 'legacy/custom'}")
+        print(f"Gateway       {'READY' if gateway_ready else 'UNAVAILABLE'}")
+        print(f"Applications  {'READY' if process_status.returncode == 0 else 'DEGRADED'}")
+        if not ready:
+            print("")
+            print("Attention")
+            print("  - one or more app-only processes are unavailable")
+            print("")
+            print("Next")
+            print("  make logs")
+            return 1
+        return 0
+
     code, ready = _gateway_json(values, "/ready", admin=True)
     ready_status = ready.get("status") if isinstance(ready, dict) else None
     platform_status = "READY" if code == 200 and ready_status == "ready" else "DEGRADED"
