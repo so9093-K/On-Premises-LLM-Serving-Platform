@@ -24,6 +24,18 @@
 
 ### Changed
 
+- Control Plane Console의 기본 operator vocabulary를 한국어 우선으로 수렴했다. navigation,
+  page heading, 상태와 action은 운영 의도를 먼저 표현하고 service key, profile ID, error code,
+  revision/digest/request ID 같은 기술 식별자는 secondary/detail evidence로 보존한다.
+  Frontend는 OS/hostname을 추론하지 않고 기존 Bootstrap `deployment.features`와
+  `lifecycle_owner`만으로 UI를 구성한다. static/macOS target에서 제어 메뉴가 없는 경우
+  Overview의 지원 기능이 `외부 관리`와 `제공하지 않음`을 구분해 기능 미구현·권한 오류처럼
+  보이지 않게 한다. 정상 Overview는 조용하게 유지하고 실제 attention만 강조하며, Runtime
+  action은 현재 state에 가능한 시작/중지 하나만 노출한다. Configuration revision 상세,
+  raw operation evidence와 diagnostic identifier는 필요할 때 펼치는 계층으로 내렸다.
+  ([ADR-0040](docs/adr/0040-control-plane-korean-capability-ux.md))
+
+
 - Operator lifecycle을 intent 기반 `make up/status/down/logs/reset/purge`로 수렴했다. 첫
   `make up TARGET=<id>`이 persistent configuration, 필요한 local image와 pinned Main
   Model cache와 runtime startup을 내부적으로 수렴한다. managed dynamic target은 strict
