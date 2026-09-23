@@ -88,7 +88,7 @@ if [[ "$MODE" == "--full" || "$MODE" == "--ready" ]]; then
   status_ready gateway "$GATEWAY_BASE_URL"
   status_ready risk_signal_service "$RISK_SIGNAL_SERVICE_BASE_URL"
 elif [[ "$MODE" == "--local" ]]; then
-  echo "status mode: local app health only. Use 'make ready-full' for strict vLLM readiness."
+  echo "status mode: local application health only."
 else
   echo "unknown status mode: $MODE" >&2
   exit 2

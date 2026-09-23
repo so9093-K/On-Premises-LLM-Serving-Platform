@@ -223,7 +223,7 @@ def _replace_generated_alias(alias: Path, snapshot: Path) -> None:
 def _run_runtime_python(config: dict[str, Any], code: str, *args: str) -> str:
     python = _runtime_python(config)
     if not python.is_file():
-        raise RuntimeError("Metal environment is missing; run `make setup TARGET=macos-metal-static` first")
+        raise RuntimeError("Metal environment is missing; run `make up TARGET=macos-metal-static` first")
     return subprocess.check_output([str(python), "-c", code, *args], text=True).strip()
 
 
@@ -287,7 +287,11 @@ def setup(config: dict[str, Any]) -> None:
 def prepare(config: dict[str, Any]) -> None:
     code = (
         "from huggingface_hub import snapshot_download; import sys; "
-        "print(snapshot_download(repo_id=sys.argv[1], revision=sys.argv[2]))"
+        "\ntry:\n"
+        "    path = snapshot_download(repo_id=sys.argv[1], revision=sys.argv[2], local_files_only=True)\n"
+        "except Exception:\n"
+        "    path = snapshot_download(repo_id=sys.argv[1], revision=sys.argv[2])\n"
+        "print(path)"
     )
     snapshots: list[Path] = []
     for repo_id, revision in _model_refs(config):
@@ -307,7 +311,7 @@ def _local_snapshot(config: dict[str, Any], repo_id: str, revision: str) -> str:
     try:
         return _run_runtime_python(config, code, repo_id, revision)
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"pinned snapshot is not cached: {repo_id}@{revision}; run `make prepare`") from exc
+        raise RuntimeError(f"pinned snapshot is not cached: {repo_id}@{revision}; run `make up`") from exc
 
 
 def server_command(config: dict[str, Any], *, listen_host: str | None = None) -> list[str]:
@@ -318,10 +322,10 @@ def server_command(config: dict[str, Any], *, listen_host: str | None = None) ->
     target_alias, assistant_alias = _model_aliases(config)
     for alias, snapshot in ((target_alias, target_snapshot), (assistant_alias, assistant_snapshot)):
         if not alias.is_symlink() or alias.resolve() != snapshot:
-            raise RuntimeError(f"model alias is missing or stale: {alias}; run `make prepare`")
+            raise RuntimeError(f"model alias is missing or stale: {alias}; run `make up`")
     executable = _runtime_python(config).parent / "mlx_vlm.server"
     if not executable.is_file():
-        raise RuntimeError("mlx_vlm.server is missing; run `make setup TARGET=macos-metal-static`")
+        raise RuntimeError("mlx_vlm.server is missing; run `make up TARGET=macos-metal-static`")
     command = [
         str(executable),
         # start() changes cwd to the generated alias directory. Keeping the
