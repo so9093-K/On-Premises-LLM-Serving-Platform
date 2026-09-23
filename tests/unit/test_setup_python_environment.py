@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import runpy
+import sys
 from pathlib import Path
 
 from scripts.build import setup_python_environment
@@ -64,3 +65,18 @@ def test_setup_dev_wrapper_selects_development_profile(monkeypatch) -> None:
         assert exc.code == 0
 
     assert captured == [["--profile", "development"]]
+
+
+def test_quiet_runtime_bootstrap_hides_success_output(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(setup_python_environment, "ROOT", tmp_path)
+
+    setup_python_environment._run_bootstrap_step(
+        [sys.executable, "-c", "print('internal bootstrap noise')"],
+        label="bootstrap test",
+        quiet=True,
+    )
+
+    assert capsys.readouterr().out == ""
+    assert not list((tmp_path / ".runtime" / "operator-logs").glob("*.log"))

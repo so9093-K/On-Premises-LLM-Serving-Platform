@@ -24,18 +24,25 @@ if [[ "$#" -ne 2 || "${1:-}" != "--confirm" || "${2:-}" != "reset" ]]; then
   exit 0
 fi
 
-# Do not erase local configuration when Docker resources cannot first be
-# inspected and stopped. This prevents an unverifiable partial reset.
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[reset] Docker CLI is required to verify project-owned resources before reset" >&2
-  exit 2
-fi
-if ! docker info >/dev/null 2>&1; then
-  echo "[reset] Docker daemon is unavailable; no reset action was started" >&2
-  exit 2
+# Full-stack reset must prove Docker ownership before erasing configuration.
+# App-only has no Compose lifecycle, so a host without Docker can still reset
+# after its repository-owned processes are stopped.
+BUILD_PROFILE=""
+if [[ -f "$ROOT/.env" ]]; then
+  BUILD_PROFILE="$(
+    awk -F= '$1=="BUILD_PROFILE" {print substr($0,index($0,"=")+1); exit}' "$ROOT/.env"
+  )"
 fi
 
-bash scripts/ops/down_all.sh
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  bash scripts/ops/down_all.sh
+elif [[ "$BUILD_PROFILE" == "local" ]]; then
+  echo "[reset] Docker unavailable; stopping app-only host processes"
+  bash scripts/ops/down_services.sh --local
+else
+  echo "[reset] Docker daemon is required to verify full-stack project ownership before reset" >&2
+  exit 2
+fi
 
 # launchd supervisor는 ~/Library/LaunchAgents/에 있어 .runtime 삭제로 사라지지 않는다.
 # 남겨두면 KeepAlive가 방금 지운 venv와 model alias를 계속 다시 실행하려 하고, 그

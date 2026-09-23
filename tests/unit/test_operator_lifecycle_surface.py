@@ -43,6 +43,8 @@ def test_reset_preserves_expensive_reusable_artifacts() -> None:
     assert '"$ROOT/model_cache"' not in script
     assert "project-built images" in script
     assert "repository-local model cache" in script
+    assert '[[ "$BUILD_PROFILE" == "local" ]]' in script
+    assert "stopping app-only host processes" in script
 
 
 def test_purge_never_claims_global_cache_ownership() -> None:
