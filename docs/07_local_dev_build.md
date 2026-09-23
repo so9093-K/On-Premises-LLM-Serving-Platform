@@ -248,10 +248,11 @@ HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 일반 재기동은 `make up` 하나다. local image가 현재 clean source와 일치하고 pinned model
 snapshot이 이미 cache에 있으면 재사용한다.
 
-Compose용 `.env`만 직접 생성해야 하는 유지보수 상황에서는 다음 내부 명령을 사용한다.
+Compose용 `.env`만 직접 생성해야 하는 유지보수 상황에서는 configuration implementation을
+직접 사용한다.
 
 ```bash
-make init-env-compose
+python scripts/config/setup_env.py --profile compose
 ```
 
 Hugging Face에서 모델을 가져오는 runtime은 `.env`에 설정된 token을 사용한다.

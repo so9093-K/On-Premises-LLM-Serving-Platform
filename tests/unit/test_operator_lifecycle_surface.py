@@ -308,3 +308,44 @@ def test_raw_logs_include_native_metal_runtime(
     output = capsys.readouterr().out
     assert "runtime.log" in output
     assert "metal-ready" in output
+
+
+def test_active_implementation_does_not_advertise_removed_operator_aliases() -> None:
+    import re
+
+    removed = (
+        "setup",
+        "build",
+        "rebuild",
+        "prepare",
+        "down-all",
+        "compose-up",
+        "compose-config",
+        "ready-local",
+        "ready-full",
+        "smoke",
+        "compose-down",
+        "compose-restart",
+        "compose-logs",
+        "compose-diagnostics",
+        "clean",
+        "help-all",
+        "init-env-compose",
+        "sync-env",
+        "static-compose-config",
+    )
+    patterns = {
+        name: re.compile(rf"make {re.escape(name)}(?=\\s|$)")
+        for name in removed
+    }
+    candidates: list[Path] = [ROOT / ".env.compose.example"]
+    for root in ("src", "scripts", "ops/compose"):
+        base = ROOT / root
+        for suffix in ("*.py", "*.sh", "*.yaml", "*.yml"):
+            candidates.extend(base.rglob(suffix))
+    for path in candidates:
+        content = path.read_text(encoding="utf-8")
+        for name, pattern in patterns.items():
+            assert pattern.search(content) is None, (
+                f"{path.relative_to(ROOT)} advertises removed make {name}"
+            )
