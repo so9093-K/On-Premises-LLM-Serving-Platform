@@ -31,6 +31,14 @@
 
 ### Changed
 
+- Control Plane Console에 PatternFly 6 dark theme를 활성화하고 warm-neutral surface hierarchy를
+  적용했다. main canvas는 `#292827`, shell은 `#232221`, card는 `#333230`을 기준으로 하며
+  text/border/hover surface도 dark 환경에서 충분한 대비를 갖도록 분리했다. status/action 색은
+  PatternFly semantic token을 유지해 custom palette가 success/warning/danger 의미를 덮어쓰지
+  않는다. table, input, empty state, diagnostic evidence, focus ring까지 같은 surface 계약을
+  사용한다.
+
+
 - Control Plane Console의 기본 operator vocabulary를 한국어 우선으로 수렴했다. navigation,
   page heading, 상태와 action은 운영 의도를 먼저 표현하고 service key, profile ID, error code,
   revision/digest/request ID 같은 기술 식별자는 secondary/detail evidence로 보존한다.
