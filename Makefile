@@ -36,8 +36,8 @@ status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
 down: ## 이 checkout이 소유한 실행 리소스를 안전하게 정지한다
 	@if [[ -x "$(CURDIR)/.venv/bin/python" ]]; then $(PLATFORM_CLI) down $(PLATFORM_TARGET_ARG); else bash scripts/ops/down_all.sh; fi
 
-logs: ## 구조화된 운영 이벤트 조회 (SERVICE=<id>, RAW=1, FOLLOW=1)
-	@"$(PYTHON)" scripts/ops/platform_logs.py $(if $(SERVICE),--service "$(SERVICE)",) $(if $(filter 1,$(RAW)),--raw,) $(if $(filter 1,$(FOLLOW)),--follow,) $(if $(TAIL),--tail "$(TAIL)",)
+logs: ## 오류·readiness 이벤트 조회 (ALL=1, SERVICE=<id>, RAW=1, FOLLOW=1)
+	@"$(PYTHON)" scripts/ops/platform_logs.py $(if $(SERVICE),--service "$(SERVICE)",) $(if $(filter 1,$(RAW)),--raw,) $(if $(filter 1,$(ALL)),--all-events,) $(if $(filter 1,$(FOLLOW)),--follow,) $(if $(TAIL),--tail "$(TAIL)",)
 
 reset: ## 로컬 설정·runtime state 초기화 plan (적용: CONFIRM=reset)
 	@bash scripts/ops/reset_all.sh $(if $(filter reset,$(CONFIRM)),--confirm reset,)

@@ -412,7 +412,7 @@ def main() -> int:
         target_id = os.getenv("DEPLOYMENT_TARGET", "").strip()
         if not target_id:
             raise QualificationCandidateError(
-                "DEPLOYMENT_TARGET is missing; run make setup for the host first"
+                "DEPLOYMENT_TARGET is missing; run make up TARGET=<deployment-target> for the host first"
             )
         target = load_deployment_target(root / "configs/deployment_targets.yaml", target_id)
         if target.platform != "linux" or target.runtime_backend != "vllm-cuda":
