@@ -22,6 +22,13 @@
   검사가 양쪽 code 집합 일치를 고정한다.
 - `Qwen/Qwen2.5-Omni-7B` Thinker profile을 추가하고 `verified`로 승격했다. Gateway에서 text/image/audio/video 입력→text 응답, media boot canary·rollback, structured output, logprobs, logit bias와 streaming 계약을 실제 런타임으로 검증했다. tool calling은 안정적인 parser/template 경로가 없어 비활성이고, 음성 출력은 이번 플랫폼 범위에 포함하지 않는다.
 
+### Fixed
+
+- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
+  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
+  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
+  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+
 ### Changed
 
 - Control Plane Console의 기본 operator vocabulary를 한국어 우선으로 수렴했다. navigation,
