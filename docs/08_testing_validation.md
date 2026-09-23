@@ -529,7 +529,7 @@ passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
 | API route / schema / error contract | `make validate` → `make test` | API smoke |
 | `configs/*.yaml` | `make validate` → `make test` | 영향받는 runtime readiness |
 | `.env.*.example` / env contract | `make validate` | app-only 또는 full-stack 기동 |
-| Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` → `make up` |
+| Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
 | Platform `Dockerfile` / dependency | `make build-image` | image 실행 후 readiness |
@@ -549,7 +549,6 @@ make test
 ```bash
 make validate
 make test
-make up
 make up
 ```
 

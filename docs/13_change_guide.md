@@ -121,7 +121,6 @@ make status
 
 ```bash
 make up
-make up
 ```
 
 ### Gateway / Risk Signal Service 로직 변경
@@ -255,7 +254,6 @@ make validate
 
 ```bash
 make up
-make up
 make runtime-validate
 ```
 
@@ -364,7 +362,6 @@ Runtime 확인:
 
 ```bash
 make up
-make up
 make runtime-validate
 ```
 
@@ -402,7 +399,6 @@ bash scripts/compose/compose_config.sh
 실행 환경까지 반영할 경우:
 
 ```bash
-make up
 make up
 ```
 
@@ -537,8 +533,8 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 | Gateway / Risk Signal Service Python | `make validate`, `make test` | `make status` | Platform / Rolling 중심 |
 | API / Schema | `make validate`, `make test` | app-only 또는 full-stack | Platform Image |
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
-| Main Model Profile | config/profile 검증 | model prepare + switch + `ready-full` | Main Model / Full 가능 |
-| Unified vLLM | Unified Image Build | `ready-full`, `runtime-validate` | Runtime Image / Full |
+| Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |
+| Unified vLLM | Unified Image Build | `make up`, `make runtime-validate` | Runtime Image / Full |
 | Compose / Exposure | `make validate`, `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
 | 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
@@ -553,7 +549,6 @@ make up
 GPU와 vLLM까지 포함한 변경:
 
 ```bash
-make up
 make up
 make runtime-validate
 ```
@@ -583,7 +578,7 @@ make runtime-validate
 - 공개 API 계약을 바꿨다면 Router/contract와 함께 schema, checked-in OpenAPI, API Reference를 갱신한다.
 - Source of Truth 설정이 생성기 입력이라면 생성 artifact를 갱신하고 `make validate`로 drift를 확인한다. 그렇지 않다면 해당 설정의 consumer와 영향 범위만 확인한다.
 - 일반 application 변경은 `make validate`, `make test`와 영향 범위의 app-only 또는 full-stack 확인을 한다.
-- vLLM image 입력 변경은 Unified derived image build와 `ready-full`, `runtime-validate`까지 연결한다.
+- vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make runtime-validate`까지 연결한다.
 - 릴리스 ZIP이 필요한 경우에만 `make package`를 실행한다. package에는 `.env`, `.runtime`, 로그, model cache가 포함되지 않아야 한다. `tests/`는 포함해 CI와 배포 전 `make check`가 같은 source의 테스트를 실행할 수 있게 한다.
 
 ---
@@ -595,7 +590,7 @@ make runtime-validate
 | API endpoint | Router + contract + schema/OpenAPI | `make validate`, `make test` | `make status` / `make up` |
 | Request parameter | `model_serving.yaml` + contract/schema | 생성 파일 + validate/test | 대상 API |
 | Gateway logic | `src/ai_model_serving/` | validate/test | `make status` |
-| Main Model Profile | `main_model_profiles.yaml` | config/profile 검증 | explicit prepare + switch + `make up` |
+| Main Model Profile | `main_model_profiles.yaml` | config/profile 검증 | `make main-model-prepare PROFILE=<id>` + Control Plane switch + `make status` |
 | 모델 추가 | catalog + serving + 모델 참고 문서 + compose | `validate` | full-stack + runtime validation |
 | vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | `make up` + runtime validation |
 | Service port | `services.yaml` | 생성 파일 + validate | implementation Compose config + `make up` |
