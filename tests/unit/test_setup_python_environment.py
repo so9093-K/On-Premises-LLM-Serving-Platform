@@ -3,6 +3,7 @@ from __future__ import annotations
 import runpy
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,15 @@ def test_runtime_profile_excludes_quality_dependencies() -> None:
         "--python",
         "/python",
     ]
+
+
+def test_make_up_preflight_dependencies_survive_runtime_sync() -> None:
+    document = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    runtime_dependencies = set(document["project"]["dependencies"])
+    quality_dependencies = set(document["dependency-groups"]["quality"])
+
+    assert "Jinja2==3.1.6" in runtime_dependencies
+    assert "Jinja2==3.1.6" not in quality_dependencies
 
 
 def test_development_profile_includes_quality_dependencies() -> None:

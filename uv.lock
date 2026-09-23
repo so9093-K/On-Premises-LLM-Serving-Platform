@@ -28,6 +28,7 @@ dependencies = [
     { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "jsonschema" },
+    { name = "jinja2" },
     { name = "phonenumberslite" },
     { name = "prometheus-client" },
     { name = "pyyaml" },
@@ -37,7 +38,6 @@ dependencies = [
 
 [package.dev-dependencies]
 quality = [
-    { name = "jinja2" },
     { name = "openai" },
     { name = "pytest" },
 ]
@@ -50,6 +50,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "huggingface-hub", specifier = "==1.13.0" },
     { name = "jsonschema", specifier = "==4.26.0" },
+    { name = "jinja2", specifier = "==3.1.6" },
     { name = "phonenumberslite", specifier = "==9.0.38" },
     { name = "prometheus-client", specifier = "==0.25.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
@@ -59,7 +60,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 quality = [
-    { name = "jinja2", specifier = "==3.1.6" },
     { name = "openai", specifier = "==2.54.0" },
     { name = "pytest", specifier = "==8.4.2" },
 ]

@@ -214,6 +214,12 @@
 
 ### Fixed
 
+- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
+  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
+  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
+  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+
+
 - 기본 `main_only` Runtime Startup Profile에서 Embedding 계열을 의도적으로 `stopped`로 둔 상태인데도 `ready-full` smoke가 `/v1/embeddings`를 필수 probe처럼 호출해 `503 MODEL_UNAVAILABLE`로 정상 기동을 실패 처리하던 문제를 고쳤다. Smoke는 이제 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로 non-main probe 대상을 정한다. `stopped` 또는 resource-policy unavailable Runtime은 해당 Runtime 전용 probe를 건너뛰고, `active` Runtime은 계속 실제 inference 성공을 요구한다. `starting`, 상태 누락, 알 수 없는 상태는 silent skip하지 않고 fail-closed한다. Startup Profile은 초기 상태만 소유하며 기동 뒤 Runtime Control로 변경된 현재 상태가 readiness 판단에 반영된다.
 - `make up`이 deferred runtime 컨테이너 생성 단계에서 중단되던 문제를 고쳤다. `docker compose create`는 `--no-deps`를 받지 않아 Compose가 `unknown flag`로 즉시 실패했고, `set -e`가 걸린 `compose_up.sh`는 그 지점에서 멈춰 뒤따르는 config service 재생성과 fingerprint 상태 기록이 실행되지 않았다. 핵심 서비스는 이미 기동된 뒤라 운영자는 정상 동작하는 스택과 오류로 끝난 명령을 동시에 마주했다. deferred runtime은 `compose up --no-deps --no-start`로 생성되어 의존 서비스를 함께 올리지 않고 `Created` 상태로 남으며, lifecycle 명령은 선언한 단계를 끝까지 수행한다.
 - `make clean`이 선언한 정리 범위를 끝내지 못하고 오류로 끝나던 문제를 고쳤다. stray `.pyc` 삭제에 `find`의 `-delete`를 쓰면 `-depth`가 암묵적으로 켜져 같은 식의 `__pycache__` `-prune`이 무력화되고, GNU find가 이를 경고하며 비정상 종료한다. `set -e`가 걸린 script는 그 지점에서 멈춰 뒤따르는 runtime validation report와 qualification candidate 정리가 실행되지 않았고, 운영자는 캐시만 지워진 상태를 정리 완료로 오해할 수 있었다. 이제 한 번의 실행이 cache artifact와 report를 모두 정리하고 0으로 끝나며, 반복 실행해도 같은 결과를 유지한다. model cache, runtime state, image, `.env`의 정리 권한은 `make reset`이 계속 소유한다.
