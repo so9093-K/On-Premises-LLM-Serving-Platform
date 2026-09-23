@@ -33,6 +33,9 @@ def test_public_operator_surface_is_intent_based() -> None:
         "compose-diagnostics",
         "clean",
         "help-all",
+        "init-env-compose",
+        "sync-env",
+        "static-compose-config",
     ):
         assert f"\n{removed}:" not in makefile
 
@@ -146,6 +149,9 @@ def test_user_facing_docs_do_not_restore_removed_operator_aliases() -> None:
         "compose-diagnostics",
         "clean",
         "help-all",
+        "init-env-compose",
+        "sync-env",
+        "static-compose-config",
     )
     patterns = {
         name: re.compile(rf"make {re.escape(name)}(?=\\s|$)")

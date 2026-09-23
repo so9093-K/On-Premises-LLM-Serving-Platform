@@ -416,12 +416,12 @@ make exposure-apply MODE=<mode>
 example 파일은 실행 환경별 `.env`를 구성하기 위한 template으로 사용한다.
 Main Model operator env의 canonical namespace는 `MAIN_MODEL_*`이다. Runtime과 운영 도구는
 `MAIN_LLM_*`를 더 이상 읽지 않는다. 기존 persistent `.env` 값은
-`configs/env_contract.yaml`의 `renamed_keys`와 `make sync-env`가 canonical key로 한 번 이관한다.
+`configs/env_contract.yaml`의 `renamed_keys`와 configuration sync가 canonical key로 한 번 이관한다.
 Runtime Controller endpoint도 `RUNTIME_CONTROLLER_URL`만 실행 계약으로 사용하며,
 기존 `ADMIN_SIDECAR_URL`은 `sync-env` migration 입력으로만 인식된다.
 두 경로의 layout과 일반 기본값은 각 template이 소유한다. Compose image 기본값과 env key mapping은
 `configs/recommended_images.yaml`이 소유한다. Platform/vLLM project-built image는 operator/local build 값을
-보존하고, `immutable_upstream` third-party image는 최초 생성과 `sync-env`에서 같은 pinned digest로 수렴한다.
+보존하고, `immutable_upstream` third-party image는 최초 생성과 configuration sync에서 같은 pinned digest로 수렴한다.
 private mirror가 필요한 경우에는 명시적 process environment override를 사용할 수 있지만,
 persistent `.env`의 repository-managed upstream image projection은 canonical digest를 유지한다.
 
@@ -429,16 +429,17 @@ persistent `.env`의 repository-managed upstream image projection은 canonical d
 make init-env-local
 ```
 
-또는
+full-stack environment는 별도 init 명령 없이 첫 lifecycle에서 생성한다.
 
 ```bash
-make init-env-compose
+make up TARGET=<deployment-target>
 ```
 
-기존 `.env`의 누락 key를 현재 contract에 맞추려면 다음 명령을 사용한다.
+기존 `.env`의 migration/sync만 분리해서 확인해야 하는 maintainer 작업은 implementation
+script를 직접 사용한다.
 
 ```bash
-make sync-env
+python scripts/config/setup_env.py --sync-env --env-file .env
 ```
 
 ### Environment Contract

@@ -90,13 +90,14 @@ Image를 publish하는 절차와 Runtime을 적용하는 절차는 분리한다.
 
 ## 10.4 환경 설정과 migration
 
-Persistent `.env`는 `make up`과 `make sync-env`가 관리한다.
+Persistent `.env`의 정상 lifecycle ownership은 `make up`에 있다. 기존 host의 key
+migration만 분리해서 진단하는 maintainer 작업은 다음 implementation mode를 직접 사용할 수 있다.
 
 ```bash
-make sync-env
+python scripts/config/setup_env.py --sync-env --env-file .env
 ```
 
-`sync-env`는:
+configuration sync는:
 
 - 새 canonical key 추가
 - 등록된 rename migration 적용
@@ -153,7 +154,7 @@ effective services start
 make up
 ```
 
-`make up`은 Gateway health/readiness와 대표 inference 경로를 완료 조건으로 확인한다. 실패하면 terminal에는 요약과 evidence 경로가 남으며, 기본 후속 확인은:
+`make up`은 target-appropriate serving gate를 완료 조건으로 확인한다. managed dynamic target은 strict readiness와 대표 inference 경로를, static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 실패하면 terminal에는 요약과 evidence 경로가 남으며, 기본 후속 확인은:
 
 ```bash
 make logs
@@ -171,9 +172,6 @@ make logs
 
 ```bash
 git checkout <reviewed revision>
-make up TARGET=<same-target>
-make up
-make up
 make up
 make status
 ```
@@ -242,7 +240,7 @@ external transport
       ↓
 host checkout / package
       ↓
-make up / build / prepare / up / status
+make up / status
 ```
 
 다만 repository는 SSH credential, source 전송, release symlink, rolling/full mode,
