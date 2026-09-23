@@ -47,8 +47,6 @@ if [[ ! "$READY_FULL_MAIN_MODEL_MAX_TOKENS" =~ ^[1-9][0-9]*$ ]]; then
   echo "[ready-full] READY_FULL_MAIN_MODEL_MAX_TOKENS must be a positive integer" >&2
   exit 2
 fi
-SMOKE_SKIP_RUNTIMES="${SMOKE_SKIP_RUNTIMES:-}"
-
 run_diagnostics() {
   echo "[ready-full] collecting compose diagnostics" >&2
   bash scripts/compose/compose_diagnostics.sh >&2 || true
