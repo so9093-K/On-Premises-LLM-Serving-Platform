@@ -18,7 +18,7 @@ trap 'rm -f "$MAIN_MODEL_BOOT_OVERRIDE"' EXIT
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[compose-up] $ENV_FILE 파일이 없습니다." >&2
-  echo "[compose-up] 먼저 'make init-env-compose'를 실행하세요." >&2
+  echo "[compose-up] public lifecycle에서는 'make up TARGET=<deployment-target>'으로 초기화하세요." >&2
   exit 2
 fi
 
