@@ -38,12 +38,13 @@ def test_development_profile_includes_quality_dependencies() -> None:
     ]
 
 
-def test_make_setup_uses_runtime_profile_and_setup_dev_keeps_dev_entrypoint() -> None:
+def test_make_up_uses_runtime_profile_and_setup_dev_keeps_dev_entrypoint() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
+    up_block = makefile.split("up: ##", 1)[1].split("\n\n", 1)[0]
     assert (
         '"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime'
-        in makefile
+        in up_block
     )
     assert '"$(PYTHON)" scripts/build/setup_dev.py' in makefile
 
