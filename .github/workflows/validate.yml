@@ -52,8 +52,12 @@ jobs:
     name: Control Plane frontend
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
@@ -61,8 +65,23 @@ jobs:
           cache-dependency-path: ui/control-plane/package-lock.json
       - name: Pin npm toolchain
         run: npm install --global npm@11.19.0
-      - name: Check Control Plane source and generated Console
-        run: make console-check
+      - name: Build and synchronize generated Console
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          npm --prefix ui/control-plane ci
+          npm --prefix ui/control-plane run typecheck
+          npm --prefix ui/control-plane run test:safety
+          npm --prefix ui/control-plane run build -- --outDir ../../src/ai_model_serving/static/control-plane --emptyOutDir
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ai_model_serving/static/control-plane
+          if git diff --cached --quiet; then
+            echo "Console dist already current."
+            exit 0
+          fi
+          git commit -m "build(console): generated dark theme artifact를 갱신한다"
+          git push origin "HEAD:${HEAD_BRANCH}"
 
   platform-image:
     name: Platform image build and smoke
