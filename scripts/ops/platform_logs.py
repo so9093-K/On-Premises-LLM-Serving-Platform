@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--follow", action="store_true")
     parser.add_argument("--raw", action="store_true")
     parser.add_argument("--all-events", action="store_true")
-    args = parser.parse_args(arv)
+    args = parser.parse_args(argv)
     if args.tail < 1:
         parser.error("--tail must be positive")
     if args.raw or args.service or args.follow:
