@@ -195,6 +195,7 @@
 
 ### Fixed
 
+- `make up`이 deferred runtime 컨테이너 생성 단계에서 중단되던 문제를 고쳤다. `docker compose create`는 `--no-deps`를 받지 않아 Compose가 `unknown flag`로 즉시 실패했고, `set -e`가 걸린 `compose_up.sh`는 그 지점에서 멈춰 뒤따르는 config service 재생성과 fingerprint 상태 기록이 실행되지 않았다. 핵심 서비스는 이미 기동된 뒤라 운영자는 정상 동작하는 스택과 오류로 끝난 명령을 동시에 마주했다. deferred runtime은 `compose up --no-deps --no-start`로 생성되어 의존 서비스를 함께 올리지 않고 `Created` 상태로 남으며, lifecycle 명령은 선언한 단계를 끝까지 수행한다.
 - `make clean`이 선언한 정리 범위를 끝내지 못하고 오류로 끝나던 문제를 고쳤다. stray `.pyc` 삭제에 `find`의 `-delete`를 쓰면 `-depth`가 암묵적으로 켜져 같은 식의 `__pycache__` `-prune`이 무력화되고, GNU find가 이를 경고하며 비정상 종료한다. `set -e`가 걸린 script는 그 지점에서 멈춰 뒤따르는 runtime validation report와 qualification candidate 정리가 실행되지 않았고, 운영자는 캐시만 지워진 상태를 정리 완료로 오해할 수 있었다. 이제 한 번의 실행이 cache artifact와 report를 모두 정리하고 0으로 끝나며, 반복 실행해도 같은 결과를 유지한다. model cache, runtime state, image, `.env`의 정리 권한은 `make reset`이 계속 소유한다.
 - 배포가 지정한 deferred runtime이 반영되지 않은 채 배포가 성공으로 끝나던 문제를 고쳤다. `runtime-state.json`은 gateway 컨테이너의 non-root 사용자가 쓰는 마운트인데 배포 실행 계정도 같은 파일을 쓰려 했고, 이미지 UID와 호스트 UID 사이에는 아무 관계가 없어 어느 쪽이 먼저 만들었느냐가 소유권을 결정했다. 반대쪽의 쓰기 실패는 조용히 넘어갔다. 이제 이 파일의 writer는 Gateway 하나이며, 배포는 정지 상태로 둘 런타임 목록만 환경변수로 전달하고 기록은 Gateway가 기동 시 한 번 수행한다. 같은 릴리스에서 컨테이너가 재시작될 때는 Admin Runtime API로 바꿔 둔 상태가 유지된다.
 - `ensure_gateway_runtime_dir`가 디렉터리의 존재 여부만 확인해, 이미 잘못된 소유권으로 만들어진 디렉터리는 그대로 통과시키던 문제를 고쳤다. compose가 먼저 닿아 root 소유로 생성되면 gateway가 영구히 쓰지 못했다. 이제 배포와 `compose-up` 모두 매번 소유권까지 단언하며, UID는 고정값 대신 플랫폼 이미지에 직접 질의한다.
