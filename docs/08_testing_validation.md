@@ -97,7 +97,7 @@ make validate
 make test
   → 코드가 기대한 동작을 하는가?
 
-make ready-full
+make up
   → 지금 실행된 stack이 요청을 처리할 수 있는가?
 
 make runtime-validate
@@ -295,10 +295,10 @@ Readiness
 Smoke
 ```
 
-### app-only — `make ready-local`
+### app-only — `make status`
 
 ```bash
-make ready-local
+make status
 ```
 
 app-only에서는 다음 process health를 확인한다.
@@ -308,10 +308,10 @@ app-only에서는 다음 process health를 확인한다.
 
 이 단계는 Gateway와 Risk Signal Service의 application process가 정상적으로 응답하는지 확인하는 빠른 개발 검증이다.
 
-### full-stack — `make ready-full`
+### full-stack — `make up`
 
 ```bash
-make ready-full
+make up
 ```
 
 full-stack readiness는 다음 흐름으로 진행된다.
@@ -330,10 +330,10 @@ Strict Smoke Test
 Gateway `/ready`는 enabled runtime dependency의 준비 상태를 확인한다.
 모델 로딩 중에는 dependency 상태를 표시하며 readiness polling을 이어간다.
 
-### Smoke Test — `make smoke`
+### Smoke implementation — `scripts/ops/smoke_test.sh`
 
 ```bash
-make smoke
+bash scripts/ops/smoke_test.sh
 ```
 
 Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 확인한다.
@@ -350,9 +350,9 @@ Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 �
 
 Risk Signal Service host port를 사용할 수 있는 exposure에서는 Risk Signal Service health/readiness와 detector API도 함께 확인한다.
 
-`make smoke`는 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
+`scripts/ops/smoke_test.sh`는 `make up`의 strict serving gate 안에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
 
-`make ready-full`은 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
+`make up`은 내부 `ready_full.sh`의 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
 
 ### Build와 검증의 관계
 
@@ -360,12 +360,12 @@ Risk Signal Service host port를 사용할 수 있는 exposure에서는 Risk Sig
 
 ```bash
 make check
-make build
+make up
 ```
 
 ```text
 make check  → 정적 계약 + 결정론적 테스트
-make build  → 선택 target의 저장소 소유 image
+make up  → 선택 target의 저장소 소유 image
 ```
 
 Build 자체의 상세 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_build.md)를 참고한다.
@@ -525,13 +525,13 @@ passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
 
 | 변경 영역 | 기본 검증 | Runtime 확인 |
 |---|---|---|
-| Gateway / Risk Signal Service Python 코드 | `make validate` → `make test` | `make ready-local` 또는 관련 smoke |
+| Gateway / Risk Signal Service Python 코드 | `make validate` → `make test` | `make status` 또는 관련 smoke |
 | API route / schema / error contract | `make validate` → `make test` | API smoke |
 | `configs/*.yaml` | `make validate` → `make test` | 영향받는 runtime readiness |
 | `.env.*.example` / env contract | `make validate` | app-only 또는 full-stack 기동 |
-| Compose / exposure | `make validate` → `make compose-config` | `make compose-up` → `make ready-full` |
+| Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` → `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
-| GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make ready-full` |
+| GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
 | Platform `Dockerfile` / dependency | `make build-image` | image 실행 후 readiness |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
@@ -549,8 +549,8 @@ make test
 ```bash
 make validate
 make test
-make compose-up
-make ready-full
+make up
+make up
 ```
 
 ### GPU·vLLM·Monitoring 운영 증빙이 필요한 변경
@@ -704,7 +704,7 @@ Full-stack 상태와 로그는 다음 명령으로 확인한다.
 
 ```bash
 make status
-make compose-logs
+make logs RAW=1
 ```
 
 ### 명령 빠른 참조
@@ -713,13 +713,13 @@ make compose-logs
 |---|---|
 | Source / contract / drift 확인 | `make validate` |
 | Unit + Contract Test | `make test` |
-| 선택 target image Build | `make build` |
-| app-only process health | `make ready-local` |
-| full-stack readiness + smoke | `make ready-full` |
-| 대표 API smoke | `make smoke` |
+| 선택 target image Build | `make up` |
+| app-only process health | `make status` |
+| full-stack readiness + smoke | `make up` |
+| 대표 API smoke | `bash scripts/ops/smoke_test.sh` |
 | vLLM / monitoring 운영 검증 | `make runtime-validate` |
 | Generated artifact 재생성 | `make render-runtime-assets` |
-| Effective Compose 확인 | `make compose-config` |
+| Effective Compose 확인 | `bash scripts/compose/compose_config.sh` |
 
 ### 주요 구현 위치
 
