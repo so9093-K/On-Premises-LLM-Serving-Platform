@@ -28,7 +28,7 @@ export function mainModelOverviewSignals(
     signals.push({
       key: 'main-model-state-recovery',
       tone: 'danger',
-      title: 'Main Model state recovery 확인 필요',
+      title: '메인 모델 상태 복구 확인 필요',
       detail: mainModel.state_recovery_error,
     });
   }
@@ -37,8 +37,8 @@ export function mainModelOverviewSignals(
     signals.push({
       key: 'main-model-stopped',
       tone: 'info',
-      title: 'Main Model이 stopped 상태입니다.',
-      detail: '의도적인 stop일 수 있으므로 장애로 판정하지 않습니다. 필요하면 Main Model 화면에서 현재 state와 최근 operation을 확인하세요.',
+      title: '메인 모델이 중지된 상태입니다.',
+      detail: '의도적으로 중지한 상태일 수 있으므로 장애로 단정하지 않습니다. 필요하면 메인 모델 화면에서 현재 상태와 최근 작업을 확인하세요.',
     });
     return signals;
   }
@@ -47,8 +47,8 @@ export function mainModelOverviewSignals(
     signals.push({
       key: 'main-model-gate',
       tone: 'warning',
-      title: 'Main Model gate가 닫혀 있습니다.',
-      detail: 'runtime_state는 active이지만 새 inference 요청을 받는 gate가 open이 아닙니다.',
+      title: '메인 모델이 새 요청을 받지 않는 상태입니다.',
+      detail: '런타임은 실행 중이지만 새 추론 요청을 허용하는 상태가 아닙니다.',
     });
   }
 
@@ -57,8 +57,8 @@ export function mainModelOverviewSignals(
     signals.push({
       key: 'main-model-observation',
       tone: 'warning',
-      title: 'Main Model runtime 관측값이 없습니다.',
-      detail: '저장된 control state만으로 실제 serving readiness를 가정하지 않습니다.',
+      title: '메인 모델 런타임의 실제 상태를 확인할 수 없습니다.',
+      detail: '저장된 제어 상태만으로 실제 서빙 준비 상태를 가정하지 않습니다.',
     });
     return signals;
   }
@@ -68,8 +68,8 @@ export function mainModelOverviewSignals(
     signals.push({
       key: 'main-model-observed-state',
       tone: 'warning',
-      title: 'Main Model runtime 관측 상태를 확인하세요.',
-      detail: `status=${observed.status}, health=${observed.health ?? 'unknown'}${error}`,
+      title: '메인 모델 런타임 상태를 확인하세요.',
+      detail: `상태=${observed.status}, 상태 확인=${observed.health ?? 'unknown'}${error}`,
     });
   }
 

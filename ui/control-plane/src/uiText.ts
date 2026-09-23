@@ -65,6 +65,13 @@ export function runtimeStateLabel(state: string): string {
     healthy: '정상',
     open: '요청 허용',
     closed: '요청 차단',
+    verified: '검증 완료',
+    noop: '변경 없음',
+    rejected: '거부됨',
+    pending: '진행 중',
+    failed: '실패',
+    interrupted: '중단됨',
+    recovered_after_restart: '재시작 후 복구',
   };
   return labels[state] ?? state;
 }

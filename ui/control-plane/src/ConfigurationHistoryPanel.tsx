@@ -16,6 +16,7 @@ import {
   configurationRollbackApplyRequest,
   configurationRollbackTargetRevision,
 } from './configurationSafety';
+import { riskLabel } from './uiText';
 
 type ConfigurationHistoryPanelProps = {
   token: string | null;
@@ -281,7 +282,7 @@ export function ConfigurationHistoryPanel({
                       <td>{formatValue(change.operator_before)}</td>
                       <td>{formatValue(change.operator_after)}</td>
                       <td>{formatValue(change.effective_after)}</td>
-                      <td>{change.risk}</td>
+                      <td>{riskLabel(change.risk)}</td>
                     </tr>
                   ))}
                 </tbody>
