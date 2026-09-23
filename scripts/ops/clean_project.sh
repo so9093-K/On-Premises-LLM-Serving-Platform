@@ -66,7 +66,7 @@ remove_glob_find() {
     find_project_artifacts -type d -name '*.egg-info' -prune -exec rm -rf {} +
     find_project_artifacts \
       \( -type d -name __pycache__ \) -prune -o \
-      -type f -name '*.pyc' -delete
+      -type f -name '*.pyc' -exec rm -f {} +
   fi
 }
 

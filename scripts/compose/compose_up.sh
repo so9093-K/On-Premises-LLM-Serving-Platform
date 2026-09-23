@@ -278,7 +278,7 @@ docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" \
 if [[ ${#DEFERRED_RUNTIME_SERVICES[@]} -gt 0 ]]; then
   echo "[compose-up] creating deferred runtime containers without starting: ${DEFERRED_RUNTIME_SERVICES[*]}"
   docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" \
-    create --no-deps "${DEFERRED_RUNTIME_SERVICES[@]}"
+    up --no-deps --no-start "${DEFERRED_RUNTIME_SERVICES[@]}"
 fi
 
 if [[ ${#CONFIG_SERVICES_TO_REFRESH[@]} -gt 0 ]]; then
