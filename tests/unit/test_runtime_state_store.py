@@ -11,7 +11,6 @@ from ai_model_serving.services.runtime_state import (
     RuntimeState,
     RuntimeStateRecord,
     RuntimeStateStore,
-    RuntimeStateStoreError,
     _default_controllable_keys,
 )
 
@@ -79,10 +78,10 @@ def test_startup_directive_applies_once_per_generation(tmp_path):
 
 
 
-def test_runtime_state_store_reads_legacy_v1_and_ignores_unknown_keys(tmp_path):
+def test_runtime_state_store_ignores_records_for_unknown_runtimes(tmp_path):
     path = tmp_path / "runtime-state.json"
     path.write_text(
-        '{"schema_version":1,"states":{"embedding":"stopped","unknown":"broken"}}',
+        '{"schema_version":3,"states":{"embedding":{"state":"stopped"},"unknown":{"state":"broken"}}}',
         encoding="utf-8",
     )
 
@@ -93,184 +92,10 @@ def test_runtime_state_store_reads_legacy_v1_and_ignores_unknown_keys(tmp_path):
     assert store.recovery_quarantine_path is None
 
 
-def test_runtime_state_store_migrates_v2_release_generation_without_state_key_change(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    path.write_text(
-        json.dumps({
-            "schema_version": 2,
-            "applied_release_id": "old-release-token",
-            "states": {
-                "embedding": {
-                    "state": "stopped",
-                    "reason": "operator_stop_requested",
-                    "source": "runtime_control",
-                    "updated_at": 7.0,
-                }
-            },
-        }),
-        encoding="utf-8",
-    )
-
-    store = RuntimeStateStore(path, controllable_keys={"embedding"})
-
-    assert asyncio.run(store.get("embedding")) == RuntimeState.stopped
-    persisted = json.loads(path.read_text(encoding="utf-8"))
-    assert persisted["schema_version"] == 3
-    assert persisted["applied_startup_generation"] == "old-release-token"
-    assert "applied_release_id" not in persisted
-
-
-def test_runtime_state_store_migrates_v2_generation_and_legacy_prompt_detector_key(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    path.write_text(
-        json.dumps({
-            "schema_version": 2,
-            "applied_release_id": "release-before-rename",
-            "states": {
-                "risk_prompt": {
-                    "state": "stopped",
-                    "reason": "operator_stop_requested",
-                    "source": "runtime_control",
-                    "updated_at": 123.5,
-                }
-            },
-        }),
-        encoding="utf-8",
-    )
-
-    store = RuntimeStateStore(
-        path,
-        controllable_keys={"prompt_injection_detector"},
-    )
-
-    record = asyncio.run(store.all_records())["prompt_injection_detector"]
-    assert record == RuntimeStateRecord(
-        RuntimeState.stopped,
-        reason="operator_stop_requested",
-        source="runtime_control",
-        updated_at=123.5,
-    )
-    persisted = json.loads(path.read_text(encoding="utf-8"))
-    assert persisted["schema_version"] == 3
-    assert persisted["applied_startup_generation"] == "release-before-rename"
-    assert "applied_release_id" not in persisted
-    assert "risk_prompt" not in persisted["states"]
-    assert persisted["states"]["prompt_injection_detector"]["state"] == "stopped"
-
-
-def test_runtime_state_store_keeps_legacy_key_while_it_is_still_canonical(tmp_path, monkeypatch):
-    path = tmp_path / "runtime-state.json"
-    original = json.dumps({
-        "schema_version": 3,
-        "states": {
-            "risk_prompt": {
-                "state": "stopped",
-                "reason": "operator_stop_requested",
-                "source": "runtime_control",
-                "updated_at": 123.5,
-            }
-        },
-    })
-    path.write_text(original, encoding="utf-8")
-
-    def fail_if_rewritten(self) -> None:
-        raise AssertionError("current topology must not trigger a state-key rewrite")
-
-    monkeypatch.setattr(RuntimeStateStore, "_write_file", fail_if_rewritten)
-    store = RuntimeStateStore(path, controllable_keys={"risk_prompt"})
-
-    assert asyncio.run(store.get("risk_prompt")) == RuntimeState.stopped
-    assert path.read_text(encoding="utf-8") == original
-
-
-def test_runtime_state_store_prefers_explicit_canonical_record_when_states_match(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    path.write_text(
-        json.dumps({
-            "schema_version": 2,
-            "states": {
-                "risk_prompt": {
-                    "state": "stopped",
-                    "reason": "legacy",
-                    "source": "migration_input",
-                    "updated_at": 1,
-                },
-                "prompt_injection_detector": {
-                    "state": "stopped",
-                    "reason": "canonical",
-                    "source": "runtime_control",
-                    "updated_at": 2,
-                },
-            },
-        }),
-        encoding="utf-8",
-    )
-
-    store = RuntimeStateStore(
-        path,
-        controllable_keys={"prompt_injection_detector"},
-    )
-
-    record = asyncio.run(store.all_records())["prompt_injection_detector"]
-    assert record.reason == "canonical"
-    assert record.source == "runtime_control"
-    assert record.updated_at == 2
-    persisted = json.loads(path.read_text(encoding="utf-8"))
-    assert set(persisted["states"]) == {"prompt_injection_detector"}
-
-
-def test_runtime_state_store_quarantines_conflicting_legacy_and_canonical_keys(tmp_path):
-    path = tmp_path / "runtime-state.json"
-    path.write_text(
-        json.dumps({
-            "schema_version": 2,
-            "states": {
-                "risk_prompt": {"state": "active"},
-                "prompt_injection_detector": {"state": "stopped"},
-            },
-        }),
-        encoding="utf-8",
-    )
-
-    store = RuntimeStateStore(
-        path,
-        controllable_keys={"embedding", "prompt_injection_detector"},
-    )
-
-    assert store.recovery_quarantine_path is not None
-    assert "conflicting records" in store.recovery_error
-    records = asyncio.run(store.all_records())
-    assert set(records) == {"embedding", "prompt_injection_detector"}
-    assert all(record.state == RuntimeState.stopped for record in records.values())
-    assert all(record.source == "recovery" for record in records.values())
-
-
-def test_runtime_state_store_fails_startup_if_key_migration_cannot_persist(tmp_path, monkeypatch):
-    path = tmp_path / "runtime-state.json"
-    path.write_text(
-        '{"schema_version":2,"states":{"risk_prompt":{"state":"stopped"}}}',
-        encoding="utf-8",
-    )
-
-    def fail_write(self) -> None:
-        raise OSError("disk full")
-
-    monkeypatch.setattr(RuntimeStateStore, "_write_file", fail_write)
-
-    with pytest.raises(
-        RuntimeStateStoreError,
-        match="runtime desired state migration could not be persisted",
-    ):
-        RuntimeStateStore(
-            path,
-            controllable_keys={"prompt_injection_detector"},
-        )
-
-
 def test_runtime_state_store_quarantines_invalid_known_record_and_stops_all(tmp_path):
     path = tmp_path / "runtime-state.json"
     path.write_text(
-        '{"schema_version":2,"states":{"embedding":{"state":"broken"}}}',
+        '{"schema_version":3,"states":{"embedding":{"state":"broken"}}}',
         encoding="utf-8",
     )
 
@@ -317,7 +142,7 @@ def test_runtime_state_store_reads_record_metadata(tmp_path):
     path = tmp_path / "runtime-state.json"
     path.write_text(
         json.dumps({
-            "schema_version": 2,
+            "schema_version": 3,
             "states": {
                 "embedding": {
                     "state": "stopped",
@@ -346,7 +171,7 @@ def test_runtime_state_store_tolerates_invalid_record_metadata(tmp_path):
     path = tmp_path / "runtime-state.json"
     path.write_text(
         json.dumps({
-            "schema_version": 2,
+            "schema_version": 3,
             "states": {
                 "embedding": {
                     "state": "stopped",

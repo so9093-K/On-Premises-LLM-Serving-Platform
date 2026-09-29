@@ -153,7 +153,7 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 
 - Canonical 사용자-facing 용어
 - 안정 API·service·env 식별자와 표시명 구분
-- legacy 용어 migration 원칙
+- 식별자 변경 원칙
 
 ### [vLLM 보안 노출 경계](reference/vllm_security_posture.md)
 

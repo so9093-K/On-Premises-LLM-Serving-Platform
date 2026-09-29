@@ -53,6 +53,8 @@
 
 ### Fixed
 
+- `EXPOSURE_MODE=master_open`, `EXPOSURE_AUDIENCE=local_only`에서 `make auth-doctor`가 host bind 주소를
+  읽다가 존재하지 않는 legacy 인자를 넘겨 `TypeError`로 죽던 문제를 수정했다.
 - `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
   Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
   lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
@@ -344,7 +346,14 @@
 
 ### Removed
 
-
+- 완료된 이름 변경 migration의 잔여물을 제거했다. `sync-env`가 옛 `.env` key 30개(`RISK_ADAPTER_*`,
+  `RISK_PROMPT_*`, `MAIN_LLM_*`, `ADMIN_SIDECAR_URL`, `AUDIO_VLLM_IMAGE` 등)를 새 이름으로 옮기던
+  `renamed_keys`·`value_migrations`와 그 코드·검증기·테스트, `ai_model_serving.env_compat`, Gateway
+  runtime state의 schema v1/v2와 `risk_prompt` key 변환, 옛 용어가 다시 들어오지 않는지 문서를
+  문자열로 검사하던 terminology validator, 완료된 migration 계획 문서를 함께 제거했다. 이 변환들은
+  2026-09-19 이전부터 `make up`과 Gateway 기동 때마다 적용돼 왔다. 옛 key가 남은 `.env`는 그 값이
+  무시되고 새 key는 기본값을 쓴다. 옛 runtime state 파일은 손상된 파일과 같이 격리되고 모든 runtime이
+  멈춘 상태로 기동한다. `removed_keys`로 `.env`에서 key를 지우는 동기화 정책은 유지한다.
 - `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process-input alias 및 이를 정규화하던 shell helper/test를 제거했다. full-stack compose-up은 `RUNTIME_STARTUP_PROFILE`만 사용한다.
 - `scripts/validation/governance/model_config.py`에 남아 있던 호출되지 않는 옛 `validate_configuration_schema()` 구현을 제거했다. 현재 governance CLI는 `governance/configuration_plane.py`의 validator만 사용하며, 이 경로는 production schema validator를 재사용하고 repository default와 public retrieval contract까지 함께 교차 검증한다.
 - Runtime Controller Python rename의 migration-only shim을 제거했다. `services.sidecar_client`와 `apps.admin_sidecar`는 더 이상 import surface가 아니며, production/test 코드는 `runtime_controller_client`와 `apps.runtime_controller`를 직접 사용한다. Compose service ID `admin-sidecar`와 operator env compatibility는 별도 계약으로 유지한다.

@@ -414,11 +414,8 @@ make exposure-apply MODE=<mode>
 | `.env.compose.example` | full-stack Compose 실행 환경 template |
 
 example 파일은 실행 환경별 `.env`를 구성하기 위한 template으로 사용한다.
-Main Model operator env의 canonical namespace는 `MAIN_MODEL_*`이다. Runtime과 운영 도구는
-`MAIN_LLM_*`를 더 이상 읽지 않는다. 기존 persistent `.env` 값은
-`configs/env_contract.yaml`의 `renamed_keys`와 configuration sync가 canonical key로 한 번 이관한다.
-Runtime Controller endpoint도 `RUNTIME_CONTROLLER_URL`만 실행 계약으로 사용하며,
-기존 `ADMIN_SIDECAR_URL`은 `sync-env` migration 입력으로만 인식된다.
+Main Model operator env의 namespace는 `MAIN_MODEL_*`이고, Runtime Controller endpoint는
+`RUNTIME_CONTROLLER_URL`이다.
 두 경로의 layout과 일반 기본값은 각 template이 소유한다. Compose image 기본값과 env key mapping은
 `configs/recommended_images.yaml`이 소유한다. Platform/vLLM project-built image는 operator/local build 값을
 보존하고, `immutable_upstream` third-party image는 최초 생성과 configuration sync에서 같은 pinned digest로 수렴한다.

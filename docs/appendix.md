@@ -6,7 +6,7 @@
 
 ## A. 용어 정리
 
-전체 canonical 용어와 legacy 식별자 migration 원칙은 [표준 용어](./reference/terminology.md)를 기준으로 한다.
+전체 canonical 용어와 식별자 변경 원칙은 [표준 용어](./reference/terminology.md)를 기준으로 한다.
 이 부록은 운영 중 자주 확인하는 핵심 용어만 요약한다.
 
 | 용어 | 의미 | 안정 식별자 예 |

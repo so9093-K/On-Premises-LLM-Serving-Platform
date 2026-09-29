@@ -33,9 +33,7 @@ def test_static_service_env_requires_canonical_source_keys(tmp_path) -> None:
     source = tmp_path / ".env"
     output = tmp_path / "gateway.env"
     source.write_text(
-        "APP_ENV=local\n"
-        "MAIN_LLM_BASE_URL=http://legacy.example:9401/v1\n"
-        "MAIN_LLM_STATIC_PROFILE=gemma4-12b-unified-fp8\n",
+        "APP_ENV=local\n",
         encoding="utf-8",
     )
 
