@@ -473,7 +473,7 @@ runtime_override_example_keys
 | 변수 | 역할 |
 |---|---|
 | `FASTAPI_DOCS_ENABLED` | `/docs`, `/redoc`, `/openapi.json`과 이들이 쓰는 self-host asset (`/static/*`, `/favicon.ico`) 활성화 여부. 기본 `true`. 문서 화면은 외부 CDN을 쓰지 않으므로 air-gap 망에서도 그대로 뜬다 |
-| `CORS_ALLOWED_ORIGINS` | 브라우저 기반 별도 client를 허용할 origin 목록 |
+| `CORS_ALLOWED_ORIGINS` | 공개 API(`/v1/*` 등)를 다른 origin에서 호출할 브라우저 client의 허용 origin 목록. 운영자 경로(`/admin/*`, `/internal/*`, `/metrics`, `/ready`)에는 적용되지 않으며, 다른 site의 page가 보낸 운영자 상태 변경 요청은 항상 `403`이다 |
 | `REQUEST_TIMEOUT_SECONDS` | Gateway 전체 요청 timeout |
 | `RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS` | Gateway의 Risk Signal Service 호출 timeout |
 | `*_BASE_URL` | vLLM 또는 내부 service endpoint override |

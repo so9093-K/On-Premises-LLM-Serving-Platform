@@ -463,3 +463,73 @@ def test_cors_preflight_allows_authorization_header_for_configured_origin():
     assert preflight.status_code == 200
     assert preflight.headers["access-control-allow-origin"] == "http://example-webui.test"
     assert "authorization" in preflight.headers["access-control-allow-headers"].lower()
+
+
+def test_cors_is_not_granted_to_operator_endpoints():
+    # 기본 CORS("*")는 공개 API를 위한 것이다. Admin 인증이 없는 profile에서도 다른
+    # origin의 page가 운영자 API를 preflight하거나 응답을 읽을 수 없어야 한다.
+    client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))
+
+    preflight = client.request(
+        "OPTIONS",
+        "/admin/config",
+        headers={
+            "Origin": "http://example-webui.test",
+            "Access-Control-Request-Method": "PATCH",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert "access-control-allow-origin" not in preflight.headers
+
+    read = client.get("/admin/config/effective", headers={"Origin": "http://example-webui.test"})
+    assert "access-control-allow-origin" not in read.headers
+
+    public = client.get("/v1/models", headers={"Origin": "http://example-webui.test"})
+    assert public.headers["access-control-allow-origin"] == "*"
+
+
+def test_cross_site_browser_cannot_change_operator_state():
+    # text/plain POST는 preflight 없이 전송되므로 CORS만으로는 막히지 않는다.
+    clients = FakeGatewayClients()
+    client = TestClient(create_gateway_app(settings(), clients))
+    body = json.dumps({"base_revision": 0, "changes": []})
+
+    cross_site = client.post(
+        "/admin/config/plans",
+        content=body,
+        headers={"Content-Type": "text/plain", "Origin": "http://evil.test", "Sec-Fetch-Site": "cross-site"},
+    )
+    assert cross_site.status_code == 403
+    assert cross_site.json()["error"]["code"] == "FORBIDDEN"
+    Draft202012Validator(error_schema()).validate(cross_site.json())
+
+    # Sec-Fetch-Site가 없는 브라우저는 Origin과 Host를 비교한다.
+    legacy_browser = client.post(
+        "/admin/main-model/switch",
+        content=json.dumps({"profile": "any"}),
+        headers={"Content-Type": "text/plain", "Origin": "http://evil.test"},
+    )
+    assert legacy_browser.status_code == 403
+
+
+def test_same_origin_console_and_non_browser_clients_keep_operator_access():
+    client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))
+    body = {"base_revision": 0, "changes": []}
+
+    console = client.post(
+        "/admin/config/plans",
+        json=body,
+        headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert console.status_code != 403
+
+    cli = client.post("/admin/config/plans", json=body)
+    assert cli.status_code != 403
+
+    # 공개 API는 다른 origin의 브라우저 client를 계속 받는다.
+    public = client.post(
+        "/v1/chat/completions",
+        headers={**auth_headers(), "Origin": "http://example-webui.test", "Sec-Fetch-Site": "cross-site"},
+        json={"model": "local-main", "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert public.status_code == 200

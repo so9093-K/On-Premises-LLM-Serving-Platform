@@ -318,6 +318,12 @@
 ### Security
 
 - Gateway에는 Docker socket을 추가하지 않고, 내부 Admin Sidecar만 allowlist된 profile ID를 고정 model ID, revision, image digest, vLLM command로 변환하도록 했다. 관리 요청으로 임의 image, command, environment, Compose path를 주입할 수 없으며 Gateway와 Sidecar 사이에는 내부 service token을 사용한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md))
+- 운영자 경로(`/admin/*`, `/internal/*`, `/metrics`, `/ready`)는 `CORS_ALLOWED_ORIGINS`와
+  무관하게 CORS 대상이 아니며, 다른 site의 브라우저 page가 보낸 상태 변경 요청을 body를
+  읽기 전에 `403 FORBIDDEN`으로 거부한다. Admin 인증이 없는 `ACCESS=local`에서도 운영자
+  브라우저에 열린 외부 page가 모델 전환, Runtime 제어, 설정 변경을 요청할 수 없다.
+  같은 origin의 Control Plane Console, curl·SDK 같은 비브라우저 client, 공개 API(`/v1/*`)의
+  cross-origin 브라우저 client는 추가 설정 없이 그대로 동작한다.
 
 ## [0.0.1] - 2026-05-20
 

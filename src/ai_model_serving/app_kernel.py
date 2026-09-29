@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .docs_ui import (
     FAVICON_MEDIA_TYPE,
@@ -31,7 +32,7 @@ from .errors import (
 )
 from .logging_policy import record_error_diagnosis, RequestLoggingMiddleware
 from .metrics import Metrics, MetricsMiddleware
-from .middleware import enforce_request_body_limit
+from .middleware import enforce_request_body_limit, is_operator_path, reject_cross_site_operator_writes
 from .security import require_admin_bearer_auth
 from .settings import AppSettings
 
@@ -116,9 +117,14 @@ def install_common_middleware(
             max_body_bytes=settings.max_request_body_bytes,
         )
 
-    # 순서(바깥 -> 안쪽): 접근 로그, metric, 요청 크기 가드. add_middleware가
-    # 스택 앞에 끼우므로 나중에 추가한 것이 바깥이다. metric과 접근 로그는 둘 다
-    # 순수 ASGI 미들웨어라 응답 본문(SSE 포함)이 끝난 뒤에 기록한다.
+    # body를 읽기 전에 거부하고, 거부도 접근 로그와 metric에 남도록 그 안쪽에 둔다.
+    @app.middleware("http")
+    async def operator_write_origin_guard(request: Request, call_next: Callable[[Request], Awaitable[Any]]) -> Any:
+        return await reject_cross_site_operator_writes(request, call_next)
+
+    # 순서(바깥 -> 안쪽): 접근 로그, metric, cross-site 쓰기 가드, 요청 크기 가드.
+    # add_middleware가 스택 앞에 끼우므로 나중에 추가한 것이 바깥이다. metric과 접근
+    # 로그는 둘 다 순수 ASGI 미들웨어라 응답 본문(SSE 포함)이 끝난 뒤에 기록한다.
     app.add_middleware(
         MetricsMiddleware,
         metrics=metrics,
@@ -133,8 +139,26 @@ def install_common_middleware(
     )
 
 
+class PublicApiCORSMiddleware:
+    """CORS를 공개 API 경로에만 적용한다.
+
+    운영자 경로는 CORS header를 받지 않는다. 다른 origin의 page는 preflight를 통과하지
+    못하고 응답도 읽지 못한다. 같은 origin의 Control Plane Console에는 CORS가 필요 없다.
+    """
+
+    def __init__(self, app: ASGIApp, **cors_options: Any) -> None:
+        self._app = app
+        self._cors = CORSMiddleware(app, **cors_options)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and is_operator_path(scope["path"]):
+            await self._app(scope, receive, send)
+            return
+        await self._cors(scope, receive, send)
+
+
 def install_cors_middleware(app: FastAPI, *, settings: AppSettings) -> None:
-    """다른 origin의 브라우저 클라이언트가 이 API를 호출하도록 CORS를 설정한다.
+    """다른 origin의 브라우저 클라이언트가 공개 API를 호출하도록 CORS를 설정한다.
 
     `CORS_ALLOWED_ORIGINS` 기본값은 전체 허용("*")이다 — 이 프로젝트의 기본 auth
     profile(local_open)이 API 키 인증까지 기본으로 끄고 "네트워크 경계가 접근 제어를
@@ -145,11 +169,12 @@ def install_cors_middleware(app: FastAPI, *, settings: AppSettings) -> None:
     빈 값으로 두면 미들웨어 자체를 안 붙여서 cross-origin을 전부 막을 수 있다(더 엄격한
     프로필용). 반드시 `install_common_middleware` 이후에 호출해야 가장 바깥쪽에 위치해,
     preflight(OPTIONS)가 요청 크기 가드/메트릭/접근 로그보다 먼저 처리된다.
+    Admin·ops 경로는 이 설정과 무관하게 CORS 대상이 아니다(`PublicApiCORSMiddleware`).
     """
     if not settings.cors.allowed_origins:
         return
     app.add_middleware(
-        CORSMiddleware,
+        PublicApiCORSMiddleware,
         allow_origins=list(settings.cors.allowed_origins),
         allow_credentials=False,
         allow_methods=["*"],
