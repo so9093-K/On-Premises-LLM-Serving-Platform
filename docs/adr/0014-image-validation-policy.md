@@ -159,4 +159,3 @@ profile에서 이를 읽으므로 별도 model card나 문서 표에 값을 복�
 - `configs/main_model_profiles.yaml` — 활성 profile의 media request limit source-of-truth
 - `src/ai_model_serving/contracts/media.py` — 파서 구현
 - `../reference/api_reference.md` — Vision 한도 API 문서 반영
-- ADR-0003: All Major Models as vLLM Runtime (vLLM이 PIL auto-detect를 사용하는 배경)

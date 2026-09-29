@@ -175,7 +175,7 @@ curl -s http://127.0.0.1:9400/v1/responses \
   }'
 ```
 
-Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전체 요청·응답 계약은 [API 인터페이스](docs/reference/api_reference.md)에서 확인한다. Gateway의 브라우저 API Reference와 OpenAPI 명세는 `/docs`, `/redoc`, `/openapi.json`에서 제공한다.
+Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전체 요청·응답 계약은 [API 인터페이스](docs/reference/api_reference.md)에서 확인한다. Gateway의 브라우저 API Reference와 OpenAPI 명세는 `/docs`, `/openapi.json`에서 제공한다.
 
 ---
 

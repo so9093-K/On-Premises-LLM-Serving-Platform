@@ -76,7 +76,6 @@ def isolate_settings_environment(monkeypatch):
         "RUNTIME_CONTROLLER_URL",
         "FASTAPI_DOCS_ENABLED",
         "FASTAPI_DOCS_URL",
-        "FASTAPI_REDOC_URL",
         "OPENAPI_URL",
         "MAX_REQUEST_BODY_BYTES",
         "MAIN_MODEL_BASE_URL",

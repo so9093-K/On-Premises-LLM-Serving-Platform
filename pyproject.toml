@@ -82,7 +82,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# Scalar/ReDoc 번들과 generated Control Plane Console은 installed package가
+# Scalar 번들과 generated Control Plane Console은 installed package가
 # same-origin으로 직접 서빙하는 runtime asset이다. Console은 Vite output을 한 단계
 # assets/에만 두므로 package-data도 그 구조를 명시적으로 포함한다.
 [tool.setuptools.package-data]

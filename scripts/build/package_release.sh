@@ -159,7 +159,7 @@ with zipfile.ZipFile(out) as zf:
     if provenance != expected_provenance:
         raise SystemExit("RELEASE_PROVENANCE.json is not derived from RELEASE_MANIFEST.json")
 
-    # /docs and /redoc have no CDN fallback. Keep this functional release invariant
+    # /docs has no CDN fallback. Keep this functional release invariant
     # separate from selection policy: the manifest is canonical, but an incomplete
     # canonical payload must still fail packaging.
     sys.path.insert(0, "src")

@@ -346,6 +346,12 @@
 
 ### Removed
 
+- `/redoc` 문서 화면을 제거했다. Scalar(`/docs`)와 같은 OpenAPI를 두 번째로 보여 주던 중복 화면으로,
+  1.1MB vendoring 번들과 route·설정·env key를 따로 유지해야 했다. API 문서는 `/docs`와
+  `/openapi.json`이 제공한다. `FASTAPI_REDOC_URL`은 `removed_keys`에 등록돼 `make up`이 기존
+  `.env`에서 지우고, Control Plane bootstrap의 `links.redoc`도 없어졌다(Console은 이 값을 쓰지 않았다).
+- 다른 ADR로 전부 대체된 ADR-0003·0012·0015·0023과 ADR 체계 이전의 legacy 결정 요약(D-001~D-009)
+  표를 제거했다. 대체한 ADR이 현재 결정을 소유하며 원문은 git history에 남는다.
 - 검증처럼 보이지만 실제로는 파일 문구를 다시 적어 둔 것에 불과한 테스트를 정리했다. Makefile·
   Dockerfile·shell script에 특정 문장이 있는지만 보던 테스트, 이미 없앤 `make` alias가 문서와 코드에
   다시 나오지 않는지 문자열로 세 번 검사하던 테스트, 상수가 그 값인지 확인하던 Console 테스트가

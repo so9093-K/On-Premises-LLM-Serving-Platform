@@ -322,7 +322,7 @@ exposure profile은 full-stack 토폴로지를 기술한다. static target의 `m
 
 `compose_files`는 실행 진입점과 노출 진단이 공유하는 단일 목록이다. 실행에 쓰는 Compose 파일과 진단이 판단하는 Compose 파일이 갈라지지 않게 한 곳에서 선언한다.
 
-`AUTH_MODE`는 **누가 호출할 수 있는지**, `EXPOSURE_MODE`는 **어떤 서비스가 host network에 공개되는지**를 각각 결정한다. 한 profile이 다른 profile을 대체하지 않는다. `/health`는 liveness probe로 인증 없이 둘 수 있지만, `/ready`, `/metrics`, `/admin/*`는 auth profile과 network boundary를 함께 적용한다. `/docs`, `/redoc`, `/openapi.json`의 공개 여부도 auth profile의 docs 정책을 따른다.
+`AUTH_MODE`는 **누가 호출할 수 있는지**, `EXPOSURE_MODE`는 **어떤 서비스가 host network에 공개되는지**를 각각 결정한다. 한 profile이 다른 profile을 대체하지 않는다. `/health`는 liveness probe로 인증 없이 둘 수 있지만, `/ready`, `/metrics`, `/admin/*`는 auth profile과 network boundary를 함께 적용한다. `/docs`, `/openapi.json`의 공개 여부도 auth profile의 docs 정책을 따른다.
 
 ---
 

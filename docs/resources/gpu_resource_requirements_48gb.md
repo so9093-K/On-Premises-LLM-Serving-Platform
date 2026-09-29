@@ -111,7 +111,7 @@ Prefix caching은 반복 prefix가 있는 multi-turn, tool, RAG prompt에서 pre
 
 [ADR-0017](../adr/0017-selectable-main-model-runtime.md)/[ADR-0018](../adr/0018-gpu-vram-admission-and-per-profile-runtime-image.md) 이후 "Main LLM"은 `configs/main_model_profiles.yaml`의 profile 중 하나로 전환되는 identity다. 이 절의 표는 초기 Gemma 26B/12B 두 profile을 실제 배포 서버에서 측정한 이력일 뿐이며, 현재 선택 가능한 전체 profile 목록과 각각의 실행값·검증 근거는 catalog가 권위다. 1~8절은 26B 단일 모델을 전제로 한 원본이며, 그 전제가 더 이상 유효하지 않다.
 
-실제 배포 서버에서 두 프로필을 각각 활성화해 실측한 결과([ADR-0015](../adr/0015-main-llm-20k-o3-runtime-target.md) Update 참고):
+실제 배포 서버에서 두 프로필을 각각 활성화해 실측한 결과(ADR-0015 Update 참고):
 
 | 프로필 | context/concurrency | local-main 자체 VRAM | 전체 GPU 사용량 | KV cache pool (`num_gpu_blocks`) |
 |---|---|---:|---:|---|
@@ -122,4 +122,4 @@ Prefix caching은 반복 prefix가 있는 multi-turn, tool, RAG prompt에서 pre
 
 12B 행은 2026-07-24에 `nvidia-smi`/`vllm:cache_config_info`로 재측정한 50K/seq=3 수치다. 58,192 context 시도와 자동 rollback, KV cache 수치 해석의 상세 근거는 `configs/main_model_profiles.yaml` 하단 `description`에 보관한다. 앞으로는 `num_gpu_blocks x block_size`가 아니라 `vllm:cache_config_info`의 `kv_cache_size_tokens` 또는 부팅 로그의 "Available KV cache memory" GiB를 기준으로 삼는다.
 
-**실무 시사점**: 1~8절의 "Main LLM canary context는 20K, seq 1"이라는 서술은 활성 프로필이 26B일 때만 맞다. 어느 프로필이 실제로 얼마나 VRAM을 쓰는지는 이 문서의 고정 표가 아니라, 부팅 후 `nvidia-smi`와 vLLM `/metrics`(`vllm:cache_config_info`의 `num_gpu_blocks`)로 확인하는 게 원칙이다 — 이론 계산이 실측과 크게 어긋난 전례([ADR-0015](../adr/0015-main-llm-20k-o3-runtime-target.md) Context의 32K 실패 사례)가 있다.
+**실무 시사점**: 1~8절의 "Main LLM canary context는 20K, seq 1"이라는 서술은 활성 프로필이 26B일 때만 맞다. 어느 프로필이 실제로 얼마나 VRAM을 쓰는지는 이 문서의 고정 표가 아니라, 부팅 후 `nvidia-smi`와 vLLM `/metrics`(`vllm:cache_config_info`의 `num_gpu_blocks`)로 확인하는 게 원칙이다 — 이론 계산이 실측과 크게 어긋난 전례(ADR-0015 Context의 32K 실패 사례, git history)가 있다.

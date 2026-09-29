@@ -52,7 +52,6 @@ Accepted
 
 ## Related
 
-- ADR-0003: All Major Models as vLLM Runtime
 - ADR-0011: 문서 Source-of-Truth와 Generated Block 정책
 - `configs/model_serving.yaml` `embedding_ko` 항목
 - `model_cards/local-embed-ko.json`

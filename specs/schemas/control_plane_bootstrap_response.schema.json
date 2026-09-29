@@ -170,19 +170,12 @@
       "type": "object",
       "required": [
         "docs",
-        "redoc",
         "openapi",
         "grafana"
       ],
       "additionalProperties": false,
       "properties": {
         "docs": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "redoc": {
           "type": [
             "string",
             "null"

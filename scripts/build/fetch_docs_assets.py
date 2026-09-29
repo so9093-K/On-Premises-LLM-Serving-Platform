@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """문서 화면의 JS 번들을 저장소에 내려받고 고정된 SRI 해시로 검증한다.
 
-온프레미스 배포는 외부 egress가 없어도 /docs와 /redoc이 떠야 하므로 번들을 vendoring 한다.
+온프레미스 배포는 외부 egress가 없어도 /docs가 떠야 하므로 번들을 vendoring 한다.
 버전과 해시는 ai_model_serving.docs_ui가 단독으로 소유하고, 이 스크립트는 그 값을
 읽어 쓴다 -- 여기서 따로 적으면 문서 HTML과 조용히 어긋난다.
 
