@@ -81,6 +81,9 @@
 
 ### Changed
 
+- `make test`(`make app-check`)가 `pytest-xdist`로 테스트를 CPU 수만큼 나눠 실행한다. 4코어 기준
+  약 86초에서 30초로 줄었다. 직렬 실행이 필요하면 `PYTEST_WORKERS=0`을 준다. quality dependency
+  group에 `pytest-xdist==3.8.0`(과 의존성 `execnet`)이 추가됐으며 runtime 환경에는 영향이 없다.
 - Control Plane Console 개요가 '지금 서비스'로 현재 상태를 먼저 보여 준다: 최근 5분 요청 수, 서버 오류
   (0보다 크면 주황), 응답 시간 p95, 스트리밍 첫 응답 p95. 실행 환경 메타데이터와 지원 기능은 접힌
   '실행 환경 정보'로 옮겨 모바일 개요 길이가 약 1/3 줄었고, GPU 예약은 백분율로 표시한다. 메인 모델
