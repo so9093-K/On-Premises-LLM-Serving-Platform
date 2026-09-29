@@ -60,41 +60,21 @@
 | **Deploy Runtime Profile** | deployment 전체 profile처럼 보임 | Runtime Startup Profile |
 | **operation evidence** | 내부 영속성 구현 용어에 가까움 | Verification Details / Activity |
 | **force** (단독 버튼) | 실제 영향이 드러나지 않음 | 필요한 runtime 자동 중지 허용 |
-| **AUDIO_VLLM_IMAGE** (신규 이름으로 사용) | 현재 역할이 audio 전용이 아니라 Main Model profile image override임 | 신규 사용 금지. deployment-time/direct deploy read는 제거됐고 persistent key는 `setup_env.py --sync-env` migration 입력으로만 남음 |
 
 ### Process inputs
 
 - `RUNTIME_STARTUP_PROFILE`이 full-stack compose-up의 유일한 operator-facing startup profile input이다.
 - `RUNTIME_STARTUP_DEFERRED_KEYS`와 `RUNTIME_STARTUP_GENERATION`은 compose-up이 Gateway에 전달하는 내부 one-shot directive이며 persistent `.env` key가 아니다.
 - `DEPLOY_RELEASE_ID`는 제거된 remote release/startup naming debt이며 `setup_env.py --sync-env`가 기존 persistent `.env`에서 제거한다.
-- `RUNTIME_PROFILE`과 `DEPLOY_RUNTIME_PROFILE` process alias는 제거됐다.
 - `PACKAGE_NAME`은 release ZIP 파일명을 바꾸는 packaging process override이며 Runtime `.env` key가 아니다.
 
-## Migration namespaces
-
-legacy 유지 여부는 참조 수가 아니라 **실제 보존해야 할 계약**으로 결정한다.
-영속 데이터 손실을 막기 위한 migration, 외부 표준 호환, 명시적으로 안정화한 공개 계약이 아니면
-compatibility alias를 기본으로 만들지 않는다. 내부/process 식별자는 같은 release에서 모든 producer와
-consumer를 함께 바꿀 수 있으면 직접 cutover한다. migration bridge가 필요한 경우에도 신규 runtime
-계약으로 승격하지 않고 제거 조건을 명시한다.
-
-| Legacy namespace | Canonical target | 현재 정책 |
-|---|---|---|
-| `MAIN_LLM_*` | `MAIN_MODEL_*` | runtime read alias는 제거됨. 기존 persistent `.env`의 legacy key는 `setup_env.py --sync-env` migration 입력으로만 유지되며 `MAIN_LLM_MODEL`은 `MAIN_MODEL_ALIAS`로 이관 |
-| `risk-adapter` / `risk_adapter` / `RISK_ADAPTER_*` | Risk Signal Service 계열 legacy identifier | active Python/config/process identifier는 `risk_signal_service`, operator env는 `RISK_SIGNAL_SERVICE_*`로 수렴. `RISK_ADAPTER_*`는 `setup_env.py --sync-env` migration 입력/테스트/history에만 유지하며 공개 `/v1/risk/*` API는 그대로 유지 |
-| `risk_prompt` / `RISK_PROMPT_*` | Prompt Injection Detector 계열 legacy identifier | runtime/config key는 `prompt_injection_detector`, operator env는 `PROMPT_INJECTION_DETECTOR_*`로 수렴. `risk_prompt`는 persisted runtime-state migration 입력에만 남고 `RISK_PROMPT_*`는 `setup_env.py --sync-env` migration 입력으로만 유지. public model alias `risk-prompt`는 외부 model ID로 유지하고 service-registry/Compose identity는 `prompt_injection_detector_runtime` / `prompt-injection-detector-runtime`로 수렴 |
-| `admin-sidecar` / `admin_sidecar` | Runtime Controller 계열 legacy identifier | Python shim, Compose service ID, DNS, telemetry key migration이 모두 완료됨. 현재 identifier는 `runtime-controller` / `runtime_controller` |
-
-migration이 완료되기 전에는 기존 식별자를 삭제하거나 새 target과 충돌하는 값을 자동 선택하지 않는다.
-canonical과 legacy 값이 동시에 존재하면서 다르면 fail-closed를 기본으로 한다.
-
-## Legacy and ambiguous env keys
+## 헷갈리기 쉬운 env key
 
 다음 key는 이름만 보고 의미를 추측하면 잘못 쓰기 쉬우므로 별도 의미 계약으로 유지한다.
 
 | Key | 실제 의미 | 주의 |
 |---|---|---|
-| `MAIN_MODEL_ALIAS` | client-facing **Public Model Alias**. 현재 기본값은 `local-main` | upstream model/checkpoint 이름이 아니다. 기존 `MAIN_LLM_MODEL`은 persistent env migration 입력으로만 처리 |
+| `MAIN_MODEL_ALIAS` | client-facing **Public Model Alias**. 현재 기본값은 `local-main` | upstream model/checkpoint 이름이 아니다 |
 | `GATEWAY_HOST` | host에서 직접 실행하는 Gateway process의 listen address | Compose host publish address가 아니다 |
 | `GATEWAY_BIND_ADDR` | Compose가 Gateway port를 host에 publish할 때 bind할 address | application process listen address와 구분 |
 | `API_KEYS` | Gateway가 허용하는 Bearer key 집합 | server-side accepted credential set |
@@ -115,15 +95,11 @@ compatibility layer는 다음 중 하나가 구체적으로 성립할 때만 둔
 기존 값을 canonical 형태로 한 번 옮기고, bridge에는 제거 조건을 함께 기록한다. 단순히 "기존 사용자가 있을 수 있다"는
 추측이나 참조 수가 많다는 이유만으로 alias를 유지하지 않는다.
 
-사용자-facing 표시명과 안정 식별자는 각각 의미에 맞게 canonicalize한다. 현재 Runtime Controller는
-표시명뿐 아니라 Compose service ID도 `runtime-controller`를 사용한다. 과거 `admin-sidecar`는 historical
-ADR/CHANGELOG에서 당시 사실을 설명할 때만 보존한다. `/admin/*`은 Control Plane 관리 API namespace이고
-옛 sidecar 이름의 호환 path가 아니다. `/v1/risk/*`도 Risk 도메인을 표현하는 현재 public API이며
-`risk-adapter` 이름을 보존하기 위한 alias가 아니다.
+사용자-facing 표시명과 안정 식별자는 각각 의미에 맞게 canonicalize한다. `/admin/*`은 Control Plane
+관리 API namespace이고, `/v1/risk/*`는 Risk 도메인을 표현하는 public API다.
 
 API 오류 메시지·OpenAPI 설명/예제·CLI help·Console help·운영 설정의 description도
 사용자-facing 표시 계약에 포함한다. 이 surface에서는 `Runtime Controller`,
 `Risk Signal Service`, `Prompt Injection Detector Runtime` 같은 canonical term을 사용하고,
 `runtime-controller`, `risk-signal-service`, `risk_signal_service`, `prompt-injection-detector-runtime` 같은 값은 실제 identifier를 정확히
-가리켜야 할 때만 code formatting과 함께 노출한다. Runtime Controller endpoint의 canonical
-env는 `RUNTIME_CONTROLLER_URL`이며 `ADMIN_SIDECAR_URL`은 persistent env migration 입력으로만 남는다.
+가리켜야 할 때만 code formatting과 함께 노출한다.

@@ -41,11 +41,6 @@ def _default_controllable_keys() -> frozenset[str]:
     ).controllable_keys
 
 
-_RUNTIME_STATE_KEY_RENAMES = {
-    "risk_prompt": "prompt_injection_detector",
-}
-
-
 class RuntimeStateStore:
     """Gateway-side desired-state store for controllable vLLM runtimes.
 
@@ -86,9 +81,8 @@ class RuntimeStateStore:
         recovered_corrupt_state = False
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            migration_required = False
             try:
-                records, self._applied_startup_generation, migration_required = self._read_file()
+                records, self._applied_startup_generation = self._read_file()
             except RuntimeStateStoreError as exc:
                 recovered_corrupt_state = True
                 self.recovery_error = str(exc)
@@ -118,13 +112,6 @@ class RuntimeStateStore:
                 records = {}
             self._records.update(records)
             had_persisted_state = bool(records)
-            if migration_required and not recovered_corrupt_state:
-                try:
-                    self._write_file()
-                except OSError as exc:
-                    raise RuntimeStateStoreError(
-                        "runtime desired state migration could not be persisted"
-                    ) from exc
         # A corrupt desired-state file means operator intent is unknown. Applying a
         # startup directive in the same boot could immediately overwrite the fail-closed
         # recovery state, so recovery always wins for this boot.
@@ -181,11 +168,6 @@ class RuntimeStateStore:
 
     @staticmethod
     def _parse_record(raw: Any) -> RuntimeStateRecord | None:
-        if isinstance(raw, str):
-            try:
-                return RuntimeStateRecord(RuntimeState(raw))
-            except ValueError:
-                return None
         if not isinstance(raw, dict):
             return None
         try:
@@ -203,9 +185,9 @@ class RuntimeStateStore:
             updated_at=updated_at,
         )
 
-    def _read_file(self) -> tuple[dict[str, RuntimeStateRecord], str, bool]:
+    def _read_file(self) -> tuple[dict[str, RuntimeStateRecord], str]:
         if self._path is None or not self._path.exists():
-            return {}, "", False
+            return {}, ""
         try:
             value = json.loads(self._path.read_text(encoding="utf-8"))
         except PermissionError as exc:
@@ -214,44 +196,26 @@ class RuntimeStateStore:
             raise RuntimeStateStoreError("runtime desired state is corrupt") from exc
         if not isinstance(value, dict):
             raise RuntimeStateStoreError("runtime desired state root must be an object")
-        schema_version = value.get("schema_version", 1)
-        if isinstance(schema_version, bool) or schema_version not in {1, 2, 3}:
+        schema_version = value.get("schema_version")
+        if isinstance(schema_version, bool) or schema_version != 3:
             raise RuntimeStateStoreError(
                 f"unsupported runtime desired state schema version: {schema_version!r}"
             )
-        if schema_version >= 3:
-            applied = str(value.get("applied_startup_generation") or "")
-        else:
-            applied = str(value.get("applied_release_id") or "")
+        applied = str(value.get("applied_startup_generation") or "")
         states = value.get("states")
         if not isinstance(states, dict):
             raise RuntimeStateStoreError("runtime desired state states must be an object")
         parsed: dict[str, RuntimeStateRecord] = {}
-        migrated = schema_version != 3 or "applied_release_id" in value
         for key, raw in states.items():
-            canonical_key = _RUNTIME_STATE_KEY_RENAMES.get(key, key)
-            if canonical_key not in self.controllable_keys:
-                if key not in self.controllable_keys:
-                    continue
-                canonical_key = key
+            if key not in self.controllable_keys:
+                continue
             record = self._parse_record(raw)
             if record is None:
                 raise RuntimeStateStoreError(
                     f"runtime desired state contains an invalid record for {key}"
                 )
-            existing = parsed.get(canonical_key)
-            if existing is not None:
-                if existing.state != record.state:
-                    raise RuntimeStateStoreError(
-                        "runtime desired state contains conflicting records for "
-                        f"{key} and {canonical_key}"
-                    )
-                if key == canonical_key:
-                    parsed[canonical_key] = record
-            else:
-                parsed[canonical_key] = record
-            migrated = migrated or canonical_key != key
-        return parsed, applied, migrated
+            parsed[key] = record
+        return parsed, applied
 
     def _quarantine_corrupt_state(self) -> Path | None:
         if self._path is None or not self._path.exists():

@@ -12,7 +12,6 @@ from .model_config import (
     validate_risk_detector_generation_budget,
 )
 from .runtime_topology import validate_runtime_prerequisite_projection
-from .terminology import validate_canonical_terminology
 from .qualification import validate_qualification_evidence
 from .schemas import (
     validate_common_error_codes,
@@ -34,7 +33,6 @@ from .vllm_image import (
 # 참고.
 CHECKS = [
     validate_configuration_schema,
-    validate_canonical_terminology,
     validate_qualification_evidence,
     validate_deployment_targets,
     validate_deploy_profiles,

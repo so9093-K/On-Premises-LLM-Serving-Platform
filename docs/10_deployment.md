@@ -38,10 +38,7 @@ Repository가 소유하는 canonical lifecycle은 다음 명령이다.
 
 `make up` 이후 Runtime start/stop은 Runtime Controller가, Main Model 전환은 Main Model
 Control이 소유한다. Configuration 변경은 Configuration Plan/Apply 계약을 따른다.
-
-이 저장소는 더 이상 별도의 `rolling/full` 원격 배포 모드나 release-directory rollback
-state machine을 소유하지 않는다. 세부 결정은
-[ADR-0037](./adr/0037-local-lifecycle-deployment-authority.md)을 따른다.
+세부 결정은 [ADR-0037](./adr/0037-local-lifecycle-deployment-authority.md)을 따른다.
 
 ---
 
@@ -88,10 +85,10 @@ Image를 publish하는 절차와 Runtime을 적용하는 절차는 분리한다.
 
 ---
 
-## 10.4 환경 설정과 migration
+## 10.4 환경 설정 동기화
 
-Persistent `.env`의 정상 lifecycle ownership은 `make up`에 있다. 기존 host의 key
-migration만 분리해서 진단하는 maintainer 작업은 다음 implementation mode를 직접 사용할 수 있다.
+Persistent `.env`의 정상 lifecycle ownership은 `make up`에 있다. 동기화만 분리해서 확인하는
+maintainer 작업은 다음 implementation mode를 직접 사용할 수 있다.
 
 ```bash
 python scripts/config/setup_env.py --sync-env --env-file .env
@@ -100,15 +97,14 @@ python scripts/config/setup_env.py --sync-env --env-file .env
 configuration sync는:
 
 - 새 canonical key 추가
-- 등록된 rename migration 적용
 - 명시적으로 retired된 key 제거
 - operator-owned secret과 host-specific 설정 보존
 - repository-owned immutable upstream image projection 수렴
 
 을 수행한다.
 
-배포 전용 `.env` 백업/복원 state machine은 더 이상 없다. 중요한 host 설정 변경은
-Configuration Plan/Apply 또는 운영자 source-control/host backup 정책으로 관리한다.
+중요한 host 설정 변경은 Configuration Plan/Apply 또는 운영자 source-control/host backup
+정책으로 관리한다.
 
 ---
 
@@ -187,9 +183,6 @@ Main Model 변경은 가능하면 전체 stack 재배포 대신 Main Model Contr
 ---
 
 ## 10.8 실패와 복구
-
-Repository는 더 이상 source release 디렉터리와 symlink를 바꾸는 자동 remote rollback을
-제공하지 않는다.
 
 복구 authority는 변경 종류에 따라 나뉜다.
 

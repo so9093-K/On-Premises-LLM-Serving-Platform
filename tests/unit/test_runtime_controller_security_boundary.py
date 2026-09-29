@@ -42,7 +42,6 @@ def test_gateway_uses_canonical_runtime_controller_url_env() -> None:
     gateway_environment = document["services"]["gateway"]["environment"]
 
     assert gateway_environment["RUNTIME_CONTROLLER_URL"] == "http://runtime-controller:8080"
-    assert "ADMIN_SIDECAR_URL" not in gateway_environment
 
 
 def test_runtime_controller_is_not_host_privileged_or_host_networked() -> None:

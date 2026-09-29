@@ -65,10 +65,3 @@ base를 영속 파일에 적어두면 값이 낡아도 아무도 모른 채 cano
 On switch the backend runs the text canary plus media boot canaries (audio/video).
 If the runtime can't decode an advertised modality, the switch fails and rolls
 back — 12B never goes live half-capable.
-
-
-> Migration: deployment-time `AUDIO_VLLM_IMAGE_TO_DEPLOY`와
-> `VLLM_UNIFIED_IMAGE_TO_DEPLOY` 입력은 remote release state machine 제거와 함께 active
-> contract에서 사라졌다. 기존 persistent `AUDIO_VLLM_IMAGE`만 값 손실 방지를 위해
-> migration 대상으로 남으며 `python scripts/config/setup_env.py --sync-env --env-file .env`가
-> `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`로 이동한다.
