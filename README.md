@@ -127,6 +127,7 @@ Gateway 기본 주소는 `http://127.0.0.1:9400`이다. 인증이 적용된 환�
 
 Gateway는 브라우저에서 API를 확인할 수 있는 Scalar 기반 API Reference를 제공한다. Endpoint, 요청 필드와 응답 구조를 확인한 뒤 같은 API를 직접 호출할 수 있다.
 운영자용 self-hosted Control Plane Console은 같은 Gateway의 `/admin/console/`에서 제공한다.
+Console의 **채팅 테스트** 화면에서는 같은 공개 API로 모델 응답과 첫 토큰 시간, 토큰 수, request_id를 바로 확인할 수 있다.
 
 ![Scalar API Reference](assets/screenshots/scalar_api_reference.jpg)
 

@@ -211,11 +211,13 @@ static external runtime은 자신의 lifecycle authority를 유지한다.
 | Surface | 역할 |
 |---|---|
 | **Scalar `/docs`** | API reference, request example, authenticated API 호출 확인 |
-| **Control Plane `/admin/console/`** | 현재 상태 이해, Plan/Review/Apply/Verify, operation history |
+| **Control Plane `/admin/console/`** | 현재 상태 이해, Plan/Review/Apply/Verify, operation history, 채팅 응답 확인 |
 | **Grafana** | 시간축 metrics, request/runtime logs, resource와 장애 진단 |
 
-Control Plane은 Scalar의 API playground나 Grafana의 로그/그래프 탐색기를 다시 구현하지 않는다.
+Control Plane은 Scalar의 범용 API playground나 Grafana의 로그/그래프 탐색기를 다시 구현하지 않는다.
 대신 현재 상태와 mutation 의미를 설명하고, 필요한 경우 해당 진단 surface로 연결한다.
+**채팅 테스트** 화면은 공개 API를 그대로 호출해 모델이 지금 답하는지, 첫 토큰 시간과 토큰 수가
+어떤지 확인하는 운영 도구다. 범위와 경계는 [ADR-0041](./adr/0041-console-chat-verification-surface.md)이 정한다.
 
 ## 1.4 실행 방식과 플랫폼 범위
 

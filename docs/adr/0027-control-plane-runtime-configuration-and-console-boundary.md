@@ -199,6 +199,7 @@ Bootstrap은 Deployment Target, Access Profile, Configuration revision, release 
 - ADR-0020: Runtime Control과 Deployment Target 분리
 - ADR-0021: Configuration Plane과 Operator Override 경계
 - ADR-0025: 사용자 접근 Profile과 기존 환경의 명시적 전환
+- ADR-0041: Console 채팅 테스트 화면. "Scalar를 다시 구현하지 않는다"의 범위를 범용 API reference로 한정한다
 - `configs/configuration_schema.yaml`
 - `configs/access_profiles.yaml`
 - `src/ai_model_serving/runtime_configuration.py`

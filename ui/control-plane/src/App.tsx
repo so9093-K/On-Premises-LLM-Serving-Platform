@@ -5,6 +5,8 @@ import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ApiError, fetchBootstrap, type BootstrapResponse, verifyAdminToken } from './api';
 import { useAdminSession } from './auth/AdminSessionContext';
+import { ChatPage } from './ChatPage';
+import { ChatSessionProvider } from './ChatSessionContext';
 import { ConfigurationPage } from './ConfigurationPage';
 import { MainModelPage } from './MainModelPage';
 import { OperationsPage } from './OperationsPage';
@@ -35,6 +37,11 @@ const SECTIONS: Section[] = [
   },
   { path: '/configuration', label: t('nav.configuration'), enabled: () => true },
   { path: '/operations', label: t('nav.activity'), enabled: () => true },
+  {
+    path: '/chat',
+    label: t('nav.chat'),
+    enabled: (bootstrap) => bootstrap.deployment.features.includes('chat'),
+  },
 ];
 
 function LoadingScreen() {
@@ -158,6 +165,9 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
               <Route path="/main-model" element={<MainModelPage token={token} onUnauthorized={clearToken} />} />
               <Route path="/configuration" element={<ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
               <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />} />
+              {bootstrap.deployment.features.includes('chat') ? (
+                <Route path="/chat" element={<ChatPage grafanaUrl={bootstrap.links.grafana} />} />
+              ) : null}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </PageErrorBoundary>
@@ -194,5 +204,11 @@ export default function App() {
   if (bootstrap.access.admin_auth_required && token === null) {
     return <AuthGate />;
   }
-  return <Shell bootstrap={bootstrap} />;
+  // 채팅 대화는 Shell과 수명을 같이 하되 화면 오류 경계 밖에 둔다. 다른 화면의 렌더 오류는
+  // 대화를 지우지 않고, 관리자 키를 지워 Shell이 사라지면 대화와 API 키도 사라진다.
+  return (
+    <ChatSessionProvider>
+      <Shell bootstrap={bootstrap} />
+    </ChatSessionProvider>
+  );
 }
