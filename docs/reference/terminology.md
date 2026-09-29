@@ -46,6 +46,7 @@
 | **Implementation Status** | Deployment Target 자체가 실행 가능한 구현 상태인지 나타내는 축 | `implementation_status` |
 | **Qualification** | 특정 Main Model 또는 Deployment Target의 실제 검증 근거가 충족됐는지 나타내는 축 | `qualification.status`, `qualification_status` |
 | **Activity** | 최근 runtime/model/configuration 변경 기록을 모아 보는 Console 화면 | API object는 `operation` 유지 |
+| **채팅 테스트** | 공개 Chat Completions API를 그대로 호출해 모델 응답을 확인하는 Console 화면 | `/admin/console/chat`, ADR-0041 |
 | **Verification Details** | apply/switch 후 실제 상태가 기대 상태와 일치했는지 확인한 정보 | 기존 UI 문구 operation evidence |
 
 ## 사용자-facing에서 피할 표현

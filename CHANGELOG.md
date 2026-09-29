@@ -6,6 +6,13 @@
 
 ### Added
 
+- Control Plane Console에 **채팅 테스트** 화면을 추가했다. 공개 API(`/v1/chat/completions`)를 다른
+  client와 똑같이 호출해 스트리밍 응답, 생각 과정(reasoning), 첫 토큰 시간, 전체 시간, 입력·출력
+  토큰, 생성 속도, request_id(Grafana 요청 로그 링크)를 응답마다 보여 준다. 온도·최대 출력 토큰·
+  reasoning은 `/v1/models`가 광고한 경우에만 나타나며 비워 두면 모델 기본값을 따른다. 중지 버튼,
+  시스템 프롬프트, 여러 턴 대화를 지원하고, 다른 화면에 다녀와도 대화가 유지된다. API 키는 공개
+  API가 401을 반환할 때만 입력받고 관리자 키와 섞지 않으며, 대화와 함께 탭 메모리에만 둔다.
+  npm 의존성과 backend 변경은 없다. ([ADR-0041](docs/adr/0041-console-chat-verification-surface.md))
 - Gateway가 최근 5분의 공개 API(`/v1/*`) 요청 결과와 지연 요약을 직접 집계해
   `GET /admin/traffic/recent`로 제공한다. 요청 수·4xx·5xx, 비스트리밍 Chat·Responses 응답 시간과
   스트리밍 첫 응답 시간의 p50·p95를 담으며, 백분위와 최소 표본 수는 `configs/performance/slo.yaml`의

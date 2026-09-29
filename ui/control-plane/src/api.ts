@@ -4,6 +4,8 @@ export type BootstrapResponse =
   paths['/admin/control-plane/bootstrap']['get']['responses'][200]['content']['application/json'];
 export type RecentTrafficResponse =
   paths['/admin/traffic/recent']['get']['responses'][200]['content']['application/json'];
+export type PublicModelListResponse =
+  paths['/v1/models']['get']['responses'][200]['content']['application/json'];
 export type RuntimeListResponse =
   paths['/admin/runtimes']['get']['responses'][200]['content']['application/json'];
 export type RuntimePlanRequest =
@@ -174,6 +176,36 @@ export async function verifyAdminToken(token: string): Promise<void> {
 
 export async function fetchRecentTraffic(token: string | null): Promise<RecentTrafficResponse> {
   return jsonRequest<RecentTrafficResponse>('/admin/traffic/recent', token);
+}
+
+// 공개 API는 관리자 키가 아니라 API 키로 인증한다. 관리자 키를 공개 API에 보내지 않는다.
+export async function fetchPublicModels(apiKey: string | null): Promise<PublicModelListResponse> {
+  return jsonRequest<PublicModelListResponse>('/v1/models', apiKey);
+}
+
+export async function postChatCompletion(
+  apiKey: string | null,
+  body: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<{ response: Response; requestId: string | null }> {
+  const response = await fetch('/v1/chat/completions', {
+    method: 'POST',
+    cache: 'no-store',
+    signal,
+    headers: {
+      ...adminHeaders(apiKey, true),
+      Accept: body.stream === true ? 'text/event-stream' : 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const requestId = response.headers.get('X-Request-Id');
+  if (!response.ok) {
+    const error = await apiError(response);
+    throw error.requestId !== null || requestId === null
+      ? error
+      : new ApiError(error.message, error.status, error.code, error.details, requestId);
+  }
+  return { response, requestId };
 }
 
 export async function fetchRuntimes(token: string | null): Promise<RuntimeListResponse> {
