@@ -6,6 +6,11 @@
 
 ### Added
 
+- full-stack Grafana의 Home으로 한국어 **서비스 개요** Dashboard를 추가했다. 메인 모델 요청 허용 여부,
+  공개 API 요청량·서버 오류율·응답 시간 p95·스트리밍 첫 응답 p95·GPU 메모리 여유를 첫 행에 두고,
+  요청 결과·지연·vLLM 부하 추이와 Upstream 오류·요청 거부·비정상 스트림 종료 원인 표를 보여 준다.
+  이미 수집하던 Gateway·vLLM·DCGM 지표만 사용한다. Apple Silicon target에도 제공되며 GPU·vLLM
+  panel은 `수집 안 됨`으로 표시된다.
 - Main Model profile이 선택적 `resource_variants`로 검토된 runtime resource-policy override를 선언한다. 같은 model/revision을 자원 조건이 다른 host에서 서빙할 때 profile을 복제하지 않고 자원 knob(`max_model_len`, `max_num_seqs`, `max_num_batched_tokens`, `gpu_memory_utilization`)만 덮으며, model identity·capability·Gateway 계약은 profile이 계속 소유한다. Operator가 `MAIN_MODEL_RESOURCE_VARIANT`를 명시하면 해당 override를 선언하지 않은 profile은 reference policy로 조용히 fallback하지 않고 boot/switch가 fail-closed한다. 이는 GPU 제품 지원 allowlist가 아니라 명시적으로 선택한 자원 정책의 fallback 방지 경계다. 적용된 variant는 active profile snapshot과 `qualified_run`의 `subject.resource_variant`에 기록되어 서로 다른 자원 정책에서 나온 증거가 섞이지 않는다. `gemma4-e4b-it`에는 RTX 4090 24GB 실측으로 필요한 override(`rtx4090-24gb`)를 포함한다. ([ADR-0034](docs/adr/0034-main-model-host-resource-variant.md), [ADR-0035](docs/adr/0035-capability-based-hardware-admission-and-transparent-operations.md))
 
 - Gateway에 `POST /v1/responses`를 추가했다. `local-main`의 active profile/admission을 Chat Completions와 공유하면서 item 기반 input/output, function tool continuation, `text.format` structured output, profile-backed `reasoning.effort`, typed SSE streaming을 제공한다. Gateway 계약은 stateless이며 이전 output item과 tool result를 다음 `input`에 포함해 대화를 이어간다. server-side response storage와 `previous_response_id`는 이 surface가 소유하지 않는다.
@@ -43,9 +48,19 @@
 - Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
   않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
   빠진 timestamp는 `—`로 표시된다.
+- Control Plane Console 활동 화면의 메인 런타임 진단 링크가 vLLM target에서 존재하지 않는
+  Dashboard(`main-runtime-health`)를 열던 문제를 수정했다. 링크는 runtime backend에 맞는 Dashboard
+  (vLLM은 서비스 개요, MLX는 메인 런타임 상태)를 연다.
+- runtime validation의 Grafana Dashboard catalog 검사가 full-stack이 mount하지 않는 Dashboard와 파일
+  이름을 기대값으로 써서 정상 스택도 실패로 보고하던 문제를 수정했다. 기대값은 full-stack Compose의
+  grafana volume이 mount하는 파일의 JSON uid다.
 
 ### Changed
 
+- Grafana Dashboard의 제목·설명·범례를 한국어로 통일하고 색 의미를 정리했다. 색은 근거가 있는 기준
+  (`gpu_budgets.yaml`의 reserve·운영 상한, 5xx 발생, OOM·재시작, 온도)에만 쓰고, 서빙 중 높은 값이 정상인
+  GPU 사용률과 제품마다 다른 전력은 중립색으로 표시한다. 수집이 없는 panel은 `0`이 아니라 `수집 안 됨`,
+  오류·거부 원인은 값이 하나여도 코드가 보이는 표로 표시한다.
 - `make validate`가 Python lint(`ruff`, 버그 신호 규칙만)를 함께 검사한다. 규칙은
   `pyproject.toml`의 `[tool.ruff]`가 소유하며 ruff는 개발용 `quality` dependency group에 고정된다.
 - `make build-image`의 image smoke가 app factory import에 더해 image의 기본 CMD로 Gateway를

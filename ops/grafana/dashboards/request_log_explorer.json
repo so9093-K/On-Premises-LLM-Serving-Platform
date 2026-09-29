@@ -9,13 +9,25 @@
   "links": [
     {
       "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "서비스 개요",
+      "tooltip": "요청·오류·지연",
+      "type": "link",
+      "url": "/d/service_overview"
+    },
+    {
+      "asDropdown": false,
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "Usage Today",
-      "tooltip": "Usage Today — 집계(메트릭) 관점의 사용량/에러 대시보드",
+      "title": "오늘 사용량",
+      "tooltip": "집계(메트릭) 관점의 사용량·오류 대시보드",
       "type": "link",
       "url": "/d/usage_today/usage-today"
     },
@@ -37,7 +49,7 @@
     {
       "id": 1,
       "type": "table",
-      "title": "Gateway Request Log",
+      "title": "Gateway 요청 로그",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -141,7 +153,7 @@
     {
       "id": 2,
       "type": "table",
-      "title": "API / Stream Errors",
+      "title": "API·스트림 오류",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -260,7 +272,7 @@
     {
       "id": 7,
       "type": "table",
-      "title": "Readiness Failures (/ready)",
+      "title": "준비 상태 실패 (/ready)",
       "datasource": {"type": "loki", "uid": "${datasource}"},
       "gridPos": {"x": 0, "y": 18, "w": 24, "h": 8},
       "targets": [
@@ -290,12 +302,12 @@
           }
         }
       ],
-      "description": "Gateway 또는 Risk Adapter가 준비되지 않았을 때의 `/ready` 503입니다. API 오류 코드가 아니라 dependency 상태를 보여 줍니다.\n\n- **readiness_dependencies**: 준비되지 않은 runtime/dependency\n- **readiness_summary**: dependency별 안전한 원인 요약\n- 모델 기동·재배포 중에는 일시적으로 생길 수 있습니다. 지속되면 summary의 dependency부터 확인하세요."
+      "description": "Gateway 또는 Risk Signal Service가 준비되지 않았을 때의 `/ready` 503입니다. API 오류 코드가 아니라 dependency 상태를 보여 줍니다.\n\n- **readiness_dependencies**: 준비되지 않은 runtime/dependency\n- **readiness_summary**: dependency별 안전한 원인 요약\n- 모델 기동·재배포 중에는 일시적으로 생길 수 있습니다. 지속되면 summary의 dependency부터 확인하세요."
     },
     {
       "id": 3,
       "type": "table",
-      "title": "Non-JSON Runtime Errors (vLLM·MLX, best-effort)",
+      "title": "런타임 HTTP 오류 (vLLM·MLX, 텍스트 파싱)",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -384,7 +396,7 @@
     {
       "id": 4,
       "type": "logs",
-      "title": "Raw Runtime Log",
+      "title": "런타임 원본 로그",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -411,7 +423,7 @@
     {
       "id": 5,
       "type": "logs",
-      "title": "Engine Crash / Traceback (host-wide, best-effort)",
+      "title": "엔진 크래시·Traceback (텍스트 검색)",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -589,7 +601,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Request Log Explorer",
+  "title": "요청 로그",
   "uid": "request_log_explorer",
   "version": 20,
   "weekStart": ""

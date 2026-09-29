@@ -25,12 +25,22 @@ test('request log diagnostics deep-link exact request id into the existing Grafa
 test('diagnostic links preserve an explicit Grafana path prefix', () => {
   const href = mainRuntimeDiagnosticsUrl(
     'https://ops.example.test/grafana',
+    'mlx-vlm',
     1_700_000_000,
   );
   assert.notEqual(href, null);
 
   const url = new URL(href);
   assert.equal(url.pathname, '/grafana/d/main-runtime-health');
+});
+
+test('main runtime diagnostics open a dashboard the target actually provisions', () => {
+  // MLX 전용 Dashboard는 Apple Silicon target에만 있다. vLLM target에서 그 uid로 링크하면
+  // Grafana가 Dashboard not found를 보여 준다.
+  const vllm = new URL(mainRuntimeDiagnosticsUrl('http://127.0.0.1:9411', 'vllm-cuda', 1_700_000_000));
+  assert.equal(vllm.pathname, '/d/service_overview');
+  const mlx = new URL(mainRuntimeDiagnosticsUrl('http://127.0.0.1:9411', 'mlx-vlm', 1_700_000_000));
+  assert.equal(mlx.pathname, '/d/main-runtime-health');
 });
 
 test('diagnostic links fail closed without a safe direct Grafana URL', () => {

@@ -9,15 +9,27 @@
   "links": [
     {
       "asDropdown": false,
-      "icon": "external link",
-      "includeVars": true,
+      "icon": "dashboard",
+      "includeVars": false,
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "GPU Capacity and OOM Risk",
-      "tooltip": "GPU Capacity and OOM Risk — capacity, OOM/restart, and KV cache safety view",
+      "title": "서비스 개요",
+      "tooltip": "요청·오류·지연",
       "type": "link",
-      "url": "/d/gpu_capacity_and_oom_risk/gpu-capacity-and-oom-risk"
+      "url": "/d/service_overview"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "GPU 용량",
+      "tooltip": "GPU 메모리·온도·컨테이너 자원",
+      "type": "link",
+      "url": "/d/gpu_capacity_and_oom_risk"
     }
   ],
   "liveNow": false,
@@ -25,7 +37,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "GPU Workload",
+      "title": "GPU 사용률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -40,11 +52,11 @@
         {
           "expr": "max(gpu_utilization_ratio)",
           "refId": "A",
-          "legendFormat": "busy"
+          "legendFormat": "사용률"
         }
       ],
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "textMode": "value"
@@ -59,28 +71,34 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.85
-              },
-              {
-                "color": "red",
-                "value": 0.95
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "오늘 이 GPU가 얼마나 일했는지 한눈에 본다. 색 기준은 GPU Capacity 보드와 동일(안전 의미 일치). Healthy: 여유 있음. Attention: 0.85 초과 — 지속 사용량 높음. Action Required: 0.95 초과 — 포화, 동시 요청/컨텍스트를 줄인다. No Data: check dcgm-exporter scrape."
+      "description": "GPU가 연산 중이었던 시간 비율입니다. 서빙 중에는 높은 값이 정상이므로 색으로 판정하지 않습니다."
     },
     {
       "id": 2,
       "type": "bargauge",
-      "title": "Top Models by Requests",
+      "title": "모델별 요청 (많은 순)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -116,16 +134,17 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "누가(어느 모델이) 이 GPU를 가장 많이 쓰는지 막대 길이로 본다. 가장 긴 막대가 주 사용 모델이다. Healthy: 트래픽이 의도한 모델 분포와 맞음. Attention: 예상치 못한 모델이 점유를 차지하면 원인을 본다. No Data: 트래픽이 없거나 gateway scrape를 확인한다."
+      "description": "선택한 Window 동안 Gateway가 모델별로 보낸 초당 요청 수입니다. 가장 긴 막대가 주 사용 모델입니다."
     },
     {
       "id": 3,
-      "type": "bargauge",
-      "title": "Rejected Requests",
+      "type": "table",
+      "title": "요청 거부 (사유별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -138,43 +157,96 @@
       },
       "targets": [
         {
-          "expr": "sum by (reason) (increase(request_validation_rejections_total[$window]))",
+          "expr": "sum by (reason) (increase(request_validation_rejections_total[$window])) > 0",
           "refId": "A",
-          "legendFormat": "{{reason}}"
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
         }
       ],
       "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "noValue": "없음",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "건수"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "decimals",
+                "value": 0
               },
               {
-                "color": "orange",
-                "value": 1
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
-      "description": "선택 window 동안 검증에서 거부된 요청 수를 사유(reason)별로 본다. Healthy: 값 없음 — 정상. Attention: 항목이 보이면 어떤 사유(image_bytes/video_duration 등)인지 바로 확인해 클라이언트 입력/한도/통합을 점검한다(거부율 SLO가 정해지면 Action 기준을 추가한다). No Data: check gateway scrape."
+      "description": "선택한 Window 동안 Gateway가 검증에서 거부한 요청을 사유별로 셉니다. 사용자 입력 내용은 label에 들어가지 않습니다.",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "reason": "사유",
+              "Value": "건수"
+            },
+            "indexByName": {
+              "reason": 0,
+              "Value": 1
+            }
+          }
+        }
+      ]
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Token Throughput: Input vs Output",
+      "title": "토큰 처리량: 입력과 출력",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -189,12 +261,12 @@
         {
           "expr": "sum(vllm_prompt_tokens_per_second)",
           "refId": "A",
-          "legendFormat": "input (prompt) tok/s"
+          "legendFormat": "입력 tok/s"
         },
         {
           "expr": "sum(vllm_generation_tokens_per_second)",
           "refId": "B",
-          "legendFormat": "output (generation) tok/s"
+          "legendFormat": "출력 tok/s"
         }
       ],
       "options": {
@@ -213,16 +285,17 @@
               "mode": "normal",
               "group": "A"
             }
-          }
+          },
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "토큰 처리량을 input(프롬프트)과 output(생성)으로 나눠 사용량의 성격을 본다. 쌓은 높이의 합이 전체 처리량이다. Healthy: 트래픽에 따라 오르내림이 보임. Attention: input이 치솟으면 컨텍스트 부하, output이 치솟으면 생성 부하. Action Required: 활성 요청이 있는데 0 근처면 runtime을 확인한다. No Data: check vllm-runtimes scrape."
+      "description": "토큰 처리량을 입력(prompt)과 출력(generation)으로 나눕니다. 입력이 치솟으면 긴 컨텍스트, 출력이 치솟으면 긴 생성 부하입니다."
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Requests by Model",
+      "title": "모델별 요청 추이",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -250,16 +323,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
-          "decimals": 2
+          "decimals": 2,
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "모델별 요청량이 시간에 따라 어떻게 변하는지 본다(상단 Top Models 스냅샷의 추세 짝). Healthy: 의도한 모델 분포가 유지됨. Attention: 특정 모델이 갑자기 치솟거나 꺾이면 원인을 본다. No Data: 트래픽이 없거나 gateway scrape를 확인한다."
+      "description": "모델별 요청량이 시간에 따라 어떻게 변하는지 봅니다."
     },
     {
       "id": 6,
-      "type": "bargauge",
-      "title": "Upstream Errors by Code",
+      "type": "table",
+      "title": "Upstream 오류 (코드별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -272,38 +346,93 @@
       },
       "targets": [
         {
-          "expr": "sum by (target, code) (increase(upstream_errors_total[$window]))",
+          "expr": "sum by (target, code) (increase(upstream_errors_total[$window])) > 0",
           "refId": "A",
-          "legendFormat": "{{target}}: {{code}}"
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
         }
       ],
       "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "showUnfilled": true,
-        "valueMode": "color"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "noValue": "없음",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "건수"
+            },
+            "properties": [
               {
-                "color": "green",
-                "value": null
+                "id": "decimals",
+                "value": 0
               },
               {
-                "color": "orange",
-                "value": 1
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
               }
             ]
           }
-        },
-        "overrides": []
+        ]
       },
-      "description": "선택 window 동안 upstream(vLLM/risk-signal-service) 호출이 target별·code별로 얼마나 실패했는지 본다(QUEUE_TIMEOUT, CIRCUIT_OPEN, GATEWAY_TIMEOUT 등). Healthy: 값 없음 — 정상. Attention: 항목이 보이면 어느 target에서 어떤 code로 실패하는지 바로 보고 admission/circuit breaker/모델 상태를 확인한다. No Data: check gateway scrape."
+      "description": "선택한 Window 동안 Gateway가 런타임을 호출하다 받은 오류를 대상과 코드별로 셉니다(QUEUE_TIMEOUT, CIRCUIT_OPEN, GATEWAY_TIMEOUT 등).",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "target": "대상",
+              "code": "코드",
+              "Value": "건수"
+            },
+            "indexByName": {
+              "target": 0,
+              "code": 1,
+              "Value": 2
+            }
+          }
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -325,7 +454,7 @@
         },
         "hide": 0,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "데이터 소스",
         "multi": false,
         "name": "datasource",
         "options": [],
@@ -378,7 +507,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Usage Today",
+  "title": "오늘 사용량",
   "uid": "usage_today",
   "version": 1,
   "weekStart": ""

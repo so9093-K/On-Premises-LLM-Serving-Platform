@@ -1,6 +1,6 @@
 {
   "annotations": {"list": []},
-  "description": "Main model runtime health and workload signals. Request-level failures are investigated in Request Log Explorer.",
+  "description": "Apple Silicon MLX-VLM 메인 런타임의 상태와 부하입니다. 요청 단위 실패는 요청 로그에서 확인합니다.",
   "editable": false,
   "graphTooltip": 1,
   "links": [
@@ -9,7 +9,7 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "Open Request Log Explorer",
+      "title": "요청 로그",
       "type": "link",
       "url": "/d/request_log_explorer"
     }
@@ -47,7 +47,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "max(mlx_runtime_scrape_success)", "refId": "A"}],
-      "title": "Metrics Pipeline",
+      "title": "지표 수집",
       "type": "stat"
     },
     {
@@ -82,7 +82,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "max(mlx_runtime_loaded)", "refId": "A"}],
-      "title": "Model State",
+      "title": "모델 적재",
       "type": "stat"
     },
     {
@@ -108,7 +108,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "max(mlx_runtime_in_flight)", "refId": "A"}],
-      "title": "Active Requests",
+      "title": "처리 중 요청",
       "type": "stat"
     },
     {
@@ -141,7 +141,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "max(mlx_runtime_request_queue_depth)", "refId": "A"}],
-      "title": "Queued Requests",
+      "title": "대기 요청",
       "type": "stat"
     },
     {
@@ -165,7 +165,7 @@
       "links": [
         {
           "targetBlank": false,
-          "title": "Open Request Log Explorer",
+          "title": "요청 로그",
           "url": "/d/request_log_explorer?${__url_time_range}"
         }
       ],
@@ -177,7 +177,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "sum(increase(mlx_runtime_requests_failed_total[$__range]))", "refId": "A"}],
-      "title": "Runtime Failures",
+      "title": "런타임 실패",
       "type": "stat"
     },
     {
@@ -203,7 +203,7 @@
         "textMode": "auto"
       },
       "targets": [{"expr": "max(mlx_runtime_latest_peak_memory_gib)", "refId": "A"}],
-      "title": "Latest Peak Memory",
+      "title": "최근 최대 메모리",
       "type": "stat"
     },
     {
@@ -227,11 +227,11 @@
         "tooltip": {"mode": "multi", "sort": "desc"}
       },
       "targets": [
-        {"expr": "rate(mlx_runtime_requests_started_total[$__rate_interval])", "legendFormat": "started", "refId": "A"},
-        {"expr": "rate(mlx_runtime_requests_completed_total[$__rate_interval])", "legendFormat": "completed", "refId": "B"},
-        {"expr": "rate(mlx_runtime_requests_failed_total[$__rate_interval])", "legendFormat": "failed", "refId": "C"}
+        {"expr": "rate(mlx_runtime_requests_started_total[$__rate_interval])", "legendFormat": "시작", "refId": "A"},
+        {"expr": "rate(mlx_runtime_requests_completed_total[$__rate_interval])", "legendFormat": "완료", "refId": "B"},
+        {"expr": "rate(mlx_runtime_requests_failed_total[$__rate_interval])", "legendFormat": "실패", "refId": "C"}
       ],
-      "title": "Request Activity",
+      "title": "요청 흐름",
       "type": "timeseries"
     },
     {
@@ -247,8 +247,8 @@
         "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
         "tooltip": {"mode": "single", "sort": "none"}
       },
-      "targets": [{"expr": "mlx_runtime_avg_request_time_s", "legendFormat": "average duration", "refId": "A"}],
-      "title": "Average Request Duration",
+      "targets": [{"expr": "mlx_runtime_avg_request_time_s", "legendFormat": "평균 처리 시간", "refId": "A"}],
+      "title": "평균 처리 시간",
       "type": "timeseries"
     },
     {
@@ -268,7 +268,7 @@
         {"expr": "mlx_runtime_latest_prefill_tokens_per_second", "legendFormat": "prefill", "refId": "A"},
         {"expr": "mlx_runtime_latest_decode_tokens_per_second", "legendFormat": "decode", "refId": "B"}
       ],
-      "title": "Latest Request Throughput",
+      "title": "최근 요청 처리량",
       "type": "timeseries"
     },
     {
@@ -285,10 +285,10 @@
         "tooltip": {"mode": "multi", "sort": "desc"}
       },
       "targets": [
-        {"expr": "rate(mlx_runtime_prompt_tokens_total[$__rate_interval])", "legendFormat": "prompt", "refId": "A"},
-        {"expr": "rate(mlx_runtime_completion_tokens_total[$__rate_interval])", "legendFormat": "completion", "refId": "B"}
+        {"expr": "rate(mlx_runtime_prompt_tokens_total[$__rate_interval])", "legendFormat": "입력", "refId": "A"},
+        {"expr": "rate(mlx_runtime_completion_tokens_total[$__rate_interval])", "legendFormat": "출력", "refId": "B"}
       ],
-      "title": "Token Processing Rate",
+      "title": "토큰 처리율",
       "type": "timeseries"
     }
   ],
@@ -298,7 +298,7 @@
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
   "timezone": "browser",
-  "title": "Main Runtime Health",
+  "title": "메인 런타임 상태 (Apple Silicon)",
   "uid": "main-runtime-health",
   "version": 2
 }
