@@ -532,7 +532,7 @@ passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
 | Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
-| Platform `Dockerfile` / dependency | `make build-image` | image 실행 후 readiness |
+| Platform `Dockerfile` / dependency | `make build-image`(image의 기본 CMD로 Gateway를 띄워 `/health`, Console, `/docs` asset을 HTTP로 확인) | image 실행 후 readiness |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
 | Release packaging logic | `make validate` → `make test` → `make package` | package artifact 확인 |

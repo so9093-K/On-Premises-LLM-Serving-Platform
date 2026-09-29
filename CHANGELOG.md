@@ -46,6 +46,10 @@
 
 ### Changed
 
+- `make build-image`의 image smoke가 app factory import에 더해 image의 기본 CMD로 Gateway를
+  실제로 띄우고 `/health`, `/admin/console/`과 그 script asset, `/docs`와 self-host 문서 번들을
+  HTTP로 확인한다. 문서 번들 누락이나 잘못된 기동 명령처럼 import만으로는 드러나지 않는
+  image 결함을 CI에서 잡는다.
 - Control Plane Console에 PatternFly 6 dark theme를 활성화하고 warm-neutral surface hierarchy를
   적용했다. main canvas는 `#292827`, shell은 `#232221`, card는 `#333230`을 기준으로 하며
   text/border/hover surface도 dark 환경에서 충분한 대비를 갖도록 분리했다. status/action 색은
