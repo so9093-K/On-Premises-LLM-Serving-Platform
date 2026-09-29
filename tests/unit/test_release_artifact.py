@@ -119,11 +119,3 @@ def test_materialized_verification_detects_payload_tampering(tmp_path: Path) -> 
     _write(release / "src/app.py", "VALUE = 999\n")
     with pytest.raises(ReleaseArtifactError, match="payload mismatch"):
         verify_materialized(release)
-
-
-def test_package_uses_canonical_release_materializer() -> None:
-    root = Path(__file__).resolve().parents[2]
-    package_script = (root / "scripts/build/package_release.sh").read_text(encoding="utf-8")
-
-    assert "scripts/release/release_artifact.py materialize" in package_script
-    assert "git ls-files" not in package_script

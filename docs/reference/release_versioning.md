@@ -1,6 +1,6 @@
 # Release와 Version Reference
 
-이 문서는 package version, API version, container image tag, config schema version의 역할을 구분하고 release artifact를 만들 때 확인할 기준을 정리한다. 실제 값은 `VERSION`, `version_manifest.json`, `pyproject.toml`, OpenAPI와 image 설정을 기준으로 한다.
+이 문서는 package version, API version, container image tag, config schema version의 역할을 구분하고 release artifact를 만들 때 확인할 기준을 정리한다. 실제 값은 `VERSION`, `pyproject.toml`, OpenAPI와 image 설정을 기준으로 한다.
 
 ---
 
@@ -11,7 +11,7 @@
 | Package version | `VERSION` | 예 |
 | Python package version | `pyproject.toml` | 예. prerelease는 PEP 440 표기 사용 |
 | API contract version | `specs/openapi.*.yaml` | 예 |
-| Platform / Unified vLLM 로컬 기본 image tag | `version_manifest.json`, `.env.compose.example`, `configs/recommended_images.yaml` | 예 |
+| Platform / Unified vLLM 로컬 기본 image tag | `.env.compose.example`, `configs/recommended_images.yaml` | 예 |
 | Third-party upstream image digest | `configs/recommended_images.yaml` | 아니오 |
 | Config schema version | 각 `configs/*.yaml`의 `version` | 아니오 |
 | Project-built runtime image digest | publish 결과와 target host `.env` | 아니오 |

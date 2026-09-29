@@ -6,7 +6,6 @@ import pytest
 
 from ai_model_serving.docker_scope import (
     compose_container_filter,
-    one_scoped_container_id,
     one_scoped_container_row,
     require_compose_project,
     scoped_container_id,
@@ -57,24 +56,22 @@ def test_scoped_container_id_rejects_cross_service_result() -> None:
         )
 
 
-def test_one_scoped_container_id_rejects_duplicate_service_instances() -> None:
+def test_one_scoped_container_row_rejects_duplicate_service_instances() -> None:
     with pytest.raises(RuntimeError, match="multiple containers found"):
-        one_scoped_container_id(
+        one_scoped_container_row(
             [_row(container_id="one"), _row(container_id="two")],
             project="platform",
             service="embedding-vllm",
         )
 
 
-def test_one_scoped_container_id_returns_only_scoped_match() -> None:
-    assert (
-        one_scoped_container_id(
-            [_row(container_id="one")],
-            project="platform",
-            service="embedding-vllm",
-        )
-        == "one"
+def test_one_scoped_container_row_returns_only_scoped_match() -> None:
+    row = one_scoped_container_row(
+        [_row(container_id="one")],
+        project="platform",
+        service="embedding-vllm",
     )
+    assert row is not None and row["Id"] == "one"
 
 
 def test_scoped_container_id_rejects_missing_labels() -> None:

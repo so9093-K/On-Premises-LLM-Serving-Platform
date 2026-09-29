@@ -89,14 +89,3 @@ def one_scoped_container_row(
     scoped_container_id(row, project=project, service=service)
     return row
 
-
-def one_scoped_container_id(
-    rows: object,
-    *,
-    project: str,
-    service: str,
-) -> str | None:
-    row = one_scoped_container_row(rows, project=project, service=service)
-    if row is None:
-        return None
-    return scoped_container_id(row, project=project, service=service)

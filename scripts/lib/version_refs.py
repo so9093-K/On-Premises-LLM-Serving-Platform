@@ -62,16 +62,6 @@ LINE_REFS: tuple[LineRef, ...] = (
     ),
 )
 
-#: version_manifest.json에서 프로젝트 버전을 그대로 담는 필드들.
-MANIFEST_VERSION_FIELDS = ('version', 'api_contract_version')
-#: PEP 440 표기를 담는 필드.
-MANIFEST_PYTHON_VERSION_FIELD = 'python_package_version'
-#: image_tags 하위 필드 -> 이미지 이름 템플릿.
-MANIFEST_IMAGE_TAGS = {
-    'platform': PLATFORM_IMAGE,
-    'risk_vllm': UNIFIED_IMAGE,
-}
-
 PROJECT_VERSION_PATTERN = r'\d+\.\d+\.\d+(-rc\.\d+)?'
 
 

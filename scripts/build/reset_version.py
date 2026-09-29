@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
@@ -22,9 +21,6 @@ if str(ROOT) not in sys.path:
 
 from scripts.lib.version_refs import (  # noqa: E402
     LINE_REFS,
-    MANIFEST_IMAGE_TAGS,
-    MANIFEST_PYTHON_VERSION_FIELD,
-    MANIFEST_VERSION_FIELDS,
     is_valid_project_version,
     python_package_version,
 )
@@ -49,22 +45,6 @@ def apply_line_ref(ref, version: str, py_version: str) -> str:
     return f'{ref.path}: {replaced}곳 -> {expected}'
 
 
-def update_manifest(version: str, py_version: str) -> str:
-    manifest_path = ROOT / 'version_manifest.json'
-    manifest = json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
-
-    for field in MANIFEST_VERSION_FIELDS:
-        manifest[field] = version
-    manifest[MANIFEST_PYTHON_VERSION_FIELD] = py_version
-    image_tags = manifest.setdefault('image_tags', {})
-    for field, template in MANIFEST_IMAGE_TAGS.items():
-        image_tags[field] = template.format(version=version)
-    manifest['version_reset'] = True
-
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    return f'version_manifest.json: {len(MANIFEST_VERSION_FIELDS) + 1 + len(MANIFEST_IMAGE_TAGS)}개 필드 갱신'
-
-
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit('usage: reset_version.py <version>')
@@ -75,8 +55,7 @@ def main() -> None:
     py_version = python_package_version(version)
 
     (ROOT / 'VERSION').write_text(version + '\n', encoding='utf-8')
-    changes = [update_manifest(version, py_version)]
-    changes.extend(apply_line_ref(ref, version, py_version) for ref in LINE_REFS)
+    changes = [apply_line_ref(ref, version, py_version) for ref in LINE_REFS]
 
     for change in changes:
         print(f'  {change}')

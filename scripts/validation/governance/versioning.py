@@ -5,18 +5,12 @@ import tomllib
 
 from scripts.build.check_python import SUPPORTED_LABEL, SUPPORTED_SPECIFIER, is_supported
 
-from .common import (
-    ROOT,
-    read_json,
-)
+from .common import ROOT
 
 # 이 모듈이 scripts.validation.governance.versioning 으로 import됐다는 것 자체가
 # 저장소 루트가 이미 import path에 있다는 뜻이라, 여기서 sys.path를 손댈 필요는 없다.
 from scripts.lib.version_refs import (
     LINE_REFS,
-    MANIFEST_IMAGE_TAGS,
-    MANIFEST_PYTHON_VERSION_FIELD,
-    MANIFEST_VERSION_FIELDS,
     is_valid_project_version,
     python_package_version,
 )
@@ -35,23 +29,6 @@ def validate_version_alignment() -> None:
     py_version = python_package_version(version)
 
     failures: list[str] = []
-
-    manifest = read_json('version_manifest.json')
-    for field in MANIFEST_VERSION_FIELDS:
-        if manifest.get(field) != version:
-            failures.append(f'version_manifest.json {field}={manifest.get(field)!r}, expected {version!r}')
-    if manifest.get(MANIFEST_PYTHON_VERSION_FIELD) != py_version:
-        failures.append(
-            f'version_manifest.json {MANIFEST_PYTHON_VERSION_FIELD}='
-            f'{manifest.get(MANIFEST_PYTHON_VERSION_FIELD)!r}, expected {py_version!r}'
-        )
-    image_tags = manifest.get('image_tags', {})
-    for field, template in MANIFEST_IMAGE_TAGS.items():
-        expected = template.format(version=version)
-        if image_tags.get(field) != expected:
-            failures.append(
-                f'version_manifest.json image_tags.{field}={image_tags.get(field)!r}, expected {expected!r}'
-            )
 
     for ref in LINE_REFS:
         path = ROOT / ref.path
