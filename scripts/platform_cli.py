@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -35,6 +37,7 @@ from scripts.build.pin_local_vllm_image import (  # noqa: E402
     pin_matching_env_values,
     resolve_local_image_id,
 )
+from scripts.ops.step_progress import format_elapsed, run_with_progress  # noqa: E402
 
 TARGETS_PATH = ROOT / "configs" / "deployment_targets.yaml"
 SERVICES_PATH = ROOT / "configs" / "services.yaml"
@@ -62,27 +65,25 @@ def _run_step(label: str, *command: str, env: dict[str, str] | None = None) -> N
         return
 
     path = _operator_log_path(label)
-    print(f"[platform] {label}...")
-    with path.open("w", encoding="utf-8") as stream:
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            env=env,
-            stdout=stream,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
-        )
-    if result.returncode == 0:
+    returncode, elapsed = run_with_progress(
+        label,
+        command,
+        log_path=path,
+        log_display=str(path.relative_to(ROOT)),
+        cwd=ROOT,
+        env=env,
+    )
+    took = f" ({format_elapsed(elapsed)})" if elapsed >= 2 else ""
+    if returncode == 0:
         path.unlink(missing_ok=True)
-        print(f"[platform] ✓ {label}")
+        print(f"[platform] ✓ {label}{took}")
         return
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     excerpt = "\n".join(lines[-20:])
     detail = f"\n{excerpt}" if excerpt else ""
     raise RuntimeError(
-        f"{label} failed (exit {result.returncode}){detail}\n"
+        f"{label} failed after {format_elapsed(elapsed)} (exit {returncode}){detail}\n"
         f"full output: {path.relative_to(ROOT)}"
     )
 
@@ -105,8 +106,37 @@ def _target(explicit: str | None, *, require_env: bool = True) -> DeploymentTarg
     if not selected:
         if require_env:
             raise RuntimeError("first run requires make up TARGET=<deployment-target>")
-        raise RuntimeError("TARGET is required for the first make up")
+        raise RuntimeError(first_run_guidance())
     return load_deployment_target(TARGETS_PATH, selected)
+
+
+def suggested_target() -> tuple[str, str] | None:
+    """Suggest a target from what this host can run. Selection stays explicit."""
+    if sys.platform == "darwin" and platform.machine().lower() in ("arm64", "aarch64"):
+        return "macos-metal-static", "Apple Silicon detected"
+    if sys.platform.startswith("linux") and shutil.which("nvidia-smi"):
+        return "linux-nvidia-dynamic", "NVIDIA driver detected"
+    return None
+
+
+def first_run_guidance() -> str:
+    targets = load_yaml_mapping(TARGETS_PATH).get("targets", {})
+    suggestion = suggested_target()
+    lines = ["the first make up needs TARGET=<deployment-target>:"]
+    for target_id in targets if isinstance(targets, dict) else {}:
+        target = load_deployment_target(TARGETS_PATH, target_id)
+        notes: list[str] = []
+        if target.qualification_status != "verified":
+            notes.append(target.qualification_status)
+        if target.control_mode == "static" and not target.gateway_runtime_host:
+            notes.append("also needs MAIN_URL=http(s)://<main-runtime>")
+        if suggestion is not None and suggestion[0] == target_id:
+            notes.append(f"suggested: {suggestion[1]}")
+        suffix = f"  ({'; '.join(notes)})" if notes else ""
+        lines.append(f"  {target_id:<22} {target.display_name}{suffix}")
+    example = suggestion[0] if suggestion is not None else "<deployment-target>"
+    lines.append(f"example: make up TARGET={example} ACCESS=local")
+    return "\n".join(lines)
 
 
 def _main_profile(target: DeploymentTarget, values: dict[str, str]) -> str:
@@ -138,7 +168,7 @@ def _print_access(values: dict[str, str]) -> None:
     )
 
 
-def _gateway_probe(values: dict[str, str], path: str) -> tuple[str, bool]:
+def _gateway_base_url(values: dict[str, str]) -> str:
     host = values.get("GATEWAY_BIND_ADDR") or "127.0.0.1"
     if host == "0.0.0.0":
         host = "127.0.0.1"
@@ -147,7 +177,11 @@ def _gateway_probe(values: dict[str, str], path: str) -> tuple[str, bool]:
     if not isinstance(gateway, dict) or "default_host_port" not in gateway:
         raise RuntimeError("configs/services.yaml gateway.default_host_port is missing")
     port = values.get("GATEWAY_PORT") or str(gateway["default_host_port"])
-    url = f"http://{host}:{port}{path}"
+    return f"http://{host}:{port}"
+
+
+def _gateway_probe(values: dict[str, str], path: str) -> tuple[str, bool]:
+    url = f"{_gateway_base_url(values)}{path}"
     try:
         with urllib.request.urlopen(url, timeout=3) as response:
             return url, response.status == 200
@@ -415,6 +449,7 @@ def up_target(target: DeploymentTarget) -> None:
         _run_step("Starting application services", "bash", "scripts/ops/up_services.sh")
         url = _wait_for_gateway(values, "/health")
         print(f"[platform] ready: app-only gateway={url}")
+        _print_next_steps(values)
         return
     metal_started_here = False
     if target.runtime_backend == "mlx-vlm":
@@ -457,6 +492,25 @@ def up_target(target: DeploymentTarget) -> None:
         raise
 
     print(f"[platform] ready: target={target.target_id} gateway={url}")
+    _print_next_steps(values)
+
+
+def _print_next_steps(values: dict[str, str]) -> None:
+    """Point to the operator surfaces the Gateway actually serves right now."""
+    base = _gateway_base_url(values)
+    code, bootstrap = _gateway_json(values, "/admin/control-plane/bootstrap")
+    links = bootstrap.get("links") if code == 200 and isinstance(bootstrap, dict) else None
+    links = links if isinstance(links, dict) else {}
+    rows = [("Console", f"{base}/admin/console/")]
+    docs = links.get("docs")
+    if isinstance(docs, str) and docs:
+        rows.append(("API docs", docs if docs.startswith("http") else f"{base}{docs}"))
+    grafana = links.get("grafana")
+    if isinstance(grafana, str) and grafana:
+        rows.append(("Grafana", grafana))
+    rows.append(("Next", "make status · make logs · make down"))
+    for name, value in rows:
+        print(f"[platform]   {name:<9} {value}")
 
 
 def reconcile_up_target(

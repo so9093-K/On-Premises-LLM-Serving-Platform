@@ -48,6 +48,9 @@ Gateway readiness까지 완료 조건으로 확인한다.
 make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
+`TARGET` 없이 처음 `make up`을 실행하면 선택할 수 있는 target과 각 요구사항, 이 컴퓨터에서
+감지한 추천 target을 보여 준다. 기동이 끝나면 Console, API 문서, Grafana 주소를 함께 출력한다.
+
 gated Hugging Face model에 token이 필요하면 같은 명령에 process environment로 전달한다.
 
 ```bash

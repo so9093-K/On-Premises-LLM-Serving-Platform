@@ -110,3 +110,37 @@ def test_runtime_bootstrap_failure_uses_platform_vocabulary(
     error = capsys.readouterr().err
     assert "[platform] bootstrap failure failed" in error
     assert "[setup]" not in error
+
+
+def test_uv_version_specifier_matches_the_pyproject_contract() -> None:
+    specifier = setup_python_environment.required_uv_version(ROOT)
+
+    assert specifier == ">=0.12.11,<0.13"
+    assert setup_python_environment.version_satisfies("0.12.11", specifier) is True
+    assert setup_python_environment.version_satisfies("0.12.20", specifier) is True
+    assert setup_python_environment.version_satisfies("0.11.9", specifier) is False
+    assert setup_python_environment.version_satisfies("0.13.0", specifier) is False
+    # 단순 비교로 판단할 수 없는 specifier는 uv 자신의 검사에 맡긴다.
+    assert setup_python_environment.version_satisfies("0.12.1", "~=0.12") is None
+
+
+def test_outdated_uv_fails_before_sync_with_an_install_hint(tmp_path: Path) -> None:
+    fake_uv = tmp_path / "uv"
+    fake_uv.write_text("#!/bin/sh\necho 'uv 0.11.3 (abc 2026-01-01)'\n", encoding="utf-8")
+    fake_uv.chmod(0o755)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        setup_python_environment.check_uv_version(str(fake_uv), ROOT)
+
+    message = str(excinfo.value)
+    assert "uv 0.11.3 does not match tool.uv.required-version '>=0.12.11,<0.13'" in message
+    assert "https://docs.astral.sh/uv/getting-started/installation/" in message
+    assert "uv self update 0.12.11" in message
+
+
+def test_matching_uv_passes_the_precheck(tmp_path: Path) -> None:
+    fake_uv = tmp_path / "uv"
+    fake_uv.write_text("#!/bin/sh\necho 'uv 0.12.20'\n", encoding="utf-8")
+    fake_uv.chmod(0o755)
+
+    setup_python_environment.check_uv_version(str(fake_uv), ROOT)
