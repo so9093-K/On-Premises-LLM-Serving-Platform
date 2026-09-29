@@ -217,6 +217,10 @@ tests/unit
 tests/contract
 ```
 
+테스트는 서로 독립적이므로 wrapper는 `pytest-xdist`로 CPU 수만큼 나눠 실행한다. 실패를 한
+process에서 순서대로 따라가야 할 때는 `PYTEST_WORKERS=0 make test`로 직렬 실행하고, 특정 수로
+제한하려면 `PYTEST_WORKERS=2`처럼 지정한다.
+
 ### Unit Test
 
 Unit Test는 application의 작은 decision unit을 검증한다.
