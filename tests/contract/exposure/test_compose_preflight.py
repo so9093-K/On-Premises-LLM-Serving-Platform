@@ -1,6 +1,6 @@
 """compose 기동 전 preflight 게이트가 위험한 auth/exposure 조합을 막는지 검증한다.
 
-preflight_compose.py는 `make compose-up`이 실제 컨테이너를 띄우기 전에 통과해야
+preflight_compose.py는 `make up`이 실제 컨테이너를 띄우기 전에 통과해야
 하는 fail-closed 게이트다. 여기서 통과시키면 인증 없이 노출된 스택이 그대로 뜬다.
 """
 

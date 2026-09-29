@@ -63,7 +63,7 @@ help:
 	@echo ""
 	@echo "운영 lifecycle"
 	@for target in $(PUBLIC_TARGETS); do \
-		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\\n", $$1, $$2}' $(MAKEFILE_LIST); \
+		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
 	done
 	@echo ""
 	@echo "첫 실행: make up TARGET=<deployment-target> [ACCESS=local|private|edge]"
@@ -72,7 +72,7 @@ help:
 	@echo ""
 	@echo "개발 검증"
 	@for target in $(QUALITY_TARGETS); do \
-		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\\n", $$1, $$2}' $(MAKEFILE_LIST); \
+		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
 	done
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local

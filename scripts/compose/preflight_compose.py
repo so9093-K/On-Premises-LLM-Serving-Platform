@@ -540,14 +540,14 @@ def _phase2(
     else:
         print(
             "[preflight] missing or invalid: .runtime/prometheus/admin_api_key must be a non-empty "
-            "file; make compose-up regenerates it before preflight",
+            "file; make up regenerates it before preflight",
             file=sys.stderr,
         )
         fail = True
 
     if fail:
         print(
-            "[preflight] full-stack compose preflight failed; fix the items above before 'make compose-up'.",
+            "[preflight] full-stack compose preflight failed; fix the items above before 'make up'.",
             file=sys.stderr,
         )
         return 1

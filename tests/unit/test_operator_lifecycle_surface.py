@@ -154,7 +154,7 @@ def test_user_facing_docs_do_not_restore_removed_operator_aliases() -> None:
         "static-compose-config",
     )
     patterns = {
-        name: re.compile(rf"make {re.escape(name)}(?=\\s|$)")
+        name: re.compile(rf"make {re.escape(name)}(?![\w-])")
         for name in removed
     }
     for relative in USER_FACING_LIFECYCLE_DOCS:
@@ -336,7 +336,7 @@ def test_active_implementation_does_not_advertise_removed_operator_aliases() -> 
         "static-compose-config",
     )
     patterns = {
-        name: re.compile(rf"make {re.escape(name)}(?=\\s|$)")
+        name: re.compile(rf"make {re.escape(name)}(?![\w-])")
         for name in removed
     }
     candidates: list[Path] = [ROOT / ".env.compose.example"]

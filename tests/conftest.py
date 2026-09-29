@@ -35,7 +35,7 @@ os.environ.setdefault(
 #
 # load_settings()는 APP_ENV가 local/test/development일 때 저장소 .env를 fallback으로
 # 읽는다. 이는 source tree 실행의 정상 동작이지만, 위에서 APP_ENV=test를 세우는
-# 순간 테스트 스위트까지 그 경로에 들어간다. 그 결과 `make setup`을 한 개발자의
+# 순간 테스트 스위트까지 그 경로에 들어간다. 그 결과 `make up`으로 .env를 만든 개발자의
 # 머신에서만 테스트가 깨진다 -- 실제로 macOS target의 .env가 DEPLOYMENT_TARGET을
 # 덮어써서 Prompt Injection Detector 런타임이 사라지고 4개가 실패했다.
 #

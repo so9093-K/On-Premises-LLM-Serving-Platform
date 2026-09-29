@@ -32,6 +32,11 @@
   잃던 문제를 수정했다. 한글 한 글자의 byte가 두 chunk에 걸치면 그 글자가 응답에서
   사라졌다("안녕하세요" → "녕하세요"). Gateway는 이제 chunk 사이에서 불완전한 byte를
   이어 받아 upstream이 보낸 글자를 그대로 전달한다.
+- `make help`(인자 없는 `make`)가 명령 목록을 줄바꿈 대신 literal `\n`으로 이어
+  한 줄에 출력하던 문제를 수정했다.
+- lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
+  `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
+  수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
 
 ### Changed
 

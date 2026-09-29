@@ -584,7 +584,7 @@ make exposure-status
 | Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make up ACCESS=...` |
 | Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
-| Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make sync-env`, `make validate` |
+| Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
 | `.env` | runtime environment | 현재 실행 instance의 endpoint, secret, timeout 등 | 대상 process/container 재기동 가능 |
 | API schema | `specs/schemas/*.json` | 외부 API contract | OpenAPI/API Reference 검토, `make validate` |
 

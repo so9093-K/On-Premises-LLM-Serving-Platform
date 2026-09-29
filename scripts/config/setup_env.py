@@ -371,7 +371,7 @@ def write_runtime_secrets(values: dict[str, str]) -> None:
         except OSError as exc:
             raise RuntimeError(
                 f"{secret_path} must be a file, but it is a non-empty directory. "
-                "Remove or move it, then rerun `make compose-up`."
+                "Remove or move it, then rerun `make up`."
             ) from exc
     secret_path.write_text(admin_key + "\n", encoding="utf-8")
     try:
