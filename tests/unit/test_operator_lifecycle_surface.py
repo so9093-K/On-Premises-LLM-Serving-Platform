@@ -12,50 +12,13 @@ from scripts.ops import platform_logs
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_public_operator_surface_is_intent_based() -> None:
-    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+def test_reset_and_purge_never_delete_shared_caches() -> None:
+    # 되돌릴 수 없는 삭제만 막는다. reset은 model cache를, purge는 daemon 전체 자원을 건드리지 않는다.
+    reset = (ROOT / "scripts/ops/reset_all.sh").read_text(encoding="utf-8")
+    purge = (ROOT / "scripts/ops/purge_all.sh").read_text(encoding="utf-8")
 
-    assert "PUBLIC_TARGETS := up status down logs reset purge" in makefile
-    for removed in (
-        "setup",
-        "build",
-        "rebuild",
-        "prepare",
-        "down-all",
-        "compose-up",
-        "compose-config",
-        "ready-local",
-        "ready-full",
-        "smoke",
-        "compose-down",
-        "compose-restart",
-        "compose-logs",
-        "compose-diagnostics",
-        "clean",
-        "help-all",
-        "init-env-compose",
-        "sync-env",
-        "static-compose-config",
-    ):
-        assert f"\n{removed}:" not in makefile
-
-
-def test_reset_preserves_expensive_reusable_artifacts() -> None:
-    script = (ROOT / "scripts/ops/reset_all.sh").read_text(encoding="utf-8")
-
-    assert '"$ROOT/model_cache"' not in script
-    assert "project-built images" in script
-    assert "repository-local model cache" in script
-    assert '[[ "$BUILD_PROFILE" == "local" ]]' in script
-    assert "stopping app-only host processes" in script
-
-
-def test_purge_never_claims_global_cache_ownership() -> None:
-    script = (ROOT / "scripts/ops/purge_all.sh").read_text(encoding="utf-8")
-
-    assert "global Hugging Face cache" in script
-    assert "daemon-wide BuildKit cache" in script
-    assert "docker system prune" not in script
+    assert '"$ROOT/model_cache"' not in reset
+    assert "docker system prune" not in purge
 
 
 def test_structured_logs_hide_success_noise_by_default(
@@ -114,55 +77,6 @@ def test_local_image_match_requires_current_clean_revision(
     assert platform_cli._local_image_matches_source("sha256:local") is False
 
 
-USER_FACING_LIFECYCLE_DOCS = (
-    "README.md",
-    "scripts/README.md",
-    "docs/04_runtime_modes.md",
-    "docs/05_configuration.md",
-    "docs/07_local_dev_build.md",
-    "docs/08_testing_validation.md",
-    "docs/09_cicd.md",
-    "docs/10_deployment.md",
-    "docs/12_operations.md",
-    "docs/13_change_guide.md",
-    "docs/appendix.md",
-)
-
-
-def test_user_facing_docs_do_not_restore_removed_operator_aliases() -> None:
-    import re
-
-    removed = (
-        "setup",
-        "build",
-        "rebuild",
-        "prepare",
-        "down-all",
-        "compose-up",
-        "compose-config",
-        "ready-local",
-        "ready-full",
-        "smoke",
-        "compose-down",
-        "compose-restart",
-        "compose-logs",
-        "compose-diagnostics",
-        "clean",
-        "help-all",
-        "init-env-compose",
-        "sync-env",
-        "static-compose-config",
-    )
-    patterns = {
-        name: re.compile(rf"make {re.escape(name)}(?![\w-])")
-        for name in removed
-    }
-    for relative in USER_FACING_LIFECYCLE_DOCS:
-        content = (ROOT / relative).read_text(encoding="utf-8")
-        for name, pattern in patterns.items():
-            assert pattern.search(content) is None, f"{relative} restores make {name}"
-
-
 def test_platform_logs_main_accepts_explicit_argv(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -212,13 +126,6 @@ def test_app_only_status_uses_process_health_instead_of_model_readiness(
     output = capsys.readouterr().out
     assert "Platform      READY" in output
     assert "Applications  READY" in output
-
-
-def test_compose_diagnostic_timestamp_is_ascii_utc() -> None:
-    script = (ROOT / "scripts/compose/compose_diagnostics.sh").read_text(encoding="utf-8")
-
-    assert 'date -u +%Y%m%dT%H%M%SZ' in script
-    assert "Â" not in script
 
 
 def test_full_stack_status_fails_closed_on_bare_not_ready(
@@ -309,44 +216,3 @@ def test_raw_logs_include_native_metal_runtime(
     output = capsys.readouterr().out
     assert "runtime.log" in output
     assert "metal-ready" in output
-
-
-def test_active_implementation_does_not_advertise_removed_operator_aliases() -> None:
-    import re
-
-    removed = (
-        "setup",
-        "build",
-        "rebuild",
-        "prepare",
-        "down-all",
-        "compose-up",
-        "compose-config",
-        "ready-local",
-        "ready-full",
-        "smoke",
-        "compose-down",
-        "compose-restart",
-        "compose-logs",
-        "compose-diagnostics",
-        "clean",
-        "help-all",
-        "init-env-compose",
-        "sync-env",
-        "static-compose-config",
-    )
-    patterns = {
-        name: re.compile(rf"make {re.escape(name)}(?![\w-])")
-        for name in removed
-    }
-    candidates: list[Path] = [ROOT / ".env.compose.example"]
-    for root in ("src", "scripts", "ops/compose"):
-        base = ROOT / root
-        for suffix in ("*.py", "*.sh", "*.yaml", "*.yml"):
-            candidates.extend(base.rglob(suffix))
-    for path in candidates:
-        content = path.read_text(encoding="utf-8")
-        for name, pattern in patterns.items():
-            assert pattern.search(content) is None, (
-                f"{path.relative_to(ROOT)} advertises removed make {name}"
-            )

@@ -108,16 +108,6 @@ def test_vllm_unified_source_manifest_is_owned_by_image_helper():
     assert len(paths) == len(set(paths))
 
 
-def test_vllm_unified_dockerfile_verifies_and_labels_engine_version():
-    root = Path(__file__).resolve().parents[2]
-    dockerfile = (root / "ops/images/vllm-unified/Dockerfile").read_text(encoding="utf-8")
-
-    assert "ARG VLLM_VERSION" in dockerfile
-    assert 'LABEL ai_model_serving.vllm_version="${VLLM_VERSION}"' in dockerfile
-    assert "import vllm" in dockerfile
-    assert "actual_vllm = vllm.__version__" in dockerfile
-
-
 def test_vllm_unified_image_resolver_uses_shared_image(tmp_path):
     repo = copy_minimal_repo(tmp_path)
     shared = 'registry.example.com/project/vllm-unified:qualified'

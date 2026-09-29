@@ -346,6 +346,16 @@
 
 ### Removed
 
+- 검증처럼 보이지만 실제로는 파일 문구를 다시 적어 둔 것에 불과한 테스트를 정리했다. Makefile·
+  Dockerfile·shell script에 특정 문장이 있는지만 보던 테스트, 이미 없앤 `make` alias가 문서와 코드에
+  다시 나오지 않는지 문자열로 세 번 검사하던 테스트, 상수가 그 값인지 확인하던 Console 테스트가
+  해당한다. reset/purge가 model cache와 daemon 전체 자원을 지우지 않는다는 안전 검사는 하나로 모아
+  유지했다.
+- 아무도 읽지 않던 `version_manifest.json`과 이를 VERSION과 맞추던 `reset_version`·validator 코드를
+  제거했다. 버전의 기준은 `VERSION`과 `pyproject.toml`이며 image tag 기본값은
+  `configs/recommended_images.yaml`과 `.env.compose.example`이 가진다.
+- 테스트에서만 쓰던 `docker_scope.one_scoped_container_id`를 제거하고, 그 테스트는 실제로 쓰이는
+  `one_scoped_container_row`를 검사하도록 옮겼다.
 - 완료된 이름 변경 migration의 잔여물을 제거했다. `sync-env`가 옛 `.env` key 30개(`RISK_ADAPTER_*`,
   `RISK_PROMPT_*`, `MAIN_LLM_*`, `ADMIN_SIDECAR_URL`, `AUDIO_VLLM_IMAGE` 등)를 새 이름으로 옮기던
   `renamed_keys`·`value_migrations`와 그 코드·검증기·테스트, `ai_model_serving.env_compat`, Gateway
