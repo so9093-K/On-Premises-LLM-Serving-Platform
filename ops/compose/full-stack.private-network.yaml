@@ -1,8 +1,8 @@
 # Standalone private-network hardening compose file.
 # Gateway host bind is controlled by GATEWAY_BIND_ADDR. Use the 175 internal IP when possible, or 0.0.0.0 only with firewall/network policy.
-# Risk Adapter, Prometheus, cAdvisor, DCGM exporter are not host-published (expose only, no ports).
+# Risk Signal Service, Prometheus, cAdvisor, DCGM exporter are not host-published (expose only, no ports).
 # Grafana host publish default is 0.0.0.0; restrict with GRAFANA_BIND_ADDR (e.g. 127.0.0.1 for SSH-only access).
-# Start through `make compose-up`; it validates and adds the generated main-model boot projection.
+# Start through `make up`; it validates and adds the generated main-model boot projection.
 name: ${COMPOSE_PROJECT_NAME:-ai-model-serving-platform}
 services:
   gateway:

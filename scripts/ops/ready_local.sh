@@ -36,4 +36,4 @@ if [[ "$fail" != "0" ]]; then
   exit 1
 fi
 
-echo "ready-local passed: app-only /health checks are healthy. Use 'make ready-full' for vLLM dependency readiness."
+echo "ready-local passed: app-only /health checks are healthy. Full-stack vLLM readiness is verified by 'make up' on a model-serving target."

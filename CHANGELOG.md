@@ -28,6 +28,15 @@
   Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
   lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
   dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+- Chat Completions와 Responses streaming이 여러 byte 글자를 transport chunk 경계에서
+  잃던 문제를 수정했다. 한글 한 글자의 byte가 두 chunk에 걸치면 그 글자가 응답에서
+  사라졌다("안녕하세요" → "녕하세요"). Gateway는 이제 chunk 사이에서 불완전한 byte를
+  이어 받아 upstream이 보낸 글자를 그대로 전달한다.
+- `make help`(인자 없는 `make`)가 명령 목록을 줄바꿈 대신 literal `\n`으로 이어
+  한 줄에 출력하던 문제를 수정했다.
+- lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
+  `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
+  수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
 
 ### Changed
 
@@ -314,6 +323,12 @@
 ### Security
 
 - Gateway에는 Docker socket을 추가하지 않고, 내부 Admin Sidecar만 allowlist된 profile ID를 고정 model ID, revision, image digest, vLLM command로 변환하도록 했다. 관리 요청으로 임의 image, command, environment, Compose path를 주입할 수 없으며 Gateway와 Sidecar 사이에는 내부 service token을 사용한다. ([ADR-0017](docs/adr/0017-selectable-main-model-runtime.md))
+- 운영자 경로(`/admin/*`, `/internal/*`, `/metrics`, `/ready`)는 `CORS_ALLOWED_ORIGINS`와
+  무관하게 CORS 대상이 아니며, 다른 site의 브라우저 page가 보낸 상태 변경 요청을 body를
+  읽기 전에 `403 FORBIDDEN`으로 거부한다. Admin 인증이 없는 `ACCESS=local`에서도 운영자
+  브라우저에 열린 외부 page가 모델 전환, Runtime 제어, 설정 변경을 요청할 수 없다.
+  같은 origin의 Control Plane Console, curl·SDK 같은 비브라우저 client, 공개 API(`/v1/*`)의
+  cross-origin 브라우저 client는 추가 설정 없이 그대로 동작한다.
 
 ## [0.0.1] - 2026-05-20
 

@@ -508,3 +508,23 @@ def test_in_flight_stream_pins_one_runtime_configuration_snapshot() -> None:
     assert b"STREAM_LIMIT_EXCEEDED" not in body
     assert b"second" in body
     assert provider.snapshot().streaming_max_chunks == 1
+
+
+def test_streaming_preserves_multibyte_text_split_across_transport_chunks():
+    # transport chunk 경계는 글자 경계와 무관하다. 한글 한 글자의 byte가 두 chunk에
+    # 걸쳐도 client는 원문 그대로 받아야 한다.
+    event = {"id": "chatcmpl_1", "choices": [{"index": 0, "delta": {"content": "안녕하세요"}}]}
+    raw = ("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8")
+    split_at = raw.index("안".encode("utf-8")) + 1
+    clients = FakeGatewayClients()
+    clients.main_llm.stream_chunks = [raw[:split_at], raw[split_at:], b"data: [DONE]\n\n"]
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    response = client.post(
+        "/v1/chat/completions",
+        headers=auth_headers(),
+        json={"model": "local-main", "messages": [{"role": "user", "content": "hi"}], "stream": True},
+    )
+
+    assert response.status_code == 200
+    assert '"content":"안녕하세요"' in response.text

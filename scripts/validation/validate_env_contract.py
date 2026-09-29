@@ -451,7 +451,7 @@ def validate(root: Path = ROOT, strict: bool = False) -> list[str]:
         for key in sorted(removed_keys.keys() & present_keys):
             violations.append(
                 f"{filename}: {key!r} is registered in env_contract.yaml removed_keys "
-                f"(`make sync-env` deletes it), so it must not be declared in the template "
+                f"(`make up` deletes it while syncing .env), so it must not be declared in the template "
                 f"-- {removed_keys[key]}"
             )
         for key in sorted(removed_keys.keys() & commented_assignments):

@@ -72,5 +72,5 @@ wait_for_health risk_signal_service "http://${RISK_SIGNAL_SERVICE_HOST}:${RISK_S
 cat <<MSG
 [up] Gateway and Risk Signal Service processes started and passed /health.
 [up] This starts the application layer only. It does not start vLLM model servers.
-[up] Use 'make ready-local' for app-only health or 'make ready-full' to verify real upstream vLLM services.
+[up] Use 'make status' to review service health.
 MSG

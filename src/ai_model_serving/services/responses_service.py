@@ -19,6 +19,7 @@ from ..errors import ServiceError
 from ..logging_policy import record_stream_completion
 from ..metrics import sanitized_stream_status
 from ..runtime_configuration import RuntimeConfigurationProvider
+from .gateway_service import utf8_stream_decoder
 
 
 def _stream_error_event(exc: ServiceError) -> bytes:
@@ -136,6 +137,7 @@ class ResponsesService:
         time_to_first_chunk_seconds: float | None = None
         terminal_status = "completed"
         buffer = ""
+        decoder = utf8_stream_decoder()
         response_id: str | None = None
         usage: dict[str, Any] | None = None
         self.metrics.record_streaming_request_started(target)
@@ -166,7 +168,7 @@ class ResponsesService:
                             time_to_first_chunk_seconds,
                         )
                     self.metrics.record_streaming_chunk(target, len(chunk))
-                    buffer += chunk.decode("utf-8", errors="ignore")
+                    buffer += decoder.decode(chunk)
                     emitted: list[str] = []
                     while "\n" in buffer:
                         raw, buffer = buffer.split("\n", 1)
@@ -209,6 +211,7 @@ class ResponsesService:
                         )
                     if emitted:
                         yield "".join(emitted).encode("utf-8")
+                buffer += decoder.decode(b"", final=True)
                 if buffer:
                     yield buffer.encode("utf-8")
         except (asyncio.CancelledError, GeneratorExit):
