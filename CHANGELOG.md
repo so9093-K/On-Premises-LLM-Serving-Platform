@@ -46,6 +46,8 @@
 
 ### Changed
 
+- `make validate`가 Python lint(`ruff`, 버그 신호 규칙만)를 함께 검사한다. 규칙은
+  `pyproject.toml`의 `[tool.ruff]`가 소유하며 ruff는 개발용 `quality` dependency group에 고정된다.
 - `make build-image`의 image smoke가 app factory import에 더해 image의 기본 CMD로 Gateway를
   실제로 띄우고 `/health`, `/admin/console/`과 그 script asset, `/docs`와 self-host 문서 번들을
   HTTP로 확인한다. 문서 번들 누락이나 잘못된 기동 명령처럼 import만으로는 드러나지 않는

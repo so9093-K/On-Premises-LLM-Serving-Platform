@@ -34,6 +34,7 @@ dependencies = [
 quality = [
   "openai==2.54.0",
   "pytest==8.4.2",
+  "ruff==0.16.9",
 ]
 
 [tool.uv]
@@ -50,6 +51,22 @@ required-environments = [
   "sys_platform == 'linux' and platform_machine == 'aarch64'",
   "sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
+
+[tool.ruff]
+# 버그 신호(정의되지 않은 이름, 쓰지 않는 import, 문법 오류)만 gate한다. 코드 스타일과
+# 포맷은 이 저장소가 강제하는 계약이 아니다.
+target-version = "py312"
+extend-exclude = ["src/ai_model_serving/static", "ui", "runtimes"]
+
+[tool.ruff.lint]
+select = ["F", "E9", "PLE"]
+
+[tool.ruff.lint.per-file-ignores]
+# Gateway 테스트는 helpers.py의 공용 fixture를 star import로 공유한다.
+"tests/unit/gateway/**" = ["F403", "F405"]
+"tests/unit/gateway/helpers.py" = ["F401"]
+# vLLM image build 입력이다. byte가 바뀌면 image를 다시 qualification해야 한다.
+"ops/patches/**" = ["F401"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/contract"]

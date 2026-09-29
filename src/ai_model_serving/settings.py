@@ -20,7 +20,9 @@ from .settings_parts.env import (
 )
 from .settings_parts.runtime_endpoints import build_runtime_endpoint, validate_timeout_budget
 from .settings_parts.security import build_security_settings
-from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettings, EmbeddingProfile, RiskDetectorSettings, RuntimeEndpoint, RuntimeTopologyStatus, SecuritySettings
+from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettings, EmbeddingProfile, RiskDetectorSettings, RuntimeEndpoint, RuntimeTopologyStatus
+# security.py와 app 모듈이 settings에서 가져가는 공개 re-export다.
+from .settings_parts.types import SecuritySettings as SecuritySettings
 
 ROOT = _resolve_project_root()
 

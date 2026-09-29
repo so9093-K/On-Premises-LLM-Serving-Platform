@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from ai_model_serving.services.runtime_controller_client import RuntimeControllerUnavailableError
 

@@ -12,7 +12,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from ai_model_serving.apps.risk_signal_service import create_risk_signal_service_app
-from ai_model_serving.settings import AppSettings, SecuritySettings
+from ai_model_serving.settings import SecuritySettings
 from tests.support.asgi import InlineASGITestClient as TestClient
 from tests.support.risk_signal_service import FakeDetectorClient, FakeRiskClients, auth_headers, settings
 import json

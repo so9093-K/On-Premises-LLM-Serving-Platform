@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from ai_model_serving.main_model.boot import resolve_compose_relative_path
 

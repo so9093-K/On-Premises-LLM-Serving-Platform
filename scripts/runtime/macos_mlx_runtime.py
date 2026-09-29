@@ -233,7 +233,7 @@ def doctor(config: dict[str, Any]) -> None:
     profile = _profile(config)
     normal = profile["qualification"]["normal"]
     speculative = runtime["speculative_decoding"]
-    print(f"[metal] host: Darwin/arm64")
+    print("[metal] host: Darwin/arm64")
     print(f"[metal] base Python: {base_python} ({_interpreter_version(base_python)})")
     print(f"[metal] runtime packages: {', '.join(_direct_packages(config))}")
     print(f"[metal] target: {profile['model_id']}@{profile['revision']}")

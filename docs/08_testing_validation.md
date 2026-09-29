@@ -32,7 +32,7 @@ make perf-*
 |---|---|---|
 | `make check` | 저장소 전체 source와 generated artifact가 검증되는가? | Application + Control Plane |
 | `make app-check` | application 정적 계약과 결정론적 테스트가 모두 통과하는가? | Python application, Config, Contract |
-| `make validate` | 설정·계약·생성물이 서로 일치하는가? | Config, Schema, OpenAPI, Compose |
+| `make validate` | 설정·계약·생성물이 서로 일치하고 Python 코드에 버그 신호(정의되지 않은 이름, 쓰지 않는 import, 문법 오류)가 없는가? | Config, Schema, OpenAPI, Compose, Python lint |
 | `make test` | application logic이 예상한 동작을 수행하는가? | Gateway, Risk, Auth, Runtime Control |
 | `ready-local` / `ready-full` | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
 | `make runtime-validate` | 실제 vLLM API·고급 요청·모니터링 연결이 동작하는가? | Full-stack Runtime |

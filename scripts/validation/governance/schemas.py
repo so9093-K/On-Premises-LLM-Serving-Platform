@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import yaml
+    import yaml  # noqa: F401 - 검증 전에 필요한 의존성이 있는지 먼저 확인한다
 except ImportError as exc:
     raise SystemExit('PyYAML is required; run make setup-dev') from exc
 
