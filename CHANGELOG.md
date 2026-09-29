@@ -48,6 +48,9 @@
 - Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
   않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
   빠진 timestamp는 `—`로 표시된다.
+- Control Plane Console 활동 화면의 메인 런타임 진단 링크가 vLLM target에서 존재하지 않는
+  Dashboard(`main-runtime-health`)를 열던 문제를 수정했다. 링크는 runtime backend에 맞는 Dashboard
+  (vLLM은 서비스 개요, MLX는 메인 런타임 상태)를 연다.
 
 ### Changed
 

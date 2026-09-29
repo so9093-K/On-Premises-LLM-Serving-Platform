@@ -22,6 +22,7 @@ type OperationsPageProps = {
   onUnauthorized: () => void;
   deploymentFeatures: readonly string[];
   grafanaUrl: string | null;
+  runtimeBackend: string;
 };
 
 type LabelColor = 'blue' | 'green' | 'orange' | 'red' | 'grey';
@@ -124,7 +125,11 @@ function runtimeActivity(operation: RuntimeOperation, grafanaUrl: string | null)
   };
 }
 
-function mainModelActivity(operation: MainModelOperation, grafanaUrl: string | null): ActivityItem {
+function mainModelActivity(
+  operation: MainModelOperation,
+  grafanaUrl: string | null,
+  runtimeBackend: string,
+): ActivityItem {
   const failure = mainModelFailure(operation);
   const detail = failure
     ?? (operation.recovered_after_restart
@@ -149,7 +154,7 @@ function mainModelActivity(operation: MainModelOperation, grafanaUrl: string | n
       { label: '재시작 후 복구', value: operation.recovered_after_restart ? '예' : '아니요' },
     ],
     diagnostics: (() => {
-      const href = mainRuntimeDiagnosticsUrl(grafanaUrl, operation.updated_at);
+      const href = mainRuntimeDiagnosticsUrl(grafanaUrl, runtimeBackend, operation.updated_at);
       return href ? [{ label: '메인 런타임 상태', href }] : [];
     })(),
   };
@@ -202,7 +207,7 @@ function activityStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
-export function OperationsPage({ token, onUnauthorized, deploymentFeatures, grafanaUrl }: OperationsPageProps) {
+export function OperationsPage({ token, onUnauthorized, deploymentFeatures, grafanaUrl, runtimeBackend }: OperationsPageProps) {
   const authClass = token === null ? 'anonymous' : 'authenticated';
   const runtimeEnabled = deploymentFeatures.includes('runtime_control');
   const mainModelEnabled = deploymentFeatures.includes('model_switching');
@@ -249,7 +254,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
       items.push(...runtimeQuery.data.items.map((item) => runtimeActivity(item, grafanaUrl)));
     }
     if (mainModelEnabled && mainModelQuery.data) {
-      items.push(...mainModelQuery.data.items.map((item) => mainModelActivity(item, grafanaUrl)));
+      items.push(...mainModelQuery.data.items.map((item) => mainModelActivity(item, grafanaUrl, runtimeBackend)));
     }
     if (configurationQuery.data) {
       items.push(...configurationQuery.data.items.map((item) => configurationActivity(item, grafanaUrl)));
@@ -262,6 +267,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     grafanaUrl,
     mainModelEnabled,
     mainModelQuery.data,
+    runtimeBackend,
     runtimeEnabled,
     runtimeQuery.data,
   ]);
