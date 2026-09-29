@@ -242,7 +242,7 @@
       "id": 4,
       "type": "stat",
       "title": "응답 시간 p95",
-      "description": "스트리밍이 아닌 Chat 요청이 런타임에서 완료되기까지 걸린 시간의 95번째 백분위입니다. 목표값은 configs/performance/slo.yaml이 소유하므로 여기서는 색으로 판정하지 않습니다.",
+      "description": "스트리밍이 아닌 Chat Completions·Responses 요청이 런타임에서 완료되기까지 걸린 시간의 95번째 백분위입니다. 목표값은 configs/performance/slo.yaml이 소유하므로 여기서는 색으로 판정하지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -255,7 +255,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=\"chat/completions\"}[$window])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=~\"chat/completions|responses\"}[$window])))",
           "refId": "A",
           "legendFormat": "",
           "instant": false
@@ -515,7 +515,7 @@
       "id": 8,
       "type": "timeseries",
       "title": "지연 추이",
-      "description": "비스트리밍 Chat 응답 시간(p50·p95)과 스트리밍 첫 응답 시간(p95)입니다. 부하가 늘 때 함께 오르는지 비교합니다.",
+      "description": "비스트리밍 Chat·Responses 응답 시간(p50·p95)과 스트리밍 첫 응답 시간(p95)입니다. 부하가 늘 때 함께 오르는지 비교합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -528,12 +528,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=\"chat/completions\"}[$window])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=~\"chat/completions|responses\"}[$window])))",
           "refId": "A",
           "legendFormat": "응답 시간 p50"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=\"chat/completions\"}[$window])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(upstream_request_duration_seconds_bucket{service=\"gateway\",path=~\"chat/completions|responses\"}[$window])))",
           "refId": "B",
           "legendFormat": "응답 시간 p95"
         },
