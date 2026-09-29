@@ -58,7 +58,6 @@ run_check "python lint" "$PYTHON_BIN" -m ruff check --quiet .
 run_check "access / exposure" "$PYTHON_BIN" scripts/validation/validate_exposure_profiles.py --strict
 run_check "compose overrides" "$PYTHON_BIN" scripts/compose/render_exposure_overrides.py --check
 run_check "environment contract" "$PYTHON_BIN" scripts/validation/validate_env_contract.py --strict
-run_check "performance contract" "$PYTHON_BIN" scripts/validation/validate_performance_contract.py
 # 검사 하나에 run_check 한 줄씩 둔다. 여러 command를 함수로 묶어 넘기면,
 # run_check가 그 함수를 `if "$@"` 조건으로 부르는 순간 함수 안에서 errexit이
 # 꺼진다 -- 앞 command가 실패해도 함수는 계속 돌고 마지막 command의 status가

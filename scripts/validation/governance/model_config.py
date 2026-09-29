@@ -19,11 +19,24 @@ def validate_deployment_targets() -> None:
     default_target = str(document.get('default_target', ''))
     if not isinstance(targets, dict) or default_target not in targets:
         raise SystemExit('deployment_targets.yaml must declare an existing default_target')
-    for target_id in targets:
+    for target_id, raw_target in targets.items():
         target = load_deployment_target(ROOT / 'configs/deployment_targets.yaml', str(target_id))
         if target.implementation_status == 'planned' and target_id == default_target:
             raise SystemExit('a planned deployment target cannot be the default')
         load_main_serving_catalog(ROOT / target.main_profile_catalog)
+        # Console은 runs_monitoring_stack으로 Grafana 링크를 보인다. compose와 어긋나면
+        # 없는 Grafana를 가리키거나 있는 것을 숨긴다. dynamic target은 full-stack compose를 쓴다.
+        compose_files = raw_target.get('compose_files') or ['ops/compose/full-stack.private-network.yaml']
+        runs_prometheus = any(
+            (ROOT / path).exists() and '\n  prometheus:' in (ROOT / path).read_text(encoding='utf-8')
+            for path in compose_files
+        )
+        if target.runs_monitoring_stack != runs_prometheus:
+            raise SystemExit(
+                f'deployment target {target_id!r} declares runs_monitoring_stack='
+                f'{target.runs_monitoring_stack} but its compose files '
+                f"{'include' if runs_prometheus else 'do not include'} prometheus"
+            )
 
 
 def validate_deploy_profiles() -> None:

@@ -167,10 +167,8 @@ class RuntimeValidator:
         risk_metrics = metric_sources["risk_signal_service"]["required_metrics"]
         self.safe_check("monitoring-scrape", "gateway metrics", lambda: self.live_checks.scrape_metrics("gateway", self.gateway_base, gateway_metrics))
         self.safe_check("monitoring-scrape", "risk-signal-service metrics", lambda: self.live_checks.scrape_metrics("risk-signal-service", self.risk_base, risk_metrics))
-        # configs/performance/metrics.yaml의 vllm-cuda projection이 이 이름들에
-        # 의존한다(ADR-0026). 선언과 계약의 일치는 make validate가 정적으로 보고,
-        # 선언과 실제 런타임의 일치는 여기서 본다. 이 검사가 없으면 vLLM upgrade로
-        # 지표 이름이 바뀌었을 때 benchmark가 조용히 빈 값을 받는다.
+        # Grafana 서비스 개요가 이 upstream 지표에 의존한다. vLLM upgrade로 이름이
+        # 바뀌면 panel이 조용히 비므로, 선언한 이름이 실제 런타임에 있는지 여기서 본다.
         vllm_metrics = (metric_sources.get("vllm_instances") or {}).get("required_metrics") or []
         if vllm_metrics:
             for key, base in self.vllm_bases.items():

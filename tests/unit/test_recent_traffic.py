@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from ai_model_serving.recent_traffic import RecentTrafficWindow, nearest_rank, slo_minimum_samples
+from ai_model_serving.recent_traffic import RecentTrafficWindow, nearest_rank
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = json.loads((ROOT / "specs/schemas/recent_traffic_response.schema.json").read_text(encoding="utf-8"))
@@ -23,12 +23,11 @@ def _window(clock: FakeClock, **kwargs) -> RecentTrafficWindow:
     return RecentTrafficWindow(minimum_samples={"p50": 3, "p95": 5}, clock=clock, **kwargs)
 
 
-def test_percentiles_follow_the_performance_contract_method() -> None:
-    # slo.yaml statistics: ceil(p x n)번째 값, 보간 없음.
+def test_percentiles_use_nearest_rank_without_interpolation() -> None:
+    # ceil(p x n)번째 값, 보간 없음.
     values = [float(v) for v in range(1, 21)]
     assert nearest_rank(values, 0.50) == 10.0
     assert nearest_rank(values, 0.95) == 19.0
-    assert slo_minimum_samples(ROOT) == {"p50": 10, "p95": 20}
 
 
 def test_summary_withholds_percentiles_until_minimum_samples() -> None:

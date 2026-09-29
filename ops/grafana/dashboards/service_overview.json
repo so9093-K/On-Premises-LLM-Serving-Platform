@@ -242,7 +242,7 @@
       "id": 4,
       "type": "stat",
       "title": "응답 시간 p95",
-      "description": "스트리밍이 아닌 Chat Completions·Responses 요청이 런타임에서 완료되기까지 걸린 시간의 95번째 백분위입니다. 목표값은 configs/performance/slo.yaml이 소유하므로 여기서는 색으로 판정하지 않습니다.",
+      "description": "스트리밍이 아닌 Chat Completions·Responses 요청이 런타임에서 완료되기까지 걸린 시간의 95번째 백분위입니다. 정해진 지연 목표가 없으므로 여기서는 색으로 판정하지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

@@ -27,8 +27,8 @@
   npm 의존성과 backend 변경은 없다. ([ADR-0041](docs/adr/0041-console-chat-verification-surface.md))
 - Gateway가 최근 5분의 공개 API(`/v1/*`) 요청 결과와 지연 요약을 직접 집계해
   `GET /admin/traffic/recent`로 제공한다. 요청 수·4xx·5xx, 비스트리밍 Chat·Responses 응답 시간과
-  스트리밍 첫 응답 시간의 p50·p95를 담으며, 백분위와 최소 표본 수는 `configs/performance/slo.yaml`의
-  nearest-rank 규칙을 따른다(표본이 부족하면 `null`). Prometheus 없이 동작하고 Gateway가 재시작되면
+  스트리밍 첫 응답 시간의 p50·p95를 담으며, 백분위는 보간 없는 nearest rank로 계산한다(표본이
+  p50 10개·p95 20개보다 적으면 `null`). Prometheus 없이 동작하고 Gateway가 재시작되면
   다시 집계한다. 표본 수는 상한이 있어 요청이 몰려도 메모리가 늘지 않는다.
 - full-stack Grafana의 Home으로 한국어 **서비스 개요** Dashboard를 추가했다. 메인 모델 요청 허용 여부,
   공개 API 요청량·서버 오류율·응답 시간 p95·스트리밍 첫 응답 p95·GPU 메모리 여유를 첫 행에 두고,
@@ -346,6 +346,14 @@
 
 ### Removed
 
+- 성능 benchmark와 성능 계약을 제거했다. `make perf-smoke`·`perf-sweep`·`perf-run`·`perf-report`·
+  `perf-promote`·`perf-gate`, `configs/performance/`, `benchmarks/baselines/`, 결과·baseline·sweep schema,
+  `make validate`의 performance contract 단계가 없어졌다. 모든 SLO가 판정만 기록하는 `observe` 단계였고
+  승격된 baseline은 macOS profile 하나뿐이었다. 운영 중 지연은 Console 개요의 최근 트래픽 요약과 Grafana
+  서비스 개요로 본다. `GET /admin/traffic/recent`의 백분위 규칙(nearest rank, 최소 표본 p50 10개·p95 20개)과
+  응답은 그대로다. `runs_monitoring_stack`과 compose 구성의 일치 검사는 deployment target 검사로 옮겼고,
+  runtime-validate가 확인하는 vLLM 필수 지표에서 Grafana·recording rule이 쓰지 않는 queue·prefill·decode
+  시간 세 개를 뺐다. ([ADR-0042](docs/adr/0042-remove-qualification-evidence-and-benchmark.md))
 - Main Model qualification 검증 근거 시스템을 제거했다. `configs/qualification_evidence.yaml`,
   `configs/qualification_checks.yaml`, `evidence/qualification/` receipt, `make qualification-candidate`·
   `qualification-promote`·`qualification-status-promote`, 이를 대조하던 `make validate` 검사와
@@ -356,7 +364,7 @@
 - 어떤 Access Profile도 쓰지 않던 인증 mode `internal_trusted`와 `edge_terminated`, 그 증빙 key
   `INTERNAL_TRUSTED_AUTH_EVIDENCE`와 preflight·auth-doctor 분기를 제거했다(`removed_keys`로 `.env`에서
   지운다). `AUTH_MODE`는 Gateway에서 표시용 label이므로 이 값을 쓰던 `.env`가 있어도 인증 flag 동작은
-  그대로다. 진단용 `master_open`(runtime-validate·benchmark가 host publish 주소에 접속할 때 필요)과 이를
+  그대로다. 진단용 `master_open`(runtime-validate가 host publish 주소에 접속할 때 필요)과 이를
   여는 `auth-*`·`exposure-*` 도구, `ACCESS_PROFILE` 없는 `.env` 경로는 계속 쓰이므로 유지한다.
   `make up`이 `setup_env.py`에 넘기던 옛 `--main-llm-base-url` alias도 정식 이름으로 바꾸고 alias를 없앴다.
 - `/redoc` 문서 화면을 제거했다. Scalar(`/docs`)와 같은 OpenAPI를 두 번째로 보여 주던 중복 화면으로,

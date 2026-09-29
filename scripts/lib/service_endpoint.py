@@ -1,7 +1,6 @@
 """configs/services.yaml의 publish 주소를 host에서 접속 가능한 URL로 바꾼다.
 
-runtime validation과 benchmark가 각자 이 규칙을 다시 쓰면 두 도구가 서로 다른
-Gateway를 재게 된다. services.yaml이 주소를 소유하고, 해석은 여기 한 곳만 한다.
+services.yaml이 주소를 소유하고, runtime validation은 여기서만 그 주소를 해석한다.
 """
 from __future__ import annotations
 
