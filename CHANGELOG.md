@@ -28,6 +28,10 @@
   Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
   lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
   dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+- Chat Completions와 Responses streaming이 여러 byte 글자를 transport chunk 경계에서
+  잃던 문제를 수정했다. 한글 한 글자의 byte가 두 chunk에 걸치면 그 글자가 응답에서
+  사라졌다("안녕하세요" → "녕하세요"). Gateway는 이제 chunk 사이에서 불완전한 byte를
+  이어 받아 upstream이 보낸 글자를 그대로 전달한다.
 
 ### Changed
 

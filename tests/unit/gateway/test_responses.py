@@ -330,3 +330,28 @@ def test_models_advertises_responses_for_main_model():
     assert response.status_code == 200
     main = next(item for item in response.json()["data"] if item["id"] == "local-main")
     assert "responses" in main["capabilities"]
+
+
+def test_responses_stream_preserves_multibyte_text_split_across_transport_chunks():
+    event = {
+        "type": "response.output_text.delta",
+        "sequence_number": 1,
+        "item_id": "msg_1",
+        "output_index": 0,
+        "content_index": 0,
+        "delta": "안녕하세요",
+    }
+    raw = ("event: response.output_text.delta\ndata: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8")
+    split_at = raw.index("안".encode("utf-8")) + 1
+    clients = FakeGatewayClients()
+    clients.main_llm.stream_chunks = [raw[:split_at], raw[split_at:], b"data: [DONE]\n\n"]
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    response = client.post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "local-main", "input": "hello", "stream": True},
+    )
+
+    assert response.status_code == 200
+    assert '"delta":"안녕하세요"' in response.text

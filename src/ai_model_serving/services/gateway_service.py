@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import time
 from collections.abc import AsyncIterator
@@ -140,6 +141,16 @@ def _stream_error_event(exc: ServiceError) -> bytes:
     ).encode("utf-8")
 
 
+def utf8_stream_decoder() -> codecs.IncrementalDecoder:
+    """SSE byte chunk를 글자 단위로 이어 붙이는 UTF-8 decoder를 만든다.
+
+    transport chunk 경계는 글자 경계와 무관하다. 한글처럼 여러 byte인 글자가 두
+    chunk에 걸치면 chunk마다 따로 decode할 때 그 글자가 사라진다. 이 decoder는 끝에
+    걸린 불완전한 byte를 다음 chunk까지 들고 있다. 실제로 잘못된 byte만 버린다.
+    """
+    return codecs.getincrementaldecoder("utf-8")(errors="ignore")
+
+
 class StreamingResponseObserver:
     """전달 중인 SSE 바이트에서 진단 정보를 읽고 공개 계약으로 좁힌다.
 
@@ -165,6 +176,7 @@ class StreamingResponseObserver:
 
     def __init__(self) -> None:
         self._buffer = ""
+        self._decoder = utf8_stream_decoder()
         self.last_usage: dict[str, Any] | None = None
         self.response_id: str | None = None
 
@@ -175,11 +187,7 @@ class StreamingResponseObserver:
         다음 chunk까지 들고 있다가 내보낸다 -- 그래서 반환 바이트가 빈 경우가 있다.
         ``data:``가 아닌 줄(빈 줄, 주석)은 SSE 프레이밍이라 그대로 내보낸다.
         """
-        try:
-            text = chunk.decode("utf-8")
-        except UnicodeDecodeError:
-            text = chunk.decode("utf-8", errors="ignore")
-        self._buffer += text
+        self._buffer += self._decoder.decode(chunk)
         usage_events = 0
         emitted: list[str] = []
         while "\n" in self._buffer:
@@ -213,7 +221,8 @@ class StreamingResponseObserver:
 
     def flush(self) -> bytes:
         """stream이 끝났을 때 남은 부분 줄. 버리면 마지막 event가 사라진다."""
-        remainder, self._buffer = self._buffer, ""
+        remainder = self._buffer + self._decoder.decode(b"", final=True)
+        self._buffer = ""
         return remainder.encode("utf-8")
 
 class GatewayClientSet(Protocol):
