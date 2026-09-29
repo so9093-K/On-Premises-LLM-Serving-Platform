@@ -20,7 +20,6 @@ API 문서가 활성화된 환경에서는 다음 경로를 사용할 수 있다
 | 경로 | 용도 |
 |---|---|
 | `/docs` | Scalar API Reference |
-| `/redoc` | ReDoc |
 | `/openapi.json` | OpenAPI document |
 
 정적 요청·응답 JSON Schema는 `specs/schemas/`에 있으며, 실제 Runtime validation은 `src/ai_model_serving/contracts/`와 활성 Main Model profile의 `gateway_policy`를 적용한다. Embedding·Risk runtime 정책은 `configs/model_serving.yaml`을 따른다.

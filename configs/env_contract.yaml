@@ -138,7 +138,6 @@ service_env_projections:
       - STRICT_ADMIN_ENDPOINT_SECURITY
       - FASTAPI_DOCS_ENABLED
       - FASTAPI_DOCS_URL
-      - FASTAPI_REDOC_URL
       - OPENAPI_URL
       - CORS_ALLOWED_ORIGINS
       - VLLM_TIMEOUT_SECONDS
@@ -204,3 +203,6 @@ removed_keys:
   RISK_VLLM_IMAGE: >-
     shared vLLM runtime artifact의 persistent authority는 VLLM_IMAGE다. risk-prompt는
     별도 persistent image pin을 소유하지 않으며 기존 key는 sync-env에서 제거한다.
+  FASTAPI_REDOC_URL: >-
+    ReDoc 문서 화면은 Scalar(/docs)와 같은 OpenAPI를 두 번째로 보여 주던 중복 화면이라 제거했다.
+    API 문서는 FASTAPI_DOCS_URL의 Scalar 화면 하나가 소유한다.

@@ -77,7 +77,6 @@ vLLM main LLM structured output backend를 `auto`(xgrammar)에서 `xgrammar` + `
 - [vLLM PR #12744](https://github.com/vllm-project/vllm/pull/12744) — V0 engine any_whitespace fix
 - [vLLM PR #15316](https://github.com/vllm-project/vllm/pull/15316) — V1 engine disable-any-whitespace support
 - [vLLM Issue #18571](https://github.com/vllm-project/vllm/issues/18571) — V0 engine deprecation, outlines 제거 예정
-- [ADR-0015](0015-main-llm-20k-o3-runtime-target.md) — Main LLM runtime target
 - `configs/model_serving.yaml`
 - `ops/compose/full-stack.private-network.yaml`
 - `configs/recommended_images.yaml`

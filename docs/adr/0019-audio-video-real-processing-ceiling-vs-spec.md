@@ -98,7 +98,6 @@ MIME 시그니처만 확인할 뿐 frame count나 duration을 전혀 검증하�
 
 ## Related
 
-- [ADR-0015](0015-main-llm-20k-o3-runtime-target.md) — `--max-num-batched-tokens` 증가가 KV cache pool을 줄이는 동일한 트레이드오프 실측 기록
 - [ADR-0018](0018-gpu-vram-admission-and-per-profile-runtime-image.md) — per-profile 커스텀 런타임 이미지 선례 (`MAIN_MODEL_VLLM_IMAGE_OVERRIDE`, 당시 `AUDIO_VLLM_IMAGE`)
 - `configs/model_serving.yaml` (`main_llm.request_limits.audio_input_note`/`video_input_note`)
 - `configs/main_model_profiles.yaml` (`gemma4-12b-unified-fp8`)

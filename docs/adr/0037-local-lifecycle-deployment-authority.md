@@ -2,7 +2,7 @@
 
 - Status: Accepted; operator command surface refined by [ADR-0039](./0039-operator-intent-lifecycle-and-diagnostics.md)
 - Date: 2026-09-20
-- Refines: [ADR-0013](./0013-env-lifecycle-non-destructive-sync.md), [ADR-0023](./0023-local-lifecycle-command-boundaries.md), [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md)
+- Refines: [ADR-0013](./0013-env-lifecycle-non-destructive-sync.md), ADR-0023, [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md)
 
 ## Context
 

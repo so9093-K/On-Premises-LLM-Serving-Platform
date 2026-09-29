@@ -76,9 +76,7 @@ make setup TARGET=<id> ACCESS=private CONFIRM=access
 
 ## Related
 
-- ADR-0012: Auth/Exposure primitive 분리의 이전 결정
 - ADR-0013: `.env` 비파괴 동기화
-- ADR-0023: 로컬 lifecycle 명령 경계
 - `configs/access_profiles.yaml`
 - `scripts/config/setup_env.py`
 - `scripts/platform_cli.py`

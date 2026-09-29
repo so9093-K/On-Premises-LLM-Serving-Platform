@@ -32,7 +32,7 @@ ADR 채택 당시에는 실제 크리덴셜(HF_TOKEN, API 키, ADMIN_API_KEY, GR
 
 당시 `EXPOSURE_MODE`와 `EXPOSURE_AUDIENCE`는 bootstrap의 compose env 강제 재생성 후
 리셋되므로, 재초기화 전 기존 값을 읽어 복원했다. 현재 bootstrap 명령은
-[ADR-0023](0023-local-lifecycle-command-boundaries.md)에 따라 제거됐고 `make setup`은
+ADR-0023에 따라 제거됐고 `make setup`은
 기존 `.env`를 강제 재생성하지 않고 target 소유 필드만 동기화한다.
 
 2026-09-20 [ADR-0037](0037-local-lifecycle-deployment-authority.md)에서 repository-owned
@@ -66,7 +66,6 @@ remote release state machine을 제거했다. `.env` 동기화는 이제 `make s
 
 ## Related
 
-- [ADR-0012](0012-auth-ownership-and-compose-exposure-source-of-truth.md) — Auth·Exposure profile source-of-truth 정책 (EXPOSURE_MODE 보존 배경)
 - `configs/env_contract.yaml` — `removed_keys`(제거 대상 키와 사유의 단일 소스)
 - `scripts/config/setup_env.py` — `sync_env_keys()`, `_removed_env_keys()`, `ALWAYS_REFRESH_KEYS`
 - `scripts/validation/validate_env_contract.py` — 등록된 키가 예시 파일에 다시 등장하지 않는지 검증

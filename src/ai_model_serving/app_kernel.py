@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_redoc_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -16,7 +15,6 @@ from .docs_ui import (
     FAVICON_MEDIA_TYPE,
     FAVICON_ROUTE,
     FAVICON_SVG,
-    REDOC_BUNDLE,
     VENDORED_ASSETS,
     VendoredAsset,
     scalar_html,
@@ -84,9 +82,9 @@ def create_service_app(
         version=version,
         description=description,
         lifespan=lambda app: managed_lifespan(*lifespan_resources),
+        # 문서 화면은 register_documentation_ui()가 self-host 번들로 직접 등록한다. FastAPI
+        # 기본 /docs·/redoc은 CDN 번들을 불러와 air-gap 배포에서 뜨지 않으므로 끈다.
         docs_url=None,
-        # /redoc은 register_documentation_ui()가 직접 등록한다. FastAPI 기본 페이지는
-        # 가변 태그의 CDN 번들과 Google Fonts를 불러와 air-gap 배포에서 뜨지 않는다.
         redoc_url=None,
         openapi_url=settings.documentation.openapi_url if settings.documentation.enabled else None,
         openapi_tags=tags_metadata,
@@ -274,7 +272,7 @@ def install_exception_handlers(
 def register_documentation_ui(app: FastAPI, *, settings: AppSettings, title: str) -> None:
     """문서가 활성화된 경우 문서 화면과 그 asset을 등록한다.
 
-    Scalar(/docs), ReDoc(/redoc), favicon, self-host JS 번들이 한 묶음이다. 전부
+    Scalar(/docs), favicon, self-host JS 번들이 한 묶음이다. 전부
     외부 egress 없이 뜨며, documentation.enabled가 꺼지면 함께 사라진다.
     """
     if not settings.documentation.enabled:
@@ -293,18 +291,6 @@ def register_documentation_ui(app: FastAPI, *, settings: AppSettings, title: str
             FAVICON_SVG,
             media_type=FAVICON_MEDIA_TYPE,
             headers={"Cache-Control": "public, max-age=86400"},
-        )
-
-    # ReDoc 화면도 같은 self-host 번들을 쓴다. FastAPI 기본 구현은 가변 태그의 CDN
-    # 번들과 Google Fonts를 부르므로 여기서 로컬 asset으로 다시 만든다.
-    @app.get(settings.documentation.redoc_url, include_in_schema=False)
-    async def redoc_docs() -> HTMLResponse:
-        return get_redoc_html(
-            openapi_url=openapi_url,
-            title=f"{title} - ReDoc",
-            redoc_js_url=REDOC_BUNDLE.route,
-            redoc_favicon_url=FAVICON_ROUTE,
-            with_google_fonts=False,
         )
 
     # 번들은 저장소에 vendoring 되어 있고 여기서 같은 origin으로 나간다. 외부

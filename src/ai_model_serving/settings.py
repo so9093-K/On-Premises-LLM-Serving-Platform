@@ -86,7 +86,6 @@ def _documentation_settings(documentation_cfg: dict[str, Any]) -> DocumentationS
     return DocumentationSettings(
         enabled=docs_enabled,
         docs_url=_env("FASTAPI_DOCS_URL", str(documentation_cfg.get("docs_url", "/docs"))),
-        redoc_url=_env("FASTAPI_REDOC_URL", str(documentation_cfg.get("redoc_url", "/redoc"))),
         openapi_url=_env("OPENAPI_URL", str(documentation_cfg.get("openapi_url", "/openapi.json"))),
     )
 

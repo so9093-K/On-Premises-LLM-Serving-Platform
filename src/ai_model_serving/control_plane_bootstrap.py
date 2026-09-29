@@ -48,7 +48,6 @@ class ControlPlaneBootstrapProjection:
     grafana_available: bool
     grafana_direct_port: int | None
     docs_url: str | None
-    redoc_url: str | None
     openapi_url: str | None
 
 
@@ -157,7 +156,6 @@ def build_control_plane_bootstrap_projection(
         grafana_available=grafana_available,
         grafana_direct_port=grafana_direct_port,
         docs_url=settings.documentation.docs_url if docs_enabled else None,
-        redoc_url=settings.documentation.redoc_url if docs_enabled else None,
         openapi_url=settings.documentation.openapi_url if docs_enabled else None,
     )
 
@@ -208,7 +206,6 @@ def control_plane_bootstrap_document(
         },
         "links": {
             "docs": projection.docs_url,
-            "redoc": projection.redoc_url,
             "openapi": projection.openapi_url,
             "grafana": grafana_href,
         },

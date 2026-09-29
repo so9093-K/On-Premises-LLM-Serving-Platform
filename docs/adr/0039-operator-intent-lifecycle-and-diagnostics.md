@@ -143,6 +143,5 @@ command 또는 implementation script를 선택한다.
 
 - [ADR-0013](0013-env-lifecycle-non-destructive-sync.md)
 - [ADR-0022](0022-application-request-event-ownership.md)
-- [ADR-0023](0023-local-lifecycle-command-boundaries.md) — superseded
 - [ADR-0024](0024-public-errors-and-operational-diagnostics.md)
 - [ADR-0037](0037-local-lifecycle-deployment-authority.md)

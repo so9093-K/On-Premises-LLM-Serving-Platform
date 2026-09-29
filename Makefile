@@ -189,7 +189,7 @@ reset-version: ## NEW_VERSION=<x.y.z> 버전을 선언된 모든 자리에 반�
 render-runtime-assets: ## 추적하는 generated artifact 다시 렌더링
 	$(PYTHON) scripts/render_runtime_assets.py --write
 
-fetch-docs-assets: ## /docs·/redoc의 self-host JS 번들을 고정 해시로 내려받기 (네트워크 필요)
+fetch-docs-assets: ## /docs의 self-host JS 번들을 고정 해시로 내려받기 (네트워크 필요)
 	$(PYTHON) scripts/build/fetch_docs_assets.py
 
 console-build: ## Control Plane frontend 의존성 설치 후 checked-in runtime asset 생성

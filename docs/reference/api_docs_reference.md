@@ -4,12 +4,12 @@
 
 ## 제공 경로
 
-| 서비스 | Scalar | ReDoc | OpenAPI JSON |
-|---|---|---|---|
-| Gateway | `:9400/docs` | `:9400/redoc` | `:9400/openapi.json` |
-| Risk Signal Service | `:9405/docs` | `:9405/redoc` | `:9405/openapi.json` |
+| 서비스 | Scalar | OpenAPI JSON |
+|---|---|---|
+| Gateway | `:9400/docs` | `:9400/openapi.json` |
+| Risk Signal Service | `:9405/docs` | `:9405/openapi.json` |
 
-`/docs`는 Scalar UI이고, `/redoc`은 읽기 전용 문서 화면이다. 두 화면은 인증을 우회하지 않는다. Gateway의 사용자 API는 API token, admin endpoint는 admin token, Risk Signal Service 직접 호출은 internal service token이 필요하다.
+`/docs`는 Scalar UI다. 문서 화면은 인증을 우회하지 않는다. Gateway의 사용자 API는 API token, admin endpoint는 admin token, Risk Signal Service 직접 호출은 internal service token이 필요하다.
 
 ## 계약 정렬
 
@@ -61,7 +61,7 @@ Gateway 문서 화면은 네 곳에 나눠 설명을 싣는다. 태그 설명의
 
 ## 활성화·네트워크 정책
 
-`FASTAPI_DOCS_ENABLED=false`일 때만 `/docs`, `/redoc`, `/openapi.json`을 비활성화한다. 기본값은 활성화다.
+`FASTAPI_DOCS_ENABLED=false`일 때만 `/docs`, `/openapi.json`을 비활성화한다. 기본값은 활성화다.
 
 문서 화면을 공개해도 API 호출 권한이 생기지는 않는다. 외부 인터넷에 노출하는 환경에서는 API 인증 외에 VPN, allowlist, SSO proxy 같은 ingress 경계를 별도로 둔다.
 

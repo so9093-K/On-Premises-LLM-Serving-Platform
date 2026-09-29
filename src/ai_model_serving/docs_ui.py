@@ -31,7 +31,7 @@ DOCS_CUSTOM_CSS = (
 )
 
 # 문서 화면의 JS 번들은 저장소에 vendoring 한다. 온프레미스 배포는 외부 egress가
-# 없어도 /docs와 /redoc이 떠야 하고, CDN 참조는 air-gap 망에서 빈 화면이 된다.
+# 없어도 /docs가 떠야 하고, CDN 참조는 air-gap 망에서 빈 화면이 된다.
 # 버전과 SRI 해시는 이 표가 단독으로 소유하며, scripts/build/fetch_docs_assets.py가
 # 같은 값으로 내려받아 검증한다. 브라우저는 same-origin 응답에도 integrity를 그대로
 # 검증하므로 vendoring 파일이 손상되면 실행하지 않는다.
@@ -63,18 +63,10 @@ SCALAR_BUNDLE = VendoredAsset(
     ),
     integrity="sha384-UL+pt9bcR3hCuzEybA1bAyu6yv9qkzJuYCP5N+HZPOo9ZkUXcMflxqBjC1vfDzfe",
 )
-# FastAPI 기본 /redoc은 `redoc@2`라는 가변 태그를 SRI 없이 부른다. 다른 모든 외부
-# 아티팩트를 digest로 고정하는 이 저장소 기준에 어긋나므로, 태그가 가리키던 실제
-# 버전(2.5.4)으로 고정해 같이 vendoring 한다.
-REDOC_BUNDLE = VendoredAsset(
-    filename="redoc-standalone-2.5.4.js",
-    source_url="https://cdn.jsdelivr.net/npm/redoc@2.5.4/bundles/redoc.standalone.js",
-    integrity="sha384-w447zOpYfw/1Tv/5AK9NfHTlQIqE3RVR6KY62jCyy9zNDgO64cMwGGP1Fj0zJVf5",
-)
-VENDORED_ASSETS = (SCALAR_BUNDLE, REDOC_BUNDLE)
+VENDORED_ASSETS = (SCALAR_BUNDLE,)
 
 # 브라우저는 HTML 문서를 열 때마다 /favicon.ico를 요청한다. 라우트가 없으면
-# /docs와 /redoc을 열 때마다 운영 로그에 404가 쌓인다. 외부 URL을 가리킬 수는
+# /docs를 열 때마다 운영 로그에 404가 쌓인다. 외부 URL을 가리킬 수는
 # 없으므로(air-gap) 작은 SVG를 인라인으로 들고 직접 서빙한다.
 FAVICON_ROUTE = "/favicon.ico"
 FAVICON_MEDIA_TYPE = "image/svg+xml"
@@ -103,7 +95,7 @@ SCALAR_CONFIG = json.dumps({
 def scalar_html(openapi_url: str, title: str, *, bundle_url: str | None = None) -> str:
     """공통 Scalar API reference shell을 렌더링한다.
 
-    Gateway와 Risk Adapter는 의도적으로 별도 OpenAPI 문서를 노출하지만, 주변 documentation UI는 동일하게 유지한다. 이 helper를 한 곳에 두면 docs UX 변경 시 styling/client drift를 줄일 수 있다.
+    Gateway와 Risk Signal Service는 의도적으로 별도 OpenAPI 문서를 노출하지만, 주변 documentation UI는 동일하게 유지한다. 이 helper를 한 곳에 두면 docs UX 변경 시 styling/client drift를 줄일 수 있다.
     """
     bundle_url = bundle_url or SCALAR_BUNDLE.route
     return f"""<!doctype html>
