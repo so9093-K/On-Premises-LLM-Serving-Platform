@@ -37,6 +37,9 @@
 - lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
   `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
   수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
+- HTTP metric의 `route` label이 등록된 route template만 사용한다. 매칭되는 route가 없는
+  요청(`/.env`, `/wp-login.php` 같은 스캐너 요청)은 모두 `route="unmatched"` 하나로
+  집계되어, 임의 경로 요청이 Gateway 메모리와 Prometheus time series를 늘리지 않는다.
 
 ### Changed
 

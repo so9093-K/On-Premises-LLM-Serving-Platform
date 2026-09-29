@@ -533,3 +533,15 @@ def test_same_origin_console_and_non_browser_clients_keep_operator_access():
         json={"model": "local-main", "messages": [{"role": "user", "content": "hi"}]},
     )
     assert public.status_code == 200
+
+
+def test_unmatched_paths_share_one_bounded_metric_series():
+    # 스캐너가 임의 경로를 두드려도 metric series 수가 늘어나지 않아야 한다.
+    client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))
+    for path in ("/.env", "/wp-login.php", "/scan-123.php"):
+        assert client.get(path).status_code == 404
+
+    metrics = client.get("/metrics", headers=auth_headers()).text
+    assert 'http_requests_total{route="unmatched",service="gateway",status_code="404"} 3.0' in metrics
+    assert "/.env" not in metrics
+    assert "wp-login" not in metrics

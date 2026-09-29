@@ -22,6 +22,9 @@ def sanitized_stream_status(status: str) -> str:
     return "error"
 
 
+UNMATCHED_ROUTE_LABEL = "unmatched"
+
+
 class Metrics:
     def __init__(self, service: str) -> None:
         self.registry = CollectorRegistry()
@@ -220,9 +223,14 @@ class Metrics:
         )
 
     def observe_http_request(self, *, scope: Scope, status_code: int, elapsed_seconds: float) -> None:
-        """완료된 HTTP 요청 한 건을 count/latency/auth metric에 반영한다."""
+        """완료된 HTTP 요청 한 건을 count/latency/auth metric에 반영한다.
+
+        route label은 등록된 route template만 쓴다. 매칭되는 route가 없는 요청(404
+        스캐너 등)의 path는 호출자가 정하는 무한한 값이라, 그대로 label에 넣으면 요청마다
+        새 time series가 생겨 Gateway 메모리와 Prometheus 저장량이 계속 커진다.
+        """
         route_obj = scope.get("route")
-        route = getattr(route_obj, "path", None) or scope.get("path", "")
+        route = getattr(route_obj, "path", None) or UNMATCHED_ROUTE_LABEL
         self.requests.labels(self.service, route, str(status_code)).inc()
         self.latency.labels(self.service, route).observe(elapsed_seconds)
         if status_code == 401:
