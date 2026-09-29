@@ -18,7 +18,7 @@ make down
 이후 재기동은 `make up`만 사용한다. project-local state 초기화는 `make reset`,
 비싼 project-owned image/model cache와 volume까지 폐기할 때만 `make purge`를 사용한다.
 
-이 디렉터리의 세부 script는 public command의 구현, 장애 evidence 수집, release/qualification,
+이 디렉터리의 세부 script는 public command의 구현, 장애 evidence 수집, release,
 변경 범위별 검증을 위해 존재한다. script가 존재한다는 이유만으로 operator command를
 추가하지 않는다.
 
@@ -45,7 +45,6 @@ make down
 | `ops/` | start/stop/status/ready/smoke/reset/clean 같은 운영 명령 |
 | `runtime/` | target 고유 native runtime 환경·모델·process lifecycle |
 | `validation/` | contract validation, static validation, deterministic test runner, live runtime validation |
-| `qualification/` | runtime-validation 결과와 현재 Main Model/runtime/GPU 관측으로 reviewable candidate 생성, reviewed plan/apply로 durable evidence 승격 |
 | `validation/governance/` | 정적 계약 검증 체크 구현. 프로덕션 패키지(`src/`)가 아니라 여기 사는 이유는 서비스 실행에 필요 없고 런타임 이미지에 실릴 이유도 없기 때문이다. |
 | `validation/runtime/` | live runtime 검증 체크 구현. 살아있는 스택을 밖에서 찔러보는 도구라 서비스 자신이 품지 않는다. |
 | `lib/` | shell/python shared helpers |
@@ -73,8 +72,6 @@ make down
 | `ops/ready_full.sh` | strict `/ready`와 smoke test를 실행한다. 실제 vLLM runtime이 필요하다. |
 | `compose/preflight_compose.sh` | full-stack compose 전 exposure config를 먼저 검증하고, 통과한 뒤 Docker, GPU 표시, effective compose host-published port, secret 상태를 점검한다. compose 내부 `expose` ports는 host port 검사 대상이 아니다. host bind와 port는 `docker compose config` 결과를 따른다. |
 | `validation/runtime_validation.py` | 실제 runtime 검증 결과를 `reports/runtime/` 아래에 기록한다. |
-| `qualification/produce_candidate.py` | 명시한 runtime-validation JSON과 현재 Admin Main Model 상태·NVIDIA GPU를 결합해 `reports/qualification/`에 reviewable receipt candidate를 만든다. repository evidence를 자동 수정하지 않는다. |
-| `qualification/promote_candidate.py` | passed candidate만 durable receipt/catalog evidence로 승격한다. 기본 실행은 plan-only이며 candidate·catalog state를 묶은 plan digest를 exact confirm해야 apply한다. profile qualification status는 변경하지 않는다. |
 | `models/check_hf_model_config.py` | 고정 vLLM runtime 환경에서 Transformers `AutoConfig`만 로드해 engine·GPU 이전 config loader 문제를 분리한다. |
 | `build/package_release.sh` | 배포 ZIP을 만들고 secret, log, cache, egg-info, generated runtime report를 제외한다. ZIP root는 항상 `ai_model_serving_platform/`로 고정한다. |
 | `ops/down_all.sh` | `.env`와 Compose project name에 의존하지 않고 이 checkout의 host process와 Compose container/network를 정지한다. |
@@ -90,7 +87,7 @@ make down
   `RUNTIME_STARTUP_PROFILE=retrieval_ready make up`을 사용한다.
 - `.runtime/prometheus/admin_api_key`가 사라져도 `.env`를 다시 만들지 않는다. 다음
   `make up`이 runtime secret을 복구한다.
-- live qualification용 상세 runtime 검증은 developer/maintainer command
+- 실제 스택을 대상으로 한 상세 runtime 검증은 developer/maintainer command
   `make runtime-validate`가 소유하며 정상 기동 확인을 위해 별도로 실행하지 않는다.
 - 저비용 repository build/test artifact만 직접 정리해야 하는 maintainer 작업은
   `scripts/ops/clean_project.sh --dry-run`으로 범위를 확인한다. 일반 사용자는

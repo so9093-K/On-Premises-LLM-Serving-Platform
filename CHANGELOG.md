@@ -346,6 +346,13 @@
 
 ### Removed
 
+- Main Model qualification 검증 근거 시스템을 제거했다. `configs/qualification_evidence.yaml`,
+  `configs/qualification_checks.yaml`, `evidence/qualification/` receipt, `make qualification-candidate`·
+  `qualification-promote`·`qualification-status-promote`, 이를 대조하던 `make validate` 검사와
+  runtime-validation report의 `qualification_check_id`·`qualification_context`가 없어졌다.
+  `qualification.status`(`verified`/`unverified`)는 maintainer가 실제 장비 검증 뒤 적는 선언으로 남고,
+  모델 전환 API와 `confirm_unverified` 확인 절차는 그대로다. Console은 이 값을 "검증 근거" 대신
+  "검증 상태"로 표시한다. ([ADR-0042](docs/adr/0042-remove-qualification-evidence-and-benchmark.md))
 - 어떤 Access Profile도 쓰지 않던 인증 mode `internal_trusted`와 `edge_terminated`, 그 증빙 key
   `INTERNAL_TRUSTED_AUTH_EVIDENCE`와 preflight·auth-doctor 분기를 제거했다(`removed_keys`로 `.env`에서
   지운다). `AUTH_MODE`는 Gateway에서 표시용 label이므로 이 값을 쓰던 `.env`가 있어도 인증 flag 동작은

@@ -235,7 +235,7 @@ def record_main_model_request_context(request: Request, main_model: Any) -> None
     """요청을 admission한 Main Model profile/resource-policy 식별자만 기록한다.
 
     Runtime Controller에서 이미 받은 control-plane snapshot을 재사용한다. Catalog 전체,
-    GPU identity, compatibility/qualification evidence는 request log에 복사하지 않는다.
+    GPU identity, compatibility/qualification 선언은 request log에 복사하지 않는다.
     resource_variant가 null인 reference policy는 별도 합성값을 만들지 않고 필드를 생략한다.
     """
     if not isinstance(main_model, dict):

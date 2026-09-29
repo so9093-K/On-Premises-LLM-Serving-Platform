@@ -87,35 +87,28 @@ def _checks() -> tuple[LiveRuntimeChecks, _Http]:
     )
 
 
-def test_main_model_runtime_checks_emit_stable_qualification_ids() -> None:
+def test_models_check_records_the_main_model_input_modalities() -> None:
     checks, _ = _checks()
 
     models = checks.check_models()
-    runtime_models = checks.check_vllm_models("main_llm", "http://main/v1")
-    text_chat = checks.check_chat()
 
     assert models.passed
-    assert models.qualification_check_id == "main_model.gateway.models"
     assert models.details["main_model_input_modalities"] == [
         "text",
         "image",
         "audio",
         "video",
     ]
-    assert runtime_models.qualification_check_id == "main_model.runtime.models"
-    assert text_chat.qualification_check_id == "main_model.chat.text"
 
 
-def test_media_canaries_emit_stable_ids_and_use_checked_in_data_fixtures() -> None:
+def test_media_canaries_use_checked_in_data_fixtures() -> None:
     checks, http = _checks()
 
     image = checks.check_chat_image()
     audio = checks.check_chat_audio()
     video = checks.check_chat_video()
 
-    assert image.qualification_check_id == "main_model.chat.image"
-    assert audio.qualification_check_id == "main_model.chat.audio"
-    assert video.qualification_check_id == "main_model.chat.video"
+    assert image.passed and audio.passed and video.passed
 
     image_part = http.calls[-3][2]["messages"][0]["content"][1]
     audio_part = http.calls[-2][2]["messages"][0]["content"][1]

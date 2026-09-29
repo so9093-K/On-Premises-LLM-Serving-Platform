@@ -269,7 +269,6 @@ class LiveRuntimeChecks:
                 "main_model_input_modalities": main_modalities,
                 "contract_error": contract_error,
             },
-            qualification_check_id="main_model.gateway.models",
         )
 
     def check_vllm_models(self, key: str, base_url: str) -> CheckResult:
@@ -283,11 +282,6 @@ class LiveRuntimeChecks:
             "pass" if ok else "fail",
             latency,
             details={"expected_model": expected_model, "ids": sorted(ids)},
-            qualification_check_id=(
-                "main_model.runtime.models"
-                if expected_model == self._main_model_name()
-                else ""
-            ),
         )
 
     def check_risk_endpoint(self, endpoint: str, check_name: str, detector_key: str = "") -> CheckResult:
@@ -345,7 +339,6 @@ class LiveRuntimeChecks:
             "pass" if ok else "fail",
             latency,
             details={"model": body.get("model"), "choices": len(body.get("choices", []))},
-            qualification_check_id="main_model.chat.text",
         )
 
     def _check_chat_media(
@@ -390,7 +383,6 @@ class LiveRuntimeChecks:
                 "model": body.get("model"),
                 "has_content": isinstance(content, str) and bool(content),
             },
-            qualification_check_id=f"main_model.chat.{kind}",
         )
 
     def check_chat_image(self) -> CheckResult:

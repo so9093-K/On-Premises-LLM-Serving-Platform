@@ -2,8 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-09-20
-- Refines: [ADR-0034](./0034-main-model-host-resource-variant.md), [ADR-0033](./0033-qualification-status-promotion-contract.md), [ADR-0032](./0032-qualification-evidence-v1.md)
-- Extended by: [ADR-0036](./0036-qualification-evidence-reuse-and-invalidation.md)
+- Refines: [ADR-0034](./0034-main-model-host-resource-variant.md)
+- Partially superseded by: [ADR-0042](./0042-remove-qualification-evidence-and-benchmark.md) (durable qualification evidence 부분)
 
 ## Context
 
@@ -15,7 +15,7 @@ reference command.
 The boundary can be misread, however, as a hardware allowlist:
 
 - a GPU model name can appear to decide whether a Main Model is supported,
-- the absence of direct qualification evidence can appear to mean unsupported,
+- the absence of a direct `verified` declaration can appear to mean unsupported,
 - every new GPU can appear to require a new variant and a new qualification run before use.
 
 That is not the platform goal. Hardware identity is useful provenance, but the platform must remain
@@ -30,8 +30,8 @@ needed, the current stage, failure impact, and the result.
 
 ### 1. Hardware identity is observation, not admission authority
 
-GPU product name, UUID, driver, memory size, and similar fields are observed runtime facts and
-qualification provenance. They are not a primary allowlist for Main Model support.
+GPU product name, UUID, driver, memory size, and similar fields are observed runtime facts.
+They are not a primary allowlist for Main Model support.
 
 Main Model execution eligibility is owned by:
 
@@ -42,28 +42,23 @@ Main Model execution eligibility is owned by:
 
 A previously unseen GPU is not unsupported merely because no record names that product.
 
-### 2. Qualification evidence is not a hardware support permit
+### 2. Qualification is not a hardware support permit
 
-`qualification.status` remains profile-level release/validation evidence. Durable evidence records
-describe where and under which conditions a contract was actually exercised.
+`qualification.status` is a profile-level declaration that a maintainer exercised the profile on real
+hardware (ADR-0042).
 
-The absence of direct evidence for a particular GPU model does not by itself make that GPU
+The absence of a direct validation on a particular GPU model does not by itself make that GPU
 incompatible. In particular:
 
-- `no direct hardware evidence` is not equivalent to `unsupported hardware`,
-- qualification evidence may increase confidence and support release/governance decisions,
+- `not validated on this GPU` is not equivalent to `unsupported hardware`,
 - compatibility/resource admission remain the execution gate.
 
 A new hardware model does not require a new profile-level qualification simply because its product
 name is new.
 
-The exact reuse and invalidation boundary for durable evidence is defined by ADR-0036. Hardware,
-driver, resource-policy and validation-time fingerprints remain run provenance; current profile
-contract identity and required checks decide profile-level evidence eligibility.
-
 ### 3. `resource_variant` means an explicit resource-policy override
 
-Existing IDs, including `rtx4090-24gb`, remain unchanged for historical and evidence stability.
+Existing IDs, including `rtx4090-24gb`, remain unchanged for historical stability.
 Their semantic role is refined:
 
 > A resource variant is a reviewed override for runtime resource knobs when the profile's reference
@@ -98,8 +93,8 @@ reference policy fits?
               └─ no  → bounded tuning/measurement → add override if actually needed
 ```
 
-A qualification run may then be produced when durable certification evidence is useful. It is not
-the prerequisite that makes an otherwise compatible GPU "supported".
+A maintainer may then declare the profile `verified`. That declaration is not the prerequisite that
+makes an otherwise compatible GPU "supported".
 
 ### 5. Operations must be explainable before, observable during, and auditable after
 
@@ -108,29 +103,28 @@ Long-running Control Plane operations must provide operator-facing meaning, not 
 Before execution, the UI should identify the requested change and any confirmation requirement.
 During execution, it should project the existing operation stage into a concise human-readable
 description. After execution, it should show the final status, failure/rollback impact when
-applicable, and the relevant evidence/observation references available from the API.
+applicable, and the relevant observation references available from the API.
 
 Raw logs remain diagnostic detail, not the primary explanation surface.
 
-### 6. UI wording must keep support, compatibility, and evidence separate
+### 6. UI wording must keep support, compatibility, and qualification separate
 
 The Console must not present profile qualification as a GPU support verdict.
 
 Preferred wording distinguishes:
 
 - **Compatibility** — whether the current deployment/runtime contract can attempt the profile,
-- **Profile evidence** — whether the profile has repository-governed qualification evidence,
+- **Qualification** — whether a maintainer declared the profile verified on real hardware,
 - **Resource policy** — reference policy or the explicit selected resource override,
 - **Operation progress** — what the controller is doing now.
 
-An `unverified` confirmation must explain that it concerns profile qualification evidence, not a
-claim that the current GPU is unsupported.
+An `unverified` confirmation must explain that it concerns the profile's qualification declaration,
+not a claim that the current GPU is unsupported.
 
 ## Consequences
 
 - Existing RTX 4090 resource safety remains fail-closed when its override is explicitly selected.
-- RTX 6000 Ada evidence remains valid historical/current evidence without becoming a hardware
-  allowlist.
+- Profiles verified on RTX 6000 Ada stay verified without that GPU becoming a hardware allowlist.
 - RTX A6000 or any future GPU does not require a new qualification solely because the product name
   is different.
 - New resource variants are introduced only when an actually different runtime resource policy is
@@ -145,5 +139,4 @@ claim that the current GPU is unsupported.
 - Automatically deriving safe vLLM tuning values from GPU product names.
 - Removing runtime validation or rollback.
 - Silently applying a selected resource override to profiles that do not declare it.
-- Renaming existing immutable evidence IDs.
-- Treating qualification evidence as irrelevant; it remains durable validation/governance evidence.
+- Renaming existing resource variant IDs.

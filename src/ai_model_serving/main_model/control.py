@@ -131,8 +131,8 @@ class MainModelProfile:
     # (--gpu-memory-utilization). 공유 GPU budget / admission planner에서 사용된다.
     vram_fraction: float = 0.9
     # 이 host에 실제로 적용된 resource variant. base 자원 정책으로 서빙 중이면
-    # None이다. qualification context가 이 값을 함께 기록하므로, 같은 profile의
-    # 서로 다른 자원 정책에서 나온 증거가 한 덩어리로 섞이지 않는다.
+    # None이다. admin 응답과 request log가 이 값을 함께 보여주므로, 같은 profile이
+    # 어떤 자원 정책으로 서빙 중인지 구분된다.
     resource_variant: str | None = None
     # 이 profile이 선언한 모든 variant id다(선택 여부와 무관).
     resource_variants: tuple[str, ...] = ()
@@ -1046,7 +1046,7 @@ class MainModelManager:
             )
         # 운영자가 명시적으로 resource-policy override를 선택했으면 그 override가
         # 없는 profile에서 reference 정책으로 조용히 fallback하지 않는다. 이것은 GPU
-        # 제품 allowlist가 아니며, confirm_unverified(qualification evidence 확인)와도
+        # 제품 allowlist가 아니며, confirm_unverified(미검증 profile 확인)와도
         # 별개의 자원 정책 안전장치다.
         missing_policy = self.catalog.missing_selected_resource_policy(profile_id)
         if missing_policy is not None:

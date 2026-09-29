@@ -34,7 +34,7 @@ Control Plane의 navigation, page heading, 상태, action, 도움말과 empty st
 |---|---|
 | desired state | 원하는 상태 |
 | observed state | 실제 상태 |
-| profile evidence | 검증 근거 |
+| qualification | 검증 상태 |
 | GPU admission | GPU 실행 가능성 |
 | lifecycle owner | 관리 주체 |
 | resource policy | 리소스 정책 |

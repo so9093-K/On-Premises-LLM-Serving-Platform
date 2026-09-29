@@ -244,9 +244,6 @@ Contract Test는 여러 모듈이나 artifact가 공유하는 규칙을 검증�
 
 주요 대상은 다음과 같다.
 
-- 현재 verified Main Model profile과 `configs/qualification_evidence.yaml`의 model/revision/capability evidence 정합성
-- 새 `qualified_run`의 runtime image digest, engine version, GPU/driver fingerprint 완전성
-- `configs/qualification_checks.yaml`의 stable check ID와 capability별 required-check coverage; passed run의 required skip/fail 거부
 - 공식 OpenAI Python SDK의 실제 serializer/parser를 통한 `/v1/models`, Chat Completions, Responses, Embeddings 호환성
 - OpenAPI / JSON Schema 계약
 - 공개 error contract
@@ -436,12 +433,9 @@ RUNTIME_VALIDATION_GATEWAY_BASE_URL=http://staging-gateway:9400 python scripts/v
 
 활성 profile이 지원하지 않는 요청 파라미터는 실패로 취급하지 않고 report에 `skip`으로 남긴다. `/v1/models[].request_parameters`가 이 판단의 단일 기준이며, profile이 지원한다고 공개한 기능의 canary 실패만 runtime 검증 실패다.
 
-Main Model qualification에 쓰는 핵심 live check는 JSON report의 `qualification_check_id`에
-stable ID를 함께 기록한다. 현재는 runtime `/models`, Gateway `/v1/models`, text chat과
-active profile이 `input_modalities`로 공개한 image/audio/video chat canary가 해당 ID를 낸다.
-media canary는 switch-time boot validation과 같은 checked-in tiny fixture를 사용한다. profile이
-선언하지 않은 modality는 실행하지 않으며, 향후 qualification producer가 profile capability와
-`configs/qualification_checks.yaml`을 대조해 required check 누락을 fail-closed한다.
+active profile이 `input_modalities`로 공개한 image/audio/video는 chat canary로 확인한다.
+media canary는 switch-time boot validation과 같은 checked-in tiny fixture를 사용하고, profile이
+선언하지 않은 modality는 실행하지 않는다.
 
 ```text
 ready-full
@@ -462,68 +456,9 @@ python scripts/validation/runtime_validation.py --allow-failures
 Runtime report는 check 결과와 latency·상태 정보를 중심으로 기록한다.
 인증 token과 raw prompt, model output은 report의 운영 증빙 범위에서 제외한다.
 
-`reports/runtime/`은 repository가 소유하지 않는 실행 산출물이다. 새 Main Model qualification은
-runtime report를 직접 Git evidence로 취급하지 않고, current profile/runtime artifact/hardware
-fingerprint와 stable check 결과를 결합한 candidate를 검토한 뒤
-`evidence/qualification/runs/*.json` receipt로 명시적으로 승격한다. qualified-run catalog record와
-receipt 내용은 repository validator가 같은 계약으로 비교한다.
-
-후속 candidate 조립은 명시적인 runtime report를 입력으로 받는다.
-
-```bash
-make qualification-candidate REPORT=reports/runtime/runtime_validation_<timestamp>.json
-```
-
-runtime-validation report는 검증 시작/종료 시점에 `GET /admin/main-model`에서 읽은
-qualification identity(profile/model/revision/capability/runtime artifact/last operation)와
-`.env`의 Deployment Target, 실제 NVIDIA GPU UUID/driver를 함께 남긴다. 두 snapshot이
-달라지거나 snapshot을 얻지 못한 report는 qualification candidate의 근거가 될 수 없다.
-
-producer는 실행 시점의 `GET /admin/main-model`, Deployment Target, NVIDIA GPU를 다시 관측해
-report의 종료 snapshot과 현재 profile/image/engine/hardware fingerprint가 계속 일치하는지
-확인한다. required-check 집합은
-`configs/qualification_checks.yaml`을 repository validator와 같은 parser로 읽는다.
-required check가 누락되거나 unknown check/runtime drift/fingerprint 누락이 있으면 candidate를
-만들지 않는다. 완전한 fingerprint에서 stable canary가 `fail` 또는 `skip`이면 debugging/history에
-남길 수 있는 `result: failed` candidate를 생성한다.
-
-Host Inventory가 도입되기 전 v1 producer는 GPU 선택을 추측하지 않기 위해 visible NVIDIA GPU가
-정확히 하나일 때만 candidate를 만든다. 출력은 `reports/qualification/`의 임시 artifact이며
-`configs/qualification_evidence.yaml`이나 `evidence/qualification/runs/`를 자동 변경하지 않는다.
-
-이미 존재하는 durable promotion 명령은 direct mutation 대신 reviewed plan/apply로 사용한다.
-passed candidate만 승격할 수 있고, 입력은 deterministic record ID filename을 가진
-`reports/qualification/` 아래 파일이어야 한다. 첫 실행은 repository를 바꾸지 않고
-`record_id`, receipt/catalog 경로와 `plan_digest`를 출력한다.
-
-```bash
-make qualification-promote \
-  CANDIDATE=reports/qualification/<candidate>.json
-```
-
-candidate와 현재 qualification catalog state를 검토한 뒤, 같은 plan digest를 exact confirm해서
-적용한다.
-
-```bash
-make qualification-promote \
-  CANDIDATE=reports/qualification/<candidate>.json \
-  APPLY=1 \
-  CONFIRM=<plan_digest>
-```
-
-apply는 직전에 plan을 다시 계산한다. candidate 내용이나 qualification catalog가 review 뒤
-바뀌었으면 digest가 달라져 적용을 거부한다. staged 상태는 기존
-`validate_qualification_evidence_document()`를 그대로 통과해야 하며, receipt와 catalog record의
-일치 계약도 같은 validator가 확인한다.
-
-실제 파일 적용은 receipt를 먼저 원자 교체하고 catalog를 다음에 원자 교체한다. catalog 쓰기
-실패 시 이번 apply가 만든 receipt를 정리한다. process crash로 같은 receipt만 남은 경우에는
-candidate와 내용이 정확히 같은 orphan receipt만 다음 plan에서 복구 대상으로 인정한다.
-다른 내용의 기존 receipt나 같은 record ID의 catalog record는 덮어쓰지 않는다.
-
-promotion은 durable evidence만 만들며 `configs/main_model_profiles.yaml`의
-`qualification.status`는 자동 변경하지 않는다. profile qualification 상태 변경은 승격된
-passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
+`reports/runtime/`은 repository가 소유하지 않는 실행 산출물이다. Main Model profile을
+`verified`로 선언할 때는 이 report로 확인한 장비와 결과를 profile 주석과 commit/PR 설명에 남긴다
+([6. 모델 운영](./06_model_operations.md#qualification-선언)).
 
 ---
 

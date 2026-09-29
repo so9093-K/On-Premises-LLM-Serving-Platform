@@ -629,7 +629,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
             "이 배포에서 전환할 수 있는 메인 모델 프로필과 각 프로필의 근거를 반환합니다. "
             "`active: true`가 현재 서빙 중인 프로필입니다.\n\n"
             "- `compatibility.status` — 기술적 전환 가능성(`compatible` / `incompatible` / `unknown`)입니다.\n"
-            "- `qualification.status` — 실제 검증 근거 상태(`verified` / `unverified`)입니다. "
+            "- `qualification.status` — maintainer가 실제 장비에서 검증했는지(`verified` / `unverified`)입니다. "
             "전환 가능한 프로필이 `unverified`면 `switch` 요청에 `confirm_unverified: true`가 필요합니다.\n"
             "- `capabilities.deployed_input` — 그 프로필로 전환했을 때 받을 수 있는 입력 modality입니다. "
             "전환이 완료되면 `/v1/models`의 `input_modalities`와 chat validator에 즉시 반영됩니다.\n"

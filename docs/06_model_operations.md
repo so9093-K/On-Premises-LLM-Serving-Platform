@@ -149,53 +149,36 @@ Main Model Profile은 기술 호환성과 실제 검증 수준을 별도 축으�
 | Compatibility | `compatible` | 현재 deployment/runtime 조합에서 기술적으로 전환 가능한 profile |
 | Compatibility | `incompatible` | 현재 deployment/runtime 조합과 기술적으로 호환되지 않아 전환 불가 |
 | Compatibility | `unknown` | 기술 호환성을 아직 확정할 정보가 부족함 |
-| Qualification | `verified` | 현재 배포에서 정의된 검증 근거를 충족함 |
-| Qualification | `unverified` | qualification이 완료되지 않았거나 추가 검증이 필요함 |
+| Qualification | `verified` | maintainer가 실제 장비에서 검증을 마쳤다고 선언함 |
+| Qualification | `unverified` | 아직 실제 장비 검증을 마치지 않았음 |
 
 `configs/main_model_profiles.yaml`과 Admin API는 동일한 canonical 상태를 사용한다.
-`compatibility.status`는 기술 호환성만, `qualification.status`는 실제 검증 근거만 표현한다.
+`compatibility.status`는 기술 호환성만, `qualification.status`는 실제 장비 검증 여부만 표현한다.
 
 전환 가능 여부는 Compatibility가 결정한다. `incompatible`은 전환할 수 없고, 그 외 전환 가능한
 profile에서 Qualification이 `verified`가 아니면 switch 요청에 `confirm_unverified=true`가 필요하다.
 
-여기서 Qualification은 **GPU 제품 지원 목록이 아니다.** 현재 GPU 제품명에 대한 직접
-qualification record가 없다는 사실만으로 hardware가 unsupported가 되지 않는다. 실제 실행 가능성은
+여기서 Qualification은 **GPU 제품 지원 목록이 아니다.** 현재 GPU 제품에서 직접
+검증하지 않았다는 사실만으로 hardware가 unsupported가 되지 않는다. 실제 실행 가능성은
 Deployment/Runtime Compatibility와 GPU resource admission, 그리고 start/apply 뒤 runtime validation이
-판단한다. GPU 이름·UUID·driver·memory는 관측 및 evidence provenance이며 primary admission key가 아니다.
+판단한다. GPU 이름·UUID·driver·memory는 관측값이며 primary admission key가 아니다.
 
 새 GPU가 들어왔을 때 reference resource policy를 충족하면 별도 GPU-specific variant나 재qualification
 없이 같은 profile을 시도할 수 있다. reference policy가 실제로 맞지 않을 때만 검토된
 `resource_variant` override를 추가한다. 세부 원칙은
 [ADR-0035](./adr/0035-capability-based-hardware-admission-and-transparent-operations.md)를 따른다.
 
-### Qualification Evidence
+### Qualification 선언
 
-`verified`는 상태 문자열만으로 끝나지 않는다. Main Model의 machine-readable 검증 근거는
-`configs/qualification_evidence.yaml`이 소유하며, 현재 verified profile은 현재
-`profile_id + model_id + revision + deployed_input capabilities`와 일치하는 passed evidence를
-최소 하나 가져야 한다.
+`qualification.status`는 maintainer가 `configs/main_model_profiles.yaml`에 직접 적는 선언이다.
+profile을 새로 추가하거나 model ID·revision·`deployed_input`을 바꾸면 `unverified`로 두고,
+실제 장비에서 전환과 `make runtime-validate`가 통과한 뒤 `verified`로 바꾼다. 어떤 장비에서
+무엇을 확인했는지는 profile 주석과 commit/PR 설명에 남긴다.
 
-v1 이전 검증은 `legacy_backfill`로 구조화한다. 당시 기록되지 않은 driver version이나 resolved
-image digest를 추측해 채우지 않고 source와 실제 남아 있는 관측값만 보존한다.
-
-v1 이후 새 qualification 승격 근거는 `qualified_run`을 사용하며 검증 시각, runtime engine/version,
-registry/distribution image digest, GPU와 driver version, 실제로 수행한 named checks를 함께 기록한다.
-Docker local image ID는 distribution digest의 대체값이 아니다. 새 `qualified_run`의
-`source.path`는 review를 거쳐 승격된 `evidence/qualification/runs/*.json` receipt를 가리키며,
-`reports/runtime/`의 원본 runtime-validation report는 실행 산출물로 남는다.
-Stable check ID와 capability별 필수 check는 `configs/qualification_checks.yaml`이 소유하며,
-passed run에서 필수 check의 skip/fail은 허용하지 않는다. 세부 정책은
-[ADR-0032](./adr/0032-qualification-evidence-v1.md)를 따른다.
-
-Evidence의 hardware fingerprint는 **어디에서 실제로 검증했는지**를 정직하게 남기는 provenance다.
-특정 GPU 이름의 direct evidence가 없다는 이유만으로 실행을 막거나 같은 profile을 다시
-qualification하지 않는다. Profile evidence와 현재 host의 resource feasibility는 서로 다른 판단이다.
-
-Evidence는 GPU/driver/resource policy/검증 시각이 바뀌었다는 이유만으로 자동 만료되지 않는다.
-현재 profile-level 근거의 identity는 profile/model/revision/capability와 Main Model deployment
-target이며, `qualified_run`은 현재 required qualification check를 만족해야 한다. 새 required
-check가 추가되면 과거 receipt는 history로 그대로 남지만 현재 verified 근거에서는 제외될 수 있다.
-재사용·무효화 규칙은 [ADR-0036](./adr/0036-qualification-evidence-reuse-and-invalidation.md)을 따른다.
+별도의 machine-readable 근거 catalog, receipt, 승격 도구는 두지 않는다
+([ADR-0042](./adr/0042-remove-qualification-evidence-and-benchmark.md)). 선언이 실제 검증을
+넘어서지 않는지는 review가 책임진다. GPU/driver/resource policy가 바뀌었다는 이유만으로
+`verified`를 되돌리지 않는다.
 
 ### Profile Lock
 
