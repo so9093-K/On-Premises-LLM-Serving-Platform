@@ -6,6 +6,18 @@
 
 ### Added
 
+- `make up`의 오래 걸리는 단계(image build, 모델 다운로드, readiness 대기)가 경과 시간과 그 단계의
+  마지막 출력 줄을 한 줄로 갱신해 보여 준다. 15초가 넘으면 `tail -f`로 볼 수 있는 전체 출력 경로를
+  한 번 알려 주고, CI처럼 terminal이 아닌 출력에서는 30초마다 한 줄씩 남긴다. 끝난 단계에는 걸린
+  시간이 붙고, 실패 메시지에는 실패까지 걸린 시간이 들어간다.
+- 처음 `make up`에 `TARGET`이 없으면 사용할 수 있는 deployment target과 요구사항(`MAIN_URL` 필요
+  여부, 검증 상태), 이 host에서 감지한 추천 target(Apple Silicon, NVIDIA driver)과 실행 예시를
+  보여 준다. 추천은 안내일 뿐 target은 계속 명시적으로 고른다.
+- `make up`이 끝나면 Console, API 문서(활성화된 경우), Grafana(실행 중인 경우) 주소와 다음 명령을
+  출력한다. 주소는 Gateway의 Control Plane bootstrap이 알려 주는 값을 그대로 쓴다.
+- Python 환경 준비가 `uv sync` 전에 uv 버전을 `pyproject.toml`의 `tool.uv.required-version`과
+  비교한다. 맞지 않으면 lock 오류 대신 필요한 버전과 설치·업데이트 방법을 안내한다.
+
 - Control Plane Console에 **채팅 테스트** 화면을 추가했다. 공개 API(`/v1/chat/completions`)를 다른
   client와 똑같이 호출해 스트리밍 응답, 생각 과정(reasoning), 첫 토큰 시간, 전체 시간, 입력·출력
   토큰, 생성 속도, request_id(Grafana 요청 로그 링크)를 응답마다 보여 준다. 온도·최대 출력 토큰·

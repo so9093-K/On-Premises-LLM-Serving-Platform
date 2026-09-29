@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 QUALITY_GROUP = "quality"
 PROFILES = ("runtime", "development")
+UV_INSTALL_URL = "https://docs.astral.sh/uv/getting-started/installation/"
+_CLAUSE = re.compile(r"^\s*(>=|<=|==|!=|>|<)\s*(\d+(?:\.\d+)*)\s*$")
 
 
 def _interpreter_minor(executable: Path) -> str:
@@ -22,15 +25,84 @@ def _interpreter_minor(executable: Path) -> str:
     ).strip()
 
 
+def required_uv_version(root: Path = ROOT) -> str | None:
+    import tomllib
+
+    try:
+        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    value = data.get("tool", {}).get("uv", {}).get("required-version")
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _release(text: str, size: int) -> tuple[int, ...]:
+    parts = [int(part) for part in text.split(".")]
+    return tuple(parts + [0] * (size - len(parts)))
+
+
+def version_satisfies(version: str, specifier: str) -> bool | None:
+    """Evaluate a plain ``>=a,<b`` style specifier; None when it is not that simple."""
+    if not re.fullmatch(r"\d+(?:\.\d+)*", version):
+        return None
+    for clause in specifier.split(","):
+        match = _CLAUSE.match(clause)
+        if match is None:
+            return None
+        operator, bound = match.groups()
+        size = max(len(version.split(".")), len(bound.split(".")))
+        left, right = _release(version, size), _release(bound, size)
+        passed = {
+            ">=": left >= right,
+            "<=": left <= right,
+            ">": left > right,
+            "<": left < right,
+            "==": left == right,
+            "!=": left != right,
+        }[operator]
+        if not passed:
+            return False
+    return True
+
+
+def _install_hint(specifier: str | None) -> str:
+    wanted = f"uv {specifier}" if specifier else "uv"
+    minimum = re.search(r">=\s*(\d+(?:\.\d+)*)", specifier or "")
+    update = f"; a standalone uv can switch with `uv self update {minimum.group(1)}`" if minimum else ""
+    return f"install {wanted} ({UV_INSTALL_URL}){update}, or set UV_BIN=/path/to/uv"
+
+
 def _uv_binary() -> str:
     configured = os.environ.get("UV_BIN")
     executable = configured or shutil.which("uv")
     if not executable:
         raise RuntimeError(
-            "uv is required to prepare Python environments; install the version "
-            "declared by pyproject.toml or set UV_BIN=/path/to/uv"
+            "uv is required to prepare Python environments; "
+            + _install_hint(required_uv_version())
         )
     return executable
+
+
+def check_uv_version(uv_binary: str, root: Path = ROOT) -> None:
+    """Fail before `uv sync` with an install hint instead of a buried lock error."""
+    specifier = required_uv_version(root)
+    if specifier is None:
+        return
+    try:
+        output = subprocess.run(
+            [uv_binary, "--version"], capture_output=True, text=True, check=False, timeout=30
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    match = re.search(r"\buv (\d+(?:\.\d+)*)", output)
+    if match is None:
+        return
+    # 해석할 수 없는 specifier는 uv 자신의 required-version 검사에 맡긴다.
+    if version_satisfies(match.group(1), specifier) is False:
+        raise RuntimeError(
+            f"uv {match.group(1)} does not match tool.uv.required-version "
+            f"{specifier!r} in pyproject.toml; " + _install_hint(specifier)
+        )
 
 
 def _check_existing_environment(root: Path, selected: Path) -> None:
@@ -130,8 +202,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         selected = Path(sys.executable).resolve()
         _check_existing_environment(ROOT, selected)
+        uv_binary = _uv_binary()
+        check_uv_version(uv_binary)
         _run_bootstrap_step(
-            build_sync_command(_uv_binary(), selected, args.profile),
+            build_sync_command(uv_binary, selected, args.profile),
             label="Synchronizing Python environment",
             cwd=ROOT,
             quiet=quiet,

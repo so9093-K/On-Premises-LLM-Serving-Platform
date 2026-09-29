@@ -120,7 +120,13 @@ Grafana Request Log Explorer와 Loki를 사용할 수 있는 환경에서는 req
 
 ---
 
-## 12.4 `make up` 실패 시 diagnostic artifact
+## 12.4 `make up` 진행 표시와 실패 시 diagnostic artifact
+
+오래 걸리는 내부 단계(image build, Main Model 다운로드, readiness 대기)는 진행 중에 경과 시간과
+그 단계의 마지막 출력 줄을 terminal 한 줄로 갱신한다. 단계가 15초를 넘기면 전체 출력을
+`tail -f`로 볼 수 있는 `.runtime/operator-logs/` 경로를 한 번 표시한다. terminal이 아닌 출력(CI,
+파일 리디렉션)에서는 줄을 다시 그리지 않고 30초마다 한 줄씩 남긴다. 끝난 단계는 걸린 시간을
+함께 표시하고, 성공한 단계의 출력 파일은 지운다.
 
 `make up`의 내부 단계가 실패하면 terminal에는 실패한 단계의 마지막 관련 출력과 전체
 evidence 경로가 표시된다.
