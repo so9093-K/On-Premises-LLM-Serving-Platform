@@ -1398,6 +1398,35 @@ curl "$GATEWAY_URL/metrics" \
   -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
 
+`route` label은 등록된 route template이다. 매칭되는 route가 없는 요청은 모두 `route="unmatched"`로 집계된다.
+
+### 7.4 GET `/admin/traffic/recent`
+
+Gateway 프로세스가 직접 집계한 최근 5분의 공개 API(`/v1/*`) 요청 결과와 지연 요약이다. Prometheus가 없는
+target에서도 Control Plane Console 개요가 현재 서비스 상태를 보여 주는 데 쓴다. 프로세스가 재시작되면 다시
+집계하며, 장기 추세와 여러 인스턴스 합산은 Prometheus·Grafana가 소유한다.
+
+```bash
+curl "$GATEWAY_URL/admin/traffic/recent" \
+  -H "Authorization: Bearer $ADMIN_API_KEY"
+```
+
+```json
+{
+  "window_seconds": 300.0,
+  "observed_seconds": 300.0,
+  "percentile_method": "nearest_rank",
+  "minimum_samples": {"p50": 10, "p95": 20},
+  "requests": {"total": 612, "client_errors": 14, "server_errors": 1},
+  "completion_latency_seconds": {"samples": 241, "p50": 0.33, "p95": 0.61},
+  "time_to_first_chunk_seconds": {"samples": 12, "p50": 0.41, "p95": null}
+}
+```
+
+- `completion_latency_seconds`: 비스트리밍 Chat Completions·Responses의 런타임 완료 시간
+- `time_to_first_chunk_seconds`: 스트리밍 요청의 첫 chunk까지 시간
+- 백분위는 `configs/performance/slo.yaml`의 nearest-rank 방법을 따르며, 표본이 `minimum_samples`보다 적으면 `null`이다.
+
 ---
 
 ## 8. Admin / Runtime Control API

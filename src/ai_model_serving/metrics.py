@@ -6,6 +6,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, G
 from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .recent_traffic import RecentTrafficWindow
+
 
 def sanitized_stream_status(status: str) -> str:
     """streaming 종료 상태를 categorical contract로 정규화한다.
@@ -23,12 +25,16 @@ def sanitized_stream_status(status: str) -> str:
 
 
 UNMATCHED_ROUTE_LABEL = "unmatched"
+# Console 요약이 "응답 시간"으로 보여 주는 비스트리밍 생성 API의 upstream path다.
+COMPLETION_UPSTREAM_PATHS = frozenset({"chat/completions", "responses"})
 
 
 class Metrics:
-    def __init__(self, service: str) -> None:
+    def __init__(self, service: str, *, recent_traffic: RecentTrafficWindow | None = None) -> None:
         self.registry = CollectorRegistry()
         self.service = service
+        # Prometheus와 같은 관측 지점에서 공개 API의 최근 window 요약을 함께 유지한다.
+        self.recent_traffic = recent_traffic
         self.requests = Counter(
             "http_requests_total",
             "Total HTTP requests processed by the service.",
@@ -233,11 +239,15 @@ class Metrics:
         route = getattr(route_obj, "path", None) or UNMATCHED_ROUTE_LABEL
         self.requests.labels(self.service, route, str(status_code)).inc()
         self.latency.labels(self.service, route).observe(elapsed_seconds)
+        if self.recent_traffic is not None and route.startswith("/v1/"):
+            self.recent_traffic.record_request(status_code)
         if status_code == 401:
             self.auth_failures.labels(self.service, "unauthorized").inc()
 
     def record_upstream_request(self, target: str, path: str, elapsed_seconds: float) -> None:
         self.upstream_latency.labels(self.service, target, path).observe(elapsed_seconds)
+        if self.recent_traffic is not None and path in COMPLETION_UPSTREAM_PATHS:
+            self.recent_traffic.record_completion_latency(elapsed_seconds)
 
     def record_upstream_error(self, target: str, code: str) -> None:
         self.upstream_errors.labels(self.service, target, code).inc()
@@ -260,6 +270,8 @@ class Metrics:
 
     def record_streaming_first_chunk(self, target: str, elapsed_seconds: float) -> None:
         self.streaming_time_to_first_chunk.labels(self.service, target).observe(elapsed_seconds)
+        if self.recent_traffic is not None:
+            self.recent_traffic.record_time_to_first_chunk(elapsed_seconds)
 
     def record_streaming_completed(self, target: str, status: str, elapsed_seconds: float, chunk_count: int) -> None:
         sanitized_status = sanitized_stream_status(status)

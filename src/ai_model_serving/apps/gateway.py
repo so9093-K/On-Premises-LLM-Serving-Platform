@@ -21,6 +21,7 @@ from ..control_plane_bootstrap import build_control_plane_bootstrap_projection
 from ..errors import ServiceError
 from ..service_logging import service_logger
 from ..metrics import Metrics
+from ..recent_traffic import RecentTrafficWindow, slo_minimum_samples
 from ..platform_state import gateway_runtime_state_path, runtime_transition_history_path
 from ..api_descriptions import (
     chat_operation_detail,
@@ -150,7 +151,10 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
         clients.runtime_transition_history = RuntimeTransitionHistoryStore(None)
     if clients.runtime_transition_history.available:
         clients.runtime_transition_history.recover_interrupted_operations()
-    metrics = Metrics("gateway")
+    metrics = Metrics(
+        "gateway",
+        recent_traffic=RecentTrafficWindow(minimum_samples=slo_minimum_samples()),
+    )
     logger = service_logger("gateway")
 
     schema_items = configuration_schema_items()

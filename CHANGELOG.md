@@ -6,6 +6,11 @@
 
 ### Added
 
+- Gateway가 최근 5분의 공개 API(`/v1/*`) 요청 결과와 지연 요약을 직접 집계해
+  `GET /admin/traffic/recent`로 제공한다. 요청 수·4xx·5xx, 비스트리밍 Chat·Responses 응답 시간과
+  스트리밍 첫 응답 시간의 p50·p95를 담으며, 백분위와 최소 표본 수는 `configs/performance/slo.yaml`의
+  nearest-rank 규칙을 따른다(표본이 부족하면 `null`). Prometheus 없이 동작하고 Gateway가 재시작되면
+  다시 집계한다. 표본 수는 상한이 있어 요청이 몰려도 메모리가 늘지 않는다.
 - full-stack Grafana의 Home으로 한국어 **서비스 개요** Dashboard를 추가했다. 메인 모델 요청 허용 여부,
   공개 API 요청량·서버 오류율·응답 시간 p95·스트리밍 첫 응답 p95·GPU 메모리 여유를 첫 행에 두고,
   요청 결과·지연·vLLM 부하 추이와 Upstream 오류·요청 거부·비정상 스트림 종료 원인 표를 보여 준다.

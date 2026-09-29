@@ -545,3 +545,25 @@ def test_unmatched_paths_share_one_bounded_metric_series():
     assert 'http_requests_total{route="unmatched",service="gateway",status_code="404"} 3.0' in metrics
     assert "/.env" not in metrics
     assert "wp-login" not in metrics
+
+
+def test_recent_traffic_summarizes_public_api_requests_only():
+    # Console이 Prometheus 없이 보여 주는 요약은 공개 API만 센다. 운영 경로와 스캐너 요청은
+    # 사용자 트래픽이 아니다.
+    clients = FakeGatewayClients()
+    client = TestClient(create_gateway_app(settings(), clients))
+    payload = {"model": "local-main", "messages": [{"role": "user", "content": "hi"}]}
+    assert client.post("/v1/chat/completions", headers=auth_headers(), json=payload).status_code == 200
+    assert client.post("/v1/chat/completions", headers=auth_headers(), json={"model": "local-main", "messages": []}).status_code == 422
+    client.get("/health")
+    client.get("/.env")
+
+    response = client.get("/admin/traffic/recent", headers=auth_headers())
+
+    assert response.status_code == 200
+    body = response.json()
+    schema = json.loads((_ROOT / "specs/schemas/recent_traffic_response.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(body)
+    assert body["requests"] == {"total": 2, "client_errors": 1, "server_errors": 0}
+    assert body["completion_latency_seconds"]["samples"] == 1
+    assert body["minimum_samples"] == {"p50": 10, "p95": 20}
