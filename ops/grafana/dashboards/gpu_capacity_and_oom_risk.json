@@ -6,13 +6,26 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "서비스 개요",
+      "tooltip": "요청·오류·지연",
+      "type": "link",
+      "url": "/d/service_overview"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "GPU Headroom",
+      "title": "GPU 메모리 여유",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -27,7 +40,7 @@
         {
           "expr": "min(gpu_memory_headroom_bytes)",
           "refId": "A",
-          "legendFormat": "headroom"
+          "legendFormat": "여유"
         }
       ],
       "options": {},
@@ -39,20 +52,38 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "orange",
                 "value": null
+              },
+              {
+                "color": "green",
+                "value": 3758096384.0
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "DCGM이 관측한 실제 GPU headroom입니다. admission plan이나 설정상 VRAM 비율과 혼용하지 않습니다. 정책 판단은 Gateway /admin/runtimes의 budget과 configs/gpu_budgets.yaml을 함께 확인합니다. No Data: check dcgm-exporter scrape."
+      "description": "DCGM이 관측한 실제 GPU 메모리 여유입니다. configs/gpu_budgets.yaml의 reserve hard_minimum(3.5 GiB)보다 작으면 주황입니다. admission 계획의 VRAM 비율과는 다른 값이므로, 정책 판단은 Control Plane의 런타임 화면을 함께 봅니다."
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "GPU Memory Used",
+      "title": "GPU 메모리 사용량",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -67,10 +98,12 @@
         {
           "expr": "max(gpu_memory_used_bytes)",
           "refId": "A",
-          "legendFormat": "used"
+          "legendFormat": "사용"
         }
       ],
-      "options": {},
+      "options": {
+        "colorMode": "value"
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
@@ -79,20 +112,34 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "DCGM이 관측한 실제 GPU VRAM 사용량입니다. 이 값은 vLLM admission plan의 예약 비율과 같을 필요가 없습니다. No Data: check dcgm-exporter scrape."
+      "description": "DCGM이 관측한 실제 GPU 메모리 사용량입니다. vLLM의 예약 비율과 같을 필요는 없습니다."
     },
     {
       "id": 10,
       "type": "stat",
-      "title": "GPU Utilization",
+      "title": "GPU 사용률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -107,11 +154,11 @@
         {
           "expr": "max(gpu_utilization_ratio)",
           "refId": "A",
-          "legendFormat": "util"
+          "legendFormat": "사용률"
         }
       ],
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "center",
         "textMode": "auto"
@@ -126,28 +173,34 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.85
-              },
-              {
-                "color": "red",
-                "value": 0.95
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "Healthy: active traffic in range. Attention: consistently high with low headroom. Action Required: saturated with queue backlog. No Data: check dcgm-exporter scrape."
+      "description": "GPU가 연산 중이었던 시간 비율입니다. 서빙 중에는 높은 값이 정상이므로 색으로 판정하지 않습니다. 대기 요청과 함께 높게 유지될 때만 용량 부족을 의심합니다."
     },
     {
       "id": 11,
       "type": "stat",
-      "title": "GPU Temperature",
+      "title": "GPU 온도",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -162,7 +215,7 @@
         {
           "expr": "max(gpu_temperature_celsius)",
           "refId": "A",
-          "legendFormat": "temp"
+          "legendFormat": "온도"
         }
       ],
       "options": {
@@ -191,16 +244,30 @@
                 "value": 85
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "Healthy: normal operating range. Attention: rising trend — review cooling. Action Required: thermal throttling risk. No Data: check dcgm-exporter scrape."
+      "description": "GPU 코어 온도입니다. 75°C 이상은 주황, 85°C 이상은 빨강으로 냉각을 확인합니다."
     },
     {
       "id": 12,
       "type": "stat",
-      "title": "GPU Power",
+      "title": "GPU 전력",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -215,11 +282,11 @@
         {
           "expr": "max(gpu_power_watts)",
           "refId": "A",
-          "legendFormat": "watts"
+          "legendFormat": "전력"
         }
       ],
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "center",
         "textMode": "auto"
@@ -232,29 +299,35 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 300
-              },
-              {
-                "color": "red",
-                "value": 400
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "Healthy: normal range. Attention: sustained high — review workload. Action Required: investigate owner/runbook. No Data: check dcgm-exporter scrape."
+      "description": "GPU 소비 전력입니다. 적정 범위는 GPU 제품의 전력 한도에 따라 다르므로 색으로 판정하지 않습니다."
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "OOM / Restarts",
-      "description": "Healthy: 0 — no container OOM or restart events. Action Required: any value > 0 — check container logs immediately. No Data: cAdvisor scrape absent; do not read as 0. Source: container_oom_events_total + container_start_time_seconds changes.",
+      "title": "OOM·재시작",
+      "description": "선택한 Window 동안 플랫폼 컨테이너가 재시작하거나 OOM으로 종료된 횟수입니다. 0이 정상이며, 1 이상이면 컨테이너 로그를 확인합니다. '수집 안 됨'은 cAdvisor 수집이 없다는 뜻이며 0으로 읽지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -269,7 +342,7 @@
         {
           "expr": "sum(changes(container_start_time_seconds{container_label_com_docker_compose_service=~\"gateway|risk-signal-service|main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime\"}[$window])) + sum(increase(container_oom_events_total{container_label_com_docker_compose_service=~\"gateway|risk-signal-service|main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime\"}[$window]))",
           "refId": "A",
-          "legendFormat": "events"
+          "legendFormat": "이벤트"
         }
       ],
       "options": {
@@ -294,7 +367,21 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "수집 안 됨",
+                  "color": "transparent",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       }
@@ -302,7 +389,7 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Actual GPU VRAM",
+      "title": "GPU 메모리 추이",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -317,12 +404,12 @@
         {
           "expr": "DCGM_FI_DEV_FB_USED{} * 1024 * 1024",
           "refId": "A",
-          "legendFormat": "used gpu{{gpu_index}}"
+          "legendFormat": "gpu{{gpu_index}} 사용"
         },
         {
           "expr": "DCGM_FI_DEV_FB_TOTAL{} * 1024 * 1024",
           "refId": "B",
-          "legendFormat": "total gpu{{gpu_index}}"
+          "legendFormat": "gpu{{gpu_index}} 총량"
         }
       ],
       "options": {
@@ -335,16 +422,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
-          "decimals": 1
+          "decimals": 1,
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "DCGM이 관측한 실제 VRAM 사용량과 총량입니다. 고정 capacity 기준선이나 설정상 admission plan을 겹쳐 표시하지 않습니다. No Data: check dcgm-exporter scrape."
+      "description": "DCGM이 관측한 GPU별 실제 메모리 사용량과 총량입니다."
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "vLLM Queue Depth",
+      "title": "vLLM 대기 요청",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -379,26 +467,19 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 20
-              },
-              {
-                "color": "red",
-                "value": 50
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "Healthy: near 0. Attention: > 20 — throughput may be constrained. Action Required: > 50 — reduce concurrency or scale. No Data: check vllm-runtimes scrape."
+      "description": "런타임별로 실행 슬롯을 기다리는 요청 수입니다. 0 근처가 정상이며, 계속 0보다 크면 동시 처리 한도에 도달한 것입니다."
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "KV Cache Pressure",
+      "title": "KV 캐시 사용률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -445,16 +526,17 @@
                 "value": 0.9
               }
             ]
-          }
+          },
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "Healthy: < 0.8. Attention: 0.8–0.9 — monitor closely. Action Required: > 0.9 — OOM eviction risk. No Data: check vllm-runtimes scrape."
+      "description": "런타임별 KV 캐시 사용률입니다. 90%에 가까워지면 vLLM이 요청을 선점(preemption)해 지연이 커질 수 있습니다."
     },
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Token Throughput per Model",
+      "title": "모델별 토큰 처리량",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -482,16 +564,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "suffix: tok/s",
-          "decimals": 2
+          "decimals": 2,
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "Healthy: visible prompt+generation token throughput during active traffic. Attention: sudden drop without traffic decrease. Action Required: near zero with active requests. No Data: check vllm-runtimes scrape."
+      "description": "런타임별 입력+출력 토큰의 초당 처리량입니다. 요청이 있는데 0 근처면 런타임 상태를 확인합니다."
     },
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Container System RAM per Model",
+      "title": "런타임 컨테이너 메모리",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -519,16 +602,17 @@
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
-          "decimals": 1
+          "decimals": 1,
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "Healthy: stable trend. Attention: growing unbounded over time. Action Required: spike near host RAM limit. No Data: check cAdvisor scrape."
+      "description": "런타임 컨테이너가 쓰는 호스트 메모리입니다. 시간이 지나며 계속 늘면 누수를 의심합니다."
     },
     {
       "id": 9,
       "type": "timeseries",
-      "title": "CPU Cores Used per Model",
+      "title": "런타임 컨테이너 CPU",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -556,11 +640,12 @@
       "fieldConfig": {
         "defaults": {
           "unit": "suffix: cores",
-          "decimals": 3
+          "decimals": 3,
+          "noValue": "수집 안 됨"
         },
         "overrides": []
       },
-      "description": "Healthy: normal core usage. Attention: sustained high core usage. Action Required: high cores used while GPU work is blocked. No Data: check cAdvisor scrape."
+      "description": "런타임 컨테이너가 쓰는 CPU 코어 수입니다. GPU 작업이 막혀 있는데 CPU만 높으면 전처리·디코딩 병목을 의심합니다."
     }
   ],
   "refresh": "30s",
@@ -582,7 +667,7 @@
         },
         "hide": 0,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "데이터 소스",
         "multi": false,
         "name": "datasource",
         "options": [],
@@ -636,7 +721,7 @@
         },
         "hide": 0,
         "includeAll": true,
-        "label": "Model",
+        "label": "모델",
         "multi": true,
         "name": "model",
         "options": [],
@@ -652,7 +737,7 @@
         },
         "hide": 0,
         "includeAll": true,
-        "label": "Runtime Service",
+        "label": "런타임 서비스",
         "multi": true,
         "name": "runtime_service",
         "options": [],
@@ -667,8 +752,9 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "GPU Capacity and OOM Risk",
+  "title": "GPU 용량과 OOM 위험",
   "uid": "gpu_capacity_and_oom_risk",
   "version": 1,
-  "weekStart": ""
+  "weekStart": "",
+  "description": "GPU 메모리·온도·전력과 런타임 컨테이너 자원을 봅니다. 서비스 상태는 서비스 개요 대시보드에서 먼저 확인합니다."
 }

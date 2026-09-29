@@ -82,6 +82,22 @@ vLLM traceback 등 컨테이너 stdout/stderr는 full-stack에서 Docker LogPath
 
 Gateway의 주요 사용자 트래픽은 Chat, Embedding, Risk API를 중심으로 확인한다. `/health`, `/ready`, `/metrics`, API 문서 경로와 같은 운영·제어 요청은 사용자 트래픽 지표와 분리한다.
 
+### 서비스 개요 Dashboard
+
+full-stack Grafana의 Home은 **서비스 개요** Dashboard다. "지금 서비스가 요청을 제대로 처리하고
+있는가"를 한 화면에서 답하고, 원인은 링크된 요청 로그·GPU 용량 Dashboard에서 이어서 찾는다.
+
+![서비스 개요 Dashboard](../assets/screenshots/grafana_service_overview.png)
+
+| 영역 | 패널 | 판정 방식 |
+|---|---|---|
+| 지금 상태 | 메인 모델 요청(허용·차단), 요청 처리량, 서버 오류율, 응답 시간 p95, 첫 응답 p95(스트리밍), GPU 메모리 여유 | 서버 오류율은 0%가 아니면 주황, GPU 메모리 여유는 `configs/gpu_budgets.yaml`의 운영 상한(0.93)을 넘으면 주황이다. 지연 목표는 `configs/performance/slo.yaml`이 소유하므로 색으로 판정하지 않는다. |
+| 추이 | 요청 결과(2xx·4xx·5xx), 지연(p50·p95·TTFT), 처리 중·대기 요청, 메인 모델 vLLM 지연(TTFT·ITL·E2E), 토큰 처리량, KV 캐시 사용률 | 같은 시간축에서 부하·지연·자원을 함께 본다. |
+| 원인 | Upstream 오류(코드별), 요청 거부(사유별), 비정상 스트림 종료 | 값이 하나뿐이어도 어떤 코드인지 보이도록 표로 보여 준다. 없으면 `없음`이다. |
+
+수집 자체가 없는 panel은 `0`이 아니라 `수집 안 됨`으로 표시한다. 예를 들어 Apple Silicon
+target에는 DCGM과 vLLM exporter가 없으므로 GPU·vLLM panel이 `수집 안 됨`이다.
+
 서비스 상태 이상이 확인되면 요청 지표와 함께 Model Runtime, GPU, 로그를 순서대로 확인한다.
 
 ```text
@@ -102,42 +118,47 @@ GPU / Container 자원
 
 Model Runtime 상태는 GPU와 컨테이너 자원 지표를 함께 확인한다.
 
-![Grafana Runtime Dashboard](../assets/screenshots/grafana_runtime_dashboard.jpg)
+![GPU 용량과 OOM 위험 Dashboard](../assets/screenshots/grafana_gpu_capacity.png)
 
-Grafana의 **GPU Capacity and OOM Risk** Dashboard는 모델 Runtime과 GPU 자원 상태를 한 화면에서 제공한다.
+Grafana의 **GPU 용량과 OOM 위험** Dashboard는 모델 Runtime과 GPU 자원 상태를 한 화면에서 제공한다.
 
 | 확인 영역 | 주요 지표 |
 |---|---|
-| GPU 용량 | GPU Headroom, GPU Memory Used |
-| GPU 부하 | GPU Utilization, Temperature, Power |
-| 메모리 안정성 | Actual GPU VRAM, OOM / Restarts |
-| Runtime 처리 상태 | vLLM Queue Depth, KV Cache Pressure |
-| 처리량 | Token Throughput per Model |
-| 컨테이너 자원 | System RAM, CPU Cores Used |
+| GPU 용량 | GPU 메모리 여유, GPU 메모리 사용량 |
+| GPU 부하 | GPU 사용률, 온도, 전력 |
+| 메모리 안정성 | GPU 메모리 추이, OOM·재시작 |
+| Runtime 처리 상태 | vLLM 대기 요청, KV 캐시 사용률 |
+| 처리량 | 모델별 토큰 처리량 |
+| 컨테이너 자원 | 런타임 컨테이너 메모리·CPU |
+
+색은 근거가 있는 기준에만 쓴다. GPU 메모리 여유는 `configs/gpu_budgets.yaml`의 reserve
+`hard_minimum`(3.5 GiB)보다 작으면 주황, OOM·재시작은 1 이상이면 빨강, 온도는 75°C·85°C에서
+주황·빨강이다. GPU 사용률과 전력은 서빙 중 높은 값이 정상이고 적정 범위가 GPU 제품마다 다르므로
+색으로 판정하지 않는다.
 
 ### GPU Memory와 Headroom
 
-GPU Memory Used는 실제 GPU 메모리 사용량을 나타내고, GPU Headroom은 현재 사용 가능한 여유 용량을 보여준다.
+GPU 메모리 사용량은 실제 GPU 메모리 사용량을 나타내고, GPU 메모리 여유는 현재 사용 가능한 여유 용량을 보여준다.
 
 Main Model 전환이나 non-main Model Runtime 시작 전후에는 GPU 사용량과 Headroom 변화를 함께 확인한다. Runtime의 GPU 자원 정책은 [6. 모델 운영](./06_model_operations.md)에서 설명한다.
 
 ### Queue와 KV Cache
 
-`vLLM Queue Depth`는 처리 대기 중인 요청 상태를 나타낸다. 요청량 증가와 함께 Queue가 지속적으로 증가하면 Runtime 처리 용량과 응답 시간을 함께 확인한다.
+`vLLM 대기 요청`은 처리 대기 중인 요청 상태를 나타낸다. 요청량 증가와 함께 Queue가 지속적으로 증가하면 Runtime 처리 용량과 응답 시간을 함께 확인한다.
 
-`KV Cache Pressure`는 모델 추론 과정에서 사용하는 KV Cache 상태를 보여준다. Queue, Token Throughput, GPU Memory를 함께 보면 요청 증가와 자원 사용 변화의 관계를 확인할 수 있다.
+`KV 캐시 사용률`은 모델 추론 과정에서 사용하는 KV Cache 상태를 보여준다. Queue, Token Throughput, GPU Memory를 함께 보면 요청 증가와 자원 사용 변화의 관계를 확인할 수 있다.
 
 ### OOM과 재시작
 
 OOM과 컨테이너 재시작 신호는 cAdvisor 지표를 기준으로 확인한다.
 
-`0`은 해당 기간에 이벤트가 없음을 나타내고, `No Data`는 exporter 또는 metric 수집 상태 확인이 필요한 경우를 포함한다. Dashboard에서 `No Data`가 표시되면 Prometheus target과 cAdvisor 수집 상태를 함께 확인한다.
+`0`은 해당 기간에 이벤트가 없음을 나타내고, `수집 안 됨`은 exporter 또는 metric 수집 상태 확인이 필요한 경우를 포함한다. Dashboard에서 `수집 안 됨`이 표시되면 Prometheus target과 cAdvisor 수집 상태를 함께 확인한다.
 
 ---
 
 ## 11.5 요청 로그와 오류 추적
 
-Request Log Explorer는 Gateway 요청과 Runtime 로그를 Loki에서 조회한다.
+**요청 로그**(Request Log Explorer) Dashboard는 Gateway 요청과 Runtime 로그를 Loki에서 조회한다.
 
 ![Request Log Explorer](../assets/screenshots/request_log_explorer_overview.png)
 
@@ -197,17 +218,19 @@ Grafana Dashboard는 운영 목적에 따라 구분된다.
 
 | Dashboard | 주요 용도 |
 |---|---|
-| **GPU Capacity and OOM Risk** | GPU 용량, OOM/재시작, Queue, KV Cache, Token 처리량, 컨테이너 자원 확인 |
-| **Usage Today** | GPU workload, 모델별 요청량, rejected request, upstream 오류, Token 처리량 확인 |
-| **Request Log Explorer** | 요청 로그, API 오류, Readiness 실패, Runtime 로그 검색 |
-| **Main Runtime Health** | Main runtime의 수집 상태, model load, active/queue, 실패, 처리량과 요청 peak memory 확인 |
+| **서비스 개요** | 메인 모델 요청 허용 여부, 요청량·오류율·지연, vLLM 부하, 오류·거부 원인 |
+| **GPU 용량과 OOM 위험** | GPU 용량, OOM/재시작, Queue, KV Cache, Token 처리량, 컨테이너 자원 확인 |
+| **오늘 사용량** | GPU 사용률, 모델별 요청량, 요청 거부, upstream 오류, Token 처리량 확인 |
+| **요청 로그** | 요청 로그, API 오류, Readiness 실패, Runtime 로그 검색 |
+| **메인 런타임 상태 (Apple Silicon)** | MLX runtime의 수집 상태, model load, active/queue, 실패, 처리량과 요청 peak memory 확인 |
 
-기본 Grafana Home Dashboard는 `GPU Capacity and OOM Risk`로 구성된다.
+full-stack의 Grafana Home Dashboard는 `서비스 개요`, static Metal은 `메인 런타임 상태 (Apple Silicon)`다.
 
 Dashboard JSON은 repository에서 관리한다.
 
 ```text
 ops/grafana/dashboards/
+├─ service_overview.json
 ├─ gpu_capacity_and_oom_risk.json
 ├─ usage_today.json
 ├─ request_log_explorer.json
@@ -220,14 +243,15 @@ Dashboard는 자신이 쓰는 exporter가 그 Compose project에 있을 때만 �
 
 | 실행 구성 | 제공 datasource | provisioning되는 Dashboard |
 |---|---|---|
-| full-stack (`ops/compose/full-stack.private-network.yaml`) | Prometheus, Loki | GPU Capacity and OOM Risk, Usage Today, Request Log Explorer |
-| static Metal (`ops/compose/overrides/static.macos-metal.yaml`) | Prometheus, Loki | Main Runtime Health, Request Log Explorer |
+| full-stack (`ops/compose/full-stack.private-network.yaml`) | Prometheus, Loki | 서비스 개요, GPU 용량과 OOM 위험, 오늘 사용량, 요청 로그 |
+| static Metal (`ops/compose/overrides/static.macos-metal.yaml`) | Prometheus, Loki | 메인 런타임 상태 (Apple Silicon), 서비스 개요, 요청 로그 |
 
 static Metal에서 각 Dashboard의 적용 여부는 다음과 같이 구분한다.
 
 | Dashboard | 상태 | 이유 |
 |---|---|---|
 | GPU Capacity and OOM Risk | 이 구성에서 불가능 | DCGM은 NVIDIA 전용이라 Apple Silicon에 대응물이 없고, Main runtime이 vLLM이 아니라 native MLX-VLM이라 `vllm:*` metric도 존재하지 않는다. exporter 추가로 해결되는 문제가 아니다. |
+| 서비스 개요 | 제공 (Gateway panel) | 요청량·오류율·지연·원인 panel은 Gateway metric만 쓴다. GPU·vLLM panel은 exporter가 없어 `수집 안 됨`으로 표시된다. |
 | Request Log Explorer | 제공 | Gateway 요청 이벤트는 앱 소유 JSONL에서 수집한다. Docker/Runtime Controller와 NVIDIA runtime이 필요하지 않다. Runtime 원본 로그 패널은 native MLX runtime의 stdout(`job="native"`)으로 채워진다. |
 | Usage Today | 판단에 따른 제외 | 6개 panel 중 4개(모델별 요청량, rejected request, upstream 오류)는 Gateway metric만 써서 동작한다. 나머지 2개가 위 exporter를 전제해 영구 No Data가 되므로 상시 빈 panel을 남기지 않는 쪽을 택했다. |
 

@@ -98,7 +98,7 @@ Runtime 원본 패널에서도 확인할 수 있다. supervisor를 설치하면 
 경로(`job="application"`)와는 분리돼 있다.
 
 Mac static override는
-Gateway, MLX JSON metrics exporter, Prometheus와 `Main Runtime Health` Dashboard를 함께 띄운다.
+Gateway, MLX JSON metrics exporter, Prometheus와 `메인 런타임 상태 (Apple Silicon)` Dashboard를 함께 띄운다.
 MLX의 `/metrics`가 JSON이므로 기존 vLLM Prometheus scrape를 재사용하지 않는다.
 Mac 로컬 기본은 `PLATFORM_IMAGE`를 registry에서 pull하지 않고 `make build-image`의
 현재 arm64 산출물을 사용한다. Registry image를 쓰는 경우에만 `PLATFORM_PULL_POLICY`를
