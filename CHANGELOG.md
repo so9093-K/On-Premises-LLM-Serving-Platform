@@ -346,6 +346,12 @@
 
 ### Removed
 
+- 어떤 Access Profile도 쓰지 않던 인증 mode `internal_trusted`와 `edge_terminated`, 그 증빙 key
+  `INTERNAL_TRUSTED_AUTH_EVIDENCE`와 preflight·auth-doctor 분기를 제거했다(`removed_keys`로 `.env`에서
+  지운다). `AUTH_MODE`는 Gateway에서 표시용 label이므로 이 값을 쓰던 `.env`가 있어도 인증 flag 동작은
+  그대로다. 진단용 `master_open`(runtime-validate·benchmark가 host publish 주소에 접속할 때 필요)과 이를
+  여는 `auth-*`·`exposure-*` 도구, `ACCESS_PROFILE` 없는 `.env` 경로는 계속 쓰이므로 유지한다.
+  `make up`이 `setup_env.py`에 넘기던 옛 `--main-llm-base-url` alias도 정식 이름으로 바꾸고 alias를 없앴다.
 - `/redoc` 문서 화면을 제거했다. Scalar(`/docs`)와 같은 OpenAPI를 두 번째로 보여 주던 중복 화면으로,
   1.1MB vendoring 번들과 route·설정·env key를 따로 유지해야 했다. API 문서는 `/docs`와
   `/openapi.json`이 제공한다. `FASTAPI_REDOC_URL`은 `removed_keys`에 등록돼 `make up`이 기존

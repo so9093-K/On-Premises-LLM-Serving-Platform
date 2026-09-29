@@ -19,9 +19,8 @@ auth_mode_keys:
   - ADMIN_ENDPOINTS_INTERNAL_ONLY
   - INTERNAL_SERVICE_AUTH_REQUIRED
 
-# internal_trusted/custom에서만 조건부로 필요한 증빙 키.
+# custom에서만 조건부로 필요한 증빙 키.
 auth_evidence_keys:
-  - INTERNAL_TRUSTED_AUTH_EVIDENCE
   - CUSTOM_AUTH_RISK_ACCEPTED
   - CUSTOM_AUTH_RISK_TICKET
 
@@ -206,3 +205,6 @@ removed_keys:
   FASTAPI_REDOC_URL: >-
     ReDoc 문서 화면은 Scalar(/docs)와 같은 OpenAPI를 두 번째로 보여 주던 중복 화면이라 제거했다.
     API 문서는 FASTAPI_DOCS_URL의 Scalar 화면 하나가 소유한다.
+  INTERNAL_TRUSTED_AUTH_EVIDENCE: >-
+    어떤 Access Profile도 쓰지 않던 AUTH_MODE=internal_trusted의 증빙 키다. 이 모드와
+    edge_terminated를 제거하면서 함께 제거했다.

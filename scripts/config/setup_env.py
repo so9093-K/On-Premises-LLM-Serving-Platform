@@ -584,7 +584,7 @@ def build_parser() -> KoreanArgumentParser:
     parser.add_argument("--sync-env", action="store_true", help="템플릿과 기존 .env를 비교해 누락 키를 추가하고 폐기 키를 제거합니다. 시크릿은 재생성하지 않습니다.")
     parser.add_argument("--dry-run", action="store_true", help="--sync-env 미리보기. 실제 변경 없음.")
     parser.add_argument("--env-file", help="--sync-env 대상 .env 파일 절대경로. 기본값은 프로젝트 루트 .env.")
-    parser.add_argument("--auth-mode", help="AUTH_MODE를 명시적으로 설정합니다. 기본값은 local_open입니다. (local_open|internal_trusted|private_network|edge_terminated|strict)")
+    parser.add_argument("--auth-mode", help="AUTH_MODE를 명시적으로 설정합니다. 기본값은 local_open입니다. (local_open|private_network|strict)")
     parser.add_argument("--exposure-mode", help="EXPOSURE_MODE를 명시적으로 설정합니다. local_open 기본값은 master_open입니다. 지원값: private_network|master_open")
     parser.add_argument("--exposure-audience", help="EXPOSURE_AUDIENCE를 명시적으로 설정합니다. local_open 기본값은 private_lan입니다.")
     parser.add_argument(
@@ -609,9 +609,8 @@ def build_parser() -> KoreanArgumentParser:
     )
     parser.add_argument(
         "--main-model-base-url",
-        "--main-llm-base-url",
         dest="main_model_base_url",
-        help="외부 lifecycle static target의 Main Model runtime URL입니다. --main-llm-base-url은 compatibility alias입니다.",
+        help="외부 lifecycle static target의 Main Model runtime URL입니다.",
     )
     return parser
 

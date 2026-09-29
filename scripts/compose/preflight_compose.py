@@ -114,11 +114,6 @@ def _check_auth_profile_preflight() -> None:
                 "[preflight] configuration preflight failed; fix auth/exposure policy."
             )
         return
-    if auth_mode == "internal_trusted" and not _env_value("INTERNAL_TRUSTED_AUTH_EVIDENCE").strip():
-        failures.append(
-            "AUTH_MODE=internal_trusted requires INTERNAL_TRUSTED_AUTH_EVIDENCE "
-            "describing the network/edge/caller auth owner."
-        )
     if auth_mode == "custom":
         accepted = _env_value("CUSTOM_AUTH_RISK_ACCEPTED").lower() in {"1", "true"}
         ticket = _env_value("CUSTOM_AUTH_RISK_TICKET").strip()

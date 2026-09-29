@@ -150,7 +150,6 @@ def auth_profile_summary(mode: str) -> str:
     return str(expected.get("scope", "운영자가 직접 관리하는 custom flag 조합"))
 
 
-INTERNAL_TRUSTED_EVIDENCE_ENV = "INTERNAL_TRUSTED_AUTH_EVIDENCE"
 CUSTOM_AUTH_RISK_ACCEPTED_ENV = "CUSTOM_AUTH_RISK_ACCEPTED"
 CUSTOM_AUTH_RISK_TICKET_ENV = "CUSTOM_AUTH_RISK_TICKET"
 
@@ -269,23 +268,11 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
     # 하나만 stage를 포함해 서로 달랐는데, 아무 동작 차이도 만들지 않았다.
     non_local = settings.app_env.lower() not in LOCAL_ENVIRONMENTS
 
-    is_internal_trusted = mode == "internal_trusted"
     is_local_open_trusted_lan = (
         mode == "local_open"
         and _env("EXPOSURE_MODE", "") == "master_open"
         and _env("EXPOSURE_AUDIENCE", "") == "private_lan"
     )
-    auth_owner = str(expected.get("auth_owner", "app"))
-
-    if non_local and is_internal_trusted:
-        evidence = _env(INTERNAL_TRUSTED_EVIDENCE_ENV, "").strip()
-        if not evidence:
-            findings.append(AuthFinding(
-                "FAIL",
-                "INTERNAL_TRUSTED_EVIDENCE_MISSING",
-                f"AUTH_MODE=internal_trusted delegates app-level auth to {auth_owner}; "
-                f"set {INTERNAL_TRUSTED_EVIDENCE_ENV} with network/edge/caller ownership evidence.",
-            ))
 
     if non_local and mode == "custom":
         accepted = _env(CUSTOM_AUTH_RISK_ACCEPTED_ENV, "").lower() in ("1", "true")
@@ -299,7 +286,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             ))
 
     if non_local and not settings.security.api_key_required:
-        if is_internal_trusted or is_local_open_trusted_lan:
+        if is_local_open_trusted_lan:
             findings.append(AuthFinding(
                 "INFO",
                 "AUTH_DELEGATED_TO_NETWORK",
@@ -310,7 +297,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             findings.append(AuthFinding("FAIL", "PUBLIC_API_UNAUTHENTICATED_NON_LOCAL", f"APP_ENV={settings.app_env}인데 API_KEY_REQUIRED=false입니다."))
 
     if non_local and not settings.security.internal_service_auth_required:
-        if is_internal_trusted or is_local_open_trusted_lan:
+        if is_local_open_trusted_lan:
             findings.append(AuthFinding(
                 "INFO",
                 "INTERNAL_AUTH_DELEGATED",
