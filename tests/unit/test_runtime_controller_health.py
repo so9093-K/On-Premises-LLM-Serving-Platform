@@ -119,7 +119,7 @@ def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_
             load_runtime_controller_config({**base, "INTERNAL_SERVICE_AUTH_REQUIRED": "true", **missing_token})
 
     # 선언이 없거나 인증 없음을 선언한 구성은 지금 동작을 유지한다. auth profile
-    # local_open/internal_trusted가 내부 인증 없음을 명시하는 정당한 배포다.
+    # local_open이 내부 인증 없음을 명시하는 정당한 배포다.
     for declared in ({}, {"INTERNAL_SERVICE_AUTH_REQUIRED": "false"}):
         config = load_runtime_controller_config({**base, **declared})
         assert config.internal_service_token == ""

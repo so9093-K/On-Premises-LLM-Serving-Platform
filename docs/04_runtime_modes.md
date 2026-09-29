@@ -313,8 +313,11 @@ bash scripts/compose/compose_config.sh  # maintainer: effective Compose 확인
 
 일반 사용자는 auth와 exposure를 직접 조합하지 않고 `make up ACCESS=local|private|edge`를
 사용한다. 새 환경의 기본 `local`은 `private_network` topology와 loopback bind를 사용한다.
-`master_open`은 기존 진단 환경을 위한 Advanced/legacy mode이며 신규 Access Profile의
-기본 경로가 아니다. 기존 `.env`는 명시적 전환 전까지 원래 의미를 보존한다.
+`master_open`은 Access Profile에 포함하지 않는 진단용 mode다. `make runtime-validate`와 성능
+benchmark는 기본값으로 vLLM runtime·Risk Signal Service·Prometheus의 host publish 주소에 접속하므로,
+URL을 따로 지정하지 않으면 검증하는 동안 `make exposure-apply MODE=master_open`으로 연다. 검증이
+끝나면 `make up ACCESS=<profile> CONFIRM=access`로 managed profile로 돌아간다. 이 경로 때문에
+`ACCESS_PROFILE`이 없는 `.env`와 `auth-*`·`exposure-*` 도구를 유지한다.
 
 ### static target의 노출 판정
 

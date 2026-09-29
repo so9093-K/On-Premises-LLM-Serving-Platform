@@ -159,11 +159,11 @@ auth-doctor: ## 위험한 인증 조합 탐지
 	$(PYTHON) scripts/auth/auth_doctor.py $(AUTH_ENV_ARG) --warn-only
 
 auth-plan: ## MODE=<mode> 인증 프로필 변경 계획 (secret 미출력)
-	@if [[ -z "$(MODE)" ]]; then echo "MODE=local_open|internal_trusted|private_network|edge_terminated|strict 를 지정하세요" >&2; exit 2; fi
+	@if [[ -z "$(MODE)" ]]; then echo "MODE=local_open|private_network|strict 를 지정하세요" >&2; exit 2; fi
 	$(PYTHON) scripts/auth/auth_plan.py $(AUTH_ENV_ARG) --mode $(MODE)
 
 auth-apply: ## MODE=<mode> managed 인증 flag 적용
-	@if [[ -z "$(MODE)" ]]; then echo "MODE=local_open|internal_trusted|private_network|edge_terminated|strict 를 지정하세요" >&2; exit 2; fi
+	@if [[ -z "$(MODE)" ]]; then echo "MODE=local_open|private_network|strict 를 지정하세요" >&2; exit 2; fi
 	$(PYTHON) scripts/auth/auth_apply.py $(AUTH_ENV_ARG) --mode $(MODE) --yes
 
 exposure-status: ## 현재 노출(exposure) 상태

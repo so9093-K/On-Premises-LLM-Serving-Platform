@@ -60,8 +60,6 @@ def build_plan(current: dict[str, str], mode: str, *, app_env: str | None = None
             "local_open은 API/admin/internal 인증을 끄고 master_open/private_lan으로 "
             "전체 stack을 host-publish합니다. 외부 접근이 차단된 신뢰된 사내망에서만 사용하세요."
         )
-    if mode == "edge_terminated":
-        warnings.append("edge_terminated는 외부 proxy가 public /v1/* traffic을 인증한다고 가정합니다. admin/internal token은 켜 둬야 합니다.")
     if mode in {"private_network", "strict"} and target.get("API_KEY_REQUIRED") != "true":
         warnings.append("managed profile invariant가 깨졌습니다. public API는 Gateway key를 요구해야 합니다.")
     return {

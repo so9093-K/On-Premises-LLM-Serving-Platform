@@ -496,7 +496,7 @@ async def _admit_or_raise(target_key: str, target_fraction: float, *, force: boo
 
 async def _require_runtime_controller_token(authorization: str | None = Header(default=None)) -> None:
     # 토큰 없이 여기 도달할 수 있는 경우는 운영자가 INTERNAL_SERVICE_AUTH_REQUIRED로
-    # 내부 인증 없음을 선언한 구성뿐이다(auth profile local_open/internal_trusted).
+    # 내부 인증 없음을 선언한 구성뿐이다(auth profile local_open).
     # 선언과 어긋난 빈 토큰은 load_runtime_controller_config가 기동 시점에 이미 거부한다.
     if not RUNTIME_CONTROLLER_TOKEN:
         return

@@ -3,7 +3,7 @@
 # admin_endpoints_internal_only: Admin 접근을 네트워크 경계가 제한한다는 선언 (앱 CIDR 차단 기능은 없음)
 # internal_service_auth_required: Gateway → 내부 서비스 호출에 내부 토큰 요구
 # docs_enabled: /docs, /openapi.json과 이들이 쓰는 self-host asset(/static/*, /favicon.ico) 노출
-# auth_owner: 이 프로필의 인증 책임 주체; auth-status와 internal_trusted 증빙 판단에 사용
+# auth_owner: 이 프로필의 인증 책임 주체; auth-status가 표시한다
 
 profiles:
   local_open:
@@ -18,15 +18,6 @@ profiles:
     default_exposure_mode: master_open
     default_exposure_audience: private_lan
 
-  internal_trusted:
-    api_key_required: false
-    admin_api_key_required: false
-    admin_endpoints_internal_only: true
-    internal_service_auth_required: false
-    docs_enabled: false
-    auth_owner: caller_or_network
-    scope: "상위 Gateway·네트워크가 인증 — 앱은 Public API 토큰을 직접 검사하지 않음"
-
   private_network:
     api_key_required: true
     admin_api_key_required: true
@@ -35,15 +26,6 @@ profiles:
     docs_enabled: true
     auth_owner: app
     scope: "사설망/VPN 운영 — Gateway, Admin, 내부 서비스 모두 앱 토큰으로 보호"
-
-  edge_terminated:
-    api_key_required: false
-    admin_api_key_required: true
-    admin_endpoints_internal_only: false
-    internal_service_auth_required: true
-    docs_enabled: false
-    auth_owner: edge_proxy
-    scope: "외부 Proxy가 API 인증 — 앱은 Admin·내부 서비스만 토큰으로 보호"
 
   strict:
     api_key_required: true

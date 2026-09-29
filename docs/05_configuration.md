@@ -372,12 +372,10 @@ profile을 종료하며, plan에 그 전환을 함께 표시한다.
 
 대표 mode는 다음과 같다.
 
-- `local_open`
-- `internal_trusted`
-- `private_network`
-- `edge_terminated`
-- `strict`
-- `custom`
+- `local_open`: Access Profile `local`과 진단용 `master_open`에서 사용
+- `private_network`: Access Profile `private`
+- `strict`: Access Profile `edge`
+- `custom`: 운영자가 인증 flag를 직접 조합한 상태의 라벨
 
 각 profile은 Gateway API 인증, Admin API 인증, 내부 service auth, docs 공개 여부 등을 정의한다.
 

@@ -224,7 +224,7 @@ def setup_target(
         if main_profile:
             command += ["--main-profile", main_profile]
         if main_base_url:
-            command += ["--main-llm-base-url", main_base_url]
+            command += ["--main-model-base-url", main_base_url]
         if access_profile:
             command += ["--access-profile", access_profile]
         if confirm_access:
@@ -253,7 +253,7 @@ def setup_target(
         if main_profile:
             command += ["--main-profile", main_profile]
         if main_base_url:
-            command += ["--main-llm-base-url", main_base_url]
+            command += ["--main-model-base-url", main_base_url]
         if access_profile:
             command += ["--access-profile", access_profile]
         if target.control_mode == "static" and not target.gateway_runtime_host and not main_base_url:

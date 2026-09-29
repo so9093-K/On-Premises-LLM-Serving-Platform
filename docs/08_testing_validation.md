@@ -401,6 +401,10 @@ Grafana datasource·dashboard 검증은 실행 중인 Grafana 관리자 인증�
 CLI 인자 > `RUNTIME_VALIDATION_*_BASE_URL` > services.yaml의 host publish 주소
 ```
 
+기본 Access Profile(`private_network` topology)은 Gateway와 Grafana만 host에 publish한다. URL을
+지정하지 않고 vLLM runtime·Risk Signal Service·Prometheus까지 검증하려면 검증 동안
+`master_open` 진단 노출을 연다([실행 환경과 모드](./04_runtime_modes.md) 참고).
+
 ```bash
 # 검증 전용 환경변수보다 CLI 인자가 우선한다.
 python scripts/validation/runtime_validation.py --gateway-base http://candidate-gateway:9400
