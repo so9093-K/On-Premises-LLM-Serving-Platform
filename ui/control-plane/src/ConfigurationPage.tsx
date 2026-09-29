@@ -23,7 +23,7 @@ import {
   configurationSetChange,
   parseConfigurationDraft,
 } from './configurationSafety';
-import { riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
+import { configurationLabel, riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
 
 type ConfigurationPageProps = {
   token: string | null;
@@ -79,7 +79,7 @@ function formatConfigurationValue(metadata: ConfigurationSchemaItem, value: unkn
     if (metadata.unit === 'seconds' && value >= 60 && value % 60 === 0) {
       return `${value / 60}분`;
     }
-    if (metadata.unit === 'items') return value.toLocaleString('ko-KR');
+    if (metadata.unit === 'items' || metadata.unit === 'chunks') return value.toLocaleString('ko-KR');
   }
   return String(value);
 }
@@ -325,7 +325,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
               return (
                 <tr key={metadata.key}>
                   <td>
-                    <strong>{metadata.label}</strong>
+                    <strong>{configurationLabel(metadata.key, metadata.label)}</strong>
                     <small>{metadata.key}{metadata.unit ? ` · ${metadata.unit}` : ''}</small>
                   </td>
                   <td>{displayValue(metadata, value)}</td>
@@ -360,7 +360,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
 
       {selectedMetadata && selectedEffective ? (
         <Card className="review-card">
-          <CardTitle>설정 편집 · {selectedMetadata.label}</CardTitle>
+          <CardTitle>설정 편집 · {configurationLabel(selectedMetadata.key, selectedMetadata.label)}</CardTitle>
           <CardBody>
             <dl className="facts compact-facts">
               <dt>키</dt><dd><code>{selectedMetadata.key}</code></dd>

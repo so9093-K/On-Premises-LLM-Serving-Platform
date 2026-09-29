@@ -18,8 +18,10 @@ type MainModelSnapshot = {
   } | null;
 };
 
+// stateLabel은 raw 상태 값을 운영자 어휘로 바꾼다(uiText.runtimeStateLabel).
 export function mainModelOverviewSignals(
   mainModel: MainModelSnapshot | null | undefined,
+  stateLabel: (state: string) => string,
 ): OverviewSignal[] {
   if (!mainModel) return [];
 
@@ -69,7 +71,7 @@ export function mainModelOverviewSignals(
       key: 'main-model-observed-state',
       tone: 'warning',
       title: '메인 모델 런타임 상태를 확인하세요.',
-      detail: `상태=${observed.status}, 상태 확인=${observed.health ?? 'unknown'}${error}`,
+      detail: `실제 상태 ${stateLabel(observed.status)} · 상태 확인 ${stateLabel(observed.health ?? 'unknown')}${error}`,
     });
   }
 

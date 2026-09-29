@@ -131,6 +131,30 @@ type MainModelComparableProfile = {
   vram_fraction: number;
 };
 
+export type MainModelTokenLimits = {
+  contextTokens: number | null;
+  maxOutputTokens: number | null;
+};
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+// profile의 Gateway 정책이 공개 API에 약속하는 토큰 한도다. 전환 판단에 필요한 핵심 차이다.
+export function mainModelTokenLimits(profile: { gateway_policy: object }): MainModelTokenLimits {
+  const policy = profile.gateway_policy as Record<string, unknown>;
+  const limits = (policy.request_limits ?? {}) as Record<string, unknown>;
+  return {
+    contextTokens: positiveInteger(limits.max_model_len),
+    maxOutputTokens: positiveInteger(policy.max_output_tokens),
+  };
+}
+
+export function formatTokenLimits(limits: MainModelTokenLimits): string {
+  const format = (value: number | null) => (value === null ? '—' : value.toLocaleString('ko-KR'));
+  return `${format(limits.contextTokens)} / ${format(limits.maxOutputTokens)}`;
+}
+
 export type MainModelProfileImpact = {
   addedInputs: string[];
   removedInputs: string[];

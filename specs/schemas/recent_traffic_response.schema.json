@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RecentTrafficResponse",
+  "description": "Gateway 프로세스가 집계한 최근 window의 공개 API(/v1/*) 요청 결과와 지연 요약. 프로세스 재시작 시 초기화된다.",
+  "type": "object",
+  "required": [
+    "window_seconds",
+    "observed_seconds",
+    "percentile_method",
+    "minimum_samples",
+    "requests",
+    "completion_latency_seconds",
+    "time_to_first_chunk_seconds"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "distribution": {
+      "type": "object",
+      "required": ["samples", "p50", "p95"],
+      "additionalProperties": false,
+      "properties": {
+        "samples": {"type": "integer", "minimum": 0},
+        "p50": {"type": ["number", "null"], "minimum": 0, "description": "표본이 minimum_samples.p50 미만이면 null"},
+        "p95": {"type": ["number", "null"], "minimum": 0, "description": "표본이 minimum_samples.p95 미만이면 null"}
+      }
+    }
+  },
+  "properties": {
+    "window_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "observed_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "요약에 포함된 실제 관측 시간. Gateway가 window보다 최근에 시작했으면 window보다 짧다."
+    },
+    "percentile_method": {"type": "string", "enum": ["nearest_rank"]},
+    "minimum_samples": {
+      "type": "object",
+      "required": ["p50", "p95"],
+      "additionalProperties": false,
+      "properties": {
+        "p50": {"type": "integer", "minimum": 1},
+        "p95": {"type": "integer", "minimum": 1}
+      }
+    },
+    "requests": {
+      "type": "object",
+      "required": ["total", "client_errors", "server_errors"],
+      "additionalProperties": false,
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "client_errors": {"type": "integer", "minimum": 0, "description": "HTTP 4xx 응답 수"},
+        "server_errors": {"type": "integer", "minimum": 0, "description": "HTTP 5xx 응답 수"}
+      }
+    },
+    "completion_latency_seconds": {
+      "$ref": "#/$defs/distribution",
+      "description": "비스트리밍 Chat Completions·Responses 요청의 런타임 완료 시간"
+    },
+    "time_to_first_chunk_seconds": {
+      "$ref": "#/$defs/distribution",
+      "description": "스트리밍 요청이 첫 chunk를 받기까지의 시간"
+    }
+  }
+}

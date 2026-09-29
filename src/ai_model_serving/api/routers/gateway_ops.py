@@ -158,4 +158,18 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
                 metrics.main_model_gate.labels(metrics.service).set(0)
         return metrics.response()
 
+    if metrics.recent_traffic is not None:
+        _s = _GW[("GET", "/admin/traffic/recent")]
+
+        @router.get(
+            "/admin/traffic/recent",
+            dependencies=admin_dependencies,
+            tags=[_s.tag],
+            summary=_s.summary,
+            operation_id=_s.operation_id,
+            description=_s.description,
+        )
+        async def recent_traffic() -> dict[str, Any]:
+            return metrics.recent_traffic.snapshot()
+
     return router

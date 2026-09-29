@@ -12,6 +12,8 @@ import {
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import {
+  formatTokenLimits,
+  mainModelTokenLimits,
   isMainModelOperationTerminal,
   mainModelOperationProgress,
   mainModelOperationStagePresentation,
@@ -280,7 +282,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
             <dt>리소스 정책</dt><dd>{active ? mainModelResourcePolicyLabel(active) : '—'}</dd>
             <dt>요청 상태</dt><dd><Label color={status.gate === 'open' ? 'green' : 'orange'}>{runtimeStateLabel(status.gate)}</Label></dd>
             <dt>런타임 상태</dt><dd>{runtimeStateLabel(status.runtime_state)}</dd>
-            <dt>부팅 프로필</dt><dd>{status.boot_profile}</dd>
+            <dt>부팅 프로필</dt><dd>{status.boot_profile ?? '기본 프로필'}</dd>
             <dt>실제 런타임</dt><dd>{runtimeStateLabel(observed?.status ?? 'unavailable')}</dd>
             <dt>상태 확인</dt><dd>{runtimeStateLabel(observed?.health ?? 'unavailable')}</dd>
             <dt>실제 프로필</dt><dd>{observed?.profile_id ?? '—'}</dd>
@@ -294,7 +296,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
-                <tr><th>프로필</th><th>호환성</th><th>검증 근거</th><th>리소스 정책</th><th>입력</th><th>VRAM</th><th>상태</th><th>작업</th></tr>
+                <tr><th>프로필</th><th>호환성</th><th>검증 근거</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th>VRAM</th><th>상태</th><th>작업</th></tr>
               </thead>
               <tbody>
                 {profiles.map((profile) => {
@@ -306,6 +308,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
                       <td><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></td>
                       <td>{mainModelResourcePolicyLabel(profile)}</td>
                       <td>{inputList(profile.capabilities.deployed_input)}</td>
+                      <td>{formatTokenLimits(mainModelTokenLimits(profile))}</td>
                       <td>{formatPercent(profile.vram_fraction)}</td>
                       <td>{profile.active ? <Label color="green">현재 사용 중</Label> : '사용 가능'}</td>
                       <td>
@@ -366,19 +369,27 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
                         <td><strong>검증 근거</strong></td>
                         <td><Label color={qualificationVariant(active.qualification.status)}>{qualificationLabel(active.qualification.status)}</Label></td>
                         <td><Label color={qualificationVariant(reviewProfile.qualification.status)}>{qualificationLabel(reviewProfile.qualification.status)}</Label></td>
-                        <td>{switchImpact.qualificationChanged ? <Label color="blue">changes</Label> : <Label color="grey">unchanged</Label>}</td>
+                        <td>{switchImpact.qualificationChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
                         <td><strong>리소스 정책</strong></td>
                         <td>{mainModelResourcePolicyLabel(active)}</td>
                         <td>{mainModelResourcePolicyLabel(reviewProfile)}</td>
-                        <td>{switchImpact.resourcePolicyChanged ? <Label color="blue">changes</Label> : <Label color="grey">unchanged</Label>}</td>
+                        <td>{switchImpact.resourcePolicyChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
                         <td><strong>입력</strong></td>
                         <td>{inputList(active.capabilities.deployed_input)}</td>
                         <td>{inputList(reviewProfile.capabilities.deployed_input)}</td>
                         <td>{inputImpactLabel(switchImpact.addedInputs, switchImpact.removedInputs)}</td>
+                      </tr>
+                      <tr>
+                        <td><strong>토큰 한도</strong><small>컨텍스트 / 최대 출력</small></td>
+                        <td>{formatTokenLimits(mainModelTokenLimits(active))}</td>
+                        <td>{formatTokenLimits(mainModelTokenLimits(reviewProfile))}</td>
+                        <td>{formatTokenLimits(mainModelTokenLimits(active)) === formatTokenLimits(mainModelTokenLimits(reviewProfile))
+                          ? <Label color="grey">변경 없음</Label>
+                          : <Label color="blue">변경됨</Label>}</td>
                       </tr>
                       <tr>
                         <td><strong>VRAM</strong></td>

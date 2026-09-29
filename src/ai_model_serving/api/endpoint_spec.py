@@ -169,6 +169,24 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
     ),
     EndpointSpec(
         method="GET",
+        path="/admin/traffic/recent",
+        operation_id="getRecentTraffic",
+        tag="Operations",
+        summary="최근 공개 API 트래픽 요약 조회",
+        description=(
+            "Gateway 프로세스가 직접 집계한 최근 window(기본 5분)의 공개 API(`/v1/*`) 요청 결과와 지연 요약입니다. "
+            "Prometheus 없이도 Control Plane이 현재 서비스 상태를 보여 주기 위한 값이며, 프로세스가 재시작되면 "
+            "초기화됩니다. 장기 추세와 여러 인스턴스 합산은 Prometheus·Grafana가 소유합니다.\n\n"
+            "`completion_latency_seconds`는 비스트리밍 Chat Completions·Responses의 런타임 완료 시간, "
+            "`time_to_first_chunk_seconds`는 스트리밍 첫 chunk까지의 시간입니다. 백분위는 성능 계약"
+            "(`configs/performance/slo.yaml`)의 nearest-rank 방법을 따르며, 표본이 `minimum_samples`에 "
+            "못 미치면 `null`입니다."
+        ),
+        request_schema=None,
+        response_schema="recent_traffic_response.schema.json",
+    ),
+    EndpointSpec(
+        method="GET",
         path="/admin/config/schema",
         operation_id="getConfigurationSchema",
         tag="Operations",
