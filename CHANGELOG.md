@@ -51,6 +51,9 @@
 - Control Plane Console 활동 화면의 메인 런타임 진단 링크가 vLLM target에서 존재하지 않는
   Dashboard(`main-runtime-health`)를 열던 문제를 수정했다. 링크는 runtime backend에 맞는 Dashboard
   (vLLM은 서비스 개요, MLX는 메인 런타임 상태)를 연다.
+- runtime validation의 Grafana Dashboard catalog 검사가 full-stack이 mount하지 않는 Dashboard와 파일
+  이름을 기대값으로 써서 정상 스택도 실패로 보고하던 문제를 수정했다. 기대값은 full-stack Compose의
+  grafana volume이 mount하는 파일의 JSON uid다.
 
 ### Changed
 

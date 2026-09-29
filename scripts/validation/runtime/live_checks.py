@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from jsonschema import Draft202012Validator, ValidationError
 
@@ -18,6 +21,29 @@ from .config import RuntimeValidationConfig
 from .constants import FORBIDDEN_RISK_FIELDS
 from .http_client import RuntimeValidationHttpClient
 from .results import CheckResult
+
+
+FULL_STACK_COMPOSE = "ops/compose/full-stack.private-network.yaml"
+_DASHBOARD_MOUNT_PREFIX = "../grafana/dashboards/"
+
+
+def provisioned_dashboard_uids(root: Path, compose_file: str = FULL_STACK_COMPOSE) -> list[str]:
+    """Full-stack Grafana가 provisioning하는 Dashboard uid를 반환한다.
+
+    어떤 Dashboard를 올리는지는 Compose의 grafana volume이, uid는 각 Dashboard JSON이
+    소유한다. 저장소의 모든 파일이나 파일 이름으로 기대값을 만들면 target별로 mount하지
+    않는 Dashboard와 파일 이름과 다른 uid 때문에 정상 스택도 실패로 보고된다.
+    """
+    compose = yaml.safe_load((root / compose_file).read_text(encoding="utf-8"))
+    compose_dir = (root / compose_file).parent
+    uids: list[str] = []
+    for volume in compose["services"]["grafana"].get("volumes", []):
+        source = str(volume).split(":", 1)[0]
+        if not source.startswith(_DASHBOARD_MOUNT_PREFIX) or not source.endswith(".json"):
+            continue
+        dashboard = json.loads((compose_dir / source).resolve().read_text(encoding="utf-8"))
+        uids.append(str(dashboard["uid"]))
+    return sorted(uids)
 
 
 # gemma-4 계열은 thinking이 모델에 내장돼 있어 chat template의 enable_thinking으로
@@ -666,8 +692,7 @@ class LiveRuntimeChecks:
         return CheckResult("grafana-dashboard-render", "grafana api health", "pass" if ok else "fail", latency, details={"database": body.get("database"), "version": body.get("version")})
 
     def check_grafana_dashboard_catalog(self) -> CheckResult:
-        dashboards_dir = self.config.root / "ops/grafana/dashboards"
-        expected = sorted(path.stem for path in dashboards_dir.glob("*.json"))
+        expected = provisioned_dashboard_uids(self.config.root)
         found: list[str] = []
         missing: list[str] = []
         max_latency = 0
