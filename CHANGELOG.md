@@ -40,6 +40,9 @@
 - HTTP metric의 `route` label이 등록된 route template만 사용한다. 매칭되는 route가 없는
   요청(`/.env`, `/wp-login.php` 같은 스캐너 요청)은 모두 `route="unmatched"` 하나로
   집계되어, 임의 경로 요청이 Gateway 메모리와 Prometheus time series를 늘리지 않는다.
+- Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
+  않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
+  빠진 timestamp는 `—`로 표시된다.
 
 ### Changed
 

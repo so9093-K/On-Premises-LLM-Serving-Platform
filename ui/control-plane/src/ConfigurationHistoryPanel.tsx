@@ -16,6 +16,7 @@ import {
   configurationRollbackApplyRequest,
   configurationRollbackTargetRevision,
 } from './configurationSafety';
+import { formatTimestamp } from './timeFormat';
 import { riskLabel } from './uiText';
 
 type ConfigurationHistoryPanelProps = {
@@ -50,10 +51,6 @@ function errorMessage(error: unknown): string {
     return '설정 revision이 변경되어 기존 복원 검토를 사용할 수 없습니다. 최신 상태에서 새 계획을 검토하세요.';
   }
   return apiErrorMessage(error);
-}
-
-function formatTimestamp(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleString('ko-KR');
 }
 
 function formatValue(value: unknown): string {

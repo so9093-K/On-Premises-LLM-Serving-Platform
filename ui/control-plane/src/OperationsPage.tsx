@@ -15,6 +15,7 @@ import {
   mainRuntimeDiagnosticsUrl,
   requestLogDiagnosticsUrl,
 } from './activityDiagnostics';
+import { formatTimestamp, isoTimestamp } from './timeFormat';
 
 type OperationsPageProps = {
   token: string | null;
@@ -41,10 +42,6 @@ type ActivityItem = {
   metadata: Array<{ label: string; value: string }>;
   diagnostics: Array<{ label: string; href: string }>;
 };
-
-function formatTimestamp(value: number): string {
-  return new Date(value * 1000).toLocaleString('ko-KR');
-}
 
 function runtimeStatusColor(status: RuntimeOperation['status']): LabelColor {
   if (status === 'verified') return 'green';
@@ -392,7 +389,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
                         </div>
                         <strong>{item.title}</strong>
                       </div>
-                      <time dateTime={new Date(item.updatedAt * 1000).toISOString()}>
+                      <time dateTime={isoTimestamp(item.updatedAt)}>
                         {formatTimestamp(item.updatedAt)}
                       </time>
                     </header>
