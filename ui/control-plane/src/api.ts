@@ -2,6 +2,8 @@ import type { paths } from './generated/openapi';
 
 export type BootstrapResponse =
   paths['/admin/control-plane/bootstrap']['get']['responses'][200]['content']['application/json'];
+export type RecentTrafficResponse =
+  paths['/admin/traffic/recent']['get']['responses'][200]['content']['application/json'];
 export type RuntimeListResponse =
   paths['/admin/runtimes']['get']['responses'][200]['content']['application/json'];
 export type RuntimePlanRequest =
@@ -168,6 +170,10 @@ export async function fetchBootstrap(): Promise<BootstrapResponse> {
 
 export async function verifyAdminToken(token: string): Promise<void> {
   await jsonRequest<unknown>('/admin/config/schema', token);
+}
+
+export async function fetchRecentTraffic(token: string | null): Promise<RecentTrafficResponse> {
+  return jsonRequest<RecentTrafficResponse>('/admin/traffic/recent', token);
 }
 
 export async function fetchRuntimes(token: string | null): Promise<RuntimeListResponse> {

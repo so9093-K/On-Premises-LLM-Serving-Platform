@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  formatTokenLimits,
   isMainModelOperationTerminal,
   mainModelOperationProgress,
   mainModelOperationStagePresentation,
@@ -10,6 +11,7 @@ import {
   mainModelResourcePolicyLabel,
   mainModelProfileSwitchable,
   mainModelSwitchRequest,
+  mainModelTokenLimits,
 } from '../src/mainModelSafety.ts';
 
 function profile(
@@ -158,4 +160,13 @@ test('operation stages expose operator-facing progress meaning', () => {
       .every((item) => item.state === 'complete'),
     true,
   );
+});
+
+test('profile token limits come from the Gateway policy the profile publishes', () => {
+  const limits = mainModelTokenLimits({
+    gateway_policy: { max_output_tokens: 13000, request_limits: { max_model_len: 50000 } },
+  });
+  assert.deepEqual(limits, { contextTokens: 50000, maxOutputTokens: 13000 });
+  assert.equal(formatTokenLimits(limits), '50,000 / 13,000');
+  assert.equal(formatTokenLimits(mainModelTokenLimits({ gateway_policy: {} })), '— / —');
 });

@@ -72,7 +72,20 @@ export function runtimeStateLabel(state: string): string {
     failed: '실패',
     interrupted: '중단됨',
     recovered_after_restart: '재시작 후 복구',
+    completed: '완료',
+    rolled_back: '이전 모델로 복구됨',
+    rollback_failed: '복구 실패',
+    // Docker container state
+    exited: '종료됨',
+    paused: '일시 정지',
+    restarting: '재시작 중',
+    removing: '삭제 중',
+    dead: '비정상 종료',
+    not_found: '컨테이너 없음',
+    unhealthy: '상태 확인 실패',
+    unknown: '알 수 없음',
   };
+  if (state.startsWith('error:')) return '조회 실패';
   return labels[state] ?? state;
 }
 
@@ -109,6 +122,26 @@ export function riskLabel(risk: string): string {
     critical: '매우 높음',
   };
   return labels[risk] ?? risk;
+}
+
+// 설정 key의 운영자용 이름이다. API의 label은 영어 식별 이름으로 유지하고, 화면은 이 이름을 쓴다.
+const CONFIGURATION_LABELS: Record<string, string> = {
+  'deployment.target': '실행 환경',
+  'deployment.control_mode': '제어 방식',
+  'deployment.lifecycle_owner': '관리 주체',
+  'deployment.features': '지원 기능',
+  'security.auth_mode': '인증 방식',
+  'security.api_keys': 'API 키',
+  'runtime.main_llm.base_url': '메인 런타임 주소',
+  'runtime.required_keys': '필수 런타임',
+  'operational.max_retrieval_documents': '검색 문서 최대 수',
+  'streaming.max_duration_seconds': '스트리밍 최대 시간',
+  'streaming.max_chunks': '스트리밍 최대 chunk 수',
+  'streaming.max_bytes': '스트리밍 최대 크기',
+};
+
+export function configurationLabel(key: string, fallback: string): string {
+  return CONFIGURATION_LABELS[key] ?? fallback;
 }
 
 export type CapabilityTone = 'green' | 'blue' | 'grey';

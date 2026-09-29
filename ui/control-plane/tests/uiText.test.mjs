@@ -6,6 +6,7 @@ import {
   DEFAULT_UI_LOCALE,
   capabilityPresentation,
   formatPercent,
+  runtimeStateLabel,
 } from '../src/uiText.ts';
 
 test('operator UI defaults to the Korean locale policy', () => {
@@ -41,4 +42,11 @@ test('navigation composition remains server-capability driven rather than OS dri
   assert.match(source, /deployment\.features\.includes\('model_switching'\)/);
   assert.doesNotMatch(source, /deployment\.platform\s*===/);
   assert.doesNotMatch(source, /navigator\.platform|userAgent|process\.platform/);
+});
+
+test('container states from Docker never leak as raw English values', () => {
+  for (const state of ['exited', 'paused', 'restarting', 'dead', 'not_found', 'unknown']) {
+    assert.doesNotMatch(runtimeStateLabel(state), /^[a-z_]+$/);
+  }
+  assert.equal(runtimeStateLabel('error: connection refused'), '조회 실패');
 });

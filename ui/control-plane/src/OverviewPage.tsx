@@ -5,11 +5,14 @@ import { Link } from 'react-router-dom';
 
 import {
   fetchMainModel,
+  fetchRecentTraffic,
   fetchRuntimes,
   type BootstrapResponse,
   type RuntimeListResponse,
 } from './api';
+import { serviceOverviewDashboardUrl } from './activityDiagnostics';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import { trafficTiles, trafficWindowLabel, type TrafficTone } from './trafficSummary';
 import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
 import {
   accessProfileLabel,
@@ -17,7 +20,7 @@ import {
   capabilityPresentation,
   controlModeLabel,
   deploymentTargetLabel,
-  formatFraction,
+  formatPercent,
   implementationStatusLabel,
   lifecycleOwnerLabel,
   qualificationStatusLabel,
@@ -36,6 +39,10 @@ function runtimeStateCount(
   state: RuntimeListResponse['runtimes'][number]['state'],
 ): number {
   return runtimes.filter((runtime) => runtime.state === state).length;
+}
+
+function trafficToneClass(tone: TrafficTone): string {
+  return `traffic-tile traffic-tile-${tone}`;
 }
 
 function signalColor(tone: OverviewSignalTone): 'blue' | 'orange' | 'red' {
@@ -84,17 +91,32 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     refetchIntervalInBackground: false,
   });
 
+  const trafficQuery = useQuery({
+    queryKey: ['traffic', 'recent', authClass],
+    queryFn: () => fetchRecentTraffic(token),
+    retry: false,
+    staleTime: 10_000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 10_000 : false,
+    refetchIntervalInBackground: false,
+  });
+
   useEffect(() => {
-    if (isUnauthorized(runtimesQuery.error) || isUnauthorized(mainModelQuery.error)) {
+    if (
+      isUnauthorized(runtimesQuery.error)
+      || isUnauthorized(mainModelQuery.error)
+      || isUnauthorized(trafficQuery.error)
+    ) {
       onUnauthorized();
     }
-  }, [mainModelQuery.error, onUnauthorized, runtimesQuery.error]);
+  }, [mainModelQuery.error, onUnauthorized, runtimesQuery.error, trafficQuery.error]);
 
-  const refreshing = runtimesQuery.isFetching || mainModelQuery.isFetching;
+  const refreshing = runtimesQuery.isFetching || mainModelQuery.isFetching || trafficQuery.isFetching;
   const refresh = () => {
     if (runtimeControlEnabled) void runtimesQuery.refetch();
     if (modelSwitchingEnabled) void mainModelQuery.refetch();
+    void trafficQuery.refetch();
   };
+  const serviceDashboardUrl = serviceOverviewDashboardUrl(bootstrap.links.grafana);
 
   const release = bootstrap.platform.release_id ?? 'development';
   const runtimes = runtimesQuery.data?.runtimes ?? [];
@@ -102,7 +124,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const unavailableTopology = topology.filter((item) => !item.available);
   const budget = runtimesQuery.data?.budget;
   const mainModel = mainModelQuery.data;
-  const mainModelSignals = mainModelOverviewSignals(mainModel);
+  const mainModelSignals = mainModelOverviewSignals(mainModel, runtimeStateLabel);
   const attentionSignals = mainModelSignals.filter((signal) => signal.tone !== 'info');
   const informationalSignals = mainModelSignals.filter((signal) => signal.tone === 'info');
   const checking = (
@@ -217,6 +239,36 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         ) : null}
       </div>
 
+      <Card className="traffic-card">
+        <CardTitle>
+          지금 서비스
+          {trafficQuery.data ? <span className="traffic-window">{trafficWindowLabel(trafficQuery.data)}</span> : null}
+        </CardTitle>
+        <CardBody>
+          {trafficQuery.isPending ? (
+            <div className="inline-loading"><Spinner size="md" aria-label="최근 트래픽 불러오는 중" /> 최근 요청을 집계하는 중입니다.</div>
+          ) : trafficQuery.isError ? (
+            <p className="overview-muted">최근 요청 요약을 불러오지 못했습니다. {apiErrorMessage(trafficQuery.error)}</p>
+          ) : (
+            <div className="traffic-tiles">
+              {trafficTiles(trafficQuery.data).map((tile) => (
+                <div className={trafficToneClass(tile.tone)} key={tile.key}>
+                  <span className="traffic-tile-label">{tile.label}</span>
+                  <strong className="traffic-tile-value">{tile.value}</strong>
+                  <small>{tile.detail}</small>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="traffic-footnote">
+            공개 API(/v1/*) 요청을 Gateway가 직접 집계한 값이며 Gateway가 재시작되면 다시 셉니다.
+            {serviceDashboardUrl ? (
+              <> <a className="overview-inline-action" href={serviceDashboardUrl} target="_blank" rel="noreferrer">Grafana에서 추이 보기 ↗</a></>
+            ) : null}
+          </p>
+        </CardBody>
+      </Card>
+
       {hasPolicyNotice ? (
         <Card className="overview-policy-card">
           <CardTitle>운영 참고</CardTitle>
@@ -305,10 +357,9 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <dt>시작 중</dt><dd>{runtimeStateCount(runtimes, 'starting')}</dd>
                 <dt>중지됨</dt><dd>{runtimeStateCount(runtimes, 'stopped')}</dd>
                 <dt>정책상 제외</dt>
-                <dd><Label color={unavailableTopology.length ? 'orange' : 'green'}>{unavailableTopology.length}</Label></dd>
-                <dt>GPU 상한</dt><dd>{formatFraction(budget?.ceiling)}</dd>
-                <dt>GPU 사용</dt><dd>{formatFraction(budget?.used)}</dd>
-                <dt>GPU 여유</dt><dd>{formatFraction(budget?.free)}</dd>
+                <dd>{unavailableTopology.length ? <Label color="orange">{unavailableTopology.length}</Label> : '없음'}</dd>
+                <dt>GPU 예약</dt><dd>{formatPercent(budget?.used)} / 상한 {formatPercent(budget?.ceiling)}</dd>
+                <dt>GPU 여유</dt><dd>{formatPercent(budget?.free)}</dd>
               </dl>
             )}
             {runtimeControlEnabled ? (
@@ -323,8 +374,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <CardTitle>설정</CardTitle>
           <CardBody>
             <dl className="facts">
-              <dt>스키마</dt><dd>v{bootstrap.configuration.schema_version}</dd>
-              <dt>리비전</dt><dd>{bootstrap.configuration.revision}</dd>
+              <dt>설정 버전</dt><dd>{bootstrap.configuration.revision}</dd>
               <dt>변경</dt>
               <dd><Label color={bootstrap.configuration.write_available ? 'green' : 'orange'}>
                 {bootstrap.configuration.write_available ? '가능' : '사용할 수 없음'}
@@ -337,60 +387,46 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         </Card>
       </div>
 
-      <div className="page-grid overview-secondary-grid">
-        <Card>
-          <CardTitle>실행 환경과 접근</CardTitle>
-          <CardBody>
-            <dl className="facts">
-              <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
-              <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
-              <dt>런타임 백엔드</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
-              <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-              <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
-              <dt>구현 상태</dt><dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)}</dd>
-              <dt>검증 상태</dt><dd>{qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
-              <dt>접근 프로필</dt><dd>{accessProfileLabel(bootstrap.access.profile)}</dd>
-              <dt>관리자 인증</dt><dd>{bootstrap.access.admin_auth_required ? '필요' : '필요 없음'}</dd>
-            </dl>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardTitle>플랫폼과 관측</CardTitle>
-          <CardBody>
-            <dl className="facts">
-              <dt>버전</dt><dd>{bootstrap.platform.version}</dd>
-              <dt>릴리스</dt><dd>{release}</dd>
-              <dt>관측 기능</dt><dd>{bootstrap.monitoring.available ? '사용 가능' : '사용할 수 없음'}</dd>
-              <dt>Grafana</dt><dd>{bootstrap.monitoring.grafana_available ? '사용 가능' : '사용할 수 없음'}</dd>
-            </dl>
+      <details className="overview-environment">
+        <summary>실행 환경 정보</summary>
+        <div className="overview-environment-body">
+          <dl className="facts">
+            <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
+            <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
+            <dt>런타임 백엔드</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
+            <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+            <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+            <dt>구현·검증</dt>
+            <dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)} · {qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
+          </dl>
+          <dl className="facts">
+            <dt>접근 프로필</dt><dd>{accessProfileLabel(bootstrap.access.profile)}</dd>
+            <dt>관리자 인증</dt><dd>{bootstrap.access.admin_auth_required ? '필요' : '필요 없음'}</dd>
+            <dt>버전</dt><dd>{bootstrap.platform.version} ({release})</dd>
+            <dt>관측</dt>
+            <dd>{bootstrap.monitoring.grafana_available ? 'Grafana 사용 가능' : bootstrap.monitoring.available ? '지표 수집만 사용 가능' : '사용할 수 없음'}</dd>
+          </dl>
+          <div>
+            <span className="overview-environment-label">지원 기능</span>
+            <ul className="capability-chips">
+              {capabilities.map((capability) => (
+                <li key={capability.key} title={capability.detail}>
+                  <Label color={capability.tone}>{capability.label} · {capability.status}</Label>
+                </li>
+              ))}
+            </ul>
             <div className="overview-card-actions">
               {bootstrap.links.docs ? (
-                <a href={bootstrap.links.docs} target="_blank" rel="noreferrer">API 문서에서 사용법 확인 ↗</a>
+                <a href={bootstrap.links.docs} target="_blank" rel="noreferrer">API 문서 ↗</a>
               ) : null}
               {bootstrap.links.grafana ? (
-                <a href={bootstrap.links.grafana} target="_blank" rel="noreferrer">Grafana에서 진단 ↗</a>
+                <a href={bootstrap.links.grafana} target="_blank" rel="noreferrer">Grafana ↗</a>
               ) : null}
-              <Link to="/operations">활동에서 변경 이력 확인 →</Link>
+              <Link to="/operations">활동 기록 →</Link>
             </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardTitle>지원 기능</CardTitle>
-          <CardBody className="capability-grid">
-            {capabilities.map((capability) => (
-              <div className="capability-item" key={capability.key}>
-                <div>
-                  <strong>{capability.label}</strong>
-                  <small>{capability.detail}</small>
-                </div>
-                <Label color={capability.tone}>{capability.status}</Label>
-              </div>
-            ))}
-          </CardBody>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }

@@ -54,6 +54,17 @@ export function mainRuntimeDashboardUid(runtimeBackend: string): string {
   return runtimeBackend === 'mlx-vlm' ? 'main-runtime-health' : 'service_overview';
 }
 
+export function serviceOverviewDashboardUrl(grafanaBaseUrl: string | null): string | null {
+  if (!grafanaBaseUrl) return null;
+  try {
+    const base = new URL(grafanaBaseUrl.endsWith('/') ? grafanaBaseUrl : `${grafanaBaseUrl}/`);
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') return null;
+    return new URL('d/service_overview', base).toString();
+  } catch {
+    return null;
+  }
+}
+
 export function mainRuntimeDiagnosticsUrl(
   grafanaBaseUrl: string | null,
   runtimeBackend: string,
