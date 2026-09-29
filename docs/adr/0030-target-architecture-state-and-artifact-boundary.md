@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-18
 - Supersedes: [ADR-0029](./0029-canonical-terminology.md) 중 stable identifier와 상태 의미에 관한 장기 결정
+- Partially superseded by: [ADR-0042](./0042-remove-qualification-evidence-and-benchmark.md) (6절)
 
 ## Context
 
@@ -65,7 +66,7 @@ qualification:
 ```
 
 - **Compatibility**는 현재 deployment/runtime 조합이 기술적으로 가능한지를 나타낸다.
-- **Qualification**은 해당 조합에 대해 요구된 실제 검증 근거가 확보됐는지를 나타낸다.
+- **Qualification**은 해당 조합을 실제 장비에서 검증했는지를 나타낸다.
 - `likely`는 canonical 상태가 아니며 legacy provisional 상태로만 migration한다.
 - switch 가능 여부는 compatibility가 결정하고, 추가 확인 필요 여부는 qualification이 결정한다.
 
@@ -85,7 +86,7 @@ qualification_status: verified | unverified
 `verified / implemented / planned / unvalidated`를 한 enum에 섞지 않는다.
 
 - 실행 가능한지 여부는 `implementation_status`가 소유한다.
-- 실제 검증 근거 수준은 `qualification_status`가 소유한다.
+- 실제 장비 검증 여부는 `qualification_status`가 소유한다.
 - 초기 migration에서 유지했던 `validation_status` projection은 compatibility 기간 뒤 제거되었다.
 
 ### 5. Main Model checkpoint identity는 Main Model Profile이 소유한다
@@ -100,6 +101,8 @@ Main Model의 실제 실행 identity는 profile이 단일 Source of Truth가 된
 현재 중복 필드는 별도 migration PR에서 제거하며 이 ADR만으로 runtime behavior를 바꾸지 않는다.
 
 ### 6. Qualification은 상태만이 아니라 evidence로 확장 가능해야 한다
+
+> ADR-0042로 대체됐다. evidence catalog를 만들었다가 제거했고, qualification은 maintainer 선언으로 둔다.
 
 `verified`는 장기적으로 최소 다음 정보를 추적할 수 있어야 한다.
 
@@ -184,7 +187,7 @@ SBOM, provenance, signature는 향후 OCI artifact metadata로 추가할 수 있
 1. Main Model compatibility / qualification 분리와 legacy projection 제거
 2. Deployment Target implementation / qualification 분리와 legacy projection 제거
 3. Main Model checkpoint Source of Truth 수렴
-4. Qualification evidence v1 — [ADR-0032](./0032-qualification-evidence-v1.md)
+4. Qualification evidence v1 — 이후 [ADR-0042](./0042-remove-qualification-evidence-and-benchmark.md)로 제거
 5. official OpenAI SDK conformance
 6. `MAIN_LLM_* → MAIN_MODEL_*` operator namespace migration
 7. Runtime Controller authority/threat model — [ADR-0031](./0031-runtime-controller-docker-authority-boundary.md)

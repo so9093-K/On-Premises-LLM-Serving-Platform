@@ -2,7 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-09-20
-- Extends: [ADR-0018](./0018-gpu-vram-admission-and-per-profile-runtime-image.md), [ADR-0032](./0032-qualification-evidence-v1.md)
+- Extends: [ADR-0018](./0018-gpu-vram-admission-and-per-profile-runtime-image.md)
+- Partially superseded by: [ADR-0042](./0042-remove-qualification-evidence-and-benchmark.md) (4절의 qualification record 부분)
 - Refined by: [ADR-0035](./0035-capability-based-hardware-admission-and-transparent-operations.md)
 
 ## Context
@@ -47,8 +48,7 @@ profile identity가 아니라 **그 identity를 어떤 자원 정책으로 서�
   `max_num_batched_tokens`는 덮지 못한다.
 - profile을 복제해 `gemma4-e4b-it-24gb`를 만들면 약 100줄의 `gateway_policy`가 함께 복제되어
   drift 위험이 생기고, 같은 모델이 두 identity로 갈라진다.
-- 값을 env로만 덮으면 실행은 되지만 **어떤 자원 정책을 검증했는지가 증거에 남지 않는다.**
-  ADR-0032가 막으려던 종류의 거짓 증거가 그대로 생긴다.
+- 값을 env로만 덮으면 실행은 되지만 **어떤 자원 정책으로 서빙 중인지가 어디에도 남지 않는다.**
 
 ## Decision
 
@@ -108,24 +108,20 @@ variant가 `max_model_len`을 옮기면 catalog loader가 같은 값을
 `gateway_policy.request_limits.max_model_len`에 투영한다. 둘이 갈라지면 Gateway가 engine이
 곧바로 거부할 요청을 통과시키거나, 반대로 서빙 가능한 요청을 막는다.
 
-### 4. 적용된 variant는 qualification identity의 일부다
+### 4. 적용된 variant는 active profile snapshot에 드러난다
 
-적용된 variant id는 active profile snapshot과 qualification context에 실리고, durable
-`qualified_run`의 `subject.resource_variant`로 기록된다. reference host 정책으로 검증한 run은
-이 key를 갖지 않으므로 기존 record 형태는 그대로다.
-
-시작/종료 snapshot 사이에 variant가 바뀌면 그 run은 버린다. profile이 바뀐 경우와 같은
-이유다 — 무엇을 검증했는지 말할 수 없는 run이다.
+적용된 variant id는 active profile snapshot에 실려 Admin API 응답과 request log에 함께 남는다.
+reference host 정책으로 서빙 중이면 이 값은 비어 있다.
 
 이 결정이 없으면 "`gemma4-e4b-it`가 `linux-nvidia-dynamic`에서 통과했다"는 기록이 어떤 자원
-정책에서 나온 것인지 말하지 못하고, 48GB reference 값으로 읽힌다.
+정책에서 나온 것인지 말하지 못하고, 48GB reference 값으로 읽힌다. 과거에는 이 값을 durable
+qualification record에도 적었지만 그 record 체계는 ADR-0042로 제거했다.
 
 ## Consequences
 
 - 같은 model/revision을 서로 다른 VRAM 조건에서 서빙해도 profile identity는 하나로 유지된다.
-- 24GB용 증거와 48GB용 증거가 evidence 수준에서 구분된다.
+- 24GB 정책과 48GB 정책으로 서빙 중인 상태가 운영 화면과 로그에서 구분된다.
 - Host가 variant를 선언하지 않으면(비어 있으면) 모든 profile이 종전과 같이 선택 가능하다.
-  기존 evidence record도 변화가 없다.
 - resource override 값은 여전히 실측으로만 채운다. variant는 측정 결과를 적을 자리를 만들 뿐,
   값을 추론하지 않는다.
 

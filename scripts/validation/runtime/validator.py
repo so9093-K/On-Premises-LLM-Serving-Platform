@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from ai_model_serving.domain import ModelRegistry
-from scripts.qualification.context import qualification_context_for_runtime
-from scripts.qualification.hardware import observe_nvidia_gpu
 
 from .config import RuntimeValidationConfig
 from .http_client import RuntimeValidationHttpClient
@@ -46,31 +43,6 @@ class RuntimeValidator:
             monitoring=self.monitoring,
             http=self.http,
         )
-        self.qualification_context: dict[str, Any] = {
-            "started": None,
-            "finished": None,
-            "stable": False,
-            "errors": [],
-        }
-
-    def _capture_qualification_context(self) -> tuple[dict[str, Any] | None, str]:
-        try:
-            status, body, _ = self.http.json(
-                "GET",
-                f"{self.gateway_base}/admin/main-model",
-                admin=True,
-            )
-            if status != 200:
-                raise RuntimeError(f"GET /admin/main-model returned HTTP {status}")
-            target = os.getenv("DEPLOYMENT_TARGET", "").strip()
-            gpu = observe_nvidia_gpu()
-            return qualification_context_for_runtime(
-                body,
-                deployment_target=target,
-                hardware=gpu.as_context(),
-            ), ""
-        except Exception as exc:  # noqa: BLE001 - report records why qualification binding is unavailable.
-            return None, f"{type(exc).__name__}: {exc}"
 
     def headers(self, *, internal: bool = False, admin: bool = False) -> dict[str, str]:
         return self.http.headers(internal=internal, admin=admin)
@@ -100,7 +72,6 @@ class RuntimeValidator:
         )
 
     def run_live(self) -> None:
-        started_context, started_error = self._capture_qualification_context()
         self.safe_check("gateway-runtime", "gateway /health", self.live_checks.check_gateway_health)
         self.safe_check("gateway-runtime", "gateway /ready", self.live_checks.check_gateway_ready)
         model_listing = self.safe_check("gateway-runtime", "gateway /v1/models", self.live_checks.check_models)
@@ -196,10 +167,8 @@ class RuntimeValidator:
         risk_metrics = metric_sources["risk_signal_service"]["required_metrics"]
         self.safe_check("monitoring-scrape", "gateway metrics", lambda: self.live_checks.scrape_metrics("gateway", self.gateway_base, gateway_metrics))
         self.safe_check("monitoring-scrape", "risk-signal-service metrics", lambda: self.live_checks.scrape_metrics("risk-signal-service", self.risk_base, risk_metrics))
-        # configs/performance/metrics.yaml의 vllm-cuda projection이 이 이름들에
-        # 의존한다(ADR-0026). 선언과 계약의 일치는 make validate가 정적으로 보고,
-        # 선언과 실제 런타임의 일치는 여기서 본다. 이 검사가 없으면 vLLM upgrade로
-        # 지표 이름이 바뀌었을 때 benchmark가 조용히 빈 값을 받는다.
+        # Grafana 서비스 개요가 이 upstream 지표에 의존한다. vLLM upgrade로 이름이
+        # 바뀌면 panel이 조용히 비므로, 선언한 이름이 실제 런타임에 있는지 여기서 본다.
         vllm_metrics = (metric_sources.get("vllm_instances") or {}).get("required_metrics") or []
         if vllm_metrics:
             for key, base in self.vllm_bases.items():
@@ -213,19 +182,6 @@ class RuntimeValidator:
         self.safe_check("grafana-dashboard-render", "grafana prometheus datasource", self.live_checks.check_grafana_prometheus_datasource)
         self.safe_check("grafana-dashboard-render", "grafana dashboard imports", self.live_checks.check_grafana_dashboard_catalog)
 
-        finished_context, finished_error = self._capture_qualification_context()
-        errors = [item for item in (started_error, finished_error) if item]
-        self.qualification_context = {
-            "started": started_context,
-            "finished": finished_context,
-            "stable": (
-                not errors
-                and started_context is not None
-                and started_context == finished_context
-            ),
-            "errors": errors,
-        }
-
     def write_reports(self) -> tuple[Path, Path]:
         return write_reports(
             root=self.root,
@@ -234,5 +190,4 @@ class RuntimeValidator:
             session_started=self.session_started,
             mode="live",
             results=self.results,
-            qualification_context=self.qualification_context,
         )

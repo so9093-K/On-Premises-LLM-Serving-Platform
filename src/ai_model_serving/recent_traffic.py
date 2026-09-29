@@ -5,8 +5,9 @@ Control Plane Console은 Prometheus나 Grafana가 없는 target에서도 "지금
 요청 결과와 지연 표본만 들고 있다가 요약을 만든다. 장기 추세와 여러 인스턴스 합산은
 Prometheus가 소유한다.
 
-백분위 계산 방법과 최소 표본 수는 성능 계약(configs/performance/slo.yaml의 statistics)이
-소유한다. 같은 원시 표본으로 도구마다 다른 백분위가 나오지 않게 여기서도 그 규칙을 쓴다.
+백분위는 정렬 후 ceil(p x n)번째 값(nearest rank)이며 보간하지 않는다. "요청의 95%가 이
+값보다 빠르다"는 문장이 그대로 성립한다. p번째 백분위를 구분하려면 최소 1/(1-p)개의 표본이
+필요하므로, 표본이 MINIMUM_SAMPLES에 못 미치면 숫자를 내지 않는다.
 """
 
 from __future__ import annotations
@@ -15,26 +16,13 @@ import math
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
-from pathlib import Path
 from typing import Any
-
-from .configuration import load_yaml_mapping
-from .project_paths import resolve_project_root
 
 DEFAULT_WINDOW_SECONDS = 300.0
 # 요청이 몰려도 메모리가 늘지 않도록 표본 수를 제한한다. 한도를 넘으면 오래된 표본부터 버린다.
 MAX_SAMPLES_PER_SERIES = 20_000
 _PERCENTILES = (("p50", 0.50), ("p95", 0.95))
-
-
-def slo_minimum_samples(root: Path | None = None) -> dict[str, int]:
-    """성능 계약이 선언한 백분위별 최소 표본 수를 읽는다."""
-    config_root = root or resolve_project_root(required_paths=("configs/performance/slo.yaml",))
-    statistics = load_yaml_mapping(config_root / "configs/performance/slo.yaml").get("statistics") or {}
-    if statistics.get("percentile_method") != "nearest_rank":
-        raise RuntimeError("recent traffic summary supports only the nearest_rank percentile method")
-    minimum = statistics.get("minimum_samples") or {}
-    return {name: int(minimum[name]) for name, _ in _PERCENTILES}
+MINIMUM_SAMPLES = {"p50": 10, "p95": 20}
 
 
 def nearest_rank(sorted_values: list[float], quantile: float) -> float:
@@ -49,7 +37,7 @@ class RecentTrafficWindow:
     def __init__(
         self,
         *,
-        minimum_samples: Mapping[str, int],
+        minimum_samples: Mapping[str, int] = MINIMUM_SAMPLES,
         window_seconds: float = DEFAULT_WINDOW_SECONDS,
         max_samples: int = MAX_SAMPLES_PER_SERIES,
         clock: Callable[[], float] = time.monotonic,

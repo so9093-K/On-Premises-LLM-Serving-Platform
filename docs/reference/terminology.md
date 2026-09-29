@@ -12,7 +12,7 @@
    migration 없이 바꾸지 않는다.
 3. **원하는 상태와 실제 상태를 구분한다.** `desired state`와 `observed state`를 섞지 않는다.
 4. **검증 수준을 다른 상태 의미와 섞지 않는다.** Main Model은 기술적 `Compatibility`와
-   실제 검증 근거인 `Qualification`을 별도 축으로 두고, Deployment Target은
+   실제 장비 검증 여부인 `Qualification`을 별도 축으로 두고, Deployment Target은
    `Implementation Status`와 `Qualification`을 별도 축으로 둔다. Main Model config와
    Admin API는 같은 canonical 상태 vocabulary를 사용한다.
 5. **위험한 동작은 효과를 설명한다.** `force`처럼 구현 중심 표현만 버튼에 노출하지 않고 실제 영향
@@ -44,7 +44,7 @@
 | **Observed State** | 실제 container/runtime에서 관측한 상태 | `observed_runtime`, `container_status` |
 | **Compatibility** | Main Model Profile이 현재 deployment/runtime 조합에서 기술적으로 가능한지 나타내는 축 | `compatibility.status` |
 | **Implementation Status** | Deployment Target 자체가 실행 가능한 구현 상태인지 나타내는 축 | `implementation_status` |
-| **Qualification** | 특정 Main Model 또는 Deployment Target의 실제 검증 근거가 충족됐는지 나타내는 축 | `qualification.status`, `qualification_status` |
+| **Qualification** | 특정 Main Model 또는 Deployment Target을 maintainer가 실제 장비에서 검증했는지 나타내는 축 | `qualification.status`, `qualification_status` |
 | **Activity** | 최근 runtime/model/configuration 변경 기록을 모아 보는 Console 화면 | API object는 `operation` 유지 |
 | **채팅 테스트** | 공개 Chat Completions API를 그대로 호출해 모델 응답을 확인하는 Console 화면 | `/admin/console/chat`, ADR-0041 |
 | **Verification Details** | apply/switch 후 실제 상태가 기대 상태와 일치했는지 확인한 정보 | 기존 UI 문구 operation evidence |

@@ -351,7 +351,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
         <CardTitle>최근 활동</CardTitle>
         <CardBody>
           <p className="configuration-help activity-intro">
-            각 영역이 기록한 최근 운영 작업을 시간순으로 모아 보여줍니다. 원본 작업 이력과 검증 근거의 소유권은 각 런타임·메인 모델·설정 영역에 그대로 있습니다.
+            각 영역이 기록한 최근 운영 작업을 시간순으로 모아 보여줍니다. 원본 작업 이력의 소유권은 각 런타임·메인 모델·설정 영역에 그대로 있습니다.
           </p>
 
           {activity.length > 0 ? (

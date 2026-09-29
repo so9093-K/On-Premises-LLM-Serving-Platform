@@ -1424,7 +1424,7 @@ curl "$GATEWAY_URL/admin/traffic/recent" \
 
 - `completion_latency_seconds`: 비스트리밍 Chat Completions·Responses의 런타임 완료 시간
 - `time_to_first_chunk_seconds`: 스트리밍 요청의 첫 chunk까지 시간
-- 백분위는 `configs/performance/slo.yaml`의 nearest-rank 방법을 따르며, 표본이 `minimum_samples`보다 적으면 `null`이다.
+- 백분위는 보간 없는 nearest-rank 방법(정렬 후 ceil(p × n)번째 값)을 따르며, 표본이 `minimum_samples`(p50 10개, p95 20개)보다 적으면 `null`이다.
 
 ---
 

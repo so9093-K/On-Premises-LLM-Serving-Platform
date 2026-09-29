@@ -13,7 +13,7 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate qualification-candidate qualification-promote qualification-status-promote perf-smoke perf-sweep perf-run perf-gate perf-promote perf-report auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate auth-status auth-doctor auth-plan auth-apply exposure-status exposure-plan exposure-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev
 
 PUBLIC_TARGETS := up status down logs reset purge
@@ -113,44 +113,6 @@ package: ## 릴리스 ZIP 생성
 
 runtime-validate: ## 실제 서비스·GPU 검증
 	$(PYTHON) scripts/validation/runtime_validation.py
-
-qualification-candidate: ## REPORT=<runtime JSON> 현재 runtime에서 reviewable qualification candidate 생성
-	@if [[ -z "$(REPORT)" ]]; then echo "REPORT=reports/runtime/runtime_validation_....json 을 지정하세요" >&2; exit 2; fi
-	$(PYTHON) scripts/qualification/produce_candidate.py --runtime-report "$(REPORT)" $(if $(GATEWAY_BASE),--gateway-base "$(GATEWAY_BASE)",)
-
-qualification-promote: ## CANDIDATE=<json> evidence 승격 plan (적용: APPLY=1 CONFIRM=<plan-digest>)
-	@if [[ -z "$(CANDIDATE)" ]]; then echo "CANDIDATE=reports/qualification/<candidate>.json 을 지정하세요" >&2; exit 2; fi
-	$(PYTHON) scripts/qualification/promote_candidate.py "$(CANDIDATE)" \
-		$(if $(filter 1,$(APPLY)),--apply --confirm "$(CONFIRM)",)
-
-qualification-status-promote: ## PROFILE=<id> TARGET=<deployment-target> verified 승격 plan (적용: APPLY=1 CONFIRM=<plan-digest>)
-	@if [[ -z "$(PROFILE)" ]]; then echo "PROFILE=<main-model-profile-id>를 지정하세요" >&2; exit 2; fi
-	@if [[ -z "$(TARGET)" ]]; then echo "TARGET=<deployment-target>를 지정하세요" >&2; exit 2; fi
-	$(PYTHON) scripts/qualification/status_promotion.py --profile "$(PROFILE)" --target "$(TARGET)" \
-		$(if $(filter 1,$(APPLY)),--apply --confirm "$(CONFIRM)",)
-
-perf-smoke: ## 성능 계측 경로 확인 (요청 몇 건, SLO 판정 없음)
-	$(PYTHON) scripts/benchmark/cli.py --workload $(or $(PROFILE),interactive) --mode smoke \
-		--requests $(or $(REQUESTS),5) --warmup-seconds 0
-
-perf-sweep: ## PROFILE=<workload> 요청률을 훑어 감당하는 부하 찾기
-	$(PYTHON) scripts/benchmark/cli.py --sweep --workload $(or $(PROFILE),interactive) \
-		--mode sweep --requests $(or $(REQUESTS),12) --warmup-seconds 0
-
-perf-report: ## 측정 결과에서 읽을 수 있는 보고서 생성 (RESULTS=<파일...> OUTPUT=<경로>)
-	$(PYTHON) scripts/benchmark/report_cli.py $(RESULTS) $(if $(OUTPUT),--output $(OUTPUT),)
-
-perf-promote: ## RESULTS=<파일...> BY=<이름> 측정 결과를 baseline으로 승격
-	@if [[ -z "$(RESULTS)" || -z "$(BY)" ]]; then \
-		echo "RESULTS=<결과 파일...> BY=<승격자> 를 지정하세요" >&2; exit 2; fi
-	$(PYTHON) scripts/benchmark/promote_cli.py $(RESULTS) --by $(BY) $(if $(NOTE),--note "$(NOTE)",)
-
-perf-gate: ## 측정된 결과로 릴리스 자격 판정 (측정은 하지 않음)
-	$(PYTHON) scripts/benchmark/gate_cli.py $(RESULTS)
-
-perf-run: ## PROFILE=<workload> 성능 측정 실행 (계약이 선언한 기간대로)
-	@if [[ -z "$(PROFILE)" ]]; then echo "PROFILE=interactive 를 지정하세요 (configs/performance/workloads.yaml)" >&2; exit 2; fi
-	$(PYTHON) scripts/benchmark/cli.py --workload $(PROFILE) --mode $(or $(RUN_MODE),baseline)
 
 auth-status: ## 현재 public/admin/internal 인증 상태
 	$(PYTHON) scripts/auth/auth_status.py $(AUTH_ENV_ARG)

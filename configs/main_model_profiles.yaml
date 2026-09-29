@@ -28,7 +28,7 @@ profiles:
       # 현재 deployment/runtime 조합에서 기술적으로 호환되는 profile이다.
       status: compatible
     qualification:
-      # 실제 검증 근거가 완료된 profile만 별도 확인 없이 전환한다.
+      # 실제 장비 검증을 마친 profile만 별도 확인 없이 전환한다.
       status: verified
     capabilities:
       # Gateway 허용 입력이자 switch-time media boot canary의 단일 source of truth다 --
@@ -157,7 +157,7 @@ profiles:
       # 현재 deployment/runtime 조합에서 기술적으로 호환되는 profile이다.
       status: compatible
     qualification:
-      # 실제 검증 근거가 완료된 profile만 별도 확인 없이 전환한다.
+      # 실제 장비 검증을 마친 profile만 별도 확인 없이 전환한다.
       status: verified
     capabilities:
       # Gateway 허용 입력이자 switch-time media boot canary의 단일 source of truth다 --

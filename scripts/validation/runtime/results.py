@@ -12,7 +12,6 @@ class CheckResult:
     latency_ms: int | None = None
     detail: str = ""
     details: dict[str, Any] = field(default_factory=dict)
-    qualification_check_id: str = ""
 
     @property
     def passed(self) -> bool:

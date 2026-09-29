@@ -178,9 +178,8 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
             "Prometheus 없이도 Control Plane이 현재 서비스 상태를 보여 주기 위한 값이며, 프로세스가 재시작되면 "
             "초기화됩니다. 장기 추세와 여러 인스턴스 합산은 Prometheus·Grafana가 소유합니다.\n\n"
             "`completion_latency_seconds`는 비스트리밍 Chat Completions·Responses의 런타임 완료 시간, "
-            "`time_to_first_chunk_seconds`는 스트리밍 첫 chunk까지의 시간입니다. 백분위는 성능 계약"
-            "(`configs/performance/slo.yaml`)의 nearest-rank 방법을 따르며, 표본이 `minimum_samples`에 "
-            "못 미치면 `null`입니다."
+            "`time_to_first_chunk_seconds`는 스트리밍 첫 chunk까지의 시간입니다. 백분위는 보간 없는 "
+            "nearest-rank 방법을 따르며, 표본이 `minimum_samples`에 못 미치면 `null`입니다."
         ),
         request_schema=None,
         response_schema="recent_traffic_response.schema.json",
@@ -629,7 +628,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
             "이 배포에서 전환할 수 있는 메인 모델 프로필과 각 프로필의 근거를 반환합니다. "
             "`active: true`가 현재 서빙 중인 프로필입니다.\n\n"
             "- `compatibility.status` — 기술적 전환 가능성(`compatible` / `incompatible` / `unknown`)입니다.\n"
-            "- `qualification.status` — 실제 검증 근거 상태(`verified` / `unverified`)입니다. "
+            "- `qualification.status` — maintainer가 실제 장비에서 검증했는지(`verified` / `unverified`)입니다. "
             "전환 가능한 프로필이 `unverified`면 `switch` 요청에 `confirm_unverified: true`가 필요합니다.\n"
             "- `capabilities.deployed_input` — 그 프로필로 전환했을 때 받을 수 있는 입력 modality입니다. "
             "전환이 완료되면 `/v1/models`의 `input_modalities`와 chat validator에 즉시 반영됩니다.\n"

@@ -1036,8 +1036,8 @@ def test_resource_variant_overrides_only_the_declared_resource_knob() -> None:
 
 
 def test_resource_variant_is_recorded_on_the_profile_snapshot() -> None:
-    # qualification context와 admin 응답이 이 값을 읽는다. 어떤 자원 정책으로
-    # 서빙 중인지 증거에 남지 않으면 48GB run과 24GB run이 구분되지 않는다.
+    # admin 응답과 request log가 이 값을 읽는다. 어떤 자원 정책으로 서빙 중인지
+    # 남지 않으면 48GB 정책과 24GB 정책의 동작이 구분되지 않는다.
     tuned = _variant_catalog("rtx4090-24gb").profiles["gemma4-e4b-it"]
     assert tuned.resource_variant == "rtx4090-24gb"
     assert tuned.public_view()["resource_variant"] == "rtx4090-24gb"
@@ -1078,7 +1078,7 @@ def test_switch_without_the_selected_resource_override_is_refused(tmp_path) -> N
 
 
 def test_resource_override_refusal_is_not_bypassed_by_unverified_confirmation(tmp_path) -> None:
-    # confirm_unverified는 qualification 축의 확인이지 자원 정책의 확인이 아니다.
+    # confirm_unverified는 검증 여부 축의 확인이지 자원 정책의 확인이 아니다.
     # boot reconcile이 이 flag를 켜고 같은 경로를 지나므로, 여기서 우회가 되면
     # 재기동만으로 reference 자원 정책이 이 host에 다시 적용된다.
     loaded = _variant_catalog("rtx4090-24gb")

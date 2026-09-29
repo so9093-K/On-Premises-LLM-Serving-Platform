@@ -177,7 +177,7 @@ runtime backend, capability, lifecycle ownership의 차이다.
 managed Linux/NVIDIA target에서 Runtime Controller는 선언된 GPU budget과 active runtime 구성을 기준으로
 start/switch admission을 판단한다.
 
-GPU product name, UUID, driver, memory size는 관측값과 qualification provenance이며 지원 allowlist가 아니다.
+GPU product name, UUID, driver, memory size는 관측값이며 지원 allowlist가 아니다.
 새 GPU라는 이유만으로 별도 profile-level qualification을 요구하지 않는다. 실행 가능성은 deployment/runtime
 compatibility, resource admission, selected profile contract와 runtime validation이 판단한다.
 

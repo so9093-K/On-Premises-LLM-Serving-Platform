@@ -265,9 +265,9 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
       {actionError ? <Alert isInline variant="danger" title="메인 모델 전환 요청에 실패했습니다.">{actionError}</Alert> : null}
 
       <details className="context-note">
-        <summary>호환성과 검증 근거 안내</summary>
+        <summary>호환성과 검증 상태 안내</summary>
         <p>
-          GPU 실행 가능성과 프로필 검증 근거는 서로 다른 정보입니다. 직접 검증 기록이 없다는 이유만으로
+          GPU 실행 가능성과 프로필 검증 상태는 서로 다른 정보입니다. 직접 검증하지 않았다는 이유만으로
           GPU가 지원되지 않는 것으로 판단하지 않으며, 호환성·GPU 리소스 판단·런타임 검증을 함께 사용합니다.
           리소스 variant는 기준 정책이 맞지 않을 때만 사용하는 명시적 override입니다.
         </p>
@@ -296,7 +296,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
-                <tr><th>프로필</th><th>호환성</th><th>검증 근거</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th>VRAM</th><th>상태</th><th>작업</th></tr>
+                <tr><th>프로필</th><th>호환성</th><th>검증 상태</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th>VRAM</th><th>상태</th><th>작업</th></tr>
               </thead>
               <tbody>
                 {profiles.map((profile) => {
@@ -342,7 +342,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
           <CardBody>
             <p className="configuration-help profile-comparison-intro">
               전환 전에 현재 프로필과 후보 프로필의 운영 계약 차이를 확인합니다.
-              호환성, 검증 근거, 리소스 정책은 서로 다른 정보이며 이 비교만으로 GPU 지원 여부를 판정하지 않습니다.
+              호환성, 검증 상태, 리소스 정책은 서로 다른 정보이며 이 비교만으로 GPU 지원 여부를 판정하지 않습니다.
             </p>
 
             {active && switchImpact ? (
@@ -366,7 +366,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
                         <td>{switchImpact.compatibilityChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>검증 근거</strong></td>
+                        <td><strong>검증 상태</strong></td>
                         <td><Label color={qualificationVariant(active.qualification.status)}>{qualificationLabel(active.qualification.status)}</Label></td>
                         <td><Label color={qualificationVariant(reviewProfile.qualification.status)}>{qualificationLabel(reviewProfile.qualification.status)}</Label></td>
                         <td>{switchImpact.qualificationChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
@@ -437,15 +437,15 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
             </details>
 
             {requiresConfirmation ? (
-              <Alert isInline variant="warning" title="프로필 검증 근거 확인이 필요합니다.">
-                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 프로필의 저장소 기반 검증 근거가 검증 완료 상태가 아님을 확인하는 절차입니다.</p>
+              <Alert isInline variant="warning" title="미검증 프로필 확인이 필요합니다.">
+                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 프로필이 아직 실제 장비에서 검증 완료로 표시되지 않았음을 확인하는 절차입니다.</p>
                 <label>
                   <input
                     type="checkbox"
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.currentTarget.checked)}
                   />{' '}
-                  검증 근거 상태를 확인했고 전환을 진행합니다.
+                  미검증 상태를 확인했고 전환을 진행합니다.
                 </label>
               </Alert>
             ) : null}
