@@ -79,18 +79,6 @@ fi
 echo "[image] building platform image ${IMAGE}"
 docker build "${build_args[@]}" .
 
-echo "[image] verifying platform image imports"
-# 이 smoke는 image 안에서 앱 factory를 import/초기화하는지만 확인한다. 배포 .env는
-# 컨테이너 실행 시 주입되므로, catalog의 digest 형식 해석에는 고정 fixture를 사용한다.
-IMAGE_SMOKE_VLLM="registry.example.com/vllm-unified@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-run_args=(--rm)
-if [[ -n "$TARGET_PLATFORM" ]]; then
-  run_args+=(--platform "$TARGET_PLATFORM")
-fi
-docker run "${run_args[@]}" \
-  --env "VLLM_IMAGE=${IMAGE_SMOKE_VLLM}" \
-  --env "MAIN_MODEL_VLLM_IMAGE_OVERRIDE=${IMAGE_SMOKE_VLLM}" \
-  --entrypoint python "$IMAGE" -c \
-  "from ai_model_serving.apps.gateway import create_gateway_app; from ai_model_serving.apps.risk_signal_service import create_risk_signal_service_app; from ai_model_serving.apps.mlx_metrics_exporter import app as mlx_metrics_app; create_gateway_app(); create_risk_signal_service_app(); assert mlx_metrics_app is not None"
+bash scripts/build/smoke_platform_image.sh "$IMAGE" "$TARGET_PLATFORM"
 IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
 echo "[image] built and verified ${IMAGE} (${IMAGE_ID})"

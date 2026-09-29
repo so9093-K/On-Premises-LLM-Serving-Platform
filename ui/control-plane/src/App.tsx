@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 import { ApiError, fetchBootstrap, type BootstrapResponse, verifyAdminToken } from './api';
 import { useAdminSession } from './auth/AdminSessionContext';
@@ -9,6 +9,7 @@ import { ConfigurationPage } from './ConfigurationPage';
 import { MainModelPage } from './MainModelPage';
 import { OperationsPage } from './OperationsPage';
 import { OverviewPage } from './OverviewPage';
+import { PageErrorBoundary } from './PageErrorBoundary';
 import { RuntimePage } from './RuntimePage';
 import { deploymentTargetLabel, t } from './uiText';
 
@@ -116,6 +117,7 @@ function AuthGate() {
 
 function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
   const { token, clearToken } = useAdminSession();
+  const location = useLocation();
   const sections = SECTIONS.filter((section) => section.enabled(bootstrap));
   const externalLinks = [
     [t('link.apiDocs'), bootstrap.links.docs],
@@ -149,14 +151,16 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
           </div>
         </aside>
         <main className="content">
-          <Routes>
-            <Route path="/" element={<OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />} />
-            <Route path="/runtimes" element={<RuntimePage token={token} onUnauthorized={clearToken} />} />
-            <Route path="/main-model" element={<MainModelPage token={token} onUnauthorized={clearToken} />} />
-            <Route path="/configuration" element={<ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
-            <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <PageErrorBoundary resetKey={location.pathname}>
+            <Routes>
+              <Route path="/" element={<OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />} />
+              <Route path="/runtimes" element={<RuntimePage token={token} onUnauthorized={clearToken} />} />
+              <Route path="/main-model" element={<MainModelPage token={token} onUnauthorized={clearToken} />} />
+              <Route path="/configuration" element={<ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
+              <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </PageErrorBoundary>
         </main>
       </div>
     </div>

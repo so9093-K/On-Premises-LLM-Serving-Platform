@@ -32,7 +32,7 @@ make perf-*
 |---|---|---|
 | `make check` | 저장소 전체 source와 generated artifact가 검증되는가? | Application + Control Plane |
 | `make app-check` | application 정적 계약과 결정론적 테스트가 모두 통과하는가? | Python application, Config, Contract |
-| `make validate` | 설정·계약·생성물이 서로 일치하는가? | Config, Schema, OpenAPI, Compose |
+| `make validate` | 설정·계약·생성물이 서로 일치하고 Python 코드에 버그 신호(정의되지 않은 이름, 쓰지 않는 import, 문법 오류)가 없는가? | Config, Schema, OpenAPI, Compose, Python lint |
 | `make test` | application logic이 예상한 동작을 수행하는가? | Gateway, Risk, Auth, Runtime Control |
 | `ready-local` / `ready-full` | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
 | `make runtime-validate` | 실제 vLLM API·고급 요청·모니터링 연결이 동작하는가? | Full-stack Runtime |
@@ -532,7 +532,7 @@ passed evidence를 확인한 뒤 별도 reviewed diff로 수행한다.
 | Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
-| Platform `Dockerfile` / dependency | `make build-image` | image 실행 후 readiness |
+| Platform `Dockerfile` / dependency | `make build-image`(image의 기본 CMD로 Gateway를 띄워 `/health`, Console, `/docs` asset을 HTTP로 확인) | image 실행 후 readiness |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
 | Release packaging logic | `make validate` → `make test` → `make package` | package artifact 확인 |

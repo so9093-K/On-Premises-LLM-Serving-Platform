@@ -37,9 +37,21 @@
 - lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
   `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
   수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
+- HTTP metric의 `route` label이 등록된 route template만 사용한다. 매칭되는 route가 없는
+  요청(`/.env`, `/wp-login.php` 같은 스캐너 요청)은 모두 `route="unmatched"` 하나로
+  집계되어, 임의 경로 요청이 Gateway 메모리와 Prometheus time series를 늘리지 않는다.
+- Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
+  않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
+  빠진 timestamp는 `—`로 표시된다.
 
 ### Changed
 
+- `make validate`가 Python lint(`ruff`, 버그 신호 규칙만)를 함께 검사한다. 규칙은
+  `pyproject.toml`의 `[tool.ruff]`가 소유하며 ruff는 개발용 `quality` dependency group에 고정된다.
+- `make build-image`의 image smoke가 app factory import에 더해 image의 기본 CMD로 Gateway를
+  실제로 띄우고 `/health`, `/admin/console/`과 그 script asset, `/docs`와 self-host 문서 번들을
+  HTTP로 확인한다. 문서 번들 누락이나 잘못된 기동 명령처럼 import만으로는 드러나지 않는
+  image 결함을 CI에서 잡는다.
 - Control Plane Console에 PatternFly 6 dark theme를 활성화하고 warm-neutral surface hierarchy를
   적용했다. main canvas는 `#292827`, shell은 `#232221`, card는 `#333230`을 기준으로 하며
   text/border/hover surface도 dark 환경에서 충분한 대비를 갖도록 분리했다. status/action 색은

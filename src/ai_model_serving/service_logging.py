@@ -29,7 +29,7 @@ class _RequestEventFileHandler(RotatingFileHandler):
     def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802 - logging API
         # 표준 Handler는 emit 오류를 stderr에만 쓰고 삼킨다. 호출자가 stdout fallback을
         # 수행할 수 있도록 이 sink에서는 예외를 다시 올린다.
-        raise
+        raise  # noqa: PLE0704 - logging.Handler.emit의 except 안에서 호출된다
 
 
 _request_event_handlers: dict[str, _RequestEventFileHandler] = {}
