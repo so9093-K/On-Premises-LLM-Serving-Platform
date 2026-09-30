@@ -52,8 +52,26 @@ def test_compose_preflight_allows_local_open_private_local_only_policy(monkeypat
     monkeypatch.setenv("AUTH_MODE", "local_open")
     monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
+    monkeypatch.setenv("GATEWAY_BIND_ADDR", "127.0.0.1")
+    monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
 
     module._check_auth_profile_preflight()
+
+
+def test_compose_preflight_rejects_local_only_with_non_loopback_public_bind(monkeypatch) -> None:
+    module = load_preflight()
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_MODE", "local_open")
+    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
+    monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
+    monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
+    monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
+
+    with pytest.raises(SystemExit) as exc:
+        module._check_auth_profile_preflight()
+
+    assert "auth profile evidence" in str(exc.value)
 
 
 def test_compose_preflight_rejects_access_profile_drift(monkeypatch) -> None:
