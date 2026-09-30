@@ -354,7 +354,7 @@ Gateway 상태와 요청 흐름을 우선 확인한다.
 
 Full-stack 기동 후에는 전체 Runtime 준비 상태와 GPU 자원을 함께 확인한다.
 
-- `make ready-full`
+- `make status`와 Gateway `GET /ready`
 - Main Model과 non-main Model Runtime 상태
 - GPU Memory / Headroom
 - Queue / KV Cache
