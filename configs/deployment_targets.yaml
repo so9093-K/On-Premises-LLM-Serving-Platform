@@ -41,7 +41,8 @@ targets:
     main_profile_catalog: configs/main_model_profiles.yaml
     compose_files:
       - ops/compose/static-main.external-runtime.yaml
-      - ops/compose/overrides/static.local-risk.yaml    control_mode: static
+      - ops/compose/overrides/static.local-risk.yaml
+    control_mode: static
     lifecycle_owner: external
     # Risk Signal Service가 Gateway의 내부 호출면이므로 static target도 내부 token을 사용한다.
     internal_service_token_required: true
