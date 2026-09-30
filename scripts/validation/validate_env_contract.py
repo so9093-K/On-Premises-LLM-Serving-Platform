@@ -231,6 +231,14 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
                 violations.append(
                     f"env_contract.yaml: {label} injects INTERNAL_SERVICE_TOKEN although target {target!r} has no token consumer"
                 )
+    compose_targets = {
+        str(target): target_cfg
+        for target, target_cfg in targets.items()
+        if isinstance(target_cfg, dict) and isinstance(target_cfg.get("compose_files"), list)
+    }
+    if not compose_targets:
+        return violations
+
     services_document = load_yaml(root / "configs" / "services.yaml")
     services = services_document.get("services")
     compose_to_service_id = {
@@ -240,9 +248,7 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
     }
 
     expected_consumers: set[tuple[str, str]] = set()
-    for target, target_cfg in targets.items():
-        if not isinstance(target_cfg, dict):
-            continue
+    for target, target_cfg in compose_targets.items():
         compose_files = target_cfg.get("compose_files")
         if not isinstance(compose_files, list):
             continue
