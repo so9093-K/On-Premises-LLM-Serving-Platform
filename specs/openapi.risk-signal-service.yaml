@@ -72,7 +72,7 @@ paths:
                 additionalProperties:
                   type: string
                 type: object
-                title: Response Getriskadapterhealth
+                title: Response Getrisksignalservicehealth
   /ready:
     get:
       tags:
