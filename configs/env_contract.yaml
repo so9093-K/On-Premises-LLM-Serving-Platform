@@ -72,20 +72,6 @@ runtime_override_example_keys:
       - BASE_URL
       - TIMEOUT_SECONDS
 
-# master_open 예시에 필요한 host bind 키.
-exposure_mode_requirements:
-  master_open:
-    - EXPOSURE_AUDIENCE
-    - GRAFANA_BIND_ADDR
-    - PROMETHEUS_BIND_ADDR
-    - RISK_SIGNAL_SERVICE_BIND_ADDR
-    - DCGM_EXPORTER_BIND_ADDR
-    - CADVISOR_BIND_ADDR
-    - MAIN_MODEL_VLLM_BIND_ADDR
-    - EMBEDDING_VLLM_BIND_ADDR
-    - EMBEDDING_KO_VLLM_BIND_ADDR
-    - PROMPT_INJECTION_DETECTOR_RUNTIME_BIND_ADDR
-
 # env_examples: which example files must contain which key sets.
 env_examples:
   .env.local.example:
@@ -97,7 +83,6 @@ env_examples:
       - auth_mode_keys
       - auth_evidence_keys
       - runtime_override_example_keys
-      - exposure_mode_requirements.master_open
 
 # 각 예시 파일이 어느 auth profile을 표현하는지의 선언이다. 별도 sanity script가
 # 템플릿을 다시 읽어 확인하지 않도록 env contract 검증기가 이 관계를 직접 검증한다.

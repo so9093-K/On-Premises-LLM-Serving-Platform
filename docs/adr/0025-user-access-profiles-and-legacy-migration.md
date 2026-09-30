@@ -4,6 +4,8 @@
 
 Accepted
 
+- Partially superseded by: [ADR-0043](./0043-internal-runtime-validation-and-private-host-exposure.md) — `master_open` 유지와 exposure-* legacy surface 결정
+
 ## Context
 
 ADR-0012는 application 인증과 Compose 노출의 Source of Truth를 분리했지만,

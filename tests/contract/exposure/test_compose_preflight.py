@@ -13,7 +13,7 @@ import pytest
 
 from ai_model_serving.access_profile import access_profile_env_values
 
-from .helpers import ROOT, load_exposure
+from .helpers import ROOT
 
 PREFLIGHT_PATH = ROOT / "scripts/compose/preflight_compose.py"
 
@@ -31,11 +31,7 @@ def load_preflight() -> ModuleType:
     return module
 
 
-# private_network profile만 담은 최소 입력 -- _phase1은 이 프로필의 존재 여부만 본다.
-MINIMAL_PRIVATE_NETWORK = {"profiles": {"private_network": {"diagnostics": {}}}}
-
-
-def test_compose_preflight_rejects_local_open_without_full_stack_private_lan(monkeypatch) -> None:
+def test_compose_preflight_rejects_local_open_without_local_only_policy(monkeypatch) -> None:
     module = load_preflight()
 
     monkeypatch.setenv("APP_ENV", "production")
@@ -44,20 +40,38 @@ def test_compose_preflight_rejects_local_open_without_full_stack_private_lan(mon
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "")
 
     with pytest.raises(SystemExit) as exc:
-        module._phase1(MINIMAL_PRIVATE_NETWORK)
+        module._phase1()
 
     assert "auth profile evidence" in str(exc.value)
 
 
-def test_compose_preflight_allows_non_local_local_open_on_trusted_lan(monkeypatch) -> None:
+def test_compose_preflight_allows_local_open_private_local_only_policy(monkeypatch) -> None:
     module = load_preflight()
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "local_open")
-    monkeypatch.setenv("EXPOSURE_MODE", "master_open")
-    monkeypatch.setenv("EXPOSURE_AUDIENCE", "private_lan")
+    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
+    monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
+    monkeypatch.setenv("GATEWAY_BIND_ADDR", "127.0.0.1")
+    monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
 
     module._check_auth_profile_preflight()
+
+
+def test_compose_preflight_rejects_local_only_with_non_loopback_public_bind(monkeypatch) -> None:
+    module = load_preflight()
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_MODE", "local_open")
+    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
+    monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
+    monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
+    monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
+
+    with pytest.raises(SystemExit) as exc:
+        module._check_auth_profile_preflight()
+
+    assert "auth profile evidence" in str(exc.value)
 
 
 def test_compose_preflight_rejects_access_profile_drift(monkeypatch) -> None:
@@ -83,7 +97,7 @@ def test_compose_preflight_reads_auth_mode_from_env_file(monkeypatch, tmp_path) 
     monkeypatch.setenv("ENV_FILE", str(env_file))
 
     with pytest.raises(SystemExit):
-        module._phase1(MINIMAL_PRIVATE_NETWORK)
+        module._phase1()
 
 
 def test_compose_preflight_reads_exposure_from_env_file(monkeypatch, tmp_path) -> None:
@@ -99,4 +113,4 @@ def test_compose_preflight_reads_exposure_from_env_file(monkeypatch, tmp_path) -
     monkeypatch.setenv("ENV_FILE", str(env_file))
 
     with pytest.raises(SystemExit):
-        module._phase1(load_exposure())
+        module._phase1()

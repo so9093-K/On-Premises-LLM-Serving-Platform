@@ -1,0 +1,43 @@
+# One-off live validation runner.
+# It joins the existing Compose project network and reaches internal services by
+# service name/container port. It is never started by the normal platform lifecycle.
+services:
+  runtime-validator:
+    image: ${PLATFORM_IMAGE:?Set PLATFORM_IMAGE to the platform image used by the running stack}
+    user: "${RUNTIME_VALIDATOR_UID:-1000}:${RUNTIME_VALIDATOR_GID:-1000}"
+    working_dir: /workspace
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    command:
+      - python
+      - /workspace/scripts/validation/runtime_validation.py
+      - --root
+      - /workspace
+      - --network-scope
+      - compose
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: /workspace/src:/workspace
+      PROJECT_ROOT: /workspace
+      APP_CONFIG_ROOT: /workspace
+      API_KEY: ${API_KEY:-}
+      API_KEYS: ${API_KEYS:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      ADMIN_API_KEYS: ${ADMIN_API_KEYS:-}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      MAIN_MODEL_RESOURCE_VARIANT: ${MAIN_MODEL_RESOURCE_VARIANT:-}
+    volumes:
+      - ../../src:/workspace/src:ro
+      - ../../scripts:/workspace/scripts:ro
+      - ../../configs:/workspace/configs:ro
+      - ../../specs:/workspace/specs:ro
+      - ../../ops:/workspace/ops:ro
+      - ../../VERSION:/workspace/VERSION:ro
+      - ../../reports/runtime:/workspace/reports/runtime

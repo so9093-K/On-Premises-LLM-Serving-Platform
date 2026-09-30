@@ -34,7 +34,7 @@ def test_setup_env_refuses_overwrite_without_force(tmp_path):
     assert out.read_text(encoding='utf-8') == 'EXISTING=1\n'
 
 
-def test_setup_env_rejects_private_exposure_with_local_open(tmp_path, capsys):
+def test_setup_env_rejects_retired_master_open_with_local_open(tmp_path, capsys):
     out = tmp_path / '.env'
     rc = setup_env.main(
         [
@@ -43,11 +43,11 @@ def test_setup_env_rejects_private_exposure_with_local_open(tmp_path, capsys):
             '--output',
             str(out),
             '--exposure-mode',
-            'private_network',
+            'master_open',
         ]
     )
     assert rc == 2
-    assert "AUTH_MODE=local_open requires" in capsys.readouterr().err
+    assert "EXPOSURE_MODE='master_open' is no longer supported" in capsys.readouterr().err
 
 
 def test_setup_env_force_rejects_duplicate_existing_env(tmp_path, capsys):

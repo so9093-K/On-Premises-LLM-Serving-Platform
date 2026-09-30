@@ -9,7 +9,12 @@ from ai_model_serving.configuration import load_yaml_mapping
 from ai_model_serving.domain import ModelRegistry
 from ai_model_serving.runtime_topology import load_runtime_topology
 from scripts.lib.process_env import load_dotenv
-from scripts.lib.service_endpoint import published_base_url, service_base_url
+from scripts.lib.service_endpoint import (
+    internal_base_url,
+    internal_service_base_url,
+    published_base_url,
+    service_base_url,
+)
 
 
 def _explicit_arg(args: Any, name: str) -> str:
@@ -33,6 +38,7 @@ class RuntimeValidationConfig:
     output_dir: str
     timeout_seconds: float
     allow_failures: bool
+    network_scope: str
     api_key: str
     admin_api_key: str
     internal_service_token: str
@@ -70,16 +76,17 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
     enabled_runtime_keys = {
         key for key, binding in topology.bindings_by_key.items() if binding.enabled
     }
+    network_scope = str(args.network_scope)
+    if network_scope not in {"published", "compose"}:
+        raise ValueError(f"unsupported runtime validation network scope: {network_scope!r}")
     services_by_compose_name = {
         str(service["compose_service"]): service
         for service in services.values()
     }
 
     def service_base(service_id: str, suffix: str = "") -> str:
-        try:
-            return published_base_url(services, service_id, suffix)
-        except KeyError as exc:
-            raise ValueError(f"configs/services.yaml is missing {service_id}") from exc
+        resolver = internal_base_url if network_scope == "compose" else published_base_url
+        return resolver(services, service_id, suffix)
 
     def runtime_base(service: Any) -> str:
         try:
@@ -89,6 +96,8 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
                 "configs/services.yaml has no entry for runtime compose service "
                 f"{service.compose_service_name!r}"
             ) from exc
+        if network_scope == "compose":
+            return internal_service_base_url(service_config, "/v1")
         return service_base_url(service_config, "/v1")
 
     api_key = args.api_key or os.getenv("API_KEY", "") or _first_csv_value(os.getenv("API_KEYS", ""))
@@ -98,11 +107,13 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
         output_dir=args.output_dir,
         timeout_seconds=args.timeout_seconds,
         allow_failures=args.allow_failures,
+        network_scope=network_scope,
         api_key=api_key,
         admin_api_key=admin_api_key,
         internal_service_token=os.getenv("INTERNAL_SERVICE_TOKEN", ""),
-        # *_BASE_URL은 application container가 Compose 내부 서비스에 접속하는 주소다.
-        # host에서 실행하는 검증이 이를 우선하면 내부 DNS가 해석되지 않아 실패한다.
+        # 기본 endpoint는 실행 위치가 소유한다. host 실행은 published 주소를,
+        # Compose validation runner는 service-name/container-port 주소를 사용한다.
+        # 명시적 CLI/process override는 양쪽 모두에서 최우선으로 유지한다.
         gateway_base=_url_value(args, "gateway_base", "RUNTIME_VALIDATION_GATEWAY_BASE_URL", service_base("gateway")),
         risk_base=_url_value(args, "risk_base", "RUNTIME_VALIDATION_RISK_BASE_URL", service_base("risk_signal_service")),
         prometheus_base=_url_value(args, "prometheus_base", "RUNTIME_VALIDATION_PROMETHEUS_BASE_URL", service_base("prometheus")),

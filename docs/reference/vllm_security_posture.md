@@ -29,14 +29,14 @@ Model Runtime
 `private_network` exposure mode는 Gateway와 Grafana만 host에 publish하고 vLLM runtime은
 Compose network 안에 둔다. 이 경우 아래의 **Gateway 차단**은 실제 외부 request boundary다.
 
-`master_open`은 진단용으로 vLLM runtime port까지 host에 publish한다. 이 경로의 직접 호출은
-Gateway의 parameter allowlist, media scheme/size validation, public endpoint 축소를 거치지 않는다.
-따라서 아래 표에서 Gateway가 막는 advisory라도 **direct runtime access에는 그 mitigation이 적용되지 않는다**.
-`master_open`은 신뢰된 네트워크에서만 사용한다.
+vLLM runtime port는 지원되는 host surface에 publish하지 않는다. 따라서 외부 client의
+지원 경로는 Gateway 하나이며 아래 Gateway 차단이 실제 public request boundary다.
+Compose 내부의 raw runtime 자체는 upstream engine이므로, 내부 주체가 직접 호출하거나
+runtime이 침해된 경우에는 Gateway mitigation을 적용받지 않는다는 구분은 유지한다.
 
 ## 현재 request-surface advisory 투영
 
-| Advisory | Upstream 영향 | Gateway 경유 | Direct runtime (`master_open`) | 현재 계약 |
+| Advisory | Upstream 영향 | Gateway 경유 | Compose-internal raw runtime | 현재 계약 |
 |---|---|---|---|---|
 | [GHSA-25q3-v2hm-8vpf](https://github.com/vllm-project/vllm/security/advisories/GHSA-25q3-v2hm-8vpf) negative token ID embedding/pooling DoS | vLLM의 token-id input이 음수 ID를 GPU까지 전달할 수 있는 버전이 영향 대상 | **차단** | upstream pin의 영향 그대로 받음 | Public `/v1/embeddings`는 `str | list[str]`만 받고 token-id 배열을 거부한다. Gateway는 `/pooling`을 공개하지 않는다. |
 | [GHSA-wpww-v874-ph2p](https://github.com/vllm-project/vllm/security/advisories/GHSA-wpww-v874-ph2p) unbounded `cache_salt` CPU DoS | `<0.29.0` 영향 | **차단** | 0.25.1 direct API에는 upstream 영향이 남음 | Chat/Embedding request parameter allowlist에 `cache_salt`가 없고 Responses도 unknown top-level field를 거부한다. |
@@ -56,7 +56,7 @@ Gateway의 parameter allowlist, media scheme/size validation, public endpoint �
 - Public audio input은 `input_audio.data` raw base64이며 remote `audio_url` surface를 만들지 않는다.
 - Gateway request-body/media byte/item limit이 runtime 호출 전에 적용된다.
 - Gateway가 `/v1/completions`, `/pooling`, `/v1/audio/transcriptions`를 public route로 추가하지 않는다.
-- `master_open`의 direct model runtime access는 Gateway mitigation 바깥의 trusted diagnostic boundary다.
+- raw model runtime은 host에 publish하지 않으며, 내부 direct access는 Gateway mitigation 바깥의 Compose-internal boundary다.
 
 `tests/unit/test_vllm_security_exposure.py`는 이 중 request-contract로 직접 고정할 수 있는
 negative token ID, `cache_salt`, remote media URL 경계를 보호한다. Exposure topology의
@@ -65,8 +65,8 @@ host-publish 집합은 `configs/exposure_profiles.yaml`이 계속 authority다.
 ## Engine upgrade 판단
 
 Gateway mitigation은 현재 public API의 blast radius를 줄이는 방어층이지 vulnerable upstream
-engine을 patched 상태로 재분류하는 근거가 아니다. 특히 `master_open`처럼 runtime을 직접
-publish하는 mode에는 적용되지 않는다.
+engine을 patched 상태로 재분류하는 근거가 아니다. Raw runtime 자체에는 Gateway mitigation이
+적용되지 않으므로 내부 경계와 engine upgrade 검토는 계속 별도로 유지한다.
 
 따라서 vLLM 변경은 “새 GPU마다 다시 qualification”하는 방식이 아니라 다음 순서로 검토한다.
 

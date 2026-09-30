@@ -528,27 +528,10 @@ Compose Network
 
 애플리케이션 요청은 Gateway를 통해 내부 runtime으로 전달된다.
 
-### `master_open`
+제품·애플리케이션 연동과 runtime qualification 모두 raw runtime의 host publication을
+요구하지 않는다. 일반 요청은 Gateway를 통과하고, `make runtime-validate`의 one-off
+validator만 Compose 내부 service DNS로 runtime·Risk·Prometheus를 직접 검사한다.
 
-`master_open`은 신뢰된 사내망에서 runtime과 운영 endpoint를 직접 진단할 수 있도록 추가 port를 host에 publish한다.
-
-```text
-Gateway         :9400
-Main vLLM       :9401
-Embedding       :9402
-Prompt vLLM     :9403
-Risk Signal Service    :9405
-Embedding-KO    :9406
-Prometheus      :9410
-Grafana         :9411
-DCGM Exporter   :9412
-cAdvisor        :9413
-Loki            :9414
-```
-
-Runtime Controller는 `master_open`에서도 Compose 내부 `:8080` 경계를 유지한다.
-
-제품·애플리케이션 연동은 Gateway API를 사용해 request validation, runtime routing, response validation을 적용한다. `master_open`의 직접 runtime port는 진단 경로로 사용한다.
 
 ### Admin Control 경로
 

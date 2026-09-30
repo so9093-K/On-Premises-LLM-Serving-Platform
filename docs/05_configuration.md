@@ -280,14 +280,12 @@ main-llm-vllm
 
 실행된 서비스 중 어떤 서비스를 host에 publish할지 정의한다.
 
-현재 canonical exposure mode는 다음 두 가지다.
+canonical exposure topology는 `private_network` 하나다. Gateway와 Grafana만 host에
+publish하며 model runtime, Risk Signal Service, Prometheus와 exporter/log backend는
+Compose 내부망에 둔다.
 
-| Mode | Host publish 범위 |
-|---|---|
-| `private_network` | Gateway와 Grafana 중심 |
-| `master_open` | Gateway, model runtime, Risk Signal Service, operations endpoint 등 전체 stack 중심 |
-
-Exposure Profile은 실행된 service의 host 공개 범위를 관리한다. runtime 활성 상태는 Runtime Startup Profile과 각 runtime lifecycle에서 결정한다.
+Exposure Profile은 실행된 service의 host 공개 범위를 관리하고, runtime 활성 상태는
+Runtime Startup Profile과 각 runtime lifecycle에서 결정한다.
 
 ```text
 Runtime Startup Profile
@@ -362,9 +360,9 @@ make up TARGET=<id> ACCESS=local
 기존 `.env`에 profile을 적용할 때는 `make up ACCESS=...`의 첫 실행이 계획만 표시한다. 확인 후
 같은 `make up`에 `CONFIRM=access`를 지정한다. `ACCESS_PROFILE`이 없는 기존 환경은 자동 이관하지 않는다.
 
-인증과 네트워크 노출 profile은 Advanced/legacy primitive로 계속 분리 관리한다.
-개별 `auth-apply` 또는 `exposure-apply`를 적용하면 `ACCESS_PROFILE`을 비워 managed
-profile을 종료하며, plan에 그 전환을 함께 표시한다.
+인증 primitive는 Advanced/legacy 진단에 남지만 host exposure topology는
+`private_network` 하나로 고정된다. 개별 `auth-apply`를 적용하면 `ACCESS_PROFILE`을
+비워 managed profile을 종료하며, plan에 그 전환을 함께 표시한다.
 
 ### Authentication Profile
 
@@ -372,7 +370,7 @@ profile을 종료하며, plan에 그 전환을 함께 표시한다.
 
 대표 mode는 다음과 같다.
 
-- `local_open`: Access Profile `local`과 진단용 `master_open`에서 사용
+- `local_open`: Access Profile `local`에서 사용
 - `private_network`: Access Profile `private`
 - `strict`: Access Profile `edge`
 - `custom`: 운영자가 인증 flag를 직접 조합한 상태의 라벨
@@ -388,17 +386,15 @@ make auth-apply MODE=<profile>
 make auth-doctor
 ```
 
-### Exposure Profile
+### Host exposure topology
 
-Exposure mode는 별도로 관리한다.
+`EXPOSURE_MODE=private_network`은 현재 compatibility projection으로 남아 있으며 다른
+지원 mode는 없다. Host 공개 범위 변경은 임의 exposure mode가 아니라
+`ACCESS_PROFILE=local|private|edge`의 bind/auth 정책으로 표현한다.
 
-```bash
-make exposure-status
-make exposure-plan MODE=<mode>
-make exposure-apply MODE=<mode>
-```
-
-`AUTH_MODE`는 **누가 호출할 수 있는지**를, `EXPOSURE_MODE`는 **어떤 서비스가 network에 공개되는지**를 정의한다. 두 profile을 함께 적용해 접근 경계를 구성한다.
+`AUTH_MODE`는 **누가 호출할 수 있는지**, Access Profile의 host bind 정책은 **어디에서
+Gateway/Grafana에 접근할 수 있는지**를 정의한다. Raw runtime과 운영 backend는
+어느 Access Profile에서도 host에 직접 공개하지 않는다.
 
 ---
 
@@ -521,15 +517,13 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-Exposure Compose override(`exposure_profiles.yaml` + `services.yaml` 입력)는 별도 generator다. Makefile target이 없어 직접 실행한다.
+`configs/exposure_profiles.yaml`은 generated override를 만들지 않는다. 지원되는
+`private_network` host-publish 집합과 base Compose의 실제 `ports` 집합이 같은지는
+access/exposure validator가 직접 대조한다.
 
-```bash
-python scripts/compose/render_exposure_overrides.py
-```
-
-`make validate`는 두 generator의 drift를 각각 별도 단계로 검사한다
-(generated artifacts, compose overrides). OpenAPI는 generated artifacts 단계에서 축약 전·후의
-계약 의미 보존도 함께 확인한다.
+`make validate`의 generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고,
+access/exposure 단계는 base Compose의 host exposure 계약을 확인한다. OpenAPI는 축약 전·후의
+계약 의미 보존도 함께 검증한다.
 
 ---
 
@@ -557,7 +551,7 @@ Compose 관련 설정을 변경했다면 effective configuration도 함께 확�
 
 ```bash
 bash scripts/compose/compose_config.sh
-make exposure-status
+bash scripts/compose/compose_config.sh
 ```
 
 모델 runtime이나 GPU 설정 변경에는 static validation과 full-stack readiness를 함께 수행한다. 실제 API 계약 확인이 필요한 경우 [8. 테스트와 검증](./08_testing_validation.md)의 runtime validation을 추가한다.
@@ -611,7 +605,7 @@ make exposure-status
 ```bash
 make validate
 bash scripts/compose/compose_config.sh        # Compose 관련 변경 시
-make exposure-status       # exposure/auth 관련 변경 시
+bash scripts/compose/compose_config.sh       # exposure/auth 관련 변경 시
 ```
 
 실제 model runtime 또는 GPU 동작이 바뀌는 변경은 full-stack 환경에서 추가 검증한다.

@@ -159,7 +159,7 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 
 - 현재 vLLM pin에 대한 request-surface advisory reachability
 - Gateway가 차단·제한하는 입력과 direct runtime bypass 경계
-- `private_network` / `master_open` 운영 보안 차이
+- Gateway 경유 public surface와 Compose-internal raw runtime의 보안 경계
 - engine upgrade 전에 유지해야 할 regression invariant
 
 ### [부록](appendix.md)

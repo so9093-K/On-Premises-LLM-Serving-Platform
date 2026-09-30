@@ -3,9 +3,8 @@
 
 체크 항목:
 - env_contract.yaml에 선언된 env example이 각각 필요한 키 집합을 포함하는지
-- 필요한 키 집합: 공통 예시 키, 인증 키, runtime override 키, exposure 키
+- 필요한 키 집합: 공통 예시 키, 인증 키, runtime override 키
 - removed key가 active/commented assignment 또는 service env projection으로 재도입되지 않는지
-- non-base exposure profile에 필요한 example key가 선언되어 있는지
 
 사용법:
   python scripts/validation/validate_env_contract.py
@@ -89,16 +88,6 @@ def expand_required_keys(
                     if not isinstance(suffix, str):
                         continue
                     required.append(f"{prefix}_{suffix}")
-        elif name.startswith("exposure_mode_requirements."):
-            sub = name.split(".", 1)[1]
-            mode_requirements = contract.get("exposure_mode_requirements")
-            values = mode_requirements.get(sub) if isinstance(mode_requirements, dict) else None
-            if not isinstance(values, list):
-                violations.append(
-                    f"env_contract.yaml: required key set {name!r} does not exist or is not a list"
-                )
-                continue
-            required.extend(values)
         else:
             # contract 최상위의 직접 목록
             val = contract.get(name)
@@ -306,7 +295,7 @@ def validate_access_example_profiles(root: Path, contract: dict[str, Any]) -> li
     return violations
 
 
-def validate(root: Path = ROOT, strict: bool = False) -> list[str]:
+def validate(root: Path = ROOT) -> list[str]:
     violations: list[str] = []
 
     contract_path = root / "configs" / "env_contract.yaml"
@@ -398,26 +387,6 @@ def validate(root: Path = ROOT, strict: bool = False) -> list[str]:
                     f"configs/services.yaml default_host_port={expected_port}"
                 )
 
-    if strict:
-        # exposure profile마다 필요한 env key 묶음이 빠지지 않았는지 확인한다.
-        # 예시 파일의 실제 EXPOSURE_MODE 값 유효성은 compose preflight가 소유한다.
-        exposure_path = root / "configs" / "exposure_profiles.yaml"
-        if not exposure_path.exists():
-            violations.append("configs/exposure_profiles.yaml not found — cannot verify EXPOSURE_MODE values")
-        else:
-            exposure_data = load_yaml(exposure_path)
-            profiles = exposure_data.get("profiles", {})
-            # base가 아닌 profile마다 exposure_mode_requirements에 항목이 있는지 확인
-            mode_reqs: dict = contract.get("exposure_mode_requirements", {})
-            non_base_modes = [
-                m for m, profile in profiles.items()
-                if isinstance(profile, dict) and profile.get("class") != "default_private"
-            ]
-            for mode in non_base_modes:
-                if mode not in mode_reqs:
-                    violations.append(
-                        f"env_contract.yaml: exposure_mode_requirements missing entry for non-base profile {mode!r}"
-                    )
 
     return violations
 
@@ -425,10 +394,9 @@ def validate(root: Path = ROOT, strict: bool = False) -> list[str]:
 def main() -> int:
     import argparse
     parser = argparse.ArgumentParser(description="Validate .env examples against configs/env_contract.yaml.")
-    parser.add_argument("--strict", action="store_true", help="EXPOSURE_MODE 값이 exposure_profiles.yaml과 일치하는지도 검증합니다")
-    args = parser.parse_args()
+    parser.parse_args()
 
-    violations = validate(ROOT, strict=args.strict)
+    violations = validate(ROOT)
 
     if violations:
         for v in violations:
@@ -437,8 +405,6 @@ def main() -> int:
         return 1
 
     print("validate_env_contract: OK — .env examples match env_contract.yaml")
-    if args.strict:
-        print("  (strict mode: exposure profile requirement coverage verified)")
     return 0
 
 

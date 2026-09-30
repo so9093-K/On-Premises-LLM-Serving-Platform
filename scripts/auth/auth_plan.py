@@ -57,8 +57,8 @@ def build_plan(current: dict[str, str], mode: str, *, app_env: str | None = None
         )
     if mode == "local_open" and effective_env not in {"local", "test", "development"}:
         warnings.append(
-            "local_open은 API/admin/internal 인증을 끄고 master_open/private_lan으로 "
-            "전체 stack을 host-publish합니다. 외부 접근이 차단된 신뢰된 사내망에서만 사용하세요."
+            "local_open은 API/admin/internal 인증을 끕니다. host 공개는 private_network의 "
+            "Gateway/Grafana에 한정되며 local_only loopback 경계에서만 사용하세요."
         )
     if mode in {"private_network", "strict"} and target.get("API_KEY_REQUIRED") != "true":
         warnings.append("managed profile invariant가 깨졌습니다. public API는 Gateway key를 요구해야 합니다.")

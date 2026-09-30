@@ -42,7 +42,7 @@
 
 ## B. 서비스와 포트
 
-서비스 식별자와 기본 포트는 `configs/services.yaml`을 기준으로 한다. Host 공개 범위는 현재 `EXPOSURE_MODE`와 `configs/exposure_profiles.yaml`에 따라 결정된다.
+서비스 식별자와 기본 포트는 `configs/services.yaml`을 기준으로 한다. Host 공개 범위는 `configs/exposure_profiles.yaml`의 단일 `private_network` topology와 Access Profile의 bind 정책이 결정한다.
 
 ### Application / Model Runtime
 
@@ -67,7 +67,7 @@
 | Loki | `loki` | `3100` | `9414` | Log 저장 및 조회 |
 | Alloy | `alloy` | - | - | Container/Application Log 수집 및 Loki 전달 |
 
-`private_network`에서는 Gateway와 Grafana가 Host에 공개되며, 모델 Runtime과 운영용 backend는 Compose 내부 네트워크에서 사용한다. `master_open`에서는 진단과 사내망 운영을 위해 더 많은 서비스가 Host에 공개된다.
+`private_network`에서는 Gateway와 Grafana만 Host에 공개되며, 모델 Runtime과 운영용 backend는 Compose 내부 네트워크에서 사용한다. Runtime qualification도 내부망 one-off validator가 수행하므로 추가 host publish는 필요하지 않다.
 
 상세 네트워크 구성은 [4. 실행 환경과 모드](./04_runtime_modes.md)를 참고한다.
 
