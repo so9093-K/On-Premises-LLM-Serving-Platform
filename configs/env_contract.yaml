@@ -101,6 +101,7 @@ access_example_profiles:
 # removed_keys는 persistent `.env`에서 제거되는 키이므로 이 projection에도 포함하지 않는다.
 service_env_projections:
   static_gateway:
+    service: gateway
     deployment_targets: [linux-nvidia-static, macos-metal-static]
     required_source_keys:
       - APP_ENV
@@ -119,6 +120,7 @@ service_env_projections:
       - ADMIN_API_KEYS
       - ADMIN_ENDPOINTS_INTERNAL_ONLY
       - INTERNAL_SERVICE_AUTH_REQUIRED
+      - INTERNAL_SERVICE_TOKEN
       - STRICT_ADMIN_ENDPOINT_SECURITY
       - FASTAPI_DOCS_ENABLED
       - FASTAPI_DOCS_URL
@@ -134,6 +136,33 @@ service_env_projections:
       - MAIN_MODEL_CIRCUIT_BREAKER_FAILURE_THRESHOLD
       - MAIN_MODEL_CIRCUIT_BREAKER_RESET_SECONDS
       - MAIN_MODEL_STATIC_PROFILE
+      - LOG_REQUEST_RESPONSE_BODY
+
+  static_risk_signal_service:
+    service: risk_signal_service
+    deployment_targets: [linux-nvidia-static, macos-metal-static]
+    required_source_keys:
+      - APP_ENV
+      - MAIN_MODEL_STATIC_PROFILE
+    runtime_keys:
+      - DEPLOYMENT_TARGET
+      - APP_ENV
+      - AUTH_MODE
+      - EXPOSURE_MODE
+      - EXPOSURE_AUDIENCE
+      - ADMIN_API_KEY_REQUIRED
+      - ADMIN_API_KEY
+      - ADMIN_API_KEYS
+      - ADMIN_ENDPOINTS_INTERNAL_ONLY
+      - INTERNAL_SERVICE_AUTH_REQUIRED
+      - INTERNAL_SERVICE_TOKEN
+      - STRICT_ADMIN_ENDPOINT_SECURITY
+      - FASTAPI_DOCS_ENABLED
+      - FASTAPI_DOCS_URL
+      - OPENAPI_URL
+      - MAIN_MODEL_STATIC_PROFILE
+      - RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS
+      - RISK_INPUT_MAX_CHARS
       - LOG_REQUEST_RESPONSE_BODY
 
 # ── sync-env가 기존 .env에서 제거하는 키 ────────────────────────────────

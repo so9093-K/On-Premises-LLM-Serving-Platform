@@ -81,11 +81,9 @@ def test_gateway_forwards_risk_assessments_to_internal_risk_signal_service():
     assert clients.risk_signal_service.last_headers == {"authorization": "Bearer internal-test-key"}
 
 
-def test_gateway_risk_aggregate_returns_503_when_prompt_runtime_stopped():
-    # 배포본은 이 detector runtime을 끄고 있어 topology 기준으로는 controllable이
-    # 아니다. 이 테스트가 보는 계약은 "detector runtime이 멈춰 있으면 aggregate가
-    # risk service를 부르지 않는다"이므로, 그 runtime이 controllable인 store를
-    # 직접 만들어 그 경로를 그대로 유지한다.
+def test_gateway_risk_aggregate_ignores_prompt_runtime_state():
+    # Aggregate detector 집합은 Risk Signal Service가 소유한다. Prompt runtime이
+    # 의도적으로 stopped여도 PII/Secret-only aggregate는 계속 전달돼야 한다.
     from ai_model_serving.services.runtime_state import RuntimeStateStore
 
     clients = FakeGatewayClients()
@@ -101,11 +99,8 @@ def test_gateway_risk_aggregate_returns_503_when_prompt_runtime_stopped():
         json={"prompt": "hello"},
     )
 
-    assert response.status_code == 503
-    body = response.json()
-    assert body["error"]["code"] == "MODEL_UNAVAILABLE"
-    assert "prompt_injection_detector runtime is stopped" in body["error"]["message"]
-    assert clients.risk_signal_service.last_path is None
+    assert response.status_code == 200
+    assert clients.risk_signal_service.last_path == "/v1/risk/assessments"
 
 
 def test_gateway_preserves_detector_disabled_from_risk_signal_service():

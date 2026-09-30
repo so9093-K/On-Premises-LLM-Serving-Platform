@@ -21,8 +21,11 @@ def macos_metal_prometheus_config_document(
     stack = monitoring.get("monitoring_stack", {})
     prometheus = stack.get("prometheus", {})
     exporter = stack.get("mlx_metrics_exporter", {})
-    gateway = monitoring.get("metric_sources", {}).get("gateway", {})
+    metric_sources = monitoring.get("metric_sources", {})
+    gateway = metric_sources.get("gateway", {})
+    risk = metric_sources.get("risk_signal_service", {})
     gateway_service = str(services["gateway"]["compose_service"])
+    risk_service = str(services["risk_signal_service"]["compose_service"])
     return {
         "global": {
             "scrape_interval": prometheus.get("scrape_interval", "15s"),
@@ -37,6 +40,18 @@ def macos_metal_prometheus_config_document(
                 "bearer_token_file": "/run/secrets/admin_api_key",
                 "static_configs": [
                     {"targets": [f"{gateway_service}:{services['gateway']['container_port']}"]}
+                ],
+            },
+            {
+                "job_name": "risk-signal-service",
+                "metrics_path": risk.get("metrics_path", "/metrics"),
+                "bearer_token_file": "/run/secrets/admin_api_key",
+                "static_configs": [
+                    {
+                        "targets": [
+                            f"{risk_service}:{services['risk_signal_service']['container_port']}"
+                        ]
+                    }
                 ],
             },
             {

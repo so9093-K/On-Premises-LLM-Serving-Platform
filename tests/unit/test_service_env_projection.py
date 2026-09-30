@@ -18,6 +18,7 @@ def test_static_service_env_projects_canonical_main_model_keys(tmp_path) -> None
 
     name, _ = render(
         target="linux-nvidia-static",
+        service="gateway",
         source_env=source,
         output=output,
     )
@@ -40,6 +41,33 @@ def test_static_service_env_requires_canonical_source_keys(tmp_path) -> None:
     with pytest.raises(RuntimeError, match="missing required"):
         render(
             target="linux-nvidia-static",
+            service="gateway",
             source_env=source,
             output=output,
         )
+
+
+def test_static_risk_service_env_omits_main_endpoint_and_keeps_internal_token(tmp_path) -> None:
+    source = tmp_path / ".env"
+    output = tmp_path / "risk.env"
+    source.write_text(
+        "APP_ENV=local\n"
+        "MAIN_MODEL_BASE_URL=http://host.example:9401/v1\n"
+        "MAIN_MODEL_STATIC_PROFILE=gemma4-12b-unified-fp8\n"
+        "INTERNAL_SERVICE_AUTH_REQUIRED=true\n"
+        "INTERNAL_SERVICE_TOKEN=internal-secret\n",
+        encoding="utf-8",
+    )
+
+    name, _ = render(
+        target="linux-nvidia-static",
+        service="risk_signal_service",
+        source_env=source,
+        output=output,
+    )
+
+    rendered = output.read_text(encoding="utf-8")
+    assert name == "static_risk_signal_service"
+    assert "INTERNAL_SERVICE_TOKEN=internal-secret" in rendered
+    assert "MAIN_MODEL_STATIC_PROFILE=gemma4-12b-unified-fp8" in rendered
+    assert "MAIN_MODEL_BASE_URL=" not in rendered

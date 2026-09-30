@@ -14,6 +14,7 @@ KNOWN_FEATURES = frozenset(
         "embeddings",
         "retrieval",
         "risk",
+        "prompt_detection",
         "runtime_control",
         "model_switching",
         "gpu_admission",
@@ -225,6 +226,10 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
         raise RuntimeError(f"deployment target {selected!r} must enable chat")
     if "retrieval" in features and "embeddings" not in features:
         raise RuntimeError(f"deployment target {selected!r}: retrieval requires embeddings")
+    if "prompt_detection" in features and "risk" not in features:
+        raise RuntimeError(
+            f"deployment target {selected!r}: prompt_detection requires risk"
+        )
     lifecycle_flags = [
         feature in features
         for feature in ("runtime_control", "model_switching", "gpu_admission")

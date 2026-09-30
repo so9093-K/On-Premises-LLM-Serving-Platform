@@ -28,7 +28,7 @@ def test_runtime_topology_uses_explicit_lifecycle_bindings() -> None:
     assert topology.bindings_by_key["embedding"].compose_service == "embedding-vllm"
     assert topology.runtime_keys_for_features(frozenset({"chat"})) == frozenset({"main_llm"})
     assert topology.required_keys_for_features(
-        frozenset({"chat", "embeddings", "risk"})
+        frozenset({"chat", "embeddings", "risk", "prompt_detection"})
     ) == frozenset(
         {"main_llm", "embedding", "embedding_ko", "prompt_injection_detector"}
     )
@@ -107,6 +107,9 @@ def test_main_resource_variant_projects_unavailable_secondary_runtime() -> None:
     assert "prompt_injection_detector" not in topology.controllable_keys
     assert topology.bindings_by_key["prompt_injection_detector"].enabled is False
     assert topology.required_keys_for_features(frozenset({"risk"})) == frozenset()
+    assert topology.required_keys_for_features(
+        frozenset({"prompt_detection"})
+    ) == frozenset()
     assert "prompt-injection-detector-runtime" not in topology.start_prerequisites_by_service
 
 

@@ -49,9 +49,9 @@ Deployment capability의 Source of Truth는 `configs/deployment_targets.yaml`이
 
 | Target | Runtime backend | Lifecycle owner | Control mode | 상태 | 주요 기능 |
 |---|---|---|---|---|---|
-| `linux-nvidia-dynamic` | `vllm-cuda` | Platform | `runtime_controller` | Implemented / Verified | Chat, Embedding, Retrieval, Risk, Runtime Control, Main Model switching, GPU admission |
-| `linux-nvidia-static` | `vllm-cuda` | External | `static` | Implemented / Unverified | Chat |
-| `macos-metal-static` | `mlx-vlm` | External | `static` | Implemented / Verified | Chat |
+| `linux-nvidia-dynamic` | `vllm-cuda` | Platform | `runtime_controller` | Implemented / Verified | Chat, Embedding, Retrieval, Risk(PII/Secret/Prompt), Runtime Control, Main Model switching, GPU admission |
+| `linux-nvidia-static` | `vllm-cuda` | External | `static` | Implemented / Unverified | Chat, Risk(PII/Secret) |
+| `macos-metal-static` | `mlx-vlm` | External | `static` | Implemented / Verified | Chat, Risk(PII/Secret) |
 
 `static`은 macOS의 별칭이 아니다. static target은 Main runtime lifecycle을 외부 또는 native process가
 소유하고 Gateway는 고정 OpenAI-compatible endpoint를 사용한다. Linux와 macOS가 같은 static serving 계약을
@@ -116,6 +116,8 @@ Externally managed Main Runtime
 ```
 
 static target은 model switching, GPU admission, Runtime Control을 제공한다고 가장하지 않는다.
+대신 Main runtime backend와 무관한 local Risk Signal Service를 함께 실행해 PII/Secret detector를 제공한다.
+Prompt Injection detector는 별도 model-backed capability이며 현재 dynamic target에서만 제공한다.
 Console은 target capability를 기준으로 해당 mutation surface를 숨기고 lifecycle ownership을 설명한다.
 
 ## 1.3 주요 특징
@@ -234,8 +236,9 @@ Control Plane은 Scalar의 범용 API playground나 Grafana의 로그/그래프 
 ### 제공 기능은 target capability를 따른다
 
 Chat은 현재 세 deployment target 모두 제공한다.
-Embedding, Retrieval, Risk, Runtime Control, Main Model switching, GPU admission은
-현재 `linux-nvidia-dynamic` target에서 제공한다.
+Embedding, Retrieval, Runtime Control, Main Model switching, GPU admission은
+현재 `linux-nvidia-dynamic` target에서 제공한다. Risk Signal Service의 local PII/Secret
+detector는 세 target 모두 제공하고, model-backed Prompt detection만 dynamic target capability다.
 
 이 차이는 target의 구현 누락을 추측하는 표시가 아니라 선언된 product capability다.
 Console과 Gateway는 같은 target contract에서 기능 집합을 투영한다.

@@ -12,8 +12,18 @@ ENV_FILE_ABS="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[
 STATIC_COMPOSE_PROJECT_NAME="${STATIC_COMPOSE_PROJECT_NAME:-ai-model-serving-static}"
 GATEWAY_RUNTIME_ENV_FILE="${GATEWAY_RUNTIME_ENV_FILE:-$ROOT/.runtime/env/${DEPLOYMENT_TARGET}-gateway.env}"
 GATEWAY_RUNTIME_ENV_FILE="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$GATEWAY_RUNTIME_ENV_FILE")"
+RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE="${RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE:-$ROOT/.runtime/env/${DEPLOYMENT_TARGET}-risk-signal-service.env}"
+RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE")"
 
 if [[ "${1:-}" == "down" && -f "$GATEWAY_RUNTIME_ENV_FILE" ]]; then
+    # Compose는 down에서도 선언된 env_file 경로를 파싱한다. 이전 버전에서 기동한
+    # project에는 Risk projection이 없을 수 있으므로 빈 파일만 보장하고, 다음 up에서
+    # canonical projection으로 반드시 덮어쓴다.
+    if [[ ! -f "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE" ]]; then
+      mkdir -p "$(dirname "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE")"
+      : > "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE"
+      chmod 600 "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE"
+    fi
   # down은 이미 생성된 project를 정리하는 명령이다. 현재 source env에 static
   # profile이 없어도 중지를 막지 않도록 기존 projection을 그대로 사용한다.
   :
@@ -21,8 +31,14 @@ else
   "$PYTHON_BIN" scripts/env/env_validate.py --env-file "$ENV_FILE_ABS"
   "$PYTHON_BIN" scripts/config/render_service_env.py \
     --target "$DEPLOYMENT_TARGET" \
+    --service gateway \
     --source-env "$ENV_FILE_ABS" \
     --output "$GATEWAY_RUNTIME_ENV_FILE"
+  "$PYTHON_BIN" scripts/config/render_service_env.py \
+    --target "$DEPLOYMENT_TARGET" \
+    --service risk_signal_service \
+    --source-env "$ENV_FILE_ABS" \
+    --output "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE"
 fi
 
 # The source env is only Compose interpolation input.  The generated projection is
@@ -30,6 +46,7 @@ fi
 export COMPOSE_PROJECT_NAME="$STATIC_COMPOSE_PROJECT_NAME"
 export DEPLOYMENT_TARGET
 export GATEWAY_RUNTIME_ENV_FILE
+export RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE
 # Compose 파일 목록은 configs/deployment_targets.yaml이 소유한다. 노출 진단도 같은
 # 목록을 읽으므로 여기에 target 이름을 다시 적지 않는다.
 COMPOSE_FILES=()

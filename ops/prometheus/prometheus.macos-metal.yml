@@ -11,6 +11,12 @@ scrape_configs:
   static_configs:
   - targets:
     - gateway:9400
+- job_name: risk-signal-service
+  metrics_path: /metrics
+  bearer_token_file: /run/secrets/admin_api_key
+  static_configs:
+  - targets:
+    - risk-signal-service:9405
 - job_name: mlx-runtime
   metrics_path: /metrics
   static_configs:

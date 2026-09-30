@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted; deployment state vocabulary updated by [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md).
+Accepted; deployment state vocabulary updated by [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md). Static Risk capability projection extended by [ADR-0044](./0044-risk-capability-and-prompt-runtime-separation.md).
 
 ## Context
 
@@ -67,8 +67,9 @@ boot에 필요한 추가 관계를 가질 수 있지만, controllable runtime �
 - `linux-nvidia-dynamic`: 기존 full-stack. Sidecar와 전체 기능을 유지한다.
 - `linux-nvidia-static`: 외부에서 기동한 CUDA Main runtime 하나를 Gateway가 사용한다.
   implementation은 `implemented`, qualification은 `unverified`이며 장시간·장문맥 검증이 남아 있다.
-- `macos-metal-static`: native MLX-VLM runtime과 static Gateway 경로가 구현된 Main-only
-  target이다. 모델·assistant revision과 실행 한도는 `configs/macos_mlx_runtime.yaml`,
+- `macos-metal-static`: native MLX-VLM Main runtime과 static Gateway 경로가 구현된 target이다.
+  초기 Main-only 설명은 ADR-0044에서 local PII/Secret Risk capability가 추가되며 확장됐다.
+  모델·assistant revision과 실행 한도는 `configs/macos_mlx_runtime.yaml`,
   Python dependency와 lock은 `runtimes/mlx/`가 소유하며 M5 workload qualification은 별도 상태다.
 
 ## Consequences

@@ -31,7 +31,11 @@ def _load_contract() -> dict[str, Any]:
     return document
 
 
-def _projection(contract: dict[str, Any], target: str) -> tuple[str, dict[str, Any]]:
+def _projection(
+    contract: dict[str, Any],
+    target: str,
+    service: str,
+) -> tuple[str, dict[str, Any]]:
     projections = contract.get("service_env_projections")
     if not isinstance(projections, dict):
         raise RuntimeError("env_contract.yaml service_env_projections must be a mapping")
@@ -40,10 +44,18 @@ def _projection(contract: dict[str, Any], target: str) -> tuple[str, dict[str, A
         if not isinstance(value, dict):
             continue
         targets = value.get("deployment_targets")
-        if isinstance(targets, list) and target in targets:
+        projection_service = str(value.get("service", "")).strip()
+        if (
+            isinstance(targets, list)
+            and target in targets
+            and projection_service == service
+        ):
             matches.append((name, value))
     if len(matches) != 1:
-        raise RuntimeError(f"expected exactly one service env projection for target {target!r}")
+        raise RuntimeError(
+            f"expected exactly one service env projection for target {target!r} "
+            f"and service {service!r}"
+        )
     return str(matches[0][0]), matches[0][1]
 
 
@@ -55,12 +67,18 @@ def _string_list(value: Any, *, label: str) -> list[str]:
     return value
 
 
-def render(*, target: str, source_env: Path, output: Path) -> tuple[str, int]:
+def render(
+    *,
+    target: str,
+    service: str = "gateway",
+    source_env: Path,
+    output: Path,
+) -> tuple[str, int]:
     if source_env.resolve() == output.resolve():
         raise RuntimeError("source env and rendered service env must be different files")
     values = load_strict_env_file(source_env)
     contract = _load_contract()
-    name, projection = _projection(contract, target)
+    name, projection = _projection(contract, target, service)
     required = _string_list(
         projection.get("required_source_keys"), label=f"service_env_projections.{name}.required_source_keys"
     )
@@ -76,7 +94,8 @@ def render(*, target: str, source_env: Path, output: Path) -> tuple[str, int]:
     missing = [key for key in required if not values.get(key, "").strip()]
     if missing:
         raise RuntimeError(
-            f"{source_env} is missing required {target} Gateway values: " + ", ".join(missing)
+            f"{source_env} is missing required {target} {service} values: "
+            + ", ".join(missing)
         )
 
     # DEPLOYMENT_TARGET은 호출자가 선택한 projection identity다. source env 값이
@@ -102,15 +121,21 @@ def render(*, target: str, source_env: Path, output: Path) -> tuple[str, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Render a target-specific Gateway service env projection.")
+    parser = argparse.ArgumentParser(description="Render a target- and service-specific process env projection.")
     parser.add_argument("--target", required=True)
+    parser.add_argument("--service", default="gateway")
     parser.add_argument("--source-env", default=DEFAULT_ENV_FILENAME)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
     source_env = Path(args.source_env).resolve()
     output = Path(args.output).resolve()
     try:
-        name, count = render(target=args.target, source_env=source_env, output=output)
+        name, count = render(
+            target=args.target,
+            service=args.service,
+            source_env=source_env,
+            output=output,
+        )
     except (OSError, RuntimeError) as exc:
         print(f"[service-env] fail: {exc}", file=sys.stderr)
         return 2

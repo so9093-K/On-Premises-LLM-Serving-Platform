@@ -6,6 +6,8 @@
 
 ### Added
 
+- Linux NVIDIA static과 macOS Metal static target에 GPU/별도 model runtime이 필요 없는 PII·Secret Risk Signal Service를 추가했다. `risk`는 local detector capability, `prompt_detection`은 model-backed Prompt Injection Detector capability로 분리되며 OS 이름으로 detector availability를 판단하지 않는다. Static aggregate는 PII/Secret만 실행하고 Prompt 전용 endpoint는 `409 DETECTOR_DISABLED`를 유지한다. ([ADR-0044](docs/adr/0044-risk-capability-and-prompt-runtime-separation.md))
+
 - `make up`의 오래 걸리는 단계(image build, 모델 다운로드, readiness 대기)가 경과 시간과 그 단계의
   마지막 출력 줄을 한 줄로 갱신해 보여 준다. 15초가 넘으면 `tail -f`로 볼 수 있는 전체 출력 경로를
   한 번 알려 주고, CI처럼 terminal이 아닌 출력에서는 30초마다 한 줄씩 남긴다. 끝난 단계에는 걸린

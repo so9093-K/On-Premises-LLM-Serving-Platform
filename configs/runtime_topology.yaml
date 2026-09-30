@@ -30,7 +30,7 @@ runtimes:
     start_prerequisites: [embedding]
   prompt_injection_detector:
     service_id: prompt_injection_detector_runtime
-    features: [risk]
+    features: [prompt_detection]
     enabled: true
     required: true
     controllable: true

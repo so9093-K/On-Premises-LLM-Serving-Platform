@@ -95,7 +95,7 @@ async def _readiness(
                 "/ready",
                 {"authorization": f"Bearer {admin_token}"} if admin_token else None,
                 _risk_signal_service_readiness,
-                required=await runtime_required("prompt_injection_detector"),
+                required=True,
             )
         )
     return await collect_readiness(service="gateway", probes=probes, metrics=metrics, timeout_seconds=timeout_seconds)
