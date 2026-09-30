@@ -305,7 +305,7 @@ def validate_alignment(
                 "40-character lowercase commit SHA"
             )
         # The generated boot profile owns Main's model/revision/command and host GPU
-        # override. Other runtimes still use ModelRegistry (also Sidecar's budget source).
+        # override. Other runtimes still use ModelRegistry (also Runtime Controller's budget source).
         expected = (
             {} if service_name == boot_service_name else expected_compose_args(cfg, runtime)
         )
