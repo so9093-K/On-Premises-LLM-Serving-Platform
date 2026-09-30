@@ -1,11 +1,11 @@
 # On-Premises LLM Serving Platform
 
 온프레미스 AI 모델을 하나의 **OpenAI-compatible API와 운영 lifecycle**로 제공한다.
-모델 실행·전환, Retrieval, Risk Detection, 접근 제어와 관측을 deployment target에 맞는
-일관된 플랫폼 계약으로 관리하는 것이 이 프로젝트의 목적이다.
+모델 실행·전환, Retrieval, Risk Detection, 접근 제어와 관측을 하나의 운영 흐름으로
+관리하는 것이 이 프로젝트의 목적이다.
 
-Linux/NVIDIA에서는 vLLM, Apple Silicon에서는 MLX-VLM을 사용하며 외부 애플리케이션은
-runtime 차이와 관계없이 Gateway의 공통 API 계약을 사용한다.
+Linux/NVIDIA에서는 vLLM, Apple Silicon에서는 MLX-VLM을 사용한다. runtime 차이는
+Gateway 뒤에서 처리하고 외부 애플리케이션은 같은 API 계약을 사용한다.
 
 ## 주요 기능
 
@@ -17,8 +17,8 @@ runtime 차이와 관계없이 Gateway의 공통 API 계약을 사용한다.
 - Prometheus / Grafana / Loki 기반 관측
 - 재현 가능한 application 검증, image build와 deployment lifecycle
 
-제공 범위는 deployment target에 따라 달라진다. 현재 target과 실제 capability는
-아래 표와 `configs/deployment_targets.yaml`에서 확인할 수 있다.
+제공 범위는 deployment target에 따라 달라진다. 상세 capability의 기준은
+[`configs/deployment_targets.yaml`](configs/deployment_targets.yaml)이다.
 
 ## 시스템 구성
 
@@ -41,14 +41,15 @@ self-hosted UI를 Gateway의 `/admin/console/`에서 제공한다.
 
 ## Deployment Target
 
-| Target | Main runtime | 제공 범위 | 실행 환경 |
-|---|---|---|---|
-| `linux-nvidia-dynamic` | vLLM · Platform-managed | Chat / Responses, Embedding, Retrieval, PII·Secret·Prompt Risk, Model Control | Linux amd64, Python 3.12–3.13, NVIDIA GPU/driver/Container Toolkit, Docker, Bash 4+ |
-| `linux-nvidia-static` | 외부 OpenAI-compatible runtime | Chat / Responses, PII·Secret Risk | Linux amd64, Python 3.12–3.13, Docker, 외부 Main endpoint |
-| `macos-metal-static` | MLX-VLM · native runtime | Chat / Responses, PII·Secret Risk | Apple Silicon, Python 3.13.12, Docker |
+Chat / Responses와 PII·Secret Risk는 모든 target에서 제공한다. target별 추가 capability는 다음과 같다.
 
-모델별 GPU 자원 적용 가능성은 선택한 model profile과 resource policy로 판단한다.
-실측 범위와 resource variant는 [모델 운영](docs/06_model_operations.md)에서 관리한다.
+| Target | Main runtime | Embedding / Retrieval | Prompt Injection | Runtime / Model Control |
+|---|---|:---:|:---:|:---:|
+| `linux-nvidia-dynamic` | vLLM · Platform-managed | ✓ | ✓ | ✓ |
+| `linux-nvidia-static` | 외부 OpenAI-compatible runtime | — | — | — |
+| `macos-metal-static` | MLX-VLM · native runtime | — | — | — |
+
+모델별 필요 자원과 resource variant는 [모델 운영](docs/06_model_operations.md)에서 관리한다.
 
 ---
 
@@ -56,6 +57,14 @@ self-hosted UI를 Gateway의 `/admin/console/`에서 제공한다.
 
 첫 실행에서 target과 접근 범위를 선택하면 `make up`이 필요한 환경과 설정, image, model cache,
 service startup을 준비하고 target에 맞는 readiness를 확인한다.
+
+Platform은 Python 3.12 또는 3.13과 uv를 사용한다. macOS native MLX runtime은 Python 3.13.12가 별도로 필요하다.
+
+| Target | 추가 준비 |
+|---|---|
+| `linux-nvidia-dynamic` | Linux amd64 · NVIDIA GPU / driver / Container Toolkit · Docker Compose · Bash 4+ |
+| `linux-nvidia-static` | Linux amd64 · Docker Compose · Gateway container에서 접근 가능한 Main endpoint |
+| `macos-metal-static` | Apple Silicon · Docker Compose |
 
 Linux/NVIDIA managed target:
 
@@ -78,10 +87,12 @@ make up TARGET=macos-metal-static ACCESS=local
 외부 Main runtime을 사용하는 Linux static target:
 
 ```bash
-make up TARGET=linux-nvidia-static MAIN_URL=http://127.0.0.1:8000/v1 ACCESS=local
+make up TARGET=linux-nvidia-static MAIN_URL=http://host.docker.internal:8000/v1 ACCESS=local
 ```
 
-`TARGET` 없이 처음 `make up`을 실행하면 사용할 수 있는 target과 이 host에서 감지한 추천 target을 보여 준다.
+Main runtime이 다른 host에 있다면 Gateway container에서 접근할 수 있는 URL을 `MAIN_URL`에 사용한다.
+
+`TARGET` 없이 처음 `make up`을 실행하면 사용할 수 있는 target, 검증 상태와 이 host에서 감지한 추천 target을 보여 준다.
 기동이 끝나면 Console, API 문서, Grafana 주소를 함께 출력한다.
 
 이후에는 저장된 configuration을 기준으로 같은 명령으로 수렴한다.
@@ -122,8 +133,6 @@ curl -s http://127.0.0.1:9400/v1/chat/completions \
 Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전체 요청·응답 계약은
 [API 인터페이스](docs/reference/api_reference.md)에서 확인한다.
 
-![Scalar API Reference](assets/screenshots/scalar_api_reference.jpg)
-
 ---
 
 ## 개발과 검증
@@ -151,7 +160,7 @@ live Runtime qualification은 일반 application check와 분리되어 있다. �
 
 | 목적 | 명령 |
 |---|---|
-| 시작 / 현재 configuration으로 수렴 | `make up [TARGET=<id>] [ACCESS=local|private|edge]` |
+| 시작 / 현재 configuration으로 수렴 | `make up [TARGET=<id>] [ACCESS=<profile>]` |
 | 현재 상태 | `make status` |
 | 운영 이벤트와 오류 확인 | `make logs` |
 | 실행 리소스 정지 | `make down` |
