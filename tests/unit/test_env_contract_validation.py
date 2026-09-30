@@ -30,6 +30,7 @@ def test_service_projection_rejects_removed_persistent_key(tmp_path):
         "removed_keys": {"MAX_REQUEST_BODY_BYTES": "model_serving.yaml owns it"},
         "service_env_projections": {
             "static_gateway": {
+                "service": "gateway",
                 "deployment_targets": ["static-target"],
                 "required_source_keys": ["DEPLOYMENT_TARGET"],
                 "runtime_keys": ["DEPLOYMENT_TARGET", "MAX_REQUEST_BODY_BYTES"],
