@@ -9,7 +9,6 @@ common_example_keys:
   - GATEWAY_PORT
   - GATEWAY_BIND_ADDR
   - AUTH_MODE
-  - EXPOSURE_MODE
   - COMPOSE_PROJECT_NAME
 
 # 인증 프로필을 선택하거나 설명하는 예시에 포함할 키.
@@ -111,7 +110,6 @@ service_env_projections:
       - DEPLOYMENT_TARGET
       - APP_ENV
       - AUTH_MODE
-      - EXPOSURE_MODE
       - EXPOSURE_AUDIENCE
       - API_KEY_REQUIRED
       - API_KEYS
@@ -148,7 +146,6 @@ service_env_projections:
       - DEPLOYMENT_TARGET
       - APP_ENV
       - AUTH_MODE
-      - EXPOSURE_MODE
       - EXPOSURE_AUDIENCE
       - ADMIN_API_KEY_REQUIRED
       - ADMIN_API_KEY
@@ -173,6 +170,10 @@ service_env_projections:
 # 템플릿에 존재한 적 없는 host 전용 설정(MAIN_MODEL_STATE_PATH 등)이 정상적으로 들어갈 수
 # 있으므로, 지울 키는 여기에 명시적으로 등록한다.
 removed_keys:
+  EXPOSURE_MODE: >-
+    host exposure topology가 Gateway/Grafana 중심의 canonical private boundary 하나로 고정되어
+    선택 가능한 runtime env state가 아니다. 기존 private_network marker는 sync-env에서
+    제거하고, master_open 등 과거 값은 explicit Access migration guard가 먼저 거부한다.
   DEPLOY_RELEASE_ID: >-
     제거된 remote release identity와 startup directive를 한 이름으로 표현하던 legacy persistent key다.
     Runtime startup generation은 compose-up이 process environment로 매 실행 생성하므로 persistent
