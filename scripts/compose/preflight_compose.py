@@ -28,7 +28,7 @@ from ai_model_serving.main_model.boot import (  # noqa: E402
     resolve_compose_relative_path,
 )
 from ai_model_serving.auth_control import (  # noqa: E402
-    auth_profile_exposure_mismatch,
+    auth_profile_network_mismatch,
     local_only_host_bind_mismatches,
 )
 from ai_model_serving.access_profile import (  # noqa: E402
@@ -102,18 +102,13 @@ def _check_auth_profile_preflight() -> None:
                 for message in access_mismatches
             )
     else:
-        exposure_mode = _env_value("EXPOSURE_MODE", "")
         exposure_audience = _env_value("EXPOSURE_AUDIENCE", "")
-        exposure_mismatch = auth_profile_exposure_mismatch(
-            auth_mode, exposure_mode, exposure_audience
+        network_mismatch = auth_profile_network_mismatch(
+            auth_mode, exposure_audience
         )
-        if exposure_mismatch is not None:
-            failures.append(exposure_mismatch + ".")
-        elif (
-            auth_mode == "local_open"
-            and exposure_mode == "private_network"
-            and exposure_audience == "local_only"
-        ):
+        if network_mismatch is not None:
+            failures.append(network_mismatch + ".")
+        elif auth_mode == "local_open" and exposure_audience == "local_only":
             failures.extend(
                 local_only_host_bind_mismatches(
                     ROOT,
@@ -154,33 +149,21 @@ def _load_yaml(path: Path, label: str) -> dict[str, Any]:
 
 
 def _phase0() -> None:
-    print("[preflight] Phase 0: access/exposure compatibility")
-    exposure_path = ROOT / "configs" / "exposure_profiles.yaml"
-    data = _load_yaml(exposure_path, "configs/exposure_profiles.yaml")
-    profiles = data.get("profiles")
-    if not isinstance(profiles, dict) or set(profiles) != {"private_network"}:
+    print("[preflight] Phase 0: retired exposure compatibility")
+    retired_mode = _env_value("EXPOSURE_MODE", "").strip()
+    if retired_mode and retired_mode != "private_network":
+        _fail(f"retired EXPOSURE_MODE={retired_mode!r} requires explicit Access migration.")
         raise SystemExit(
-            "[preflight] configs/exposure_profiles.yaml must define only private_network"
+            "[preflight] choose ACCESS=local|private|edge and CONFIRM=access before runtime checks."
         )
-    print("[preflight] ok: private_network is the only supported host exposure topology")
+    if retired_mode:
+        _warn("EXPOSURE_MODE is retired and will be removed by env synchronization.")
+    print("[preflight] ok: host exposure is the canonical private topology")
 
 
-def _phase1() -> str:
+def _phase1() -> None:
     print("[preflight] Phase 1: access policy")
     _check_auth_profile_preflight()
-    mode = _env_value("EXPOSURE_MODE", "private_network").strip() or "private_network"
-    if mode != "private_network":
-        _fail(f"EXPOSURE_MODE={mode!r} is no longer supported.")
-        print(
-            "[preflight] Raw model/runtime/operations endpoints stay on the Compose network. "
-            "Migrate with ACCESS=local|private|edge.",
-            file=sys.stderr,
-        )
-        raise SystemExit(
-            "[preflight] configuration preflight failed; migrate the retired exposure mode."
-        )
-    print("[preflight] EXPOSURE_MODE=private_network")
-    return "private_network"
 
 
 def _compose_command(
@@ -349,7 +332,7 @@ def _prompt_runtime_effective() -> bool:
     )
 
 
-def _phase2(canonical_mode: str, *, boot_override: Path) -> int:
+def _phase2(*, boot_override: Path) -> int:
     print("[preflight] Phase 2: compose and runtime checks")
     compose_file = os.environ.get("COMPOSE_FILE", "ops/compose/full-stack.private-network.yaml")
     env_path = resolve_env_file(os.environ.get("ENV_FILE"), ROOT).resolve()
@@ -412,7 +395,7 @@ def _phase2(canonical_mode: str, *, boot_override: Path) -> int:
                 else:
                     print(
                         f"[preflight] busy: port {host_port} ({service_name}) is already in use "
-                        f"on {bind} (EXPOSURE_MODE={canonical_mode})",
+                        f"on {bind}",
                         file=sys.stderr,
                     )
                     fail = True
@@ -484,9 +467,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     _phase0()
-    canonical_mode = _phase1()
+    _phase1()
     if args.boot_override is not None:
-        return _phase2(canonical_mode, boot_override=args.boot_override.resolve())
+        return _phase2(boot_override=args.boot_override.resolve())
     # Standalone preflight uses the same boot resolver; never mutate persisted state.
     with tempfile.TemporaryDirectory(prefix="preflight-boot-") as directory:
         env_path = resolve_env_file(os.environ.get("ENV_FILE"), ROOT)
@@ -497,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         boot_override = Path(directory) / "boot.yaml"
         boot_override.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
-        return _phase2(canonical_mode, boot_override=boot_override)
+        return _phase2(boot_override=boot_override)
 
 
 if __name__ == "__main__":
