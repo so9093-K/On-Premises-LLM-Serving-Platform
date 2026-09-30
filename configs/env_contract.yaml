@@ -174,6 +174,41 @@ removed_keys:
     host exposure topology가 Gateway/Grafana 중심의 canonical private boundary 하나로 고정되어
     선택 가능한 runtime env state가 아니다. 기존 private_network marker는 sync-env에서
     제거하고, master_open 등 과거 값은 explicit Access migration guard가 먼저 거부한다.
+  RISK_SIGNAL_SERVICE_BIND_ADDR: >-
+    Risk Signal Service는 Compose 내부 service이며 app-only host process bind는
+    RISK_SIGNAL_SERVICE_HOST가 소유한다. Compose host publication bind는 존재하지 않는다.
+  MAIN_MODEL_VLLM_BIND_ADDR: >-
+    Main Model Runtime은 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  EMBEDDING_VLLM_BIND_ADDR: >-
+    Embedding Runtime은 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  EMBEDDING_KO_VLLM_BIND_ADDR: >-
+    Korean Embedding Runtime은 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  PROMPT_INJECTION_DETECTOR_RUNTIME_BIND_ADDR: >-
+    Prompt Injection Detector Runtime은 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  PROMETHEUS_BIND_ADDR: >-
+    Prometheus는 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  DCGM_EXPORTER_BIND_ADDR: >-
+    DCGM exporter는 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  CADVISOR_BIND_ADDR: >-
+    cAdvisor는 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  LOKI_BIND_ADDR: >-
+    Loki는 canonical Compose 내부망에만 있으며 host publication bind를 소유하지 않는다.
+  MAIN_MODEL_VLLM_PORT: >-
+    Main Model Runtime의 canonical endpoint는 services.yaml compose_service + container_port가 소유한다.
+  EMBEDDING_VLLM_PORT: >-
+    Embedding Runtime의 canonical endpoint는 services.yaml compose_service + container_port가 소유한다.
+  EMBEDDING_KO_VLLM_PORT: >-
+    Korean Embedding Runtime의 canonical endpoint는 services.yaml compose_service + container_port가 소유한다.
+  PROMPT_INJECTION_DETECTOR_RUNTIME_PORT: >-
+    Prompt Injection Detector Runtime의 canonical endpoint는 services.yaml compose_service + container_port가 소유한다.
+  PROMETHEUS_PORT: >-
+    Prometheus는 host-published endpoint가 아니며 runtime validation은 Compose 내부 container port를 사용한다.
+  DCGM_EXPORTER_PORT: >-
+    DCGM exporter는 host-published endpoint가 아니며 Compose 내부 container port가 canonical endpoint다.
+  CADVISOR_PORT: >-
+    cAdvisor는 host-published endpoint가 아니며 Compose 내부 container port가 canonical endpoint다.
+  LOKI_PORT: >-
+    Loki는 host-published endpoint가 아니며 Compose 내부 container port가 canonical endpoint다.
   DEPLOY_RELEASE_ID: >-
     제거된 remote release identity와 startup directive를 한 이름으로 표현하던 legacy persistent key다.
     Runtime startup generation은 compose-up이 process environment로 매 실행 생성하므로 persistent
