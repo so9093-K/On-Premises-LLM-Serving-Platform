@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -183,6 +184,37 @@ def _exposure_host_published_services(project_root: Path, exposure_mode: str | N
     return list(profile.get("host_published", []))
 
 
+def local_only_host_bind_mismatches(
+    project_root: Path,
+    *,
+    read_value: Callable[[str, str], str] | None = None,
+) -> list[str]:
+    """local_only 선언과 실제 host-published loopback bind의 일치를 검증한다."""
+    value = read_value or (lambda key, default: _env(key, default))
+    services = load_yaml_mapping(project_root / "configs" / "services.yaml").get("services")
+    if not isinstance(services, dict):
+        return ["configs/services.yaml must define services"]
+
+    mismatches: list[str] = []
+    for service_id in _exposure_host_published_services(project_root, "private_network"):
+        service = services.get(service_id)
+        if not isinstance(service, dict):
+            mismatches.append(f"host-published service {service_id!r} is missing from services.yaml")
+            continue
+        bind_key = str(service.get("host_env_bind", "")).strip()
+        default_bind = str(service.get("default_bind", "0.0.0.0")).strip()
+        if not bind_key:
+            mismatches.append(f"services.{service_id}.host_env_bind is required")
+            continue
+        actual = value(bind_key, default_bind).strip() or default_bind
+        if actual != "127.0.0.1":
+            mismatches.append(
+                f"EXPOSURE_AUDIENCE=local_only requires {bind_key}=127.0.0.1 "
+                f"for host-published {service_id}, got {actual!r}"
+            )
+    return mismatches
+
+
 def auth_status_document(settings: AppSettings, project_root: Path, env_path: Path | None = None) -> dict[str, Any]:
     env_path = env_path or default_env_path(project_root)
     exposure_mode = _exposure_mode_from_env()
@@ -267,6 +299,14 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
         and _env("EXPOSURE_MODE", "") == "private_network"
         and _env("EXPOSURE_AUDIENCE", "") == "local_only"
     )
+    local_only_bind_mismatches = (
+        local_only_host_bind_mismatches(project_root)
+        if is_local_open_local_only
+        else []
+    )
+    for mismatch in local_only_bind_mismatches:
+        findings.append(AuthFinding("FAIL", "LOCAL_ONLY_BIND_MISMATCH", mismatch))
+    local_only_boundary_valid = is_local_open_local_only and not local_only_bind_mismatches
 
     if non_local and mode == "custom":
         accepted = _env(CUSTOM_AUTH_RISK_ACCEPTED_ENV, "").lower() in ("1", "true")
@@ -280,7 +320,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             ))
 
     if non_local and not settings.security.api_key_required:
-        if is_local_open_local_only:
+        if local_only_boundary_valid:
             findings.append(AuthFinding(
                 "INFO",
                 "AUTH_DELEGATED_TO_NETWORK",
@@ -291,7 +331,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             findings.append(AuthFinding("FAIL", "PUBLIC_API_UNAUTHENTICATED_NON_LOCAL", f"APP_ENV={settings.app_env}인데 API_KEY_REQUIRED=false입니다."))
 
     if non_local and not settings.security.internal_service_auth_required:
-        if is_local_open_local_only:
+        if local_only_boundary_valid:
             findings.append(AuthFinding(
                 "INFO",
                 "INTERNAL_AUTH_DELEGATED",
