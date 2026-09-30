@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_model_serving.configuration import load_yaml_mapping
+from ai_model_serving.deployment_target import load_deployment_target
 from ai_model_serving.domain import ModelRegistry
 from ai_model_serving.runtime_topology import load_runtime_topology
 from scripts.lib.process_env import load_dotenv
@@ -70,12 +71,16 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
     services = load_yaml_mapping(root / "configs/services.yaml")["services"]
     registry = ModelRegistry(model_catalog, model_serving)
     main_resource_variant = os.getenv("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+    deployment_target = load_deployment_target(
+        root / "configs/deployment_targets.yaml",
+        os.getenv("DEPLOYMENT_TARGET", "").strip() or None,
+    )
     topology = load_runtime_topology(
         root, main_resource_variant=main_resource_variant
     )
-    enabled_runtime_keys = {
-        key for key, binding in topology.bindings_by_key.items() if binding.enabled
-    }
+    enabled_runtime_keys = topology.runtime_keys_for_features(
+        deployment_target.features
+    )
     network_scope = str(args.network_scope)
     if network_scope not in {"published", "compose"}:
         raise ValueError(f"unsupported runtime validation network scope: {network_scope!r}")
