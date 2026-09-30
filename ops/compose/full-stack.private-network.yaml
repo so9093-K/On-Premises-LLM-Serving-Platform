@@ -40,13 +40,10 @@ services:
         condition: service_healthy
       main-llm-vllm:
         condition: service_healthy
-      # runtime-controller는 의도적으로 하드 의존에서 뺐다: gateway_inference.py의
-      # sidecar 호출은 이미 SidecarUnavailableError를 잡아 main-model 관련
-      # 요청만 503으로 낙제시키고(gateway_ops.py의 /metrics도 동일하게 낙제),
-      # embeddings/risk 경로는 sidecar를 아예 쓰지 않는다. runtime-controller가
-      # 계속 crash-loop해도(예: 상태 경로 권한 문제) gateway 전체가
-      # "Created" 상태로 영원히 멈추는 단일 장애점을 만들지 않기 위함이다
-      # — 2026-07-21 장애의 근본 원인.
+      # runtime-controller는 의도적으로 Gateway의 Compose hard dependency가 아니다.
+      # Main Model control 경로는 controller unavailable을 요청 단위 오류로 처리하고,
+      # embeddings/risk 경로는 controller를 사용하지 않는다. controller가 crash-loop해도
+      # Gateway 전체를 "Created" 상태에 묶는 단일 장애점을 만들지 않는다.
     volumes:
     - ../../.runtime/gateway:/var/lib/ai-model-serving
     - ../../.runtime/request-events:/var/log/ai-model-serving
@@ -428,7 +425,7 @@ services:
       PLATFORM_STATE_DIR: /var/lib/ai-model-serving
       DOCKER_SOCKET: /var/run/docker.sock
       # 이 값으로 runtime-controller가 com.docker.compose.project 라벨을 걸러 컨테이너를
-      # 찾는다. 위 `name:`과 기본값이 어긋나면 sidecar가 아무 컨테이너도 찾지 못해
+      # 찾는다. 위 `name:`과 기본값이 어긋나면 Runtime Controller가 아무 컨테이너도 찾지 못해
       # 런타임 start/stop이 조용히 아무 일도 하지 않는다. 기본값을 같이 둔다.
       COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-ai-model-serving-platform}
       GATEWAY_INTERNAL_URL: http://gateway:9400
