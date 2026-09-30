@@ -14,6 +14,7 @@ KNOWN_FEATURES = frozenset(
         "embeddings",
         "retrieval",
         "risk",
+        "prompt_detection",
         "runtime_control",
         "model_switching",
         "gpu_admission",
