@@ -40,20 +40,14 @@ if [[ ! -f "$PROM_SECRET" || ! -s "$PROM_SECRET" ]]; then
 fi
 
 EXPOSURE_MODE_EFFECTIVE="${EXPOSURE_MODE:-$(_env_value EXPOSURE_MODE)}"
-EXPOSURE_MODE_EFFECTIVE="${EXPOSURE_MODE_EFFECTIVE:-master_open}"
-
-# EXPOSURE_MODE를 YAML source-of-truth 기준 canonical mode로 확정합니다.
-# 알 수 없는 mode는 code 2로 종료하며 canonical mode 목록을 안내합니다.
-CANONICAL_MODE="$("$PYTHON_BIN" scripts/compose/resolve_exposure_mode.py "$EXPOSURE_MODE_EFFECTIVE")"
-
-# canonical mode로부터 compose override 파일을 결정합니다.
-COMPOSE_OVERRIDE="$("$PYTHON_BIN" scripts/compose/resolve_exposure_mode.py "$EXPOSURE_MODE_EFFECTIVE" --print-override-file)"
-
-if [[ -n "$COMPOSE_OVERRIDE" && ! -f "$COMPOSE_OVERRIDE" ]]; then
-  echo "[compose-up] compose override file not found: $COMPOSE_OVERRIDE" >&2
-  echo "[compose-up] Run 'python scripts/compose/render_exposure_overrides.py' to generate it." >&2
+EXPOSURE_MODE_EFFECTIVE="${EXPOSURE_MODE_EFFECTIVE:-private_network}"
+if [[ "$EXPOSURE_MODE_EFFECTIVE" != "private_network" ]]; then
+  echo "[compose-up] EXPOSURE_MODE=$EXPOSURE_MODE_EFFECTIVE is no longer supported." >&2
+  echo "[compose-up] Raw model/runtime operations endpoints stay on the Compose network." >&2
+  echo "[compose-up] Choose ACCESS=local|private|edge explicitly to migrate this environment." >&2
   exit 2
 fi
+CANONICAL_MODE="private_network"
 
 echo "[compose-up] resolving persisted main-model boot profile"
 MAIN_MODEL_BOOT_PROFILE="$(
@@ -88,11 +82,7 @@ else
   esac
 fi
 
-COMPOSE_ARGS=("${COMPOSE_CONTEXT_FILE_ARGS[@]}")
-if [[ -n "$COMPOSE_OVERRIDE" ]]; then
-  COMPOSE_ARGS+=(-f "$COMPOSE_OVERRIDE")
-fi
-COMPOSE_ARGS+=(-f "$MAIN_MODEL_BOOT_OVERRIDE")
+COMPOSE_ARGS=("${COMPOSE_CONTEXT_FILE_ARGS[@]}" -f "$MAIN_MODEL_BOOT_OVERRIDE")
 # Normal preflight already resolved this exact file set. Keep syntax validation
 # only for the explicitly permitted SKIP_PREFLIGHT path.
 if [[ "${SKIP_PREFLIGHT:-0}" == "1" ]]; then

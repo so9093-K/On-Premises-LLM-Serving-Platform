@@ -165,7 +165,7 @@ class AuthFinding:
 
 
 def _exposure_mode_from_env() -> str:
-    return _env("EXPOSURE_MODE", "master_open")
+    return _env("EXPOSURE_MODE", "private_network")
 
 
 def _exposure_profile(project_root: Path, exposure_mode: str | None = None) -> dict[str, Any]:
@@ -268,10 +268,10 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
     # 하나만 stage를 포함해 서로 달랐는데, 아무 동작 차이도 만들지 않았다.
     non_local = settings.app_env.lower() not in LOCAL_ENVIRONMENTS
 
-    is_local_open_trusted_lan = (
+    is_local_open_local_only = (
         mode == "local_open"
-        and _env("EXPOSURE_MODE", "") == "master_open"
-        and _env("EXPOSURE_AUDIENCE", "") == "private_lan"
+        and _env("EXPOSURE_MODE", "") == "private_network"
+        and _env("EXPOSURE_AUDIENCE", "") == "local_only"
     )
 
     if non_local and mode == "custom":
@@ -286,23 +286,23 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             ))
 
     if non_local and not settings.security.api_key_required:
-        if is_local_open_trusted_lan:
+        if is_local_open_local_only:
             findings.append(AuthFinding(
                 "INFO",
                 "AUTH_DELEGATED_TO_NETWORK",
                 f"AUTH_MODE={mode}: API_KEY_REQUIRED=false — 인증 소유권이 "
-                f"신뢰된 네트워크 경계에 위임됨 (APP_ENV={settings.app_env}).",
+                f"loopback host 경계에 위임됨 (APP_ENV={settings.app_env}).",
             ))
         else:
             findings.append(AuthFinding("FAIL", "PUBLIC_API_UNAUTHENTICATED_NON_LOCAL", f"APP_ENV={settings.app_env}인데 API_KEY_REQUIRED=false입니다."))
 
     if non_local and not settings.security.internal_service_auth_required:
-        if is_local_open_trusted_lan:
+        if is_local_open_local_only:
             findings.append(AuthFinding(
                 "INFO",
                 "INTERNAL_AUTH_DELEGATED",
                 f"AUTH_MODE={mode}: INTERNAL_SERVICE_AUTH_REQUIRED=false — "
-                f"내부 서비스 인증도 네트워크 소유권에 위임됨 (APP_ENV={settings.app_env}).",
+                f"내부 서비스 인증은 private Compose network 경계에 위임됨 (APP_ENV={settings.app_env}).",
             ))
         else:
             findings.append(AuthFinding("FAIL", "INTERNAL_SERVICE_AUTH_DISABLED_NON_LOCAL", f"APP_ENV={settings.app_env}인데 INTERNAL_SERVICE_AUTH_REQUIRED=false입니다."))
@@ -351,8 +351,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
                 AuthFinding(
                     "FAIL",
                     "LOCAL_OPEN_EXPOSURE_POLICY_MISMATCH",
-                    exposure_mismatch + " so the trusted corporate network "
-                    "owns access control for Gateway, vLLM, and operations endpoints.",
+                    exposure_mismatch + " so the supported access topology remains private.",
                 )
             )
 

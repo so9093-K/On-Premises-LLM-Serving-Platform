@@ -34,10 +34,6 @@ from ai_model_serving.access_profile import (  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import LOCAL_ENVIRONMENTS, resolve_env_file  # noqa: E402
 from scripts.compose.effective_host_ports import effective_host_ports  # noqa: E402
-from scripts.compose.resolve_exposure_mode import (  # noqa: E402
-    override_file_for,
-    resolve,
-)
 from scripts.compose.validate_vllm_compose import validate_alignment  # noqa: E402
 
 
@@ -139,114 +135,34 @@ def _load_yaml(path: Path, label: str) -> dict[str, Any]:
     return data
 
 
-def _phase0() -> dict[str, Any]:
-    print("[preflight] Phase 0: exposure config bootstrap")
+def _phase0() -> None:
+    print("[preflight] Phase 0: access/exposure compatibility")
     exposure_path = ROOT / "configs" / "exposure_profiles.yaml"
     data = _load_yaml(exposure_path, "configs/exposure_profiles.yaml")
-    if not isinstance(data.get("profiles"), dict):
-        raise SystemExit("[preflight] fail: configs/exposure_profiles.yaml must contain a profiles mapping.")
-    print("[preflight] ok: loaded configs/exposure_profiles.yaml")
-    return data
-
-
-def _service_registry() -> dict[str, dict[str, Any]]:
-    data = _load_yaml(ROOT / "configs" / "services.yaml", "configs/services.yaml")
-    services = data.get("services")
-    if not isinstance(services, dict):
-        raise SystemExit("[preflight] fail: configs/services.yaml must contain a services mapping.")
-    return services
-
-
-def _bind_conflicts(
-    mode: str,
-    exposure_data: dict[str, Any],
-    services: dict[str, dict[str, Any]],
-) -> list[str]:
-    profile = exposure_data.get("profiles", {}).get(mode, {})
-    conflicts: list[str] = []
-    for service_name in profile.get("host_published", []):
-        service = services.get(service_name, {})
-        bind_env = str(service.get("host_env_bind", ""))
-        default_bind = str(service.get("default_bind", "0.0.0.0"))
-        bind = _env_value(bind_env, default_bind) if bind_env else default_bind
-        if bind != "0.0.0.0":
-            continue
-        port_env = str(service.get("host_env_port", ""))
-        port = (
-            _env_value(port_env, str(service.get("default_host_port", "")))
-            if port_env
-            else ""
+    profiles = data.get("profiles")
+    if not isinstance(profiles, dict) or set(profiles) != {"private_network"}:
+        raise SystemExit(
+            "[preflight] configs/exposure_profiles.yaml must define only private_network"
         )
-        conflicts.append(f"{service.get('compose_service', service_name)}:{port}")
-    return conflicts
+    print("[preflight] ok: private_network is the only supported host exposure topology")
 
 
-def _phase1(exposure_data: dict[str, Any]) -> str:
-    print("[preflight] Phase 1: exposure decision")
+def _phase1() -> str:
+    print("[preflight] Phase 1: access policy")
     _check_auth_profile_preflight()
-    raw_mode = _env_value("EXPOSURE_MODE", "master_open")
-    canonical_mode = resolve(raw_mode, exposure_data)
-    print(f"[preflight] EXPOSURE_MODE={canonical_mode}")
-
-    profile = exposure_data.get("profiles", {}).get(canonical_mode, {})
-    diagnostics = profile.get("diagnostics", {})
-    if not diagnostics.get("requires_exposure_audience"):
-        return canonical_mode
-
-    audience = _env_value("EXPOSURE_AUDIENCE", "")
-    # 허용 값은 configs/exposure_profiles.yaml이 소유한다. 코드가 같은 목록을 또
-    # 적어두면 설정에 값을 더해도 사용자가 보는 안내가 따라오지 않는다.
-    allowed = exposure_data.get("exposure_audience", {}).get("allowed_values", [])
-    if not audience:
-        _fail(f"EXPOSURE_MODE={canonical_mode} requires EXPOSURE_AUDIENCE.")
+    mode = _env_value("EXPOSURE_MODE", "private_network").strip() or "private_network"
+    if mode != "private_network":
+        _fail(f"EXPOSURE_MODE={mode!r} is no longer supported.")
         print(
-            f"[preflight] Set EXPOSURE_AUDIENCE={'|'.join(allowed)} "
-            "to declare who can reach host-published ports.",
+            "[preflight] Raw model/runtime/operations endpoints stay on the Compose network. "
+            "Migrate with ACCESS=local|private|edge.",
             file=sys.stderr,
         )
-        raise SystemExit("[preflight] configuration preflight failed; fix exposure config before runtime checks.")
-    if audience not in allowed:
-        _fail(f"EXPOSURE_AUDIENCE={audience!r} is not a valid value.")
-        print(
-            "[preflight] Allowed values (from configs/exposure_profiles.yaml): " + ", ".join(allowed),
-            file=sys.stderr,
+        raise SystemExit(
+            "[preflight] configuration preflight failed; migrate the retired exposure mode."
         )
-        raise SystemExit("[preflight] configuration preflight failed; fix exposure config before runtime checks.")
-
-    print(f"[preflight] ok: EXPOSURE_AUDIENCE={audience}")
-    if audience == "local_only":
-        conflicts = _bind_conflicts(canonical_mode, exposure_data, _service_registry())
-        if conflicts:
-            _fail(
-                "EXPOSURE_AUDIENCE=local_only but services bound to 0.0.0.0: "
-                + ",".join(conflicts[:5])
-            )
-            print(
-                "[preflight] Set *_BIND_ADDR=127.0.0.1 for all host-published services, "
-                "or change EXPOSURE_AUDIENCE.",
-                file=sys.stderr,
-            )
-            raise SystemExit("[preflight] configuration preflight failed; fix exposure config before runtime checks.")
-        print("[preflight] ok: EXPOSURE_AUDIENCE=local_only - all host-published services bound to loopback")
-
-    if audience == "public":
-        opt_in = _env_value("ALLOW_PUBLIC_OPERATIONS_ENDPOINTS", "")
-        if opt_in not in {"1", "true"}:
-            _fail(
-                "EXPOSURE_AUDIENCE=public requires "
-                "ALLOW_PUBLIC_OPERATIONS_ENDPOINTS=true as explicit opt-in."
-            )
-            print(
-                f"[preflight] EXPOSURE_MODE={canonical_mode} with public audience exposes "
-                "vLLM APIs and operations endpoints without Gateway auth.",
-                file=sys.stderr,
-            )
-            raise SystemExit("[preflight] configuration preflight failed; fix exposure config before runtime checks.")
-        _warn(
-            "EXPOSURE_AUDIENCE=public + ALLOW_PUBLIC_OPERATIONS_ENDPOINTS=true - "
-            "vLLM and ops endpoints publicly reachable."
-        )
-    return canonical_mode
+    print("[preflight] EXPOSURE_MODE=private_network")
+    return "private_network"
 
 
 def _compose_command(
@@ -402,21 +318,8 @@ def _effective_compose_document(
     return document
 
 
-def _diagnostics(canonical_mode: str, exposure_data: dict[str, Any]) -> None:
-    if canonical_mode == "private_network":
-        return
-    diagnostics = exposure_data.get("profiles", {}).get(canonical_mode, {}).get("diagnostics", {})
-    enabled = [(key, value) for key, value in diagnostics.items() if value]
-    if not enabled:
-        return
-    print(f"[preflight] EXPOSURE_MODE={canonical_mode} structured diagnostics:")
-    for key, value in enabled:
-        print(f"  [diagnostic] {key}: {value}")
 
-
-def _phase2(
-    canonical_mode: str, exposure_data: dict[str, Any], *, boot_override: Path
-) -> int:
+def _phase2(canonical_mode: str, *, boot_override: Path) -> int:
     print("[preflight] Phase 2: compose and runtime checks")
     compose_file = os.environ.get("COMPOSE_FILE", "ops/compose/full-stack.private-network.yaml")
     env_path = resolve_env_file(os.environ.get("ENV_FILE"), ROOT).resolve()
@@ -427,19 +330,11 @@ def _phase2(
     project_name = _env_value("COMPOSE_PROJECT_NAME", "ai-model-serving-platform") or "ai-model-serving-platform"
     os.environ["COMPOSE_PROJECT_NAME"] = project_name
     os.environ["COMPOSE_SERVICE_ENV_FILE"] = str(env_path)
-    override = override_file_for(canonical_mode)
-    compose_args = ["-f", str(compose_path), *(["-f", override] if override else [])]
+    compose_args = ["-f", str(compose_path)]
     compose_args.extend(["-f", str(boot_override)])
     fail = False
     if not compose_path.is_file():
         print(f"[preflight] missing: base compose file {compose_file}", file=sys.stderr)
-        fail = True
-    elif override and not (ROOT / override).exists():
-        print(f"[preflight] missing: exposure override {override}", file=sys.stderr)
-        print(
-            "[preflight] Run 'python scripts/compose/render_exposure_overrides.py' and re-run preflight.",
-            file=sys.stderr,
-        )
         fail = True
     elif not boot_override.is_file():
         _fail(f"missing main-model boot override: {boot_override}")
@@ -495,7 +390,6 @@ def _phase2(
         _fail("cannot resolve effective compose ports without docker compose.")
         fail = True
 
-    _diagnostics(canonical_mode, exposure_data)
     if _env_value("HF_TOKEN") or _env_value("HUGGING_FACE_HUB_TOKEN"):
         print("[preflight] ok: Hugging Face token env present")
     else:
@@ -557,12 +451,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Reuse the exact main-model override generated by compose-up",
     )
     args = parser.parse_args(argv)
-    exposure_data = _phase0()
-    canonical_mode = _phase1(exposure_data)
+    _phase0()
+    canonical_mode = _phase1()
     if args.boot_override is not None:
-        return _phase2(
-            canonical_mode, exposure_data, boot_override=args.boot_override.resolve()
-        )
+        return _phase2(canonical_mode, boot_override=args.boot_override.resolve())
     # Standalone preflight uses the same boot resolver; never mutate persisted state.
     with tempfile.TemporaryDirectory(prefix="preflight-boot-") as directory:
         env_path = resolve_env_file(os.environ.get("ENV_FILE"), ROOT)
@@ -573,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         boot_override = Path(directory) / "boot.yaml"
         boot_override.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
-        return _phase2(canonical_mode, exposure_data, boot_override=boot_override)
+        return _phase2(canonical_mode, boot_override=boot_override)
 
 
 if __name__ == "__main__":
