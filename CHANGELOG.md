@@ -55,6 +55,10 @@
   검사가 양쪽 code 집합 일치를 고정한다.
 - `Qwen/Qwen2.5-Omni-7B` Thinker profile을 추가하고 `verified`로 승격했다. Gateway에서 text/image/audio/video 입력→text 응답, media boot canary·rollback, structured output, logprobs, logit bias와 streaming 계약을 실제 런타임으로 검증했다. tool calling은 안정적인 parser/template 경로가 없어 비활성이고, 음성 출력은 이번 플랫폼 범위에 포함하지 않는다.
 
+### Changed
+
+- Runtime validation의 자동 endpoint resolution을 Compose 내부 service identity로 고정했다. 원격·후보 endpoint 검증은 명시적 `--*-base`/process override만 사용하며, internal model/runtime/Prometheus/exporter/Loki의 과거 host bind/port metadata는 제거한다. 기존 `.env`에 남은 해당 `*_BIND_ADDR`·`*_PORT` key는 configuration sync에서 삭제된다. Gateway/Grafana host publication과 app-only Gateway/Risk Signal Service host process port는 실제 consumer가 있어 유지한다. ([ADR-0043](docs/adr/0043-internal-runtime-validation-and-private-host-exposure.md), [ADR-0045](docs/adr/0045-host-exposure-invariant.md))
+
 ### Fixed
 
 - `EXPOSURE_MODE=master_open`, `EXPOSURE_AUDIENCE=local_only`에서 `make auth-doctor`가 host bind 주소를
