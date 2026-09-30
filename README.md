@@ -72,11 +72,7 @@ Linux/NVIDIA managed target:
 make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-gated Hugging Face model에 token이 필요하면 같은 명령에 전달한다.
-
-```bash
-HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
-```
+선택한 Hugging Face model이 token을 요구하면 첫 `make up`에 `HF_TOKEN=hf_xxx`를 함께 전달한다.
 
 Apple Silicon:
 
@@ -93,7 +89,7 @@ make up TARGET=linux-nvidia-static MAIN_URL=http://host.docker.internal:8000/v1 
 Main runtime이 다른 host에 있다면 Gateway container에서 접근할 수 있는 URL을 `MAIN_URL`에 사용한다.
 
 `TARGET` 없이 처음 `make up`을 실행하면 사용할 수 있는 target, 검증 상태와 이 host에서 감지한 추천 target을 보여 준다.
-기동이 끝나면 Console, API 문서, Grafana 주소를 함께 출력한다.
+기동이 끝나면 Console과 현재 target/access에서 사용할 수 있는 API 문서·Grafana 주소를 출력한다.
 
 이후에는 저장된 configuration을 기준으로 같은 명령으로 수렴한다.
 
@@ -112,9 +108,9 @@ make down
 
 ## API 사용
 
-Gateway 기본 주소는 `http://127.0.0.1:9400`이다. 인증이 적용된 환경에서는 해당 profile의
-Bearer token을 함께 사용한다. 브라우저 API Reference는 `/docs`, OpenAPI 명세는
-`/openapi.json`에서 제공한다.
+Gateway 기본 주소는 `http://127.0.0.1:9400`이다. 인증이 필요한 Access Profile에서는
+API key를 Bearer token으로 전달한다. API 문서가 활성화된 환경에서는 브라우저 Reference를
+`/docs`, OpenAPI 명세를 `/openapi.json`에서 제공한다.
 
 대표적인 Chat Completions 요청:
 
