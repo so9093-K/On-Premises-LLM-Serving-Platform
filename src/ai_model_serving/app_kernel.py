@@ -53,7 +53,7 @@ def _field_path(loc: Any) -> str | None:
 async def managed_lifespan(*resources: Any) -> AsyncIterator[None]:
     """비동기 ``close`` 메서드를 제공하는 앱 소유 자원을 종료한다.
 
-    Gateway and Risk Adapter have the same lifecycle shape: construct clients
+    Gateway and Risk Signal Service have the same lifecycle shape: construct clients
     during app creation and close them on shutdown.  Keeping that lifecycle in
     one place makes future resources such as registries, probes, or exporters
     easier to attach without duplicating shutdown code in every app module.
