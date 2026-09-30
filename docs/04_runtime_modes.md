@@ -207,7 +207,7 @@ full-stack의 base Compose 정의는 `ops/compose/full-stack.private-network.yam
 | `loki` | `3100` | Log backend |
 | `alloy` | - | Docker log 수집 |
 
-위 표의 port는 **container 내부 port**다. Host에서 접근 가능한 port는 exposure mode에 따라 달라진다.
+위 표의 port는 **container 내부 port**다. Host에는 Gateway와 target이 제공하는 Grafana만 publish하며 실제 bind는 Access Profile이 결정한다.
 
 application과 model runtime은 서로 다른 image 계층으로 실행된다.
 
