@@ -567,7 +567,7 @@ make runtime-validate
 | 모델 추가 | catalog + serving + 모델 참고 문서 + compose | `validate` | full-stack + runtime validation |
 | vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | `make up` + runtime validation |
 | Service port | `services.yaml` | 생성 파일 + validate | implementation Compose config + `make up` |
-| Exposure | `exposure_profiles.yaml` | Compose override 재생성 + validate | effective port 확인 |
+| Access / host exposure | `access_profiles.yaml` + Compose `ports` | `make validate` | effective Compose port/bind 확인 |
 | Dashboard | Dashboard JSON | `make validate` | Grafana / runtime validation |
 | Workflow | `.github/workflows/` | GitHub 문법 + `make check` | 해당 workflow |
 | Lifecycle logic | `scripts/platform_cli.py`, `scripts/ops/` | validate | 선택 target lifecycle + readiness |
