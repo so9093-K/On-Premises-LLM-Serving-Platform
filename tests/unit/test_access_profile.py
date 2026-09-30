@@ -10,3 +10,4 @@ def test_operator_bind_policy_preserves_canonical_main_model_bind() -> None:
     )
 
     assert values["MAIN_MODEL_VLLM_BIND_ADDR"] == "192.168.10.25"
+    assert "EXPOSURE_MODE" not in values
