@@ -231,6 +231,60 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
                 violations.append(
                     f"env_contract.yaml: {label} injects INTERNAL_SERVICE_TOKEN although target {target!r} has no token consumer"
                 )
+    services_document = load_yaml(root / "configs" / "services.yaml")
+    services = services_document.get("services")
+    compose_to_service_id = {
+        str(raw.get("compose_service")): str(service_id)
+        for service_id, raw in (services.items() if isinstance(services, dict) else [])
+        if isinstance(raw, dict) and raw.get("compose_service")
+    }
+
+    expected_consumers: set[tuple[str, str]] = set()
+    for target, target_cfg in targets.items():
+        if not isinstance(target_cfg, dict):
+            continue
+        compose_files = target_cfg.get("compose_files")
+        if not isinstance(compose_files, list):
+            continue
+        for relative in compose_files:
+            if not isinstance(relative, str) or not relative:
+                continue
+            compose_path = root / relative
+            if not compose_path.exists():
+                continue
+            compose_document = load_yaml(compose_path)
+            compose_services = compose_document.get("services")
+            if not isinstance(compose_services, dict):
+                continue
+            for compose_service, service_cfg in compose_services.items():
+                if not isinstance(service_cfg, dict):
+                    continue
+                env_file = service_cfg.get("env_file")
+                env_text = ""
+                if isinstance(env_file, str):
+                    env_text = env_file
+                elif isinstance(env_file, list):
+                    env_text = "\n".join(
+                        str(item) for item in env_file if isinstance(item, (str, dict))
+                    )
+                if "RUNTIME_ENV_FILE" not in env_text:
+                    continue
+                service_id = compose_to_service_id.get(str(compose_service))
+                if service_id is None:
+                    violations.append(
+                        f"{relative}: service {compose_service!r} uses a runtime env file "
+                        "but has no canonical services.yaml identity"
+                    )
+                    continue
+                expected_consumers.add((str(target), service_id))
+
+    missing_consumers = expected_consumers - projected_consumers
+    for target, service in sorted(missing_consumers):
+        violations.append(
+            "env_contract.yaml: missing service env projection for "
+            f"target {target!r} and service {service!r}"
+        )
+
     return violations
 
 
