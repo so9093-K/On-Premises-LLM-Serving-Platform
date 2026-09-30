@@ -57,10 +57,9 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | MLX Main Model 실행·API profile | `configs/macos_mlx_runtime.yaml` | 모델 revision, 실행 한도와 실제 modality·Gateway 요청 정책 정의 |
 | Platform Python dependency | `pyproject.toml`, `uv.lock` | 공통 application 직접 의존성과 Linux/macOS 해석 결과 |
 | MLX Python dependency | `runtimes/mlx/pyproject.toml`, `runtimes/mlx/uv.lock` | 독립 native runtime 직접 의존성과 Darwin arm64 해석 결과 |
-| Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog 연결과 **Compose 파일 목록·exposure profile 적용 여부** |
+| Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog와 static Compose 파일 목록 |
 | GPU resource budget | `configs/gpu_budgets.yaml` | runtime별 GPU budget과 admission 기준 정의 |
-| Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env, exposure category 정의 |
-| Exposure mode | `configs/exposure_profiles.yaml` | 어떤 서비스를 host에 publish할지 정의 |
+| Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env와 host-boundary service role 정의 |
 | Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/required/controllable binding과 Main resource-policy composition constraint 정의 |
 | Authentication profile | `configs/auth_profiles.yaml` | `AUTH_MODE`별 인증·관리 endpoint 보호 정책 정의 |
@@ -272,30 +271,21 @@ main-llm-vllm
 - host port 환경변수
 - 기본 host port
 - bind address 환경변수
-- exposure category
+- host-boundary category
 
 예를 들어 `gateway`, `main_llm_vllm`, `grafana` 같은 service ID를 다른 설정과 validator가 공통으로 참조한다.
 
-### `configs/exposure_profiles.yaml`
+### Host exposure boundary
 
-실행된 서비스 중 어떤 서비스를 host에 publish할지 정의한다.
+별도 exposure mode/profile은 없다. `configs/services.yaml`의 service role과 target Compose의
+실제 `ports` 선언이 함께 host publication을 소유한다.
 
-canonical exposure topology는 `private_network` 하나다. Gateway와 Grafana만 host에
-publish하며 model runtime, Risk Signal Service, Prometheus와 exporter/log backend는
-Compose 내부망에 둔다.
+- `public_entrypoint`인 Gateway는 host에 publish한다.
+- monitoring stack을 실행하는 target의 `visualization`인 Grafana는 host에 publish한다.
+- model runtime, Risk Signal Service, Prometheus/exporter/log backend는 Compose 내부망에 둔다.
 
-Exposure Profile은 실행된 service의 host 공개 범위를 관리하고, runtime 활성 상태는
-Runtime Startup Profile과 각 runtime lifecycle에서 결정한다.
-
-```text
-Runtime Startup Profile
-  └─ 어떤 runtime을 실행 상태로 둘 것인가
-
-Exposure Profile
-  └─ 실행된 service를 host에 publish할 것인가
-```
-
-네트워크 구조와 실제 port 노출은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
+Access Profile은 이 서비스 집합을 바꾸지 않고 auth, `EXPOSURE_AUDIENCE`, host bind와 TLS ownership을
+결정한다. 네트워크 구조와 실제 port 노출은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
 
 ---
 
@@ -568,9 +558,8 @@ bash scripts/compose/compose_config.sh
 | Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
 | Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
 | GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `bash scripts/compose/compose_config.sh` |
-| Exposure mode | `exposure_profiles.yaml` | host publish 범위 | `make validate`, exposure 적용, Compose 재적용 |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make up ACCESS=...` |
+| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `make validate`, `bash scripts/compose/compose_config.sh` |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make validate`, `make up ACCESS=...` |
 | Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
 | Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
