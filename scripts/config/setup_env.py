@@ -26,8 +26,8 @@ from scripts.lib.cli_kr import KoreanArgumentParser  # noqa: E402
 from ai_model_serving.auth_control import (
     AUTH_PROFILE_ENV_KEYS,
     auth_profile_env_values,
-    auth_profile_exposure_values,
-    auth_profile_exposure_mismatch,
+    auth_profile_network_values,
+    auth_profile_network_mismatch,
 )
 from ai_model_serving.settings_parts.env import DEFAULT_ENV_FILENAME
 from ai_model_serving.access_profile import (
@@ -197,7 +197,6 @@ GENERATED_SECRET_KEYS = {
     "INTERNAL_SERVICE_TOKEN",
     "INTERNAL_SERVICE_AUTH_REQUIRED",
     "AUTH_MODE",
-    "EXPOSURE_MODE",
 }
 # GRAFANA_ADMIN_PASSWORD는 GENERATED_SECRET_KEYS에서 의도적으로 제외됩니다.
 # 최초 init 시 한 번 설정되고 이후 bootstrap을 다시 돌려도 보존되는, 사람이 쓰는
@@ -205,8 +204,7 @@ GENERATED_SECRET_KEYS = {
 # Grafana admin 비밀번호는 운영자의 세션 도중 조용히 바뀌면 안 됩니다.
 #
 # EXPOSURE_AUDIENCE는 Access Profile의 network intent compatibility projection이다.
-# EXPOSURE_MODE는 private_network 하나로 고정되지만, 두 값은 access migration에서
-# 같은 원자적 변경 집합으로 갱신한다.
+# host exposure topology는 Compose/service registry의 고정 invariant라 env 선택값을 두지 않는다.
 ALWAYS_REFRESH_KEYS = {
     "APP_ENV",
     "BUILD_PROFILE",
@@ -332,6 +330,12 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
         raise FileNotFoundError(f".env 파일이 없습니다: {env_path}")
 
     env_lines, existing = parse_env_template(env_path)
+    retired_exposure_mode = existing.get("EXPOSURE_MODE", "").strip()
+    if retired_exposure_mode and retired_exposure_mode != "private_network":
+        raise ValueError(
+            f"retired EXPOSURE_MODE={retired_exposure_mode!r} requires explicit Access migration; "
+            "rerun make up with ACCESS=local|private|edge and CONFIRM=access"
+        )
     profile = existing.get("BUILD_PROFILE", "compose")
     if profile not in ("local", "compose"):
         profile = "compose"
@@ -432,22 +436,11 @@ def effective_profile_template(profile: str) -> tuple[list[str], dict[str, str]]
     return lines, values
 
 
-def _validated_exposure_mode(exposure_mode: str) -> str:
-    """지원되는 host exposure topology는 private_network 하나뿐이다."""
-    if exposure_mode != "private_network":
-        raise ValueError(
-            f"EXPOSURE_MODE={exposure_mode!r} is no longer supported; "
-            "choose ACCESS=local|private|edge to migrate the environment"
-        )
-    return exposure_mode
-
-
 def generated_values(
     profile: str,
     app_env: str | None,
     overrides: dict[str, str],
     auth_mode: str | None = None,
-    exposure_mode: str | None = None,
     exposure_audience: str | None = None,
     access_profile: str | None = None,
 ) -> dict[str, str]:
@@ -456,36 +449,28 @@ def generated_values(
     internal_token = token("ams_internal")
     grafana_password = token("ams_grafana")
     if access_profile is not None:
-        if any(value is not None for value in (auth_mode, exposure_mode, exposure_audience)):
+        if any(value is not None for value in (auth_mode, exposure_audience)):
             raise ValueError(
-                "--access-profile cannot be combined with --auth-mode/--exposure-mode/"
-                "--exposure-audience; use the advanced policy flags without an access profile"
+                "--access-profile cannot be combined with --auth-mode/--exposure-audience; "
+                "use the advanced policy flags without an access profile"
             )
         access_values = access_profile_env_values(access_profile, ROOT)
         effective_auth_mode = access_values["AUTH_MODE"]
-        effective_exposure_mode = _validated_exposure_mode(access_values["EXPOSURE_MODE"])
         effective_exposure_audience = access_values["EXPOSURE_AUDIENCE"]
     else:
         access_values = {}
         effective_auth_mode = auth_mode or "local_open"
-        auth_exposure = auth_profile_exposure_values(effective_auth_mode)
-        effective_exposure_mode = _validated_exposure_mode(
-            exposure_mode or auth_exposure.get("EXPOSURE_MODE", "private_network")
-        )
+        auth_network = auth_profile_network_values(effective_auth_mode)
         effective_exposure_audience = (
             exposure_audience
             if exposure_audience is not None
-            else (
-                ""
-                if exposure_mode is not None
-                else auth_exposure.get("EXPOSURE_AUDIENCE", "")
-            )
+            else auth_network.get("EXPOSURE_AUDIENCE", "")
         )
-        exposure_mismatch = auth_profile_exposure_mismatch(
-            effective_auth_mode, effective_exposure_mode, effective_exposure_audience
+        network_mismatch = auth_profile_network_mismatch(
+            effective_auth_mode, effective_exposure_audience
         )
-        if exposure_mismatch is not None:
-            raise ValueError(exposure_mismatch)
+        if network_mismatch is not None:
+            raise ValueError(network_mismatch)
     # PROJECT_VERSION은 쓰지 않는다 -- VERSION 파일이 소유하고 settings.py가 env를
     # 우선하므로, .env에 복제하면 그 값이 파일을 가린 채 낡는다(env_contract.yaml
     # removed_keys 참고).
@@ -498,7 +483,6 @@ def generated_values(
         "INTERNAL_SERVICE_AUTH_REQUIRED": "true",
         "GRAFANA_ADMIN_PASSWORD": grafana_password,
         "SECRETS_GENERATED_AT": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "EXPOSURE_MODE": effective_exposure_mode,
         "EXPOSURE_AUDIENCE": effective_exposure_audience,
     }
     if profile == "compose":
@@ -538,6 +522,11 @@ def render_access_plan(profile_name: str, current: dict[str, str]) -> str:
         lines.append(
             f"{marker} {change['key']:<30} {change['before']:<30} {change['after']}"
         )
+    retired_mode = current.get("EXPOSURE_MODE", "").strip()
+    if retired_mode:
+        lines.append(
+            f"* {'EXPOSURE_MODE':<30} {retired_mode:<30} <removed>"
+        )
     lines.extend(
         [
             "",
@@ -559,7 +548,8 @@ def apply_access_profile(
 ) -> bool:
     lines, current = parse_env_template(env_path)
     changes = access_profile_changes(profile_name, current, ROOT)
-    changed = any(bool(change["changed"]) for change in changes)
+    retired_exposure_mode = current.get("EXPOSURE_MODE", "").strip()
+    changed = any(bool(change["changed"]) for change in changes) or bool(retired_exposure_mode)
     print(render_access_plan(profile_name, current), end="")
     if not changed:
         return True
@@ -569,6 +559,7 @@ def apply_access_profile(
         )
         return False
     current.update(access_profile_env_values(profile_name, ROOT, current=current))
+    current.pop("EXPOSURE_MODE", None)
     write_env(lines, current, env_path)
     print(f"접근 profile 적용 완료: {env_path}")
     return True
@@ -585,7 +576,6 @@ def build_parser() -> KoreanArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="--sync-env 미리보기. 실제 변경 없음.")
     parser.add_argument("--env-file", help="--sync-env 대상 .env 파일 절대경로. 기본값은 프로젝트 루트 .env.")
     parser.add_argument("--auth-mode", help="AUTH_MODE를 명시적으로 설정합니다. 기본값은 local_open입니다. (local_open|private_network|strict)")
-    parser.add_argument("--exposure-mode", help="Advanced compatibility flag입니다. 지원값은 private_network 하나뿐입니다.")
     parser.add_argument("--exposure-audience", help="Access Profile이 투영하는 network intent compatibility 값입니다.")
     parser.add_argument(
         "--access-profile",
@@ -639,11 +629,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("--confirm-access requires --access-profile")
             if args.access_profile and any(
                 value is not None
-                for value in (args.auth_mode, args.exposure_mode, args.exposure_audience)
+                for value in (args.auth_mode, args.exposure_audience)
             ):
                 raise ValueError(
-                    "--access-profile cannot be combined with --auth-mode/--exposure-mode/"
-                    "--exposure-audience"
+                    "--access-profile cannot be combined with --auth-mode/--exposure-audience"
                 )
             if args.access_profile:
                 if args.dry_run:
@@ -690,7 +679,7 @@ def main(argv: list[str] | None = None) -> int:
         selected_access_profile = args.access_profile
         if selected_access_profile is None and not out_path.exists() and not any(
             value is not None
-            for value in (args.auth_mode, args.exposure_mode, args.exposure_audience)
+            for value in (args.auth_mode, args.exposure_audience)
         ):
             selected_access_profile = default_access_profile(ROOT)
         generated = generated_values(
@@ -698,7 +687,6 @@ def main(argv: list[str] | None = None) -> int:
             args.app_env,
             overrides,
             auth_mode=args.auth_mode,
-            exposure_mode=args.exposure_mode,
             exposure_audience=args.exposure_audience,
             access_profile=selected_access_profile,
         )
@@ -706,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"env 정책 오류: {exc}", file=sys.stderr)
         return 2
     if selected_access_profile is None:
-        # 직접 advanced auth/exposure flags를 쓰거나 기존 env를 --force로 복구하는
+        # 직접 advanced auth/network flags를 쓰거나 기존 env를 --force로 복구하는
         # 경로에는 template의 사용자-facing profile 이름을 붙이지 않는다.
         base_values.pop("ACCESS_PROFILE", None)
     else:
@@ -735,7 +723,7 @@ def main(argv: list[str] | None = None) -> int:
         access = load_access_profile(values["ACCESS_PROFILE"], ROOT)
         print(
             f"access={access.name} ({access.description}); "
-            f"auth={values['AUTH_MODE']} exposure={values['EXPOSURE_MODE']}"
+            f"auth={values['AUTH_MODE']} audience={values['EXPOSURE_AUDIENCE']}"
         )
     if args.profile == "compose":
         print("image references:")
