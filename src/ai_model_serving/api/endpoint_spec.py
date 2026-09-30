@@ -715,7 +715,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
     EndpointSpec(
         method="GET",
         path="/health",
-        operation_id="getRiskAdapterHealth",
+        operation_id="getRiskSignalServiceHealth",
         tag="Operations",
         summary="Liveness 확인",
         description="프로세스가 살아 있는지만 확인합니다. 항상 HTTP 200을 반환하며 인증 없이 호출할 수 있습니다.",
@@ -725,12 +725,13 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
     EndpointSpec(
         method="GET",
         path="/ready",
-        operation_id="getRiskAdapterReadiness",
+        operation_id="getRiskSignalServiceReadiness",
         tag="Operations",
         summary="Risk Signal Service readiness 확인",
         description=(
-            "활성화된 탐지기의 vLLM 런타임이 요청을 받을 준비가 됐는지 확인합니다. "
-            "모델 로딩 중에는 HTTP 503을 반환하고 `not_ready_dependencies`와 dependency별 `message`를 제공합니다."
+            "활성화된 remote detector dependency가 요청을 받을 준비가 됐는지 확인합니다. "
+            "local-only 구성은 별도 모델 dependency 없이 ready이며, dependency 로딩 중에는 HTTP 503과 "
+            "`not_ready_dependencies` 및 dependency별 `message`를 반환합니다."
         ),
         request_schema=None,
         response_schema="readiness_response.schema.json",
@@ -738,7 +739,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
     EndpointSpec(
         method="GET",
         path="/metrics",
-        operation_id="getRiskAdapterMetrics",
+        operation_id="getRiskSignalServiceMetrics",
         tag="Monitoring",
         summary="Prometheus 지표 조회",
         description="Prometheus가 수집하는 Risk Signal Service 지표입니다. 탐지기별 타임아웃, 파싱 실패, 신호 건수를 볼 수 있습니다.",
@@ -794,10 +795,11 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         tag="Risk Signal",
         summary="통합 risk signal",
         description=(
-            "활성화된 탐지기를 등록 순서(pii → secret → prompt)대로 호출하고 결과를 합칩니다.\n\n"
+            "현재 deployment에서 활성화된 탐지기를 configured order로 호출하고 결과를 합칩니다. "
+            "Static local-risk 구성은 PII/Secret만 실행하며, Prompt detector가 effective topology에 있을 때만 "
+            "Prompt Injection 신호를 함께 평가합니다.\n\n"
             "어느 하나라도 신호를 찾으면 `risk_detected: true`를 반환합니다. "
-            "탐지기가 실패하면 정책 판단 없이 시스템 신호로만 알립니다.\n\n"
-            "PII Protection(D1, D2, D5)과 Secret Exposure(D4, D5) 신호를 Prompt Injection(A1, A2)과 함께 통합합니다."
+            "탐지기가 실패하면 정책 판단 없이 시스템 신호로만 알립니다."
         ),
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
