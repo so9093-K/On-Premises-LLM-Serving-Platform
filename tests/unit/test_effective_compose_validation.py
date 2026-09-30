@@ -123,7 +123,7 @@ def test_preflight_uses_same_boot_file_and_enforces_required_gpu(
 
     monkeypatch.setattr(preflight, "_run_status", run_status)
     monkeypatch.setattr(preflight, "validate_alignment", validate)
-    assert preflight._phase2("private_network", boot_override=boot_path) == (
+    assert preflight._phase2(boot_override=boot_path) == (
         0 if gpu_available else 1
     )
     compose = next(cmd for cmd in commands if cmd[0] == "docker" and "config" in cmd)
@@ -138,7 +138,7 @@ def test_preflight_reuses_supplied_boot_or_generates_temporary_one(tmp_path, mon
 
     _, boot, _ = boot_config(tmp_path)
     monkeypatch.setattr(preflight, "_phase0", lambda: None)
-    monkeypatch.setattr(preflight, "_phase1", lambda: "private_network")
+    monkeypatch.setattr(preflight, "_phase1", lambda: None)
     generated = []
 
     def render(**kwargs):
@@ -148,7 +148,7 @@ def test_preflight_reuses_supplied_boot_or_generates_temporary_one(tmp_path, mon
     monkeypatch.setattr(preflight, "render_boot_override", render)
     observed = []
 
-    def phase2(mode, *, boot_override):
+    def phase2(*, boot_override):
         assert validator.load_yaml(boot_override) == boot
         observed.append(boot_override)
         return 0
