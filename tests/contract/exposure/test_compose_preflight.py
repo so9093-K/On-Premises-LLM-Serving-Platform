@@ -88,7 +88,6 @@ def test_compose_preflight_rejects_local_only_with_non_loopback_public_bind(monk
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "local_open")
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
     monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
     monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
@@ -122,7 +121,7 @@ def test_compose_preflight_reads_auth_mode_from_env_file(monkeypatch, tmp_path) 
     monkeypatch.setenv("ENV_FILE", str(env_file))
 
     with pytest.raises(SystemExit):
-        module._phase0()
+        module._phase1()
 
 
 def test_compose_preflight_reads_retired_exposure_marker_from_env_file(monkeypatch, tmp_path) -> None:
