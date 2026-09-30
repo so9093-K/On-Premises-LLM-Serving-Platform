@@ -46,7 +46,7 @@ make down
 | `runtime/` | target 고유 native runtime 환경·모델·process lifecycle |
 | `validation/` | contract validation, static validation, deterministic test runner, live runtime validation |
 | `validation/governance/` | 정적 계약 검증 체크 구현. 프로덕션 패키지(`src/`)가 아니라 여기 사는 이유는 서비스 실행에 필요 없고 런타임 이미지에 실릴 이유도 없기 때문이다. |
-| `validation/runtime/` | live runtime 검증 체크 구현. 살아있는 스택을 밖에서 찔러보는 도구라 서비스 자신이 품지 않는다. |
+| `validation/runtime/` | live runtime 검증 체크 구현. one-off validator가 deployment Compose network에 참여해 실제 서비스를 검증하며 production service image에는 포함하지 않는다. |
 | `lib/` | shell/python shared helpers |
 
 ## 주요 스크립트
