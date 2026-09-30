@@ -13,7 +13,7 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 ### static main
 
 static target에서는 Main runtime을 별도 process 또는 별도 supervisor가 기동·감시한다.
-Gateway는 고정 endpoint로 Chat과 Streaming만 제공한다.
+Gateway는 고정 Main endpoint로 Chat과 Streaming을 제공하고, Compose 내부의 local Risk Signal Service를 통해 PII/Secret detector를 제공한다.
 `MAIN_MODEL_STATIC_PROFILE`은 외부 runtime과 동일한 검증된 Serving Profile로 반드시
 고정하며, Gateway request limit과 capability 광고는 이 profile을 따른다.
 
@@ -21,10 +21,11 @@ Gateway는 고정 endpoint로 Chat과 Streaming만 제공한다.
 Client -> Gateway -> externally managed Main runtime
 ```
 
-Embedding, Retrieval, Risk Signal Service, Sidecar, 모델 전환과 GPU admission은 이 target의
-feature set에 포함되지 않으므로 client, readiness dependency, route, OpenAPI 및
-`/v1/models`에도 나타나지 않는다. Gateway-only Compose 정의는
-`ops/compose/static-main.external-runtime.yaml`에 있다.
+Embedding, Retrieval, Sidecar, 모델 전환과 GPU admission은 static feature set에 포함되지 않는다.
+Risk Signal Service는 공통 `ops/compose/overrides/static.local-risk.yaml`에서 실행하며 PII/Secret은
+in-process로 제공한다. Prompt Injection detector는 별도 model-backed capability라 static target에서는
+비활성이고 Prompt 전용 endpoint는 `DETECTOR_DISABLED`를 반환한다. `/v1/models`에는 local Main만
+남는다.
 
 외부 Main runtime을 먼저 기동한 뒤 다음과 같이 Gateway만 실행한다.
 
@@ -34,16 +35,21 @@ feature set에 포함되지 않으므로 client, readiness dependency, route, Op
 make up
 ```
 
-static target의 `make up`은 운영자 `.env`를 Compose image/port 치환에만 사용하고,
-`configs/env_contract.yaml`의 `static_gateway` projection으로 생성한
-`.runtime/env/linux-nvidia-static-gateway.env`만 Gateway 컨테이너에 주입한다.
-따라서 full-stack의 vLLM·Risk·Sidecar·monitoring 환경변수와
-`INTERNAL_SERVICE_TOKEN`은 static Gateway에 전달되지 않는다. static target에 내부
-token 소비면이 없다는 사실은 `deployment_targets.yaml`에 선언하며, 향후 내부 호출을
-추가하려면 target 계약과 projection을 함께 변경해야 한다.
+static target의 `make up`은 운영자 `.env`를 Compose interpolation source로 사용하고,
+`configs/env_contract.yaml`의 target+service projection으로 Gateway와 Risk Signal Service
+프로세스 env를 각각 생성한다. Gateway는 Main endpoint와 internal Risk token을 받고,
+Risk Signal Service는 local detector와 internal/admin auth에 필요한 최소 키만 받는다.
+두 서비스 사이의 내부 호출 edge 때문에 static target도 `internal_service_token_required=true`다.
 
 `MAIN_MODEL_STATIC_PROFILE`은 실제 외부 runtime과 같은 target catalog의 profile이어야 한다.
 Linux는 `configs/main_model_profiles.yaml`, Mac은 `configs/macos_mlx_runtime.yaml`을 읽는다.
+
+#### Static local Risk
+
+Linux/macOS static target은 같은 `static.local-risk.yaml` overlay를 공유한다. PII와 Secret은
+Python in-process detector이므로 CUDA/Metal 여부와 무관하다. Prompt Injection detector는
+`prompt_detection` capability와 별도 runtime provider가 있을 때만 effective topology에 들어온다.
+이 경계는 [ADR-0044](./adr/0044-risk-capability-and-prompt-runtime-separation.md)를 따른다.
 
 #### Apple Silicon MLX-VLM
 
