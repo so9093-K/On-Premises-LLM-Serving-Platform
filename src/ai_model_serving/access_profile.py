@@ -7,6 +7,7 @@ from typing import Mapping
 
 from .configuration import load_yaml_mapping
 from .auth_control import auth_profile_env_values
+from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
 
 
@@ -81,7 +82,8 @@ def access_profile_env_values(
     services = load_yaml_mapping(root / "configs" / "services.yaml").get("services")
     if not isinstance(services, dict):
         raise ValueError("configs/services.yaml must define services")
-    for service in services.values():
+    for service_id in sorted(host_published_service_ids(services)):
+        service = services.get(service_id)
         if not isinstance(service, dict):
             continue
         bind_key = service.get("host_env_bind")
