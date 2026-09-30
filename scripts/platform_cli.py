@@ -153,7 +153,7 @@ def _print_access(values: dict[str, str]) -> None:
         print(
             "[platform] access: legacy/custom "
             f"(auth={values.get('AUTH_MODE', '<unset>')} "
-            f"exposure={values.get('EXPOSURE_MODE', '<unset>')})"
+            f"audience={values.get('EXPOSURE_AUDIENCE', '<unset>')})"
         )
         return
     profile = load_access_profile(name)
@@ -164,7 +164,7 @@ def _print_access(values: dict[str, str]) -> None:
         )
     print(
         f"[platform] access: {profile.name} — {profile.description} "
-        f"(auth={values.get('AUTH_MODE')} exposure={values.get('EXPOSURE_MODE')})"
+        f"(auth={values.get('AUTH_MODE')} audience={values.get('EXPOSURE_AUDIENCE')})"
     )
 
 
