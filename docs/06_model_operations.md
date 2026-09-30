@@ -314,11 +314,8 @@ terminal failure에서는 `status=failed`를 결과로 기록하면서 `stage`�
 curl http://127.0.0.1:9400/ready
 ```
 
-full-stack 검증에서는 다음 명령을 사용할 수 있다.
-
-```bash
-make ready-full
-```
+full-stack에서는 `make status`와 Gateway `GET /ready`로 준비 상태를 확인한다.
+`make up` 자체도 내부 full-stack readiness gate와 대표 smoke를 완료 조건으로 사용한다.
 
 마지막으로 실제 Chat inference를 호출해 active Main Model의 응답을 확인한다.
 
@@ -593,7 +590,7 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 | 3 | 사용 가능한 Profile | `GET /admin/main-model/profiles` |
 | 4 | 모델 전환 | `POST /admin/main-model/switch` |
 | 5 | 전환 결과 | `GET /admin/main-model/operations/{id}` |
-| 6 | Gateway readiness | `GET /ready` 또는 `make ready-full` |
+| 6 | Gateway readiness | `GET /ready` 또는 `make status` |
 | 7 | 실제 inference | Chat smoke test |
 
 세부 request / response 형식과 Admin API error contract는 [API Reference](./reference/api_reference.md)를 참고한다.
