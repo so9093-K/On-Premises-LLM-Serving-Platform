@@ -5,7 +5,7 @@
 일관된 플랫폼 계약으로 관리하는 것이 이 프로젝트의 목적이다.
 
 Linux/NVIDIA에서는 vLLM, Apple Silicon에서는 MLX-VLM을 사용하며 외부 애플리케이션은
-runtime 차이와 관계없이 Gateway를 통해 같은 API를 사용한다.
+runtime 차이와 관계없이 Gateway의 공통 API 계약을 사용한다.
 
 ## 주요 기능
 
@@ -47,9 +47,8 @@ self-hosted UI를 Gateway의 `/admin/console/`에서 제공한다.
 | `linux-nvidia-static` | 외부 OpenAI-compatible runtime | Chat / Responses, PII·Secret Risk | Linux amd64, Python 3.12–3.13, Docker, 외부 Main endpoint |
 | `macos-metal-static` | MLX-VLM · native runtime | Chat / Responses, PII·Secret Risk | Apple Silicon, Python 3.13.12, Docker |
 
-모델별 GPU 자원 정책과 검증 범위는 [모델 운영](docs/06_model_operations.md)에서 다룬다.
-GPU 제품명 자체를 지원 목록으로 사용하지 않으며, 실제 실행 조건은 선택한 model profile과
-resource policy가 결정한다.
+모델별 GPU 자원 적용 가능성은 선택한 model profile과 resource policy로 판단한다.
+실측 범위와 resource variant는 [모델 운영](docs/06_model_operations.md)에서 관리한다.
 
 ---
 
@@ -79,7 +78,7 @@ make up TARGET=macos-metal-static ACCESS=local
 외부 Main runtime을 사용하는 Linux static target:
 
 ```bash
-MAIN_URL=http://127.0.0.1:8000/v1 make up TARGET=linux-nvidia-static ACCESS=local
+make up TARGET=linux-nvidia-static MAIN_URL=http://127.0.0.1:8000/v1 ACCESS=local
 ```
 
 `TARGET` 없이 처음 `make up`을 실행하면 사용할 수 있는 target과 이 host에서 감지한 추천 target을 보여 준다.
@@ -129,7 +128,7 @@ Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전
 
 ## 개발과 검증
 
-Gateway와 Risk Signal Service의 application 개발은 Docker/GPU 없이 준비하고 검증할 수 있다.
+Gateway와 Risk Signal Service의 application 개발은 로컬 Python 환경에서 독립적으로 준비하고 검증할 수 있다.
 
 ```bash
 make setup-dev
