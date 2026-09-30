@@ -18,8 +18,6 @@ services:
       - /workspace/scripts/validation/runtime_validation.py
       - --root
       - /workspace
-      - --network-scope
-      - compose
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONPATH: /workspace/src:/workspace
