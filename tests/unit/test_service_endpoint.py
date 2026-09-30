@@ -2,26 +2,44 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.lib.service_endpoint import service_base_url
+from scripts.lib.service_endpoint import (
+    internal_base_url,
+    internal_service_base_url,
+    published_base_url,
+)
 
 
-SERVICE = {
-    "host_env_bind": "MAIN_MODEL_VLLM_BIND_ADDR",
-    "host_env_port": "MAIN_MODEL_VLLM_PORT",
-    "default_bind": "0.0.0.0",
-    "default_host_port": 9401,
-}
+def _services() -> dict[str, dict[str, object]]:
+    return {
+        "prometheus": {
+            "compose_service": "prometheus",
+            "container_port": 9090,
+            "host_env_port": "PROMETHEUS_PORT",
+            "default_host_port": 9410,
+            "host_env_bind": "PROMETHEUS_BIND_ADDR",
+            "default_bind": "0.0.0.0",
+        }
+    }
 
 
-def test_service_endpoint_reads_canonical_main_model_exposure_env(monkeypatch) -> None:
-    monkeypatch.setenv("MAIN_MODEL_VLLM_BIND_ADDR", "127.0.0.2")
-    monkeypatch.setenv("MAIN_MODEL_VLLM_PORT", "9501")
+def test_internal_base_url_uses_compose_service_and_container_port() -> None:
+    services = _services()
 
-    assert service_base_url(SERVICE) == "http://127.0.0.2:9501"
+    assert internal_base_url(services, "prometheus") == "http://prometheus:9090"
+    assert internal_base_url(services, "prometheus", "/api/v1") == "http://prometheus:9090/api/v1"
+    assert internal_service_base_url(services["prometheus"], "/metrics") == "http://prometheus:9090/metrics"
 
 
-def test_service_endpoint_rejects_invalid_port_override(monkeypatch) -> None:
-    monkeypatch.setenv("MAIN_MODEL_VLLM_PORT", "not-a-port")
+def test_published_base_url_keeps_host_projection(monkeypatch: pytest.MonkeyPatch) -> None:
+    services = _services()
+    monkeypatch.setenv("PROMETHEUS_BIND_ADDR", "0.0.0.0")
+    monkeypatch.setenv("PROMETHEUS_PORT", "9510")
 
-    with pytest.raises(ValueError, match="not a port number"):
-        service_base_url(SERVICE)
+    assert published_base_url(services, "prometheus") == "http://localhost:9510"
+
+
+def test_internal_base_url_requires_compose_identity() -> None:
+    services = {"broken": {"container_port": 9400}}
+
+    with pytest.raises(ValueError, match="compose_service"):
+        internal_base_url(services, "broken")

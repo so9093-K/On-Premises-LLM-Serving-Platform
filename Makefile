@@ -112,7 +112,7 @@ package: ## 릴리스 ZIP 생성
 	bash scripts/build/package_release.sh
 
 runtime-validate: ## 실제 서비스·GPU 검증
-	$(PYTHON) scripts/validation/runtime_validation.py
+	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/runtime_validate_compose.sh
 
 auth-status: ## 현재 public/admin/internal 인증 상태
 	$(PYTHON) scripts/auth/auth_status.py $(AUTH_ENV_ARG)
