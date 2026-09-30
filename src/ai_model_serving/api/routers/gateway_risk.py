@@ -49,7 +49,7 @@ def build_router(
         request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
-        if state_store is not None:
+        if settings.feature_enabled("prompt_detection") and state_store is not None:
             state = await state_store.get("prompt_injection_detector")
             if state in (RuntimeState.stopped, RuntimeState.starting):
                 raise ServiceError(
@@ -119,13 +119,6 @@ def build_router(
         request: Request,
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
-        if state_store is not None:
-            state = await state_store.get("prompt_injection_detector")
-            if state in (RuntimeState.stopped, RuntimeState.starting):
-                raise ServiceError(
-                    "MODEL_UNAVAILABLE", "prompt_injection_detector runtime is "
-                    f"{state.value}. Start it with PATCH /admin/runtimes/prompt_injection_detector.",
-                )
         result = await service.forward_risk_assessment("/v1/risk/assessments", payload)
         _record_if_enabled(request, payload=payload, response=result)
         return result
