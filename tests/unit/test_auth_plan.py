@@ -2,7 +2,7 @@
 
 모드 전환 시 secret을 마스킹하는지, env를 올바르게 쓰는지, 잘못된 env를
 traceback 없이 명확한 오류로 보고하는지 검증한다.
-""
+"""
 
 from __future__ import annotations
 
