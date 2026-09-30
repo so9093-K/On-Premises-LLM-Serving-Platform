@@ -7,8 +7,8 @@
 #   -> ENV_FILE COMPOSE_PROJECT_NAME
 #   -> ai-model-serving-platform
 #
-# 호출하는 쪽에서는 Docker Compose를 실행하기 전에 exposure나 생성된 override
-# 파일을 COMPOSE_CONTEXT_FILE_ARGS에 추가할 수 있습니다.
+# 호출하는 쪽에서는 target/runtime boot처럼 실제로 필요한 추가 Compose 파일을
+# COMPOSE_CONTEXT_FILE_ARGS에 명시적으로 추가할 수 있습니다.
 compose_context_init() {
   local root="${1:?project root required}"
   local python_bin="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
