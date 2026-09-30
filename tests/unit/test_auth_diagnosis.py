@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,17 @@ def test_private_local_only_diagnosis_does_not_crash(
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
     monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
 
-    findings = diagnose_auth(settings(), ROOT)
+    base = settings()
+    cfg = replace(
+        base,
+        security=replace(
+            base.security,
+            auth_mode="local_open",
+            api_key_required=False,
+            internal_service_auth_required=False,
+        ),
+    )
+    findings = diagnose_auth(cfg, ROOT)
 
     assert any(finding.code == "LOCAL_ONLY_BIND_MISMATCH" for finding in findings)
     assert any(
