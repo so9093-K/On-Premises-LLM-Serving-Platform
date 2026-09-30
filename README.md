@@ -1,20 +1,24 @@
 # On-Premises LLM Serving Platform
 
-온프레미스 AI 모델을 **OpenAI-compatible API**로 제공하고, Chat Completions, Responses, Embedding, Retrieval, Risk Detection, 모델 운영, 관측과 배포를 하나의 플랫폼에서 관리한다.
+온프레미스 AI 모델을 하나의 **OpenAI-compatible API와 운영 lifecycle**로 제공한다.
+모델 실행·전환, Retrieval, Risk Detection, 접근 제어와 관측을 deployment target에 맞는
+일관된 플랫폼 계약으로 관리하는 것이 이 프로젝트의 목적이다.
 
-외부 애플리케이션은 Gateway를 통해 모델 기능을 사용한다. 모델 실행 환경은 Linux/NVIDIA의
-vLLM 또는 Apple Silicon의 MLX-VLM을 사용하며, 실행 target에 맞는 lifecycle은 같은 로컬
-명령으로 관리한다.
+Linux/NVIDIA에서는 vLLM, Apple Silicon에서는 MLX-VLM을 사용하며 외부 애플리케이션은
+runtime 차이와 관계없이 Gateway의 공통 API 계약을 사용한다.
 
 ## 주요 기능
 
 - OpenAI-compatible Chat Completions / Responses / Embedding API
 - 한국어 Retrieval
-- Prompt 위험 탐지 / PII·Secret 위험 탐지
-- Main Model 시작·중지·전환
-- Linux/NVIDIA vLLM 및 Apple Silicon MLX-VLM 기반 Main Model 실행
+- PII·Secret 및 Prompt Injection Risk Detection
+- Main Model lifecycle과 profile switching
+- target-aware Runtime Control과 GPU resource admission
 - Prometheus / Grafana / Loki 기반 관측
-- 재현 가능한 애플리케이션 검증, 이미지 빌드와 GPU 배포
+- 재현 가능한 application 검증, image build와 deployment lifecycle
+
+제공 범위는 deployment target에 따라 달라진다. 현재 target과 실제 capability는
+아래 표와 `configs/deployment_targets.yaml`에서 확인할 수 있다.
 
 ## 시스템 구성
 
@@ -24,131 +28,84 @@ Gateway를 중심으로 Model Runtime, Risk Signal Service, Runtime Controller�
 
 전체 구성과 서비스별 역할은 [시스템 구성](docs/03_system_components.md)에서 설명한다.
 
+## Control Plane
+
+운영자용 Control Plane은 현재 상태와 설정을 설명하고, 같은 공개 API로 모델 응답을 직접 확인할 수 있는
+self-hosted UI를 Gateway의 `/admin/console/`에서 제공한다.
+
+![Control Plane 채팅 테스트](assets/screenshots/control_plane_chat_test.webp)
+
+*채팅 테스트 화면에서 요청 설정과 모델 응답, 첫 토큰 시간·전체 시간·토큰 수·request_id를 함께 확인한다.*
+
+---
+
+## Deployment Target
+
+| Target | Main runtime | 제공 범위 | 실행 환경 |
+|---|---|---|---|
+| `linux-nvidia-dynamic` | vLLM · Platform-managed | Chat / Responses, Embedding, Retrieval, PII·Secret·Prompt Risk, Model Control | Linux amd64, Python 3.12–3.13, NVIDIA GPU/driver/Container Toolkit, Docker, Bash 4+ |
+| `linux-nvidia-static` | 외부 OpenAI-compatible runtime | Chat / Responses, PII·Secret Risk | Linux amd64, Python 3.12–3.13, Docker, 외부 Main endpoint |
+| `macos-metal-static` | MLX-VLM · native runtime | Chat / Responses, PII·Secret Risk | Apple Silicon, Python 3.13.12, Docker |
+
+모델별 GPU 자원 적용 가능성은 선택한 model profile과 resource policy로 판단한다.
+실측 범위와 resource variant는 [모델 운영](docs/06_model_operations.md)에서 관리한다.
+
 ---
 
 ## 시작하기
 
-### 로컬 플랫폼 실행
+첫 실행에서 target과 접근 범위를 선택하면 `make up`이 필요한 환경과 설정, image, model cache,
+service startup을 준비하고 target에 맞는 readiness를 확인한다.
 
-운영자는 내부 build·cache·Compose 단계를 조립하지 않는다. 첫 실행에서 target과 접근
-범위만 선택하면 `make up`이 필요한 Python environment, persistent configuration,
-project-owned image, Main Model cache와 service startup을 수렴시킨다. managed dynamic target은
-strict readiness와 representative smoke까지, static target은 외부 Main dependency를 포함한
-Gateway readiness까지 완료 조건으로 확인한다.
-
-| Target | 요구사항 |
-|---|---|
-| `macos-metal-static` | Apple Silicon, Python 3.13.12, Docker |
-| `linux-nvidia-dynamic` | Linux amd64, NVIDIA GPU/driver/Container Toolkit, Docker, Bash 4+ |
-| `linux-nvidia-static` | Linux amd64, Docker, 외부 OpenAI-compatible Main endpoint (`MAIN_URL=...`) |
-
-첫 실행:
+Linux/NVIDIA managed target:
 
 ```bash
 make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-`TARGET` 없이 처음 `make up`을 실행하면 선택할 수 있는 target과 각 요구사항, 이 컴퓨터에서
-감지한 추천 target을 보여 준다. 기동이 끝나면 Console, API 문서, Grafana 주소를 함께 출력한다.
-
-gated Hugging Face model에 token이 필요하면 같은 명령에 process environment로 전달한다.
+gated Hugging Face model에 token이 필요하면 같은 명령에 전달한다.
 
 ```bash
 HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-Apple Silicon에서는 target만 바꾼다.
+Apple Silicon:
 
 ```bash
 make up TARGET=macos-metal-static ACCESS=local
 ```
 
-이후에는 `.env`가 target을 기억하므로 정상 재기동은 다음 한 명령이다.
+외부 Main runtime을 사용하는 Linux static target:
+
+```bash
+make up TARGET=linux-nvidia-static MAIN_URL=http://127.0.0.1:8000/v1 ACCESS=local
+```
+
+`TARGET` 없이 처음 `make up`을 실행하면 사용할 수 있는 target과 이 host에서 감지한 추천 target을 보여 준다.
+기동이 끝나면 Console, API 문서, Grafana 주소를 함께 출력한다.
+
+이후에는 저장된 configuration을 기준으로 같은 명령으로 수렴한다.
 
 ```bash
 make up
-```
-
-Main profile을 처음부터 바꾸려면 첫 `make up`에 `MODEL=<profile-id>`를 전달한다.
-`ACCESS=local|private|edge`는 접속 의도만 표현한다. 기존 `.env`에서 access profile을
-바꾸는 경우 첫 실행은 변경 계획만 표시하며, 검토 후 같은 `make up`에
-`CONFIRM=access`를 추가해 적용한다.
-
-일상 운영:
-
-```bash
 make status
 make logs
 make down
 ```
 
-`make logs`는 기본적으로 오류와 readiness event만 보여준다. 정상 요청까지 보려면
-`ALL=1`, 특정 runtime/service의 원본 로그가 필요하면 `SERVICE=<id>` 또는 `RAW=1`,
-실시간 tail은 `FOLLOW=1`을 사용한다.
-
-초기화와 삭제는 비용 경계를 분리한다.
-
-```bash
-make reset                         # plan only
-make reset CONFIRM=reset           # 설정/runtime state 초기화, image/model cache 보존
-make purge SCOPE=cache             # plan only
-make purge SCOPE=cache CONFIRM=purge
-make purge SCOPE=all CONFIRM=purge # project-owned 재생성 자원 + local state 제거
-```
-
-`purge`도 global Hugging Face cache, daemon-wide BuildKit cache와 다른 프로젝트 Docker
-resource는 제거하지 않는다.
-
-### 애플리케이션 개발
-
-Gateway와 Risk Signal Service만 개발할 때는 Docker/GPU 없이 development environment를
-준비하고 deterministic check를 실행할 수 있다.
-
-```bash
-make setup-dev
-make app-check
-make init-env-local
-make up
-make status
-make down
-```
-
-개발/CI용 image build, qualification과 live runtime validation은 operator lifecycle과
-별도 책임이다. 자세한 범위는 [로컬 개발과 빌드](docs/07_local_dev_build.md)와
-[테스트와 검증](docs/08_testing_validation.md)에서 설명한다.
-
-실행 구조와 네트워크 공개 방식은 [실행 환경과 모드](docs/04_runtime_modes.md), 설정 항목은
-[설정 체계](docs/05_configuration.md)에서 확인한다. 다른 Main Model과 Embedding/Risk Model
-Runtime 운영은 [모델 운영](docs/06_model_operations.md), Release package 적용은
-[배포](docs/10_deployment.md)에서 다룬다.
+접근 범위는 `ACCESS=local|private|edge`로 선택한다. Main Model profile을 처음부터 바꾸려면
+`MODEL=<profile-id>`를 함께 전달한다. 상세 로그 조회, reset/purge와 장애 대응은
+[운영 관리 및 장애 대응](docs/12_operations.md)에서 설명한다.
 
 ---
 
-## 기본 API 확인
+## API 사용
 
-Gateway 기본 주소는 `http://127.0.0.1:9400`이다. 인증이 적용된 환경에서는 해당 프로파일의 Bearer token을 함께 사용한다.
+Gateway 기본 주소는 `http://127.0.0.1:9400`이다. 인증이 적용된 환경에서는 해당 profile의
+Bearer token을 함께 사용한다. 브라우저 API Reference는 `/docs`, OpenAPI 명세는
+`/openapi.json`에서 제공한다.
 
-Gateway는 브라우저에서 API를 확인할 수 있는 Scalar 기반 API Reference를 제공한다. Endpoint, 요청 필드와 응답 구조를 확인한 뒤 같은 API를 직접 호출할 수 있다.
-운영자용 self-hosted Control Plane Console은 같은 Gateway의 `/admin/console/`에서 제공한다.
-Console의 **채팅 테스트** 화면에서는 같은 공개 API로 모델 응답과 첫 토큰 시간, 토큰 수, request_id를 바로 확인할 수 있다.
-
-![Scalar API Reference](assets/screenshots/scalar_api_reference.jpg)
-
-### 상태 확인
-
-```bash
-curl -s http://127.0.0.1:9400/health
-```
-
-### 모델 목록
-
-```bash
-curl -s http://127.0.0.1:9400/v1/models
-```
-
-### Chat Completions 요청
-
-전체 GPU 환경의 준비가 완료된 상태에서 Main Model에 요청을 보낸다.
+대표적인 Chat Completions 요청:
 
 ```bash
 curl -s http://127.0.0.1:9400/v1/chat/completions \
@@ -162,31 +119,31 @@ curl -s http://127.0.0.1:9400/v1/chat/completions \
   }'
 ```
 
-### Responses 요청
+Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전체 요청·응답 계약은
+[API 인터페이스](docs/reference/api_reference.md)에서 확인한다.
 
-신규 integration은 같은 `local-main` gate와 active profile capability를 사용하는 Responses API를 사용할 수 있다.
-
-```bash
-curl -s http://127.0.0.1:9400/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "local-main",
-    "input": "안녕하세요. 한 문장으로 인사해주세요."
-  }'
-```
-
-Responses, Embedding, Retrieval, Risk Detection, Streaming, 인증 방식과 전체 요청·응답 계약은 [API 인터페이스](docs/reference/api_reference.md)에서 확인한다. Gateway의 브라우저 API Reference와 OpenAPI 명세는 `/docs`, `/openapi.json`에서 제공한다.
+![Scalar API Reference](assets/screenshots/scalar_api_reference.jpg)
 
 ---
 
-## 개발과 배포
+## 개발과 검증
 
-저장소 전체 변경은 `make check`로 application/config/contracts와 Control Plane source/build를 함께 검증한다.
-Python application만 변경할 때는 `make app-check`로 동일한 application gate를 실행하며, CI도 같은 Make target을
-OS/프론트엔드 job으로 나눠 병렬 실행한다. 운영 이미지는 clean commit에서 만들고 immutable
-digest로 배포한다. 로컬 image는 변경 중인 코드를 확인하는 개발 산출물이며 운영 artifact를 대체하지 않는다.
+Gateway와 Risk Signal Service의 application 개발은 로컬 Python 환경에서 독립적으로 준비하고 검증할 수 있다.
 
-현재 자동 검증과 미래 publish·deploy 연결 경계는 [자동화 경계](docs/09_cicd.md), Release 적용과 복구 절차는 [배포](docs/10_deployment.md)에서 설명한다.
+```bash
+make setup-dev
+make app-check
+```
+
+저장소 전체 변경은 Control Plane source/build까지 포함해 다음 명령으로 확인한다.
+
+```bash
+make check
+```
+
+live Runtime qualification은 일반 application check와 분리되어 있다. 개발 환경, image build와
+검증 범위는 [로컬 개발과 빌드](docs/07_local_dev_build.md)와
+[테스트와 검증](docs/08_testing_validation.md)을 따른다.
 
 ---
 
@@ -194,20 +151,15 @@ digest로 배포한다. 로컬 image는 변경 중인 코드를 확인하는 개
 
 | 목적 | 명령 |
 |---|---|
-| 최초 초기화 + 시작 | `make up TARGET=<id> [ACCESS=local|private|edge]` |
-| 이후 시작/수렴 | `make up` |
+| 시작 / 현재 configuration으로 수렴 | `make up [TARGET=<id>] [ACCESS=local|private|edge]` |
 | 현재 상태 | `make status` |
-| 중요한 운영 이벤트 | `make logs` |
-| 전체 structured request event | `make logs ALL=1` |
-| 특정 service/raw 로그 | `make logs SERVICE=<id>` / `make logs RAW=1` |
+| 운영 이벤트와 오류 확인 | `make logs` |
 | 실행 리소스 정지 | `make down` |
-| local state 초기화 | `make reset` → `make reset CONFIRM=reset` |
-| project cache/artifact 폐기 | `make purge SCOPE=cache|all` → `CONFIRM=purge` |
 | Application 변경 검증 | `make app-check` |
 | 저장소 전체 변경 검증 | `make check` |
 
-정상 운영자는 첫 아홉 항목의 lifecycle만 알면 된다. 내부 readiness, smoke, Compose
-orchestration과 artifact build script는 이 public surface의 구현 계층이다.
+reset/purge, raw service log, Runtime qualification과 복구 절차는
+[운영 문서](docs/12_operations.md)와 [테스트와 검증](docs/08_testing_validation.md)에 둔다.
 
 ---
 
@@ -219,6 +171,7 @@ configs/    서비스·모델·GPU 설정
 specs/      JSON Schema·OpenAPI
 ops/        Compose·Runtime Image·모니터링
 scripts/    Build·검증·배포·운영 도구
+ui/         Control Plane source
 docs/       프로젝트 문서
 assets/     아키텍처·문서 이미지
 ```
@@ -232,36 +185,32 @@ assets/     아키텍처·문서 이미지
 | 문서 | 내용 |
 |---|---|
 | [문서 안내](docs/README.md) | 전체 문서 구성과 읽기 순서 |
-| [API 인터페이스](docs/reference/api_reference.md) | API 계약, 요청·응답, 인증, 예제 |
-| [표준 용어](docs/reference/terminology.md) | 사용자-facing 표준 용어와 안정 식별자 구분 |
-| [vLLM 보안 노출 경계](docs/reference/vllm_security_posture.md) | 현재 vLLM pin의 upstream advisory reachability와 Gateway/direct runtime 경계 |
-| [vLLM Container 실행 가이드](docs/reference/vllm_container_guide.md) | vLLM Container 직접 실행과 API 요청 |
-| [설정 체계](docs/05_configuration.md) | 설정 구조와 적용 방식 |
-| [자동화 경계](docs/09_cicd.md) | 현재 GitHub 검증과 미래 publish·deploy 연결 원칙 |
-| [배포](docs/10_deployment.md) | Release 적용과 실패 복구 |
-| [관측성](docs/11_observability.md) | 요청, Runtime, GPU, 로그 관측 |
-| [운영 관리 및 장애 대응](docs/12_operations.md) | 운영 점검과 장애 진단·복구 |
+| [API 인터페이스](docs/reference/api_reference.md) | API 계약, 요청·응답, 인증과 예제 |
+| [실행 환경과 모드](docs/04_runtime_modes.md) | Deployment Target과 lifecycle |
+| [설정 체계](docs/05_configuration.md) | 설정 구조와 Source of Truth |
+| [모델 운영](docs/06_model_operations.md) | Main Model / Runtime 운영과 resource policy |
+| [배포](docs/10_deployment.md) | Release 적용과 복구 |
+| [관측성](docs/11_observability.md) | 요청, Runtime, GPU와 로그 관측 |
+| [운영 관리 및 장애 대응](docs/12_operations.md) | 상태 확인, 진단과 복구 |
 | [변경 가이드](docs/13_change_guide.md) | 변경 영향과 검증·배포 범위 |
-| [부록](docs/appendix.md) | 용어, 서비스·포트, 주요 명령, 주요 경로 |
 
----
+개발 변경과 Pull Request 기준은 [CONTRIBUTING](CONTRIBUTING.md)을 따른다.
 
 ## 버전과 변경 이력
 
 현재 버전은 [`VERSION`](VERSION)을 기준으로 관리한다. 변경 이력은 [CHANGELOG](CHANGELOG.md)에서 확인한다.
 
----
-
 ## AI Assistance
 
-* **Codex (OpenAI)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
-* **Claude (Anthropic)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
-
+- **Codex (OpenAI)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
+- **Claude (Anthropic)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
 
 ## License
 
-이 프로젝트에서 직접 작성한 소스 코드, 문서 및 설정은 별도 표시가 없는 한 [Apache License 2.0](LICENSE)을 따른다.
+이 프로젝트에서 직접 작성한 소스 코드, 문서 및 설정은 별도 표시가 없는 한
+[Apache License 2.0](LICENSE)을 따른다.
 
-제3자 소프트웨어와 모델은 각 upstream의 라이선스 및 이용 약관을 따른다. 모델 가중치와 upstream에서 가져오거나 수정한 자료도 이 프로젝트의 Apache-2.0 라이선스 대상에 포함되지 않는다.
+제3자 소프트웨어와 모델은 각 upstream의 라이선스 및 이용 약관을 따른다. 모델 가중치와 upstream에서
+가져오거나 수정한 자료도 이 프로젝트의 Apache-2.0 라이선스 대상에 포함되지 않는다.
 
 자세한 출처와 제3자 고지 사항은 [NOTICE](NOTICE)에서 확인한다.
