@@ -65,7 +65,7 @@ Runtime 적용 / 배포
 | 모델 추가·제거 | Model Registry 관련 설정 | API 목록, Runtime, 모니터링 | `make validate` + full-stack |
 | Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | `make validate` + Unified Image + bounded Runtime 검증 |
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
-| 네트워크 / 노출 | Exposure profile, Compose | Host 공개 범위 | Compose + full-stack |
+| 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | `make validate` + effective Compose |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
 | 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/` | GitHub app·contract 검증과 provider-neutral build·local lifecycle 진입점 | `make check` + 변경한 진입점 확인 |
 
@@ -160,7 +160,6 @@ make build-image
 | `configs/main_model_profiles.yaml` | Main Model checkpoint identity와 실행 profile |
 | `configs/services.yaml` | Service 이름, port, host bind metadata |
 | `configs/access_profiles.yaml` | 사용자 접근 profile의 지원 조합 |
-| `configs/exposure_profiles.yaml` | Host port 공개 범위 |
 | `configs/deploy_profiles.yaml` | non-main Model Runtime 초기 상태 |
 | `configs/gpu_budgets.yaml` | Runtime GPU 자원 판단 |
 | `configs/auth_profiles.yaml` | Authentication mode |
@@ -388,17 +387,16 @@ make up
 
 ### Host 노출 설정
 
-`configs/exposure_profiles.yaml`은 Gateway와 Grafana만 host에 publish하는
-`private_network` topology를 고정한다. 변경 시 별도 override를 생성하지 않으며 base
-Compose와 profile 선언의 host-published 집합이 일치하는지 `make validate`가 검사한다.
+Host publication은 `configs/services.yaml`의 service role과 target Compose `ports`가 소유한다.
+`make validate`는 둘의 집합을 직접 대조한다.
 
 ```bash
 make validate
 bash scripts/compose/compose_config.sh
 ```
 
-사용자 접근 범위는 `make up ACCESS=local|private|edge`으로 선택한다. 모델 runtime과
-Risk/Prometheus/exporter/log backend를 host에 직접 여는 지원 mode는 없다.
+사용자 접근 범위는 `make up ACCESS=local|private|edge`으로 선택하며 이는 auth/audience/bind/TLS를
+투영한다. 모델 runtime과 Risk/Prometheus/exporter/log backend를 host에 직접 여는 지원 mode는 없다.
 
 ### Base Compose
 
