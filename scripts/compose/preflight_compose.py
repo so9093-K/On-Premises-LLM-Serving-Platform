@@ -26,7 +26,10 @@ from ai_model_serving.main_model.boot import (  # noqa: E402
     render_boot_override,
     resolve_compose_relative_path,
 )
-from ai_model_serving.auth_control import auth_profile_exposure_mismatch  # noqa: E402
+from ai_model_serving.auth_control import (  # noqa: E402
+    auth_profile_exposure_mismatch,
+    local_only_host_bind_mismatches,
+)
 from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_env_values,
     access_profile_mismatches,
@@ -97,11 +100,24 @@ def _check_auth_profile_preflight() -> None:
                 for message in access_mismatches
             )
     else:
+        exposure_mode = _env_value("EXPOSURE_MODE", "")
+        exposure_audience = _env_value("EXPOSURE_AUDIENCE", "")
         exposure_mismatch = auth_profile_exposure_mismatch(
-            auth_mode, _env_value("EXPOSURE_MODE", ""), _env_value("EXPOSURE_AUDIENCE", "")
+            auth_mode, exposure_mode, exposure_audience
         )
         if exposure_mismatch is not None:
             failures.append(exposure_mismatch + ".")
+        elif (
+            auth_mode == "local_open"
+            and exposure_mode == "private_network"
+            and exposure_audience == "local_only"
+        ):
+            failures.extend(
+                local_only_host_bind_mismatches(
+                    ROOT,
+                    read_value=lambda key, default: _env_value(key, default),
+                )
+            )
     if not _non_local_app_env():
         if failures:
             for failure in failures:
