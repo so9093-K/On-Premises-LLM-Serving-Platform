@@ -6,6 +6,7 @@ Accepted
 
 - Partially supersedes: [ADR-0025](./0025-user-access-profiles-and-legacy-migration.md)의
   `master_open` 유지와 `exposure-*` Advanced/legacy 호환 결정
+- Refined by: [ADR-0045](./0045-host-exposure-invariant.md) — 단일 `private_network` mode/profile도 제거하고 host exposure를 service-registry/Compose invariant로 고정
 
 ## Context
 
