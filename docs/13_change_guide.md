@@ -386,30 +386,19 @@ bash scripts/compose/compose_config.sh
 make up
 ```
 
-### 노출 설정
+### Host 노출 설정
 
-`configs/exposure_profiles.yaml`은 host에 publish되는 service port 범위를 정의한다.
-
-```text
-Exposure Profile
-      ↓
-Compose Override
-      ↓
-Effective Host Ports
-```
+`configs/exposure_profiles.yaml`은 Gateway와 Grafana만 host에 publish하는
+`private_network` topology를 고정한다. 변경 시 별도 override를 생성하지 않으며 base
+Compose와 profile 선언의 host-published 집합이 일치하는지 `make validate`가 검사한다.
 
 ```bash
-python scripts/compose/render_exposure_overrides.py
 make validate
 bash scripts/compose/compose_config.sh
 ```
 
-일반 접근 범위는 `make up ACCESS=...`으로 선택한다. 아래 개별 명령은 managed
-Access Profile을 종료하고 Advanced/legacy 설정으로 전환할 때만 사용한다.
-
-```bash
-make exposure-plan MODE=<private_network|master_open>
-```
+사용자 접근 범위는 `make up ACCESS=local|private|edge`으로 선택한다. 모델 runtime과
+Risk/Prometheus/exporter/log backend를 host에 직접 여는 지원 mode는 없다.
 
 ### Base Compose
 

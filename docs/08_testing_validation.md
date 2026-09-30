@@ -374,29 +374,30 @@ Grafana datasource·dashboard 검증은 실행 중인 Grafana 관리자 인증�
 `--grafana-user`/`--grafana-password` 인자로 전달해 재실행하고, 그 결과로 monitoring
 상태를 판단한다. validator는 Docker에서 비밀번호를 읽거나 `.env`를 자동 변경하지 않는다.
 
-### 대상 URL 선택과 증빙 범위
+### 실행 위치와 endpoint 선택
 
-후보 환경을 검증할 때 runtime validation의 host URL은 다음 우선순위를 따른다.
+`make runtime-validate`는 host Python이 내부 port를 직접 호출하지 않는다. 실행 중인
+Compose project에 one-off validator container를 붙이고 `configs/services.yaml`의
+`compose_service + container_port`에서 내부 URL을 파생한다.
 
 ```text
-CLI 인자 > `RUNTIME_VALIDATION_*_BASE_URL` > services.yaml의 host publish 주소
+make runtime-validate
+  ↓
+docker compose run --rm --no-deps runtime-validator
+  ↓
+gateway:9400 / main-llm-vllm:9401 / risk-signal-service:9405 / prometheus:9090 ...
 ```
 
-기본 Access Profile(`private_network` topology)은 Gateway와 Grafana만 host에 publish한다. URL을
-지정하지 않고 vLLM runtime·Risk Signal Service·Prometheus까지 검증하려면 검증 동안
-`master_open` 진단 노출을 연다([실행 환경과 모드](./04_runtime_modes.md) 참고).
+validator는 dependency를 시작하거나 재시작하지 않는다. 필요한 service가 내려가 있으면
+검증이 실패하고 현재 runtime state는 그대로 유지된다. Production Platform image에
+validation script를 포함하지 않으며 repository의 validation source/config를 read-only로
+mount한다.
 
-```bash
-# 검증 전용 환경변수보다 CLI 인자가 우선한다.
-python scripts/validation/runtime_validation.py --gateway-base http://candidate-gateway:9400
-
-# CLI 인자가 없으면 검증 전용 URL을 사용한다.
-RUNTIME_VALIDATION_GATEWAY_BASE_URL=http://staging-gateway:9400 python scripts/validation/runtime_validation.py
-```
-
-`--gateway-base`, `--risk-base`, 각 vLLM runtime `--*-base`, `--prometheus-base`가 후보 endpoint 지정에 사용된다. application의 `*_BASE_URL`은 Compose 내부 서비스 연결용이므로 runtime validation override로 사용하지 않는다. API key, admin key, internal service token과 raw prompt·응답·token은 명령 출력과 runtime report에 남기지 않는다.
-
-배포 서버의 private-network 구성에서는 Gateway만 host에 공개되고 Risk·vLLM은 Compose 내부 DNS에서만 접근된다. 따라서 전체 API 검증은 Compose 네트워크에 연결된 실행 위치에서 service URL을 명시해 수행한다. host 기본 URL만으로 내부 서비스를 검사해 발생하는 connection refused/DNS 실패는 서비스 장애 증거가 아니다.
+직접 `runtime_validation.py`를 실행하는 maintainer 호환 경로에서는 CLI 또는
+`RUNTIME_VALIDATION_*_BASE_URL`로 특정 후보 endpoint를 명시할 수 있다. 이 override는
+원격 후보를 좁혀 검사할 때만 사용하며 canonical full-stack qualification은
+`make runtime-validate`다. API key, admin key, internal service token과 raw prompt·응답·
+token은 명령 출력과 runtime report에 남기지 않는다.
 
 ### 검증 범위
 

@@ -266,26 +266,25 @@ Main Model Control이 소유한 복구 경계를 먼저 사용한다.
 
 ---
 
-## 12.8 인증·노출 문제
+## 12.8 인증·접근 문제
 
-예상하지 못한 401/403 또는 host port 노출은 현재 managed profile부터 확인한다.
+예상하지 못한 401/403 또는 host bind 문제는 현재 managed profile부터 확인한다.
 
 ```bash
 make auth-status
 make auth-doctor
-make exposure-status
+bash scripts/compose/compose_config.sh
 ```
 
-변경은 plan을 먼저 본다.
+인증 primitive를 직접 바꿔야 하면 plan을 먼저 본다.
 
 ```bash
 make auth-plan MODE=<auth-mode>
-make exposure-plan MODE=<exposure-mode>
 ```
 
-일반 사용자의 접근 intent는 `make up ACCESS=local|private|edge`가 소유한다. 개별
-auth/exposure apply는 Advanced/legacy primitive이며 managed Access Profile을 종료하는
-변경이 될 수 있다.
+일반 사용자의 접근 intent는 `make up ACCESS=local|private|edge`가 소유한다. Host
+exposure topology는 private_network 하나이며 raw runtime/operations endpoint를 여는
+별도 operator mode는 없다.
 
 ---
 

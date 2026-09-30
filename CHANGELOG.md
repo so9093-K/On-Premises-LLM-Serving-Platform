@@ -83,6 +83,15 @@
 
 ### Changed
 
+- `make runtime-validate`가 실행 중인 Compose project에 one-off validator container로
+  참여해 service DNS/container port로 vLLM·Risk·Prometheus·Grafana를 검증한다. Validator는
+  `--no-deps`로 dependency lifecycle을 변경하지 않고 검증 source를 read-only mount한다.
+  이 경계로 수렴하면서 진단용 `master_open`, exposure override 생성, `make exposure-*`
+  명령을 제거했다. 지원되는 host topology는 `private_network` 하나이며 Gateway와 Grafana만
+  host에 publish한다. 기존 `EXPOSURE_MODE=master_open` 환경은 자동 변환하지 않고
+  `make up ACCESS=local|private|edge`의 명시적 migration을 요구한다.
+  ([ADR-0043](docs/adr/0043-internal-runtime-validation-and-private-host-exposure.md))
+
 - `make test`(`make app-check`)가 `pytest-xdist`로 테스트를 CPU 수만큼 나눠 실행한다. 4코어 기준
   약 86초에서 30초로 줄었다. 직렬 실행이 필요하면 `PYTEST_WORKERS=0`을 준다. quality dependency
   group에 `pytest-xdist==3.8.0`(과 의존성 `execnet`)이 추가됐으며 runtime 환경에는 영향이 없다.

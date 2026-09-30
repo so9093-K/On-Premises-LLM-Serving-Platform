@@ -224,24 +224,8 @@ vLLM Runtime Image
 
 ## 4.3 네트워크와 서비스 노출
 
-Container 내부 통신과 Host 노출은 별도로 관리한다.
-
-```text
-Container Port
-  ├─ Compose network 내부 통신
-  └─ Host publish 여부는 Exposure Profile이 결정
-```
-
-플랫폼은 `private_network`와 `master_open` exposure mode를 사용한다.
-
-| Exposure Mode | 목적 | Host-published 서비스 |
-|---|---|---|
-| `private_network` | Gateway 중심의 private topology | Gateway, Grafana |
-| `master_open` | 신뢰된 네트워크에서의 진단·직접 접근 | 주요 application, runtime, observability endpoint |
-
-### `private_network`
-
-`private_network`에서는 model runtime과 내부 service가 Compose network 안에서 통신하고, 외부 요청은 Gateway를 통해 진입한다.
+Container 내부 통신과 Host 노출은 분리한다. 지원되는 full-stack host topology는
+`private_network` 하나이며 Gateway와 Grafana만 host에 publish한다.
 
 ```text
 Host Network
@@ -262,72 +246,39 @@ Compose Network
 └─ alloy
 ```
 
-### `master_open`
+모델 runtime, Risk Signal Service, Prometheus와 exporter/log backend는 host에 직접
+publish하지 않는다. 제품·애플리케이션 요청은 Gateway를 통과하고, 내부 운영 연결은
+Compose service DNS를 사용한다.
 
-`master_open`은 주요 runtime과 운영 endpoint를 Host에 publish한다.
-
-| Host Port | Service |
-|---:|---|
-| `9400` | Gateway |
-| `9401` | Main Model Runtime |
-| `9402` | Embedding Runtime |
-| `9403` | Prompt Injection Detector Runtime |
-| `9405` | Risk Signal Service |
-| `9406` | Korean Embedding Runtime |
-| `9410` | Prometheus |
-| `9411` | Grafana |
-| `9412` | DCGM Exporter |
-| `9413` | cAdvisor |
-| `9414` | Loki |
-
-기본 host port는 application/model API에 `9400~9409`, observability endpoint에
-`9410~9419`를 사용한다. Container 내부 port는 upstream 고유값을 유지하므로 같은
-숫자가 다른 service network namespace에서 반복될 수 있다. 실제 배정의 기준은
-`configs/services.yaml`이며, 빈 번호 때문에 기존 서비스를 다시 번호 매기지 않는다.
-
-`master_open`은 model runtime과 운영 endpoint에 직접 접근해야 하는 진단 환경에서 사용한다. 실제 접근 범위는 `EXPOSURE_AUDIENCE`와 네트워크 정책으로 제한한다. 이 mode에서는 호출자가 Gateway request validation을 우회해 upstream runtime API에 직접 접근할 수 있으므로 untrusted network의 일반 제공 경로로 사용하지 않는다. 현재 vLLM advisory와 Gateway/direct runtime 경계는 [vLLM 보안 노출 경계](./reference/vllm_security_posture.md)를 따른다.
-
-### Effective Compose 구성
-
-`ops/compose/full-stack.private-network.yaml`은 base Compose 정의이며, 최종 Host exposure는 `EXPOSURE_MODE`를 적용한 effective Compose config로 결정된다.
+`make runtime-validate`도 같은 원칙을 따른다. validator는 실행 중인 Compose project에
+one-off container로 참여하고 `configs/services.yaml`의 service name/container port로
+내부 endpoint를 검사한다. 검증을 위해 host port를 추가로 열지 않으며
+`--no-deps`로 실행해 dependency lifecycle도 변경하지 않는다.
 
 ```text
-Base Compose
-    │
-    ├─ private_network
-    │    └─ base topology 사용
-    │
-    └─ master_open
-         └─ exposure.master-open.yaml 결합
-    │
-    ▼
-Effective Compose Config
+Host
+  └─ make runtime-validate
+          ↓
+     one-off validator
+          ↓ Compose network
+     Gateway / vLLM / Risk / Prometheus / Grafana
 ```
 
-현재 적용된 노출 상태는 다음 명령으로 확인할 수 있다.
+현재 effective Compose 구성은 maintainer가 다음으로 확인한다.
 
 ```bash
-make exposure-status
-bash scripts/compose/compose_config.sh  # maintainer: effective Compose 확인
+bash scripts/compose/compose_config.sh
 ```
 
-일반 사용자는 auth와 exposure를 직접 조합하지 않고 `make up ACCESS=local|private|edge`를
-사용한다. 새 환경의 기본 `local`은 `private_network` topology와 loopback bind를 사용한다.
-`master_open`은 Access Profile에 포함하지 않는 진단용 mode다. `make runtime-validate`는
-기본값으로 vLLM runtime·Risk Signal Service·Prometheus의 host publish 주소에 접속하므로,
-URL을 따로 지정하지 않으면 검증하는 동안 `make exposure-apply MODE=master_open`으로 연다. 검증이
-끝나면 `make up ACCESS=<profile> CONFIRM=access`로 managed profile로 돌아간다. 이 경로 때문에
-`ACCESS_PROFILE`이 없는 `.env`와 `auth-*`·`exposure-*` 도구를 유지한다.
+일반 사용자는 `make up ACCESS=local|private|edge`로 host bind와 인증 의도를 선택한다.
+`local`과 `edge`는 loopback, `private`은 운영자가 선택한 LAN/VPN bind를 사용하지만,
+어느 profile도 raw model/runtime/operations endpoint를 host에 공개하지 않는다.
 
-### static target의 노출 판정
+기존 `EXPOSURE_MODE=master_open` 환경은 자동으로 다른 의미로 재해석하지 않는다.
+`make up ACCESS=<profile>`으로 변경 계획을 확인한 뒤 `CONFIRM=access`로 명시적으로
+지원 profile로 이관한다. 자세한 결정은
+[ADR-0043](./adr/0043-internal-runtime-validation-and-private-host-exposure.md)을 따른다.
 
-exposure profile은 full-stack 토폴로지를 기술한다. static target의 `make up`은 exposure override를 적용하지 않으므로, 그 target의 실제 공개 집합은 `configs/deployment_targets.yaml`의 `compose_files`가 선언한 Compose 파일들이 고정한다. 이 구분은 같은 파일의 `exposure_profile_applies`가 선언하며, `make exposure-status`는 그 값을 읽어 실제로 공개되는 서비스만 보고하고 profile에는 있지만 해당 target이 공개하지 않는 항목을 따로 표시한다.
-
-`compose_files`는 실행 진입점과 노출 진단이 공유하는 단일 목록이다. 실행에 쓰는 Compose 파일과 진단이 판단하는 Compose 파일이 갈라지지 않게 한 곳에서 선언한다.
-
-`AUTH_MODE`는 **누가 호출할 수 있는지**, `EXPOSURE_MODE`는 **어떤 서비스가 host network에 공개되는지**를 각각 결정한다. 한 profile이 다른 profile을 대체하지 않는다. `/health`는 liveness probe로 인증 없이 둘 수 있지만, `/ready`, `/metrics`, `/admin/*`는 auth profile과 network boundary를 함께 적용한다. `/docs`, `/openapi.json`의 공개 여부도 auth profile의 docs 정책을 따른다.
-
----
 
 ## 4.4 기동 순서와 Runtime 의존성
 
@@ -528,7 +479,7 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 | Prompt Injection Detector Runtime 검증 | full-stack | `make up` 완료 + Runtime 상태/API 검증 |
 | Main Model switch | full-stack | Model Operations 검증 |
 | GPU budget 변경 | full-stack | Runtime / GPU validation |
-| Compose / exposure 변경 | full-stack | `bash scripts/compose/compose_config.sh`, `make exposure-status` |
+| Compose / access 변경 | full-stack | `bash scripts/compose/compose_config.sh`, `make up ACCESS=<profile>` |
 | NVIDIA runtime/container 관측 검증 | full-stack | Prometheus / Grafana / Loki 확인 |
 | Metal 요청·runtime metric 관측 검증 | macOS Metal static | Prometheus / Grafana / Loki 확인 |
 
