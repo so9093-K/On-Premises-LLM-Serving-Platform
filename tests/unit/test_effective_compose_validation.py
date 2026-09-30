@@ -105,6 +105,7 @@ def test_preflight_uses_same_boot_file_and_enforces_required_gpu(
     monkeypatch.setattr(preflight, "_docker_compose_available", lambda: True)
     monkeypatch.setattr(preflight, "_show_gpu", lambda: gpu_available)
     monkeypatch.setattr(preflight, "_port_available", lambda *_: True)
+    monkeypatch.setattr(preflight, "_prompt_runtime_effective", lambda: False)
     commands = []
     validated = []
 
