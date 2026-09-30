@@ -24,7 +24,6 @@ Repository Configuration
 │
 ├─ Service / Deployment Policy
 │   ├─ services.yaml
-│   ├─ exposure_profiles.yaml
 │   ├─ deploy_profiles.yaml
 │   └─ auth_profiles.yaml
 │
@@ -78,7 +77,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 
 같은 정보가 여러 파일에 보이더라도 위 Source of Truth를 기준으로 해석한다.
 
-예를 들어 기본 host port 숫자는 `configs/services.yaml`에서 관리하고, exposure profile은 해당 service ID를 참조해 공개 범위만 정의한다.
+예를 들어 기본 host port와 service role은 `configs/services.yaml`에서 관리하고, target Compose의 `ports`가 실제 host publication을 투영한다.
 
 ### 현재값, 생성물, 문서의 경계
 
@@ -378,13 +377,15 @@ make auth-doctor
 
 ### Host exposure topology
 
-`EXPOSURE_MODE=private_network`은 현재 compatibility projection으로 남아 있으며 다른
-지원 mode는 없다. Host 공개 범위 변경은 임의 exposure mode가 아니라
-`ACCESS_PROFILE=local|private|edge`의 bind/auth 정책으로 표현한다.
+Host exposure는 선택 가능한 mode가 아니라 repository invariant다. `configs/services.yaml`의
+service role과 target Compose의 `ports`가 Gateway/Grafana host surface를 정의한다.
 
-`AUTH_MODE`는 **누가 호출할 수 있는지**, Access Profile의 host bind 정책은 **어디에서
-Gateway/Grafana에 접근할 수 있는지**를 정의한다. Raw runtime과 운영 backend는
+`AUTH_MODE`는 **누가 호출할 수 있는지**, `EXPOSURE_AUDIENCE`와 Access Profile의 host bind
+정책은 **어디에서 Gateway/Grafana에 접근할 수 있는지**를 정의한다. Raw runtime과 운영 backend는
 어느 Access Profile에서도 host에 직접 공개하지 않는다.
+
+과거 `EXPOSURE_MODE` key는 retired migration marker다. `private_network` marker는 env sync에서
+제거되고, `master_open` 같은 과거 값은 explicit Access migration 전에는 fail-closed한다.
 
 ---
 
@@ -435,7 +436,7 @@ common_example_keys
 ├─ LOG_LEVEL
 ├─ GATEWAY_*
 ├─ AUTH_MODE
-├─ EXPOSURE_MODE
+├─ EXPOSURE_AUDIENCE
 └─ COMPOSE_PROJECT_NAME
 
 runtime_override_example_keys
@@ -507,12 +508,11 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-`configs/exposure_profiles.yaml`은 generated override를 만들지 않는다. 지원되는
-`private_network` host-publish 집합과 base Compose의 실제 `ports` 집합이 같은지는
-access/exposure validator가 직접 대조한다.
+`make validate`의 access/host-boundary 단계는 `configs/services.yaml` service role과 target Compose의
+실제 `ports` 집합을 직접 대조한다.
 
-`make validate`의 generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고,
-access/exposure 단계는 base Compose의 host exposure 계약을 확인한다. OpenAPI는 축약 전·후의
+Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고, access/host-boundary 단계는
+지원 host exposure invariant를 확인한다. OpenAPI는 축약 전·후의
 계약 의미 보존도 함께 검증한다.
 
 ---
@@ -531,7 +531,7 @@ make validate
 |---|---|
 | Contract validation | registry, schema, 설정 간 invariant |
 | Shell syntax | 운영 shell script 구문 |
-| Exposure profile validation | exposure profile 구조와 service reference |
+| Access / host-boundary validation | Access Profile safety와 service registry ↔ Compose host publication 정합성 |
 | Compose topology drift | canonical/target Compose의 host publication과 runtime projection 일치 여부 |
 | Env contract validation | `.env.*.example`과 env contract 일치 여부 |
 | Generated artifacts | 생성 파일 drift와 OpenAPI projection 의미 보존 |
@@ -540,7 +540,6 @@ make validate
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
 ```bash
-bash scripts/compose/compose_config.sh
 bash scripts/compose/compose_config.sh
 ```
 
@@ -581,7 +580,7 @@ bash scripts/compose/compose_config.sh
 | Main Model 교체 / vLLM parameter / API capability·limit | `configs/main_model_profiles.yaml` |
 | GPU allocation | `configs/gpu_budgets.yaml` |
 | Service / port | `configs/services.yaml` |
-| Host 공개 범위 | `configs/exposure_profiles.yaml` |
+| Host 공개 서비스 역할 / port | `configs/services.yaml` + target Compose `ports` |
 | 사용자 접근 profile | `configs/access_profiles.yaml` |
 | Secondary runtime 시작 상태 | `configs/deploy_profiles.yaml` |
 | 인증 정책 | `configs/auth_profiles.yaml` |
