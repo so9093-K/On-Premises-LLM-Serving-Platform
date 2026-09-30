@@ -517,15 +517,13 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-Exposure Compose override(`exposure_profiles.yaml` + `services.yaml` 입력)는 별도 generator다. Makefile target이 없어 직접 실행한다.
+`configs/exposure_profiles.yaml`은 generated override를 만들지 않는다. 지원되는
+`private_network` host-publish 집합과 base Compose의 실제 `ports` 집합이 같은지는
+access/exposure validator가 직접 대조한다.
 
-```bash
-python scripts/compose/render_exposure_overrides.py
-```
-
-`make validate`는 두 generator의 drift를 각각 별도 단계로 검사한다
-(generated artifacts, compose overrides). OpenAPI는 generated artifacts 단계에서 축약 전·후의
-계약 의미 보존도 함께 확인한다.
+`make validate`의 generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고,
+access/exposure 단계는 base Compose의 host exposure 계약을 확인한다. OpenAPI는 축약 전·후의
+계약 의미 보존도 함께 검증한다.
 
 ---
 
