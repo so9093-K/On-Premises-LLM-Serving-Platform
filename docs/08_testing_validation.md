@@ -359,7 +359,9 @@ Build 자체의 상세 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_bui
 
 ## 8.5 Live Runtime 검증 — `make runtime-validate`
 
-`make runtime-validate`는 full-stack의 실제 API 계약과 monitoring 연결을 확인하고 결과를 report로 남긴다.
+`make runtime-validate`는 **`linux-nvidia-dynamic` full-stack**의 실제 vLLM·Risk·Embedding·monitoring 계약을 확인하고 결과를 report로 남긴다. 이 명령은 모든 deployment target에 공통으로 요구하는 merge gate가 아니다.
+
+`macos-metal-static`은 external/static Main runtime 경계이므로 같은 full-stack validator를 사용하지 않는다. Mac 변경의 live 검증은 영향 범위에 따라 `make up TARGET=macos-metal-static`, `make status`, Chat/Image smoke와 MLX runtime 진단으로 수행한다. MLX runtime/profile/lifecycle 자체를 바꾸지 않은 application·config 변경에는 별도 Metal qualification을 요구하지 않는다.
 
 ```bash
 make runtime-validate
@@ -485,6 +487,10 @@ make up
 ```bash
 make runtime-validate
 ```
+
+이 단계는 **해당 변경이 실제 `linux-nvidia-dynamic` runtime 동작을 바꿀 때만** 요구한다. 예를 들어 vLLM engine/image/patch, Main Model profile·capability, GPU admission/resource policy, runtime-facing monitoring 계약 변경이 여기에 해당한다. Gateway 일반 코드, 문서, Access/host exposure의 정적 policy, CI/tooling 변경만으로는 GPU live validation을 요구하지 않는다.
+
+`macos-metal-static`은 별도 target이다. MLX runtime/profile/lifecycle 변경은 Mac target에서 `make up` + `make status` + 관련 smoke로 검증하고, Linux/NVIDIA `runtime-validate`로 대체하지 않는다.
 
 vLLM engine pin 변경은 runtime 실측 전에 정적 계약부터 확인한다. `make validate`는
 `configs/vllm_unified_build.yaml`의 current vLLM pin과
