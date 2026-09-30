@@ -151,7 +151,7 @@ live Runtime qualification은 일반 application check와 분리되어 있다. �
 
 | 목적 | 명령 |
 |---|---|
-| 시작 / 현재 configuration으로 수렴 | `make up [TARGET=<id>] [ACCESS=local|private|edge]` |
+| 시작 / 현재 configuration으로 수렴 | `make up [TARGET=<id>] [ACCESS=<profile>]` |
 | 현재 상태 | `make status` |
 | 운영 이벤트와 오류 확인 | `make logs` |
 | 실행 리소스 정지 | `make down` |
