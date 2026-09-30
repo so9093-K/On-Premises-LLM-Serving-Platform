@@ -7,7 +7,6 @@ from typing import Any
 import yaml
 
 from .configuration import load_yaml_mapping
-from .deployment_target import effective_published_compose_services
 from .project_paths import resolve_project_root
 from .settings import AppSettings
 from .settings_parts.env import LOCAL_ENVIRONMENTS, default_env_path, env as _env
@@ -177,11 +176,6 @@ def _exposure_profile(project_root: Path, exposure_mode: str | None = None) -> d
     return profiles.get(canonical_mode, profiles.get("private_network", {}))
 
 
-def _exposure_services(project_root: Path) -> dict[str, Any]:
-    data = load_yaml_mapping(project_root / "configs" / "services.yaml")
-    services = data.get("services", {})
-    return services if isinstance(services, dict) else {}
-
 
 def _exposure_host_published_services(project_root: Path, exposure_mode: str | None = None) -> list[str]:
     """지정한 exposure 프로필에서 host port를 공개하는 서비스 이름 목록을 반환한다."""
@@ -317,7 +311,6 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
     data = load_yaml_mapping(project_root / "configs" / "exposure_profiles.yaml")
     canonical_mode = exposure_mode
     exposure_profile_data = _exposure_profile(project_root, canonical_mode)
-    diagnostics = exposure_profile_data.get("diagnostics", {})
     exposure_audience = _env("EXPOSURE_AUDIENCE", "").strip()
 
     access_profile = _env("ACCESS_PROFILE", "").strip()
@@ -363,109 +356,6 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
             f"EXPOSURE_MODE={exposure_mode!r} is not supported. Allowed modes: {', '.join(profiles)}.",
         ))
 
-    if diagnostics.get("gateway_bypass_possible"):
-        trusted_local_open = (
-            mode == "local_open"
-            and canonical_mode == "master_open"
-            and exposure_audience == "private_lan"
-        )
-        findings.append(
-            AuthFinding(
-                "INFO" if trusted_local_open else "WARN",
-                "EXPOSURE_GATEWAY_BYPASS_EXPECTED"
-                if trusted_local_open
-                else "EXPOSURE_GATEWAY_BYPASS_POSSIBLE",
-                (
-                    "AUTH_MODE=local_open + EXPOSURE_MODE=master_open/private_lan: "
-                    "vLLM direct access is enabled by the trusted corporate-network policy."
-                    if trusted_local_open
-                    else (
-                        f"EXPOSURE_MODE={canonical_mode}: "
-                        "diagnostics.gateway_bypass_possible=true — vLLM runtime ports "
-                        "are host-published. Gateway authentication bypass is possible."
-                    )
-                ),
-            )
-        )
-
-    if diagnostics.get("direct_model_runtime_access"):
-        findings.append(AuthFinding(
-            "INFO",
-            "EXPOSURE_DIRECT_MODEL_RUNTIME_ACCESS",
-            f"EXPOSURE_MODE={canonical_mode}: vLLM runtimes are host-published (direct_model_runtime_access=true). "
-            "This is the intended trusted-corporate-network property of this exposure mode.",
-        ))
-
-    if diagnostics.get("direct_operations_endpoints"):
-        findings.append(AuthFinding(
-            "INFO",
-            "EXPOSURE_DIRECT_OPERATIONS_ENDPOINTS",
-            f"EXPOSURE_MODE={canonical_mode}: Prometheus, DCGM, cAdvisor are host-published (direct_operations_endpoints=true). "
-            "This is the intended trusted-corporate-network property of this exposure mode.",
-        ))
-
-    if diagnostics.get("requires_exposure_audience"):
-        audience = exposure_audience
-        allowed_audiences: list[str] = data.get("exposure_audience", {}).get("allowed_values", [])
-        if not audience:
-            allowed_str = "|".join(allowed_audiences)
-            findings.append(AuthFinding(
-                "FAIL",
-                "EXPOSURE_AUDIENCE_MISSING",
-                f"EXPOSURE_MODE={canonical_mode} requires EXPOSURE_AUDIENCE to be set. "
-                f"Allowed values: {allowed_str}. "
-                "Set EXPOSURE_AUDIENCE to declare who can reach the host-published ports.",
-            ))
-        elif allowed_audiences and audience not in allowed_audiences:
-            findings.append(AuthFinding(
-                "FAIL",
-                "EXPOSURE_AUDIENCE_INVALID_VALUE",
-                f"EXPOSURE_AUDIENCE={audience!r} is not a valid value. "
-                f"Allowed values: {', '.join(allowed_audiences)}.",
-            ))
-        else:
-            if audience == "local_only":
-                services_data = _exposure_services(project_root)
-                published_svc_names: list[str] = exposure_profile_data.get("host_published", [])
-                # exposure profile은 full-stack 토폴로지를 기술한다. static target은
-                # override를 적용하지 않으므로, 걸러내지 않으면 그 target에 존재하지도
-                # 않는 서비스를 "0.0.0.0에 바인드됨"으로 보고하는 오탐이 된다.
-                effective_published = effective_published_compose_services(
-                    settings.deployment_target, project_root
-                )
-                if effective_published is not None:
-                    published_svc_names = [
-                        name
-                        for name in published_svc_names
-                        if str(services_data.get(name, {}).get("compose_service", name))
-                        in effective_published
-                    ]
-                open_bind_svcs: list[str] = []
-                for svc_name in published_svc_names:
-                    svc = services_data.get(svc_name, {})
-                    bind_env = svc.get("host_env_bind", "")
-                    default_bind = svc.get("default_bind", "0.0.0.0")
-                    actual_bind = _env(str(bind_env), str(default_bind)) if bind_env else default_bind
-                    if actual_bind == "0.0.0.0":
-                        open_bind_svcs.append(f"{svc.get('compose_service', svc_name)} ({bind_env or 'default'}={actual_bind})")
-                if open_bind_svcs:
-                    preview = ", ".join(open_bind_svcs[:3])
-                    if len(open_bind_svcs) > 3:
-                        preview += f" ... ({len(open_bind_svcs)} total)"
-                    findings.append(AuthFinding(
-                        "FAIL",
-                        "EXPOSURE_LOCAL_ONLY_BIND_MISMATCH",
-                        f"EXPOSURE_AUDIENCE=local_only but services are bound to 0.0.0.0 (all interfaces): {preview}. "
-                        "Set *_BIND_ADDR=127.0.0.1 for all host-published services, or change EXPOSURE_AUDIENCE.",
-                    ))
-            if audience == "public":
-                if _env("ALLOW_PUBLIC_OPERATIONS_ENDPOINTS", "").lower() not in ("1", "true"):
-                    findings.append(AuthFinding(
-                        "FAIL",
-                        "EXPOSURE_PUBLIC_AUDIENCE_WITHOUT_EXPLICIT_OPT_IN",
-                        "EXPOSURE_AUDIENCE=public requires ALLOW_PUBLIC_OPERATIONS_ENDPOINTS=true as explicit opt-in. "
-                        "Setting this on a public network exposes vLLM APIs and operations endpoints without Gateway auth.",
-                    ))
 
     if not findings:
         findings.append(AuthFinding("OK", "AUTH_POLICY_OK", "인증 제어 플레인에서 발견된 문제가 없습니다."))
