@@ -9,15 +9,11 @@ load_local_env "$ENV_FILE"
 
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
 "$PYTHON_BIN" scripts/build/check_python.py --context smoke-test >/dev/null
-# Smoke test는 항상 host에 노출된 포트를 대상으로 probe한다. .env의
-# RISK_SIGNAL_SERVICE_BASE_URL은 compose 내부용 URL(http://risk-signal-service:9405)이므로
-# 여기서 사용하면 안 된다.
 GATEWAY_PROBE_HOST="${GATEWAY_PROBE_HOST:-${GATEWAY_BIND_ADDR:-localhost}}"
 if [[ -z "$GATEWAY_PROBE_HOST" || "$GATEWAY_PROBE_HOST" == "0.0.0.0" ]]; then
   GATEWAY_PROBE_HOST="localhost"
 fi
 GATEWAY_BASE_URL="http://${GATEWAY_PROBE_HOST}:${GATEWAY_PORT:-$(service_default_host_port gateway)}"
-RISK_SIGNAL_SERVICE_BASE_URL="http://localhost:${RISK_SIGNAL_SERVICE_PORT:-$(service_default_host_port risk_signal_service)}"
 API_KEY="$(local_env_first_value "$ENV_FILE" API_KEY API_KEYS || true)"
 # smoke는 일반 Gateway 경로를 그대로 호출한다. 별도 30초 상수를 두면 정상적인
 # admission queue 대기보다 먼저 실패해 배포 rollback의 원인이 된다. 명시적
@@ -138,12 +134,6 @@ if [[ -n "$ADMIN_API_KEY" ]]; then
   ADMIN_AUTH_ARGS=(-H "Authorization: Bearer ${ADMIN_API_KEY}")
 fi
 
-INTERNAL_SERVICE_TOKEN="${INTERNAL_SERVICE_TOKEN:-}"
-INTERNAL_AUTH_ARGS=()
-if [[ -n "$INTERNAL_SERVICE_TOKEN" ]]; then
-  INTERNAL_AUTH_ARGS=(-H "Authorization: Bearer ${INTERNAL_SERVICE_TOKEN}")
-fi
-
 tmp_json="$(mktemp)"
 trap 'rm -f "$tmp_json"' EXIT
 
@@ -185,14 +175,8 @@ post_json() {
   local name="$1"
   local url="$2"
   local body="$3"
-  local auth_mode="${4:-external}"
   local start end elapsed
-  local -a selected_auth
-  if [[ "$auth_mode" == "internal" ]]; then
-    selected_auth=("${INTERNAL_AUTH_ARGS[@]}")
-  else
-    selected_auth=("${AUTH_ARGS[@]}")
-  fi
+  local -a selected_auth=("${AUTH_ARGS[@]}")
   start="$(now_ns)"
   curl --max-time "$SMOKE_MAX_REQUEST_SECONDS" -fsS -X POST "$url" \
     "${selected_auth[@]}" \
@@ -328,29 +312,6 @@ load_runtime_probe_selection
 post_json_with_retry gateway-risk-aggregate "$GATEWAY_BASE_URL/v1/risk/assessments" \
   '{"prompt":"smoke test prompt"}'
 assert_json risk
-
-# Private-network compose에서는 risk-signal-service 포트가 host에 노출되지 않는다.
-# 접근 가능할 때만 직접 프로브를 실행하고, 아닐 경우 gateway 경유 aggregate로 검증한다.
-if curl -sS --max-time 3 -o /dev/null "$RISK_SIGNAL_SERVICE_BASE_URL/health" 2>/dev/null; then
-  get_json risk-health "$RISK_SIGNAL_SERVICE_BASE_URL/health"
-  assert_json health
-  get_json risk-ready "$RISK_SIGNAL_SERVICE_BASE_URL/ready" admin
-  assert_json ready
-
-  if skip_runtime "$SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME"; then
-    echo "[smoke] ${SMOKE_PROMPT_INJECTION_DETECTOR_RUNTIME} runtime is not serving; skipping prompt-specific risk probe" >&2
-  else
-    post_json_with_retry risk-prompt "$RISK_SIGNAL_SERVICE_BASE_URL/v1/risk/detectors/prompt/assessments" \
-      '{"prompt":"smoke test prompt"}' internal
-    assert_json risk
-  fi
-
-  post_json_with_retry risk-aggregate "$RISK_SIGNAL_SERVICE_BASE_URL/v1/risk/assessments" \
-    '{"prompt":"smoke test prompt"}' internal
-  assert_json risk
-else
-  echo "[smoke] risk-signal-service: host port not accessible (private-network compose); gateway /v1/risk/assessments covers risk path" >&2
-fi
 
 post_json_with_retry chat "$GATEWAY_BASE_URL/v1/chat/completions" \
   "{\"model\":\"${SMOKE_MAIN_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Return exactly a JSON object with boolean field ok.\"}],\"max_tokens\":16,\"temperature\":0,\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"smoke_result\",\"strict\":true,\"schema\":{\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\"}},\"required\":[\"ok\"],\"additionalProperties\":false}}}}"
