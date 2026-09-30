@@ -19,5 +19,9 @@ def test_private_local_only_diagnosis_does_not_crash(
 
     findings = diagnose_auth(settings(), ROOT)
 
-    assert findings
-    assert all(finding.code for finding in findings)
+    assert any(finding.code == "LOCAL_ONLY_BIND_MISMATCH" for finding in findings)
+    assert any(
+        "GATEWAY_BIND_ADDR=127.0.0.1" in finding.message
+        for finding in findings
+        if finding.code == "LOCAL_ONLY_BIND_MISMATCH"
+    )
