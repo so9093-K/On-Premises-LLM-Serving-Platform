@@ -15,7 +15,6 @@ profiles:
     auth_owner: operator
     scope: "개발용 — API, Admin, 내부 호출 인증 없음; host 공개는 Gateway/Grafana의 loopback 경계가 소유"
     # ACCESS_PROFILE이 없는 Advanced/legacy 경로도 raw runtime을 host-publish하지 않는다.
-    default_exposure_mode: private_network
     default_exposure_audience: local_only
 
   private_network:
