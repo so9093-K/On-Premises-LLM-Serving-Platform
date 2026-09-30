@@ -52,12 +52,11 @@ def test_auth_apply_updates_only_profile_flags(tmp_path):
     assert "ACCESS_PROFILE=" in text
 
 
-def test_auth_apply_local_open_keeps_private_local_only_policy(tmp_path):
+def test_auth_apply_local_open_keeps_local_only_network_policy(tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text(
         "AUTH_MODE=strict\n"
         "APP_ENV=production\n"
-        "EXPOSURE_MODE=private_network\n"
         "EXPOSURE_AUDIENCE=\n",
         encoding="utf-8",
     )
@@ -70,21 +69,20 @@ def test_auth_apply_local_open_keeps_private_local_only_policy(tmp_path):
     text = env_path.read_text(encoding="utf-8")
     assert "AUTH_MODE=local_open" in text
     assert "APP_ENV=local" in text
-    assert "EXPOSURE_MODE=private_network" in text
+    assert "EXPOSURE_MODE=" not in text
     assert "EXPOSURE_AUDIENCE=local_only" in text
 
 
-def test_auth_plan_local_open_declares_private_local_only_exposure():
+def test_auth_plan_local_open_declares_local_only_network_policy():
     plan = auth_plan.build_plan(
         {
             "AUTH_MODE": "strict",
-            "EXPOSURE_MODE": "private_network",
             "EXPOSURE_AUDIENCE": "",
         },
         "local_open",
     )
     changes = {change["key"]: change["after"] for change in plan["env_changes"]}
-    assert changes["EXPOSURE_MODE"] == "private_network"
+    assert "EXPOSURE_MODE" not in changes
     assert changes["EXPOSURE_AUDIENCE"] == "local_only"
 
 

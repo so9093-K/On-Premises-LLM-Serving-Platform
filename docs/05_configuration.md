@@ -24,7 +24,6 @@ Repository Configuration
 │
 ├─ Service / Deployment Policy
 │   ├─ services.yaml
-│   ├─ exposure_profiles.yaml
 │   ├─ deploy_profiles.yaml
 │   └─ auth_profiles.yaml
 │
@@ -57,10 +56,9 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | MLX Main Model 실행·API profile | `configs/macos_mlx_runtime.yaml` | 모델 revision, 실행 한도와 실제 modality·Gateway 요청 정책 정의 |
 | Platform Python dependency | `pyproject.toml`, `uv.lock` | 공통 application 직접 의존성과 Linux/macOS 해석 결과 |
 | MLX Python dependency | `runtimes/mlx/pyproject.toml`, `runtimes/mlx/uv.lock` | 독립 native runtime 직접 의존성과 Darwin arm64 해석 결과 |
-| Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog 연결과 **Compose 파일 목록·exposure profile 적용 여부** |
+| Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog와 static Compose 파일 목록 |
 | GPU resource budget | `configs/gpu_budgets.yaml` | runtime별 GPU budget과 admission 기준 정의 |
-| Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env, exposure category 정의 |
-| Exposure mode | `configs/exposure_profiles.yaml` | 어떤 서비스를 host에 publish할지 정의 |
+| Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env와 host-boundary service role 정의 |
 | Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/required/controllable binding과 Main resource-policy composition constraint 정의 |
 | Authentication profile | `configs/auth_profiles.yaml` | `AUTH_MODE`별 인증·관리 endpoint 보호 정책 정의 |
@@ -79,7 +77,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 
 같은 정보가 여러 파일에 보이더라도 위 Source of Truth를 기준으로 해석한다.
 
-예를 들어 기본 host port 숫자는 `configs/services.yaml`에서 관리하고, exposure profile은 해당 service ID를 참조해 공개 범위만 정의한다.
+예를 들어 기본 host port와 service role은 `configs/services.yaml`에서 관리하고, target Compose의 `ports`가 실제 host publication을 투영한다.
 
 ### 현재값, 생성물, 문서의 경계
 
@@ -272,30 +270,21 @@ main-llm-vllm
 - host port 환경변수
 - 기본 host port
 - bind address 환경변수
-- exposure category
+- host-boundary category
 
 예를 들어 `gateway`, `main_llm_vllm`, `grafana` 같은 service ID를 다른 설정과 validator가 공통으로 참조한다.
 
-### `configs/exposure_profiles.yaml`
+### Host exposure boundary
 
-실행된 서비스 중 어떤 서비스를 host에 publish할지 정의한다.
+별도 exposure mode/profile은 없다. `configs/services.yaml`의 service role과 target Compose의
+실제 `ports` 선언이 함께 host publication을 소유한다.
 
-canonical exposure topology는 `private_network` 하나다. Gateway와 Grafana만 host에
-publish하며 model runtime, Risk Signal Service, Prometheus와 exporter/log backend는
-Compose 내부망에 둔다.
+- `public_entrypoint`인 Gateway는 host에 publish한다.
+- monitoring stack을 실행하는 target의 `visualization`인 Grafana는 host에 publish한다.
+- model runtime, Risk Signal Service, Prometheus/exporter/log backend는 Compose 내부망에 둔다.
 
-Exposure Profile은 실행된 service의 host 공개 범위를 관리하고, runtime 활성 상태는
-Runtime Startup Profile과 각 runtime lifecycle에서 결정한다.
-
-```text
-Runtime Startup Profile
-  └─ 어떤 runtime을 실행 상태로 둘 것인가
-
-Exposure Profile
-  └─ 실행된 service를 host에 publish할 것인가
-```
-
-네트워크 구조와 실제 port 노출은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
+Access Profile은 이 서비스 집합을 바꾸지 않고 auth, `EXPOSURE_AUDIENCE`, host bind와 TLS ownership을
+결정한다. 네트워크 구조와 실제 port 노출은 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 설명한다.
 
 ---
 
@@ -388,13 +377,15 @@ make auth-doctor
 
 ### Host exposure topology
 
-`EXPOSURE_MODE=private_network`은 현재 compatibility projection으로 남아 있으며 다른
-지원 mode는 없다. Host 공개 범위 변경은 임의 exposure mode가 아니라
-`ACCESS_PROFILE=local|private|edge`의 bind/auth 정책으로 표현한다.
+Host exposure는 선택 가능한 mode가 아니라 repository invariant다. `configs/services.yaml`의
+service role과 target Compose의 `ports`가 Gateway/Grafana host surface를 정의한다.
 
-`AUTH_MODE`는 **누가 호출할 수 있는지**, Access Profile의 host bind 정책은 **어디에서
-Gateway/Grafana에 접근할 수 있는지**를 정의한다. Raw runtime과 운영 backend는
+`AUTH_MODE`는 **누가 호출할 수 있는지**, `EXPOSURE_AUDIENCE`와 Access Profile의 host bind
+정책은 **어디에서 Gateway/Grafana에 접근할 수 있는지**를 정의한다. Raw runtime과 운영 backend는
 어느 Access Profile에서도 host에 직접 공개하지 않는다.
+
+과거 `EXPOSURE_MODE` key는 retired migration marker다. `private_network` marker는 env sync에서
+제거되고, `master_open` 같은 과거 값은 explicit Access migration 전에는 fail-closed한다.
 
 ---
 
@@ -445,7 +436,7 @@ common_example_keys
 ├─ LOG_LEVEL
 ├─ GATEWAY_*
 ├─ AUTH_MODE
-├─ EXPOSURE_MODE
+├─ EXPOSURE_AUDIENCE
 └─ COMPOSE_PROJECT_NAME
 
 runtime_override_example_keys
@@ -517,12 +508,11 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-`configs/exposure_profiles.yaml`은 generated override를 만들지 않는다. 지원되는
-`private_network` host-publish 집합과 base Compose의 실제 `ports` 집합이 같은지는
-access/exposure validator가 직접 대조한다.
+`make validate`의 access/host-boundary 단계는 `configs/services.yaml` service role과 target Compose의
+실제 `ports` 집합을 직접 대조한다.
 
-`make validate`의 generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고,
-access/exposure 단계는 base Compose의 host exposure 계약을 확인한다. OpenAPI는 축약 전·후의
+Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고, access/host-boundary 단계는
+지원 host exposure invariant를 확인한다. OpenAPI는 축약 전·후의
 계약 의미 보존도 함께 검증한다.
 
 ---
@@ -541,7 +531,7 @@ make validate
 |---|---|
 | Contract validation | registry, schema, 설정 간 invariant |
 | Shell syntax | 운영 shell script 구문 |
-| Exposure profile validation | exposure profile 구조와 service reference |
+| Access / host-boundary validation | Access Profile safety와 service registry ↔ Compose host publication 정합성 |
 | Compose topology drift | canonical/target Compose의 host publication과 runtime projection 일치 여부 |
 | Env contract validation | `.env.*.example`과 env contract 일치 여부 |
 | Generated artifacts | 생성 파일 drift와 OpenAPI projection 의미 보존 |
@@ -550,7 +540,6 @@ make validate
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
 ```bash
-bash scripts/compose/compose_config.sh
 bash scripts/compose/compose_config.sh
 ```
 
@@ -568,9 +557,8 @@ bash scripts/compose/compose_config.sh
 | Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
 | Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
 | GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / exposure / Prometheus 생성 | `make validate`, `bash scripts/compose/compose_config.sh` |
-| Exposure mode | `exposure_profiles.yaml` | host publish 범위 | `make validate`, exposure 적용, Compose 재적용 |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/exposure/bind로 투영 | `make validate`, `make up ACCESS=...` |
+| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `make validate`, `bash scripts/compose/compose_config.sh` |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make validate`, `make up ACCESS=...` |
 | Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
 | Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
@@ -592,7 +580,7 @@ bash scripts/compose/compose_config.sh
 | Main Model 교체 / vLLM parameter / API capability·limit | `configs/main_model_profiles.yaml` |
 | GPU allocation | `configs/gpu_budgets.yaml` |
 | Service / port | `configs/services.yaml` |
-| Host 공개 범위 | `configs/exposure_profiles.yaml` |
+| Host 공개 서비스 역할 / port | `configs/services.yaml` + target Compose `ports` |
 | 사용자 접근 profile | `configs/access_profiles.yaml` |
 | Secondary runtime 시작 상태 | `configs/deploy_profiles.yaml` |
 | 인증 정책 | `configs/auth_profiles.yaml` |

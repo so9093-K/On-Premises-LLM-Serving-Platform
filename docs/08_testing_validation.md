@@ -115,7 +115,7 @@ make validate
 | API Contract | OpenAPI ref, request/response schema, error surface | 공개 API 호환성 |
 | Model / Runtime Policy | model registry, risk budget, resource-control policy | 모델 실행 정책 |
 | Shell Script | script syntax; 실제 실행 동작과 Bash runtime 요구사항은 별도 테스트·진단 | Build·배포·운영 명령 |
-| Exposure | exposure profile과 service category coverage | 서비스 host 공개 범위 |
+| Access / Host Boundary | Access Profile safety와 service role ↔ Compose `ports` 정합성 | 서비스 host 공개 범위 |
 | Compose Projection | canonical/target Compose와 generated runtime override | 실제 Compose topology |
 | Environment Example Contract | `.env.*.example`과 `env_contract.yaml` | 예시 환경변수 키 누락 |
 | Runtime Artifact | Source config에서 생성되는 runtime artifact. FastAPI가 만드는 OpenAPI와 checked-in spec 비교를 포함한다 | runtime 생성물 정합성, 구현과 API spec 정합성 |
@@ -136,9 +136,9 @@ Contract Validation
       ↓
 Shell Syntax
       ↓
-Exposure Profile
+Access / Host Boundary
       ↓
-Compose Override Drift
+Compose Projection
       ↓
 Environment Contract
       ↓
@@ -616,8 +616,8 @@ Source와 artifact 관계가 핵심이면 validator를 강화하고, application
 | Contract Validation | 변경된 config/schema/model registry와 참조 관계 |
 | OpenAPI Snapshot | route, method, security, request/response schema |
 | Environment Contract | env key, template, allowed mode |
-| Exposure Profile | service category와 host publish 정책 |
-| Compose Drift | source config와 generated override |
+| Access / Host Boundary | Access Profile, service category와 actual Compose host publish 정책 |
+| Compose Drift | source config와 effective target Compose |
 | Runtime Asset Drift | runtime artifact 생성 상태 |
 | Unit Test | 해당 decision function의 behavior |
 | Contract Test | 공개 계약 또는 module 간 invariant |

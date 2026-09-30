@@ -16,7 +16,7 @@ from scripts.lib.env_path import load_env_values, resolve_env_path  # noqa: E402
 from ai_model_serving.auth_control import (  # noqa: E402
     AUTH_MODE_EXPECTATIONS,
     AUTH_PROFILE_ENV_KEYS,
-    auth_profile_exposure_values,
+    auth_profile_network_values,
     auth_profile_env_values,
     auth_profile_summary,
 )
@@ -31,7 +31,7 @@ MANAGED_MODES = tuple(mode for mode in AUTH_MODE_EXPECTATIONS if mode != "custom
 
 def build_plan(current: dict[str, str], mode: str, *, app_env: str | None = None) -> dict[str, Any]:
     target = auth_profile_env_values(mode)
-    target.update(auth_profile_exposure_values(mode))
+    target.update(auth_profile_network_values(mode))
     if current.get("ACCESS_PROFILE", "").strip():
         target["ACCESS_PROFILE"] = ""
     if app_env:
@@ -41,7 +41,6 @@ def build_plan(current: dict[str, str], mode: str, *, app_env: str | None = None
         "APP_ENV",
         "ACCESS_PROFILE",
         *AUTH_PROFILE_ENV_KEYS,
-        "EXPOSURE_MODE",
         "EXPOSURE_AUDIENCE",
     ):
         if key not in target:
@@ -57,8 +56,8 @@ def build_plan(current: dict[str, str], mode: str, *, app_env: str | None = None
         )
     if mode == "local_open" and effective_env not in {"local", "test", "development"}:
         warnings.append(
-            "local_open은 API/admin/internal 인증을 끕니다. host 공개는 private_network의 "
-            "Gateway/Grafana에 한정되며 local_only loopback 경계에서만 사용하세요."
+            "local_open은 API/admin/internal 인증을 끕니다. host 공개 서비스는 canonical "
+            "private topology로 고정되며 local_only loopback 경계에서만 사용하세요."
         )
     if mode in {"private_network", "strict"} and target.get("API_KEY_REQUIRED") != "true":
         warnings.append("managed profile invariant가 깨졌습니다. public API는 Gateway key를 요구해야 합니다.")

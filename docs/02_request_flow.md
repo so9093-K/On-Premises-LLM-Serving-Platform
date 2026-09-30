@@ -505,9 +505,9 @@ Gateway 뒤의 서비스는 Compose DNS와 container port로 연결된다.
 | Risk Signal Service → Prompt vLLM | `http://prompt-injection-detector-runtime:9403/v1` | Prompt attack detector |
 | Gateway → Runtime Controller | `http://runtime-controller:8080` | Runtime / Main Model control |
 
-### `private_network`
+### Canonical host boundary
 
-`private_network` exposure profile에서는 Gateway와 Grafana만 host에 publish한다.
+지원 host boundary에서는 Gateway와 target이 제공하는 Grafana만 host에 publish한다.
 
 ```text
 Host
@@ -611,9 +611,9 @@ Runtime Controller는 Docker Engine을 제어하므로 플랫폼에서 권한이
 | Public API | `AUTH_MODE`, `API_KEY_REQUIRED`, `API_KEYS` |
 | Admin / Operations | `ADMIN_API_KEY_REQUIRED`, `ADMIN_API_KEY(S)`, `ADMIN_ENDPOINTS_INTERNAL_ONLY` |
 | Internal Service | `INTERNAL_SERVICE_AUTH_REQUIRED`, `INTERNAL_SERVICE_TOKEN` |
-| Exposure | `EXPOSURE_MODE`, `EXPOSURE_AUDIENCE` |
+| Network audience / bind | `EXPOSURE_AUDIENCE`, Access Profile bind policy |
 
-Repository baseline은 `AUTH_MODE=local_open`이며, 실제 배포에서는 적용된 `.env`와 exposure profile이 요청 접근 범위를 결정한다.
+Repository baseline은 `AUTH_MODE=local_open`이며, 실제 배포에서는 Access Profile의 auth/audience/bind 정책과 canonical host boundary가 요청 접근 범위를 결정한다.
 
 ### 요청 경계 정리
 

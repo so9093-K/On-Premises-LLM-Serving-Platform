@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from .configuration import load_yaml_mapping
+from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
 from .settings import AppSettings
 from .settings_parts.env import LOCAL_ENVIRONMENTS, default_env_path, env as _env
@@ -38,10 +39,7 @@ _SEMANTIC_FIELDS = (
     "scope",
 )
 
-_OPTIONAL_POLICY_FIELDS = (
-    "default_exposure_mode",
-    "default_exposure_audience",
-)
+_OPTIONAL_POLICY_FIELDS = ("default_exposure_audience",)
 
 def _load_auth_profiles(yaml_path: Path) -> dict[str, dict[str, Any]]:
     """`configs/auth_profiles.yaml`을 읽어 인증 프로필 매핑을 반환한다."""
@@ -105,44 +103,27 @@ def auth_profile_env_values(mode: str) -> dict[str, str]:
     }
 
 
-def auth_profile_exposure_values(mode: str) -> dict[str, str]:
-    """인증 프로필이 직접 소유하는 기본 exposure 값을 반환한다."""
+def auth_profile_network_values(mode: str) -> dict[str, str]:
+    """인증 프로필이 직접 소유하는 network-audience 기본값을 반환한다."""
     expected = AUTH_MODE_EXPECTATIONS.get(mode)
     if expected is None or mode == "custom":
         raise ValueError(f"{mode!r} is not a managed auth profile")
-    exposure_mode = expected.get("default_exposure_mode")
-    if not exposure_mode:
-        return {}
-    values = {"EXPOSURE_MODE": str(exposure_mode)}
     audience = expected.get("default_exposure_audience")
-    if audience:
-        values["EXPOSURE_AUDIENCE"] = str(audience)
-    return values
+    return {"EXPOSURE_AUDIENCE": str(audience)} if audience else {}
 
 
-def auth_profile_exposure_mismatch(
+def auth_profile_network_mismatch(
     mode: str,
-    exposure_mode: str,
     exposure_audience: str,
 ) -> str | None:
-    """Return the canonical profile/exposure mismatch message, if any.
-
-    `local_open` deliberately delegates access control to the trusted network,
-    so its paired exposure values are policy rather than UI defaults.  The
-    expected values come from ``auth_profiles.yaml``; bootstrap, preflight and
-    auth-doctor must not copy them independently.
-    """
+    """Return the canonical auth/network-audience mismatch message, if any."""
     if mode != "local_open":
         return None
-    expected = auth_profile_exposure_values(mode)
-    required_mode = expected.get("EXPOSURE_MODE", "")
+    expected = auth_profile_network_values(mode)
     required_audience = expected.get("EXPOSURE_AUDIENCE", "")
-    if exposure_mode == required_mode and exposure_audience == required_audience:
+    if exposure_audience == required_audience:
         return None
-    return (
-        f"AUTH_MODE={mode} requires EXPOSURE_MODE={required_mode} and "
-        f"EXPOSURE_AUDIENCE={required_audience}"
-    )
+    return f"AUTH_MODE={mode} requires EXPOSURE_AUDIENCE={required_audience}"
 
 
 def auth_profile_summary(mode: str) -> str:
@@ -164,26 +145,6 @@ class AuthFinding:
         return {"level": self.level, "code": self.code, "message": self.message}
 
 
-def _exposure_mode_from_env() -> str:
-    return _env("EXPOSURE_MODE", "private_network")
-
-
-def _exposure_profile(project_root: Path, exposure_mode: str | None = None) -> dict[str, Any]:
-    if exposure_mode is None:
-        exposure_mode = _exposure_mode_from_env()
-    data = load_yaml_mapping(project_root / "configs" / "exposure_profiles.yaml")
-    canonical_mode = exposure_mode
-    profiles = data.get("profiles", {})
-    return profiles.get(canonical_mode, profiles.get("private_network", {}))
-
-
-
-def _exposure_host_published_services(project_root: Path, exposure_mode: str | None = None) -> list[str]:
-    """지정한 exposure 프로필에서 host port를 공개하는 서비스 이름 목록을 반환한다."""
-    profile = _exposure_profile(project_root, exposure_mode)
-    return list(profile.get("host_published", []))
-
-
 def local_only_host_bind_mismatches(
     project_root: Path,
     *,
@@ -196,7 +157,7 @@ def local_only_host_bind_mismatches(
         return ["configs/services.yaml must define services"]
 
     mismatches: list[str] = []
-    for service_id in _exposure_host_published_services(project_root, "private_network"):
+    for service_id in sorted(host_published_service_ids(services)):
         service = services.get(service_id)
         if not isinstance(service, dict):
             mismatches.append(f"host-published service {service_id!r} is missing from services.yaml")
@@ -217,10 +178,16 @@ def local_only_host_bind_mismatches(
 
 def auth_status_document(settings: AppSettings, project_root: Path, env_path: Path | None = None) -> dict[str, Any]:
     env_path = env_path or default_env_path(project_root)
-    exposure_mode = _exposure_mode_from_env()
-    canonical_mode = exposure_mode
-    exposure_published = _exposure_host_published_services(project_root, canonical_mode)
-    profile = _exposure_profile(project_root, canonical_mode)
+    services = load_yaml_mapping(project_root / "configs" / "services.yaml").get("services")
+    if not isinstance(services, dict):
+        services = {}
+    published = sorted(
+        host_published_service_ids(
+            services,
+            include_visualization=settings.deployment_target.runs_monitoring_stack,
+        )
+    )
+    retired_mode = _env("EXPOSURE_MODE", "").strip() or None
 
     auth_owner = AUTH_MODE_EXPECTATIONS.get(settings.security.auth_mode, {}).get("auth_owner", "app")
     return {
@@ -234,10 +201,7 @@ def auth_status_document(settings: AppSettings, project_root: Path, env_path: Pa
         "app_env": settings.app_env,
         "mode_scope": AUTH_MODE_EXPECTATIONS.get(settings.security.auth_mode, {}).get("scope", "unknown"),
         "auth_owner": auth_owner,
-        "exposure_mode": exposure_mode,
-        "canonical_exposure_mode": canonical_mode,
-        # 문서 경로는 settings가 소유한다(FASTAPI_DOCS_URL / OPENAPI_URL로 바꿀 수 있다). 여기 경로를 손으로 적으면 운영자가 경로를
-        # 바꿨을 때 auth-status만 옛 주소를 계속 보고한다.
+        "retired_exposure_mode": retired_mode,
         "public_api": {
             "/v1/*": "api_key_required" if settings.security.api_key_required else "unauthenticated",
             **{
@@ -245,8 +209,6 @@ def auth_status_document(settings: AppSettings, project_root: Path, env_path: Pa
                 for path in (
                     settings.documentation.docs_url,
                     settings.documentation.openapi_url,
-                    # 문서 화면이 쓰는 self-host 번들과 favicon. 문서와 함께 열리고
-                    # 함께 닫힌다.
                     "/static/*",
                 )
             },
@@ -260,14 +222,10 @@ def auth_status_document(settings: AppSettings, project_root: Path, env_path: Pa
         "internal_services": {
             "gateway_to_risk_signal_service": "internal_token_required" if settings.security.internal_service_auth_required else "unauthenticated",
         },
-        "exposure": {
-            "exposure_mode": exposure_mode,
-            "canonical_mode": canonical_mode,
-            "host_published_services": exposure_published,
-            "diagnostics": profile.get("diagnostics", {}),
+        "host_exposure": {
+            "host_published_services": published,
         },
     }
-
 
 def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding]:
     findings: list[AuthFinding] = []
@@ -296,7 +254,6 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
 
     is_local_open_local_only = (
         mode == "local_open"
-        and _env("EXPOSURE_MODE", "") == "private_network"
         and _env("EXPOSURE_AUDIENCE", "") == "local_only"
     )
     local_only_bind_mismatches = (
@@ -346,11 +303,19 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
     if settings.security.admin_endpoints_internal_only and not settings.security.admin_api_key_required:
         findings.append(AuthFinding("WARN", "ADMIN_INTERNAL_ONLY_NOT_APP_ENFORCED", "ADMIN_ENDPOINTS_INTERNAL_ONLY=true는 배포/networking 선언이며 app-level CIDR enforcement는 아직 구현되지 않았습니다."))
 
-    # Exposure-aware 진단 — 자유 텍스트가 아니라 구조화된 진단 필드로 판단한다.
-    exposure_mode = _exposure_mode_from_env()
-    data = load_yaml_mapping(project_root / "configs" / "exposure_profiles.yaml")
-    canonical_mode = exposure_mode
+    # Access/network 진단 — host topology는 고정 invariant이며 audience/bind만 policy다.
     exposure_audience = _env("EXPOSURE_AUDIENCE", "").strip()
+    retired_mode = _env("EXPOSURE_MODE", "").strip()
+    if retired_mode:
+        level = "FAIL" if retired_mode != "private_network" else "WARN"
+        findings.append(
+            AuthFinding(
+                level,
+                "RETIRED_EXPOSURE_MODE_PRESENT",
+                f"EXPOSURE_MODE={retired_mode!r} is retired; "
+                "choose ACCESS=local|private|edge and remove the legacy key.",
+            )
+        )
 
     access_profile = _env("ACCESS_PROFILE", "").strip()
     if access_profile:
@@ -358,10 +323,7 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
 
         try:
             expected_access = access_profile_env_values(access_profile, project_root)
-            current_access = {
-                key: _env(key, "")
-                for key in expected_access
-            }
+            current_access = {key: _env(key, "") for key in expected_access}
             access_mismatches = access_profile_mismatches(
                 access_profile, current_access, project_root
             )
@@ -377,23 +339,15 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
                     )
                 )
     else:
-        exposure_mismatch = auth_profile_exposure_mismatch(mode, canonical_mode, exposure_audience)
-        if exposure_mismatch is not None:
+        network_mismatch = auth_profile_network_mismatch(mode, exposure_audience)
+        if network_mismatch is not None:
             findings.append(
                 AuthFinding(
                     "FAIL",
-                    "LOCAL_OPEN_EXPOSURE_POLICY_MISMATCH",
-                    exposure_mismatch + " so the supported access topology remains private.",
+                    "LOCAL_OPEN_NETWORK_POLICY_MISMATCH",
+                    network_mismatch + " so unauthenticated access remains loopback-only.",
                 )
             )
-
-    profiles = data.get("profiles", {})
-    if isinstance(profiles, dict) and canonical_mode not in profiles:
-        findings.append(AuthFinding(
-            "FAIL",
-            "EXPOSURE_MODE_UNKNOWN",
-            f"EXPOSURE_MODE={exposure_mode!r} is not supported. Allowed modes: {', '.join(profiles)}.",
-        ))
 
 
     if not findings:
@@ -422,17 +376,15 @@ def render_auth_status(settings: AppSettings, project_root: Path, env_path: Path
     lines.append(f"  app CIDR enforcement  {doc['admin_endpoints']['app_level_cidr_enforcement']}")
     lines.extend(["", "Internal service"])
     lines.append(f"  Gateway -> Risk Signal Service {doc['internal_services']['gateway_to_risk_signal_service']}")
-    lines.extend(["", "Exposure"])
-    exposure = doc["exposure"]
-    canonical = exposure["canonical_mode"]
-    lines.append(f"  EXPOSURE_MODE: {exposure['exposure_mode']}" + (f" → {canonical}" if canonical != exposure["exposure_mode"] else ""))
-    lines.append(f"  Host-published: {', '.join(exposure['host_published_services']) if exposure['host_published_services'] else 'none'}")
-    diag = exposure["diagnostics"]
-    if any(diag.values()):
-        lines.append("  Diagnostics:")
-        for k, v in diag.items():
-            if v:
-                lines.append(f"    {k}: {v}")
+    lines.extend(["", "Host exposure"])
+    exposure = doc["host_exposure"]
+    lines.append(
+        f"  Host-published: {', '.join(exposure['host_published_services']) if exposure['host_published_services'] else 'none'}"
+    )
+    if doc["retired_exposure_mode"]:
+        lines.append(
+            f"  Retired EXPOSURE_MODE marker: {doc['retired_exposure_mode']} (migration required)"
+        )
     env_info = doc["env_file"]
     if not env_info["exists"]:
         lines.extend([

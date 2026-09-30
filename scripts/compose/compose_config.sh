@@ -16,14 +16,5 @@ trap 'rm -f "$BOOT_OVERRIDE"' EXIT
   --env-file "$ENV_FILE_ABS" \
   --output "$BOOT_OVERRIDE" >/dev/null
 
-MODE="${EXPOSURE_MODE:-$(
-  "$PYTHON_BIN" scripts/env/env_get.py \
-    --env-file "$ENV_FILE_ABS" EXPOSURE_MODE --default private_network
-)}"
-if [[ "$MODE" != "private_network" ]]; then
-  echo "[compose-config] EXPOSURE_MODE=$MODE is no longer supported; migrate to ACCESS=local|private|edge." >&2
-  exit 2
-fi
-
 COMPOSE_ARGS=("${COMPOSE_CONTEXT_FILE_ARGS[@]}" -f "$BOOT_OVERRIDE")
 docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" config

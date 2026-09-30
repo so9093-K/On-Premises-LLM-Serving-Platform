@@ -7,6 +7,7 @@ from typing import Mapping
 
 from .configuration import load_yaml_mapping
 from .auth_control import auth_profile_env_values
+from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
 
 
@@ -23,7 +24,6 @@ class AccessProfile:
     name: str
     description: str
     auth_mode: str
-    exposure_mode: str
     exposure_audience: str
     host_bind_default: str
     host_bind_policy: str
@@ -54,7 +54,6 @@ def load_access_profile(name: str, root: Path = _PROJECT_ROOT) -> AccessProfile:
     required = (
         "description",
         "auth_mode",
-        "exposure_mode",
         "exposure_audience",
         "host_bind_default",
         "host_bind_policy",
@@ -76,7 +75,6 @@ def access_profile_env_values(
     profile = load_access_profile(name, root)
     values = {
         "ACCESS_PROFILE": profile.name,
-        "EXPOSURE_MODE": profile.exposure_mode,
         "EXPOSURE_AUDIENCE": profile.exposure_audience,
     }
     values.update(auth_profile_env_values(profile.auth_mode))
@@ -84,7 +82,8 @@ def access_profile_env_values(
     services = load_yaml_mapping(root / "configs" / "services.yaml").get("services")
     if not isinstance(services, dict):
         raise ValueError("configs/services.yaml must define services")
-    for service in services.values():
+    for service_id in sorted(host_published_service_ids(services)):
+        service = services.get(service_id)
         if not isinstance(service, dict):
             continue
         bind_key = service.get("host_env_bind")

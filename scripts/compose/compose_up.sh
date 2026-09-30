@@ -39,16 +39,6 @@ if [[ ! -f "$PROM_SECRET" || ! -s "$PROM_SECRET" ]]; then
   exit 2
 fi
 
-EXPOSURE_MODE_EFFECTIVE="${EXPOSURE_MODE:-$(_env_value EXPOSURE_MODE)}"
-EXPOSURE_MODE_EFFECTIVE="${EXPOSURE_MODE_EFFECTIVE:-private_network}"
-if [[ "$EXPOSURE_MODE_EFFECTIVE" != "private_network" ]]; then
-  echo "[compose-up] EXPOSURE_MODE=$EXPOSURE_MODE_EFFECTIVE is no longer supported." >&2
-  echo "[compose-up] Raw model/runtime operations endpoints stay on the Compose network." >&2
-  echo "[compose-up] Choose ACCESS=local|private|edge explicitly to migrate this environment." >&2
-  exit 2
-fi
-CANONICAL_MODE="private_network"
-
 echo "[compose-up] resolving persisted main-model boot profile"
 MAIN_MODEL_BOOT_PROFILE="$(
   "$PYTHON_BIN" scripts/models/render_main_model_boot_override.py \
@@ -60,7 +50,7 @@ MAIN_MODEL_BOOT_PROFILE="$(
 echo "[compose-up] main-model boot profile: $MAIN_MODEL_BOOT_PROFILE"
 
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
-  ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" EXPOSURE_MODE="$CANONICAL_MODE" \
+  ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" \
     bash scripts/compose/preflight_compose.sh --boot-override "$MAIN_MODEL_BOOT_OVERRIDE"
 else
   APP_ENV_EFFECTIVE="$(_env_value APP_ENV)"
@@ -133,7 +123,7 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
     --cache-dir "$HF_CACHE_HOST/hub" \
     --profile "$MAIN_MODEL_BOOT_PROFILE"
 
-echo "[compose-up] starting stack (EXPOSURE_MODE=$CANONICAL_MODE, main-profile=$MAIN_MODEL_BOOT_PROFILE, startup-profile=$RUNTIME_STARTUP_PROFILE_EFFECTIVE)"
+echo "[compose-up] starting stack (host-exposure=canonical-private, main-profile=$MAIN_MODEL_BOOT_PROFILE, startup-profile=$RUNTIME_STARTUP_PROFILE_EFFECTIVE)"
 # Compose는 bind-mounted 파일의 내용 변경만으로는 기존 컨테이너를 바꾸지 않는다.
 # 일반 source는 이미지 재빌드로 수렴하지만, 아래 목록은 각 프로세스가 호스트
 # 설정을 직접 읽으므로 이전 적용 fingerprint와 다르면 해당 서비스만 재생성한다.

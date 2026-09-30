@@ -14,7 +14,7 @@ from scripts.lib.env_path import resolve_env_path  # noqa: E402
 from ai_model_serving.auth_control import (  # noqa: E402
     AUTH_MODE_EXPECTATIONS,
     auth_profile_env_values,
-    auth_profile_exposure_values,
+    auth_profile_network_values,
 )
 from ai_model_serving.settings_parts.env import DEFAULT_ENV_FILENAME  # noqa: E402
 from scripts.auth.auth_plan import build_plan, render_plan  # noqa: E402
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"env 파일 오류: {exc}", file=sys.stderr)
         return 2
     target = auth_profile_env_values(args.mode)
-    target.update(auth_profile_exposure_values(args.mode))
+    target.update(auth_profile_network_values(args.mode))
     if values.get("ACCESS_PROFILE", "").strip():
         target["ACCESS_PROFILE"] = ""
     resolved_app_env = args.app_env or _APP_ENV_FOR_MODE.get(args.mode)

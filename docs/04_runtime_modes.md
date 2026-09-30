@@ -179,7 +179,7 @@ HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic ACCESS=local
 make status
 ```
 
-`make up`은 내부적으로 environment sync, 필요한 image/model cache 준비, exposure profile 적용,
+`make up`은 내부적으로 environment sync, 필요한 image/model cache 준비, Access Profile의 bind/auth projection,
 Main Model boot projection과 Compose preflight를 수행한다. managed dynamic target은 strict readiness와 representative smoke까지 확인하고 static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
 세부 Compose/readiness script는 maintainer 진단용 implementation이며 operator command가 아니다.
 
@@ -207,7 +207,7 @@ full-stack의 base Compose 정의는 `ops/compose/full-stack.private-network.yam
 | `loki` | `3100` | Log backend |
 | `alloy` | - | Docker log 수집 |
 
-위 표의 port는 **container 내부 port**다. Host에서 접근 가능한 port는 exposure mode에 따라 달라진다.
+위 표의 port는 **container 내부 port**다. Host에는 Gateway와 target이 제공하는 Grafana만 publish하며 실제 bind는 Access Profile이 결정한다.
 
 application과 model runtime은 서로 다른 image 계층으로 실행된다.
 
@@ -438,17 +438,19 @@ control 대상에서 제외된다. 현재 `rtx4090-24gb`에서는 Prompt Injecti
 | `main_only` (기본) | Main Model 중심, non-main Model Runtime deferred |
 | `retrieval_ready` | Main + embedding 계열 준비, Prompt Injection Detector deferred |
 
-Runtime Startup Profile과 Exposure Profile의 역할은 다르다.
+Runtime Startup Profile은 어떤 non-main runtime을 처음 active/deferred로 둘지만 결정한다.
+Host publication은 별도 선택 profile이 아니라 고정 boundary다.
 
 ```text
 Runtime Startup Profile
   └─ 어떤 runtime을 실행할 것인가
 
-Exposure Profile
-  └─ 실행된 service를 어디까지 노출할 것인가
+Host boundary
+  ├─ Gateway
+  └─ target이 monitoring stack을 제공하면 Grafana
 ```
 
-예를 들어 `main_only`와 `private_network`를 함께 사용할 수 있다.
+모델 runtime, Risk Signal Service, Prometheus/exporter/log backend는 Compose 내부망에 유지된다.
 
 ---
 
@@ -495,7 +497,7 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 | ----------------------- | --------------------------------------------- | ----------------------------------- |
 | Base Compose topology   | `ops/compose/full-stack.private-network.yaml` | 전체 서비스의 기본 컨테이너 구성과 연결 관계 정의        |
 | Service / port registry | `configs/services.yaml`                       | 서비스 이름, 포트, bind 정보 등 서비스 메타데이터 정의  |
-| Exposure profile        | `configs/exposure_profiles.yaml`              | 서비스별 host port 공개 범위 정의             |
+| Host exposure boundary  | `configs/services.yaml` + target Compose `ports` | host-published service role과 실제 port projection |
 | Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack compose-up 시 초기 deferred runtime 조합 정의 |
 | Effective Runtime topology | `configs/runtime_topology.yaml`             | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
 | Model runtime           | `configs/model_serving.yaml`                  | 모델 runtime 연결, 제한값 및 serving 정책 정의  |

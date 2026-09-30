@@ -16,7 +16,7 @@ def test_setup_env_generates_safe_local_access_profile(tmp_path):
     assert 'APP_ENV=local' in text
     assert 'ACCESS_PROFILE=local' in text
     assert 'AUTH_MODE=local_open' in text
-    assert 'EXPOSURE_MODE=private_network' in text
+    assert 'EXPOSURE_MODE=' not in text
     assert 'EXPOSURE_AUDIENCE=local_only' in text
     assert 'GATEWAY_BIND_ADDR=127.0.0.1' in text
     assert 'API_KEY_REQUIRED=false' in text
@@ -34,20 +34,23 @@ def test_setup_env_refuses_overwrite_without_force(tmp_path):
     assert out.read_text(encoding='utf-8') == 'EXISTING=1\n'
 
 
-def test_setup_env_rejects_retired_master_open_with_local_open(tmp_path, capsys):
+def test_setup_env_rejects_retired_master_open_without_access_migration(tmp_path, capsys):
     out = tmp_path / '.env'
-    rc = setup_env.main(
-        [
-            '--profile',
-            'compose',
-            '--output',
-            str(out),
-            '--exposure-mode',
-            'master_open',
-        ]
+    out.write_text(
+        'BUILD_PROFILE=compose\n'
+        'AUTH_MODE=local_open\n'
+        'EXPOSURE_MODE=master_open\n'
+        'EXPOSURE_AUDIENCE=private_lan\n',
+        encoding='utf-8',
     )
+
+    rc = setup_env.main(['--sync-env', '--env-file', str(out)])
+
     assert rc == 2
-    assert "EXPOSURE_MODE='master_open' is no longer supported" in capsys.readouterr().err
+    assert (
+        "retired EXPOSURE_MODE='master_open' requires explicit Access migration"
+        in capsys.readouterr().err
+    )
 
 
 def test_setup_env_force_rejects_duplicate_existing_env(tmp_path, capsys):
@@ -62,7 +65,7 @@ def test_setup_env_force_rejects_duplicate_existing_env(tmp_path, capsys):
 
 def test_setup_env_sync_rejects_quoted_existing_env(tmp_path, capsys):
     out = tmp_path / '.env'
-    out.write_text('BUILD_PROFILE=compose\nEXPOSURE_MODE="private_network"\n', encoding='utf-8')
+    out.write_text('BUILD_PROFILE=compose\nEXPOSURE_AUDIENCE="local_only"\n', encoding='utf-8')
 
     rc = setup_env.main(['--sync-env', '--env-file', str(out)])
 
@@ -139,7 +142,10 @@ def test_sync_env_removes_only_registered_keys_and_keeps_server_only_settings(tm
         'MAIN_MODEL_STATE_PATH=/app/.runtime/main-model/main-model-state.json\n'
         'SECRETS_GENERATED_AT=2026-05-11T07:33:08Z\n'
         'HF_TOKEN=hf_existing\n'
-        + ''.join(f'{key}=placeholder\n' for key in setup_env.REMOVED_ENV_KEYS),
+        + ''.join(
+            f"{key}={'private_network' if key == 'EXPOSURE_MODE' else 'placeholder'}\n"
+            for key in setup_env.REMOVED_ENV_KEYS
+        ),
         encoding='utf-8',
     )
 
@@ -233,7 +239,7 @@ def test_confirmed_access_migration_updates_policy_as_one_set_and_keeps_secret(t
     values = setup_env.read_env_values(out)
     assert values['ACCESS_PROFILE'] == 'private'
     assert values['AUTH_MODE'] == 'private_network'
-    assert values['EXPOSURE_MODE'] == 'private_network'
+    assert 'EXPOSURE_MODE' not in values
     assert values['GATEWAY_BIND_ADDR'] == '192.168.10.20'
     assert values['INTERNAL_SERVICE_AUTH_REQUIRED'] == 'true'
     assert values['API_KEYS'] == 'keep-me'

@@ -98,14 +98,15 @@ def test_nonlocal_managed_profiles_report_auth_but_do_not_invent_grafana_url(
 
 def test_missing_access_profile_is_explicit_legacy_custom(monkeypatch) -> None:
     monkeypatch.delenv("ACCESS_PROFILE", raising=False)
-    monkeypatch.delenv("EXPOSURE_MODE", raising=False)
     body = TestClient(create_gateway_app(settings(), FakeGatewayClients())).get(
         "/admin/control-plane/bootstrap"
     ).json()
 
     assert body["access"]["profile"] == "legacy/custom"
     assert body["monitoring"]["available"] is True
-    assert body["monitoring"]["grafana_available"] is False
+    assert body["monitoring"]["grafana_available"] is True
+    # Monitoring topology는 존재하지만 managed Access Profile이 없으므로 browser-safe
+    # direct host URL은 추측하지 않는다.
     assert body["links"]["grafana"] is None
 
 
@@ -137,7 +138,7 @@ def test_static_target_keeps_bootstrap_but_disables_runtime_and_monitoring_capab
     assert "/admin/runtimes" not in paths
 
 
-def test_macos_static_bootstrap_uses_target_monitoring_and_compose_exposure(monkeypatch) -> None:
+def test_macos_static_bootstrap_uses_target_monitoring_and_host_boundary(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
     monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")

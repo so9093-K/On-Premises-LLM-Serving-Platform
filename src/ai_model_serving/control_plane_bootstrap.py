@@ -7,7 +7,7 @@ from typing import Any
 from .access_profile import AccessProfile, load_access_profile
 from .configuration import load_yaml_mapping
 from .configuration_schema import CONFIGURATION_SCHEMA_VERSION
-from .deployment_target import effective_published_compose_services
+from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
 from .settings_parts.env import env as _env
 from .settings_parts.types import AppSettings
@@ -59,30 +59,21 @@ def _current_access_profile(root: Path) -> AccessProfile | None:
     try:
         return load_access_profile(name, root)
     except ValueError:
-        # Do not reverse-match low-level auth/exposure flags into a friendly profile.
+        # Do not reverse-match low-level auth/network flags into a friendly profile.
         # Unknown or absent profile selection remains explicit legacy/custom posture.
         return None
 
 
-def _published_services(settings: AppSettings, root: Path, profile: AccessProfile | None) -> set[str]:
-    target = settings.deployment_target
-    static_services = effective_published_compose_services(target, root)
-    if static_services is not None:
-        return static_services
-
-    # Dynamic targets consume exposure_profiles.yaml at deployment time. Managed
-    # Access Profile is the supported composition SoT. Advanced/custom deployments
-    # may name EXPOSURE_MODE directly; unknown modes fail closed to no public link.
-    exposure_mode = profile.exposure_mode if profile is not None else _env("EXPOSURE_MODE", "").strip()
-    document = load_yaml_mapping(root / "configs" / "exposure_profiles.yaml")
-    profiles = document.get("profiles")
-    raw = profiles.get(exposure_mode) if isinstance(profiles, dict) else None
-    if not isinstance(raw, dict):
+def _published_services(settings: AppSettings, root: Path) -> set[str]:
+    services = load_yaml_mapping(root / "configs" / "services.yaml").get("services")
+    if not isinstance(services, dict):
         return set()
-    published = raw.get("host_published")
-    if not isinstance(published, list):
-        return set()
-    return {str(item) for item in published}
+    return set(
+        host_published_service_ids(
+            services,
+            include_visualization=settings.deployment_target.runs_monitoring_stack,
+        )
+    )
 
 
 def _service_host_port(root: Path, service_id: str) -> int | None:
@@ -109,7 +100,7 @@ def _grafana_projection(
 ) -> tuple[bool, int | None]:
     if not settings.deployment_target.runs_monitoring_stack:
         return False, None
-    if "grafana" not in _published_services(settings, root, profile):
+    if "grafana" not in _published_services(settings, root):
         return False, None
 
     # Monitoring may exist without a browser-safe direct URL. private/edge profiles

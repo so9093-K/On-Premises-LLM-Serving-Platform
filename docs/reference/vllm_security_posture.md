@@ -26,7 +26,7 @@ Gateway request validation
 Model Runtime
 ```
 
-`private_network` exposure mode는 Gateway와 Grafana만 host에 publish하고 vLLM runtime은
+Canonical host boundary는 Gateway와 target의 Grafana만 host에 publish하고 vLLM runtime은
 Compose network 안에 둔다. 이 경우 아래의 **Gateway 차단**은 실제 외부 request boundary다.
 
 vLLM runtime port는 지원되는 host surface에 publish하지 않는다. 따라서 외부 client의
@@ -59,8 +59,8 @@ runtime이 침해된 경우에는 Gateway mitigation을 적용받지 않는다�
 - raw model runtime은 host에 publish하지 않으며, 내부 direct access는 Gateway mitigation 바깥의 Compose-internal boundary다.
 
 `tests/unit/test_vllm_security_exposure.py`는 이 중 request-contract로 직접 고정할 수 있는
-negative token ID, `cache_salt`, remote media URL 경계를 보호한다. Exposure topology의
-host-publish 집합은 `configs/exposure_profiles.yaml`이 계속 authority다.
+negative token ID, `cache_salt`, remote media URL 경계를 보호한다. Host-publish 집합은
+`configs/services.yaml` service role과 target Compose `ports`의 정합성 검증이 authority다.
 
 ## Engine upgrade 판단
 

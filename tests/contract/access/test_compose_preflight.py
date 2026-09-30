@@ -1,4 +1,4 @@
-"""compose 기동 전 preflight 게이트가 위험한 auth/exposure 조합을 막는지 검증한다.
+"""compose 기동 전 preflight 게이트가 위험한 auth/network 조합을 막는지 검증한다.
 
 preflight_compose.py는 `make up`이 실제 컨테이너를 띄우기 전에 통과해야
 하는 fail-closed 게이트다. 여기서 통과시키면 인증 없이 노출된 스택이 그대로 뜬다.
@@ -63,7 +63,6 @@ def test_compose_preflight_rejects_local_open_without_local_only_policy(monkeypa
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "local_open")
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "")
 
     with pytest.raises(SystemExit) as exc:
@@ -72,12 +71,11 @@ def test_compose_preflight_rejects_local_open_without_local_only_policy(monkeypa
     assert "auth profile evidence" in str(exc.value)
 
 
-def test_compose_preflight_allows_local_open_private_local_only_policy(monkeypatch) -> None:
+def test_compose_preflight_allows_local_open_local_only_policy(monkeypatch) -> None:
     module = load_preflight()
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "local_open")
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
     monkeypatch.setenv("GATEWAY_BIND_ADDR", "127.0.0.1")
     monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
@@ -90,7 +88,6 @@ def test_compose_preflight_rejects_local_only_with_non_loopback_public_bind(monk
 
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("AUTH_MODE", "local_open")
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
     monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
     monkeypatch.setenv("GRAFANA_BIND_ADDR", "127.0.0.1")
@@ -111,7 +108,7 @@ def test_compose_preflight_rejects_access_profile_drift(monkeypatch) -> None:
     with pytest.raises(SystemExit) as exc:
         module._check_auth_profile_preflight()
 
-    assert "auth/exposure policy" in str(exc.value)
+    assert "auth/network policy" in str(exc.value)
 
 
 def test_compose_preflight_reads_auth_mode_from_env_file(monkeypatch, tmp_path) -> None:
@@ -127,7 +124,7 @@ def test_compose_preflight_reads_auth_mode_from_env_file(monkeypatch, tmp_path) 
         module._phase1()
 
 
-def test_compose_preflight_reads_exposure_from_env_file(monkeypatch, tmp_path) -> None:
+def test_compose_preflight_reads_retired_exposure_mode_marker_from_env_file(monkeypatch, tmp_path) -> None:
     module = load_preflight()
 
     env_file = tmp_path / ".env"
@@ -140,4 +137,4 @@ def test_compose_preflight_reads_exposure_from_env_file(monkeypatch, tmp_path) -
     monkeypatch.setenv("ENV_FILE", str(env_file))
 
     with pytest.raises(SystemExit):
-        module._phase1()
+        module._phase0()

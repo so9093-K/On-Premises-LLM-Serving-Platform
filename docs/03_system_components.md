@@ -64,7 +64,7 @@ Client / Application
 | **Loki** | `3100` | Log 저장·조회 |
 | **Alloy** | host publish 없음 | Container log 수집·전달 |
 
-> 위 port는 container 내부 서비스 기준이다. host publish 여부와 실제 노출 범위는 exposure mode에 따라 달라지며 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 다룬다.
+> 위 port는 container 내부 서비스 기준이다. 지원 host surface는 Gateway와 target이 제공하는 Grafana로 제한하며, 실제 bind는 Access Profile과 target Compose가 결정한다. 상세 구조는 [4. 실행 환경과 모드](./04_runtime_modes.md)에서 다룬다.
 
 ---
 
@@ -926,7 +926,7 @@ vLLM runtime과 Risk Signal Service도 standard private topology에서는 Gatewa
 | Model runtime | `configs/model_serving.yaml` |
 | Main model profile | `configs/main_model_profiles.yaml` |
 | GPU budget | `configs/gpu_budgets.yaml` |
-| Exposure | `configs/exposure_profiles.yaml` |
+| Host exposure boundary | `configs/services.yaml` + target Compose `ports` |
 | Authentication | `configs/auth_profiles.yaml` |
 | Deployment runtime profile | `configs/deploy_profiles.yaml` |
 | Monitoring | `configs/monitoring.yaml` |
