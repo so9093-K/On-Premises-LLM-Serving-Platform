@@ -47,7 +47,7 @@ def test_setup_env_rejects_retired_master_open_with_local_open(tmp_path, capsys)
         ]
     )
     assert rc == 2
-    assert "AUTH_MODE=local_open requires EXPOSURE_MODE=private_network" in capsys.readouterr().err
+    assert "EXPOSURE_MODE='master_open' is no longer supported" in capsys.readouterr().err
 
 
 def test_setup_env_force_rejects_duplicate_existing_env(tmp_path, capsys):

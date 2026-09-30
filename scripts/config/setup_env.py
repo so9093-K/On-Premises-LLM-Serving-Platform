@@ -23,7 +23,6 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.lib.cli_kr import KoreanArgumentParser  # noqa: E402
-from scripts.compose.resolve_exposure_mode import load_exposure_data, resolve as resolve_exposure  # noqa: E402
 from ai_model_serving.auth_control import (
     AUTH_PROFILE_ENV_KEYS,
     auth_profile_env_values,
@@ -205,12 +204,9 @@ GENERATED_SECRET_KEYS = {
 # 자격 증명이기 때문입니다. 서비스 간 토큰(위 목록)은 bootstrap마다 재발급되지만,
 # Grafana admin 비밀번호는 운영자의 세션 도중 조용히 바뀌면 안 됩니다.
 #
-# EXPOSURE_AUDIENCE는 항상 EXPOSURE_MODE와 함께 갱신되어야 합니다(아래
-# ALWAYS_REFRESH_KEYS에서): generated_values()가 둘을 쌍으로 검증하지만
-# (예: local_open은 master_open + private_lan을 요구), 이 검증은 새로 생성된
-# dict에만 적용됩니다. EXPOSURE_MODE는 갱신되는데 EXPOSURE_AUDIENCE가 기존 .env
-# 값으로 보존된다면, main()의 `base_values | generated | preserved_values` 병합이
-# 한 번도 함께 검증된 적 없는 쌍을 조용히 기록하게 됩니다.
+# EXPOSURE_AUDIENCE는 Access Profile의 network intent compatibility projection이다.
+# EXPOSURE_MODE는 private_network 하나로 고정되지만, 두 값은 access migration에서
+# 같은 원자적 변경 집합으로 갱신한다.
 ALWAYS_REFRESH_KEYS = {
     "APP_ENV",
     "BUILD_PROFILE",
@@ -437,9 +433,13 @@ def effective_profile_template(profile: str) -> tuple[list[str], dict[str, str]]
 
 
 def _validated_exposure_mode(exposure_mode: str) -> str:
-    """Validate the exposure mode against the canonical exposure source."""
-    exposure_data = load_exposure_data(ROOT)
-    return resolve_exposure(exposure_mode, exposure_data)
+    """지원되는 host exposure topology는 private_network 하나뿐이다."""
+    if exposure_mode != "private_network":
+        raise ValueError(
+            f"EXPOSURE_MODE={exposure_mode!r} is no longer supported; "
+            "choose ACCESS=local|private|edge to migrate the environment"
+        )
+    return exposure_mode
 
 
 def generated_values(
@@ -585,8 +585,8 @@ def build_parser() -> KoreanArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="--sync-env 미리보기. 실제 변경 없음.")
     parser.add_argument("--env-file", help="--sync-env 대상 .env 파일 절대경로. 기본값은 프로젝트 루트 .env.")
     parser.add_argument("--auth-mode", help="AUTH_MODE를 명시적으로 설정합니다. 기본값은 local_open입니다. (local_open|private_network|strict)")
-    parser.add_argument("--exposure-mode", help="EXPOSURE_MODE를 명시적으로 설정합니다. local_open 기본값은 master_open입니다. 지원값: private_network|master_open")
-    parser.add_argument("--exposure-audience", help="EXPOSURE_AUDIENCE를 명시적으로 설정합니다. local_open 기본값은 private_lan입니다.")
+    parser.add_argument("--exposure-mode", help="Advanced compatibility flag입니다. 지원값은 private_network 하나뿐입니다.")
+    parser.add_argument("--exposure-audience", help="Access Profile이 투영하는 network intent compatibility 값입니다.")
     parser.add_argument(
         "--access-profile",
         choices=ACCESS_PROFILE_CHOICES,
