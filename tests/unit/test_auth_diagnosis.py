@@ -11,10 +11,9 @@ from tests.unit.gateway.helpers import settings
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_private_local_only_diagnosis_does_not_crash(
+def test_local_only_diagnosis_rejects_non_loopback_bind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
     monkeypatch.setenv("EXPOSURE_AUDIENCE", "local_only")
     monkeypatch.setenv("GATEWAY_BIND_ADDR", "0.0.0.0")
 
