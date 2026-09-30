@@ -560,7 +560,17 @@ def apply_access_profile(
         return False
     current.update(access_profile_env_values(profile_name, ROOT, current=current))
     current.pop("EXPOSURE_MODE", None)
-    write_env(lines, current, env_path)
+    filtered_lines = [
+        line
+        for line in lines
+        if not (
+            line.strip()
+            and not line.strip().startswith("#")
+            and "=" in line.strip()
+            and line.strip().split("=", 1)[0] == "EXPOSURE_MODE"
+        )
+    ]
+    write_env(filtered_lines, current, env_path)
     print(f"접근 profile 적용 완료: {env_path}")
     return True
 
