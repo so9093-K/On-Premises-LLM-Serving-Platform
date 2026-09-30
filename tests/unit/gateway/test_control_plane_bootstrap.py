@@ -129,7 +129,7 @@ def test_static_target_keeps_bootstrap_but_disables_runtime_and_monitoring_capab
     assert body["deployment"]["target"] == "linux-nvidia-static"
     assert body["deployment"]["implementation_status"] == "implemented"
     assert body["deployment"]["qualification_status"] == "unverified"
-    assert body["deployment"]["features"] == ["chat"]
+    assert body["deployment"]["features"] == ["chat", "risk"]
     assert body["monitoring"] == {"available": False, "grafana_available": False}
     assert body["links"]["grafana"] is None
     paths = set(create_gateway_app(cfg, clients).openapi()["paths"])
@@ -158,7 +158,7 @@ def test_macos_static_bootstrap_uses_target_monitoring_and_compose_exposure(monk
     assert body["deployment"]["runtime_backend"] == "mlx-vlm"
     assert body["deployment"]["implementation_status"] == "implemented"
     assert body["deployment"]["qualification_status"] == "verified"
-    assert body["deployment"]["features"] == ["chat"]
+    assert body["deployment"]["features"] == ["chat", "risk"]
     assert body["monitoring"] == {"available": True, "grafana_available": True}
     assert body["links"]["grafana"] == "http://testserver:9611/"
 
