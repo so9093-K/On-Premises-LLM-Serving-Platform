@@ -23,7 +23,6 @@ class AccessProfile:
     name: str
     description: str
     auth_mode: str
-    exposure_mode: str
     exposure_audience: str
     host_bind_default: str
     host_bind_policy: str
@@ -54,7 +53,6 @@ def load_access_profile(name: str, root: Path = _PROJECT_ROOT) -> AccessProfile:
     required = (
         "description",
         "auth_mode",
-        "exposure_mode",
         "exposure_audience",
         "host_bind_default",
         "host_bind_policy",
@@ -76,7 +74,6 @@ def access_profile_env_values(
     profile = load_access_profile(name, root)
     values = {
         "ACCESS_PROFILE": profile.name,
-        "EXPOSURE_MODE": profile.exposure_mode,
         "EXPOSURE_AUDIENCE": profile.exposure_audience,
     }
     values.update(auth_profile_env_values(profile.auth_mode))
