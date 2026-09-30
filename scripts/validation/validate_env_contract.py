@@ -175,7 +175,7 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
     targets_path = root / "configs" / "deployment_targets.yaml"
     targets_document = load_yaml(targets_path) if targets_path.exists() else {}
     targets = targets_document.get("targets") if isinstance(targets_document.get("targets"), dict) else {}
-    projected_targets: set[str] = set()
+    projected_consumers: set[tuple[str, str]] = set()
     for name, raw in projections.items():
         label = f"service_env_projections.{name}"
         if not isinstance(raw, dict):
@@ -186,6 +186,12 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
             label=f"{label}.deployment_targets",
             violations=violations,
         )
+        service = raw.get("service")
+        if not isinstance(service, str) or not service.strip():
+            violations.append(f"env_contract.yaml: {label}.service must be a non-empty string")
+            service = ""
+        else:
+            service = service.strip()
         if not projection_targets:
             continue
         known_projection_targets: list[tuple[str, dict[str, Any]]] = []
@@ -196,9 +202,13 @@ def validate_service_env_projections(root: Path, contract: dict[str, Any]) -> li
                     f"env_contract.yaml: {label}.deployment_targets contains unknown target: {target!r}"
                 )
                 continue
-            if target in projected_targets:
-                violations.append(f"env_contract.yaml: duplicate service env projection for target {target!r}")
-            projected_targets.add(target)
+            consumer = (target, service)
+            if consumer in projected_consumers:
+                violations.append(
+                    "env_contract.yaml: duplicate service env projection for "
+                    f"target {target!r} and service {service!r}"
+                )
+            projected_consumers.add(consumer)
             known_projection_targets.append((target, target_cfg))
         required = _string_list(raw.get("required_source_keys"), label=f"{label}.required_source_keys", violations=violations)
         runtime = _string_list(raw.get("runtime_keys"), label=f"{label}.runtime_keys", violations=violations)
