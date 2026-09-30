@@ -44,3 +44,51 @@ def test_service_projection_rejects_removed_persistent_key(tmp_path):
         "runtime_keys contains removed persistent key(s): MAX_REQUEST_BODY_BYTES" in violation
         for violation in violations
     )
+
+
+def test_service_projection_requires_every_static_runtime_env_consumer(tmp_path):
+    configs = tmp_path / "configs"
+    compose = tmp_path / "ops" / "compose"
+    configs.mkdir()
+    compose.mkdir(parents=True)
+    (configs / "deployment_targets.yaml").write_text(
+        "targets:\n"
+        "  static-target:\n"
+        "    internal_service_token_required: true\n"
+        "    compose_files:\n"
+        "      - ops/compose/static.yaml\n",
+        encoding="utf-8",
+    )
+    (configs / "services.yaml").write_text(
+        "services:\n"
+        "  gateway:\n"
+        "    compose_service: gateway\n"
+        "  risk_signal_service:\n"
+        "    compose_service: risk-signal-service\n",
+        encoding="utf-8",
+    )
+    (compose / "static.yaml").write_text(
+        "services:\n"
+        "  gateway:\n"
+        "    env_file: ${GATEWAY_RUNTIME_ENV_FILE}\n"
+        "  risk-signal-service:\n"
+        "    env_file: ${RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE}\n",
+        encoding="utf-8",
+    )
+    contract = {
+        "service_env_projections": {
+            "static_gateway": {
+                "service": "gateway",
+                "deployment_targets": ["static-target"],
+                "required_source_keys": ["DEPLOYMENT_TARGET"],
+                "runtime_keys": ["DEPLOYMENT_TARGET"],
+            }
+        }
+    }
+
+    violations = validate_service_env_projections(tmp_path, contract)
+
+    assert (
+        "env_contract.yaml: missing service env projection for "
+        "target 'static-target' and service 'risk_signal_service'"
+    ) in violations

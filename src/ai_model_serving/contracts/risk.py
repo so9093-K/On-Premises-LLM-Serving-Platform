@@ -129,7 +129,7 @@ def _validate_risk_system_signal(signal: Any, *, index: int) -> bool:
 
 
 def validate_risk_response(payload: Any) -> dict[str, Any]:
-    """내부 Risk Adapter 응답을 Gateway에 노출하기 전에 계약에 맞는지 검증한다.
+    """내부 Risk Signal Service 응답을 Gateway에 노출하기 전에 계약에 맞는지 검증한다.
 
     It prevents an internal service or future code path from leaking final
     policy-decision fields through the public Gateway. 손으로 쓴 검사인 이유는

@@ -542,7 +542,7 @@ make validate
 | Contract validation | registry, schema, 설정 간 invariant |
 | Shell syntax | 운영 shell script 구문 |
 | Exposure profile validation | exposure profile 구조와 service reference |
-| Compose override drift | generated exposure override 일치 여부 |
+| Compose topology drift | canonical/target Compose의 host publication과 runtime projection 일치 여부 |
 | Env contract validation | `.env.*.example`과 env contract 일치 여부 |
 | Generated artifacts | 생성 파일 drift와 OpenAPI projection 의미 보존 |
 | Auth profile sanity | auth profile과 생성값 일관성 |

@@ -32,7 +32,7 @@ class RuntimeTopology:
 
     @property
     def service_by_key(self) -> dict[str, str]:
-        """Sidecar가 제어할 수 있는 runtime의 Compose projection."""
+        """Runtime Controller가 제어할 수 있는 runtime의 Compose projection."""
         return {
             key: binding.compose_service
             for key, binding in self.bindings_by_key.items()

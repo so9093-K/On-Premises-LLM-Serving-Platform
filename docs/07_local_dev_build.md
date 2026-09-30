@@ -277,13 +277,13 @@ make up
 6. 선택된 Main Model의 Hugging Face cache 준비
 7. 서비스 기동
 
-Preflight와 기동은 같은 `base → exposure override → boot override` 순서를 사용한다. `scripts/compose/compose_up.sh`에서 생성한 boot 파일을 `--boot-override`로 전달하므로 preflight 중 persisted state를 다시 읽어 다른 프로필을 고르지 않는다. Preflight를 단독 실행하면 기존 boot resolver로 임시 override를 만들고 종료 시 삭제한다.
+Preflight와 기동은 같은 `base Compose → Main boot override` 순서를 사용한다. `scripts/compose/compose_up.sh`에서 생성한 boot 파일을 `--boot-override`로 전달하므로 preflight 중 persisted state를 다시 읽어 다른 프로필을 고르지 않는다. Preflight를 단독 실행하면 기존 boot resolver로 임시 override를 만들고 종료 시 삭제한다.
 
 정상 preflight 뒤에는 같은 `docker compose config` 검사를 반복하지 않는다. 기존 정책에 따라 명시적으로 preflight를 생략한 경우에만 별도 config 검사를 실행한다.
 
-메인의 effective image·command는 이 boot projection과 비교하며, GPU 예산 합계에도 실제 command의 host override를 반영한다. 보조 모델 command와 Sidecar admission은 계속 `model_serving.yaml`의 같은 고정 예산을 기준으로 검사한다. 보조 모델에 별도 host override 계약은 두지 않는다.
+메인의 effective image·command는 이 boot projection과 비교하며, GPU 예산 합계에도 실제 command의 host override를 반영한다. 보조 모델 command와 Runtime Controller admission은 계속 `model_serving.yaml`의 같은 고정 예산을 기준으로 검사한다. 보조 모델에 별도 host override 계약은 두지 않는다.
 
-실제 host port 공개 범위는 `EXPOSURE_MODE`에 따라 결정된다. 자세한 내용은 [4.3 네트워크와 서비스 노출](./04_runtime_modes.md#43-네트워크와-서비스-노출)을 참고한다.
+Host-published 서비스 집합은 canonical Compose topology가 소유하고, 실제 bind 주소는 Access Profile이 투영한다. 자세한 내용은 [4.3 네트워크와 서비스 노출](./04_runtime_modes.md#43-네트워크와-서비스-노출)을 참고한다.
 
 ### 준비 상태 확인
 

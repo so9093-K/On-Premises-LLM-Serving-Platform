@@ -7,7 +7,7 @@ from types import TracebackType
 class MainModelInFlight:
     """현재 process가 수락한 main-model 요청 수를 추적한다.
 
-    The sidecar closes the persisted request gate before polling this count.
+    The Main Model Control path closes the persisted request gate before polling this count.
     With the supported single-worker Gateway deployment, reaching zero means
     all requests accepted before the gate closed have completed or disconnected.
     """

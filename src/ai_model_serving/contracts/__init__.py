@@ -1,4 +1,4 @@
-"""Runtime contract validators for Gateway and Risk Adapter payloads."""
+"""Runtime contract validators for Gateway and Risk Signal Service payloads."""
 
 from .chat import ChatResponseExpectations, validate_chat_request, validate_chat_response
 from .common import ensure_request_object

@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import sys
 from pathlib import Path
@@ -205,14 +206,32 @@ def main() -> int:
         return 0
 
     # check 또는 dry-run 모드
-    drifts: list[str] = []
+    drifts: list[tuple[Path, str]] = []
     for path, expected in artifacts:
         if not compare_artifact(path, expected):
-            drifts.append(str(path.relative_to(root)))
+            drifts.append((path, expected))
     if drifts:
         print("Generated artifact drift detected:", file=sys.stderr)
-        for d in drifts:
-            print(f"  {d}", file=sys.stderr)
+        for path, expected in drifts:
+            relative = str(path.relative_to(root))
+            print(f"  {relative}", file=sys.stderr)
+            actual = path.read_text(encoding="utf-8") if path.exists() else ""
+            diff = list(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=relative,
+                    tofile=f"{relative} (generated)",
+                    lineterm="",
+                )
+            )
+            for line in diff[:160]:
+                print(f"    {line}", file=sys.stderr)
+            if len(diff) > 160:
+                print(
+                    f"    ... diff truncated ({len(diff) - 160} more lines)",
+                    file=sys.stderr,
+                )
         print("Run: make render-runtime-assets  to update.", file=sys.stderr)
         if args.check:
             return 1

@@ -29,7 +29,7 @@ def test_strict_dotenv_rejects_duplicate_keys(tmp_path):
 
 def test_strict_dotenv_rejects_quoted_control_values(tmp_path):
     env_file = tmp_path / ".env"
-    env_file.write_text('EXPOSURE_MODE="master_open"\n', encoding="utf-8")
+    env_file.write_text('EXPOSURE_MODE="private_network"\n', encoding="utf-8")
 
     result = parse_env_file(env_file)
 
@@ -38,7 +38,7 @@ def test_strict_dotenv_rejects_quoted_control_values(tmp_path):
 
 def test_strict_dotenv_rejects_colon_and_spaces(tmp_path):
     env_file = tmp_path / ".env"
-    env_file.write_text("EXPOSURE_MODE: master_open\nAUTH_MODE =strict\nAPP_ENV= production\n", encoding="utf-8")
+    env_file.write_text("EXPOSURE_MODE: private_network\nAUTH_MODE =strict\nAPP_ENV= production\n", encoding="utf-8")
 
     result = parse_env_file(env_file)
 
@@ -48,10 +48,10 @@ def test_strict_dotenv_rejects_colon_and_spaces(tmp_path):
 
 def test_strict_dotenv_accepts_plain_key_values(tmp_path):
     env_file = tmp_path / ".env"
-    env_file.write_text("EXPOSURE_MODE=master_open\nEXPOSURE_AUDIENCE=private_lan\n", encoding="utf-8")
+    env_file.write_text("EXPOSURE_MODE=private_network\nEXPOSURE_AUDIENCE=private_lan\n", encoding="utf-8")
 
     assert load_strict_env_file(env_file) == {
-        "EXPOSURE_MODE": "master_open",
+        "EXPOSURE_MODE": "private_network",
         "EXPOSURE_AUDIENCE": "private_lan",
     }
 
@@ -80,8 +80,8 @@ def test_shell_load_env_reports_invalid_key_without_bash_export_error(tmp_path):
 
 def test_env_validate_rejects_duplicate_even_when_process_env_overrides(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
-    env_file.write_text("EXPOSURE_MODE=private_network\nEXPOSURE_MODE=master_open\n", encoding="utf-8")
-    monkeypatch.setenv("EXPOSURE_MODE", "private_network")
+    env_file.write_text("APP_ENV=local\nAPP_ENV=production\n", encoding="utf-8")
+    monkeypatch.setenv("APP_ENV", "local")
 
     result = subprocess.run(
         [
@@ -98,4 +98,4 @@ def test_env_validate_rejects_duplicate_even_when_process_env_overrides(tmp_path
 
     assert result.returncode == 2
     assert "[env] invalid env file:" in result.stderr
-    assert "duplicate env key 'EXPOSURE_MODE'" in result.stderr
+    assert "duplicate env key 'APP_ENV'" in result.stderr

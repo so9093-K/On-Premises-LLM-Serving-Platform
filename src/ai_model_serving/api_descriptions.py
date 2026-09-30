@@ -530,7 +530,7 @@ def gateway_tags_metadata(settings: AppSettings) -> list[dict[str, str]]:
     ]
 
 
-_OPERATIONS_TAG = """`/health`는 프로세스가 살아 있는지, `/ready`는 vLLM과 Risk Signal Service가 모두 준비됐는지 확인합니다.
+_OPERATIONS_TAG = """`/health`는 프로세스가 살아 있는지, `/ready`는 현재 target의 required runtime과 Risk Signal Service가 모두 준비됐는지 확인합니다.
 
 문제가 생긴 요청 하나를 끝까지 추적하는 방법도 여기에 정리했습니다.
 
@@ -626,7 +626,7 @@ def gateway_description(settings: AppSettings) -> str:
     화면에 섞여 있어서, 목차처럼 보이지만 실제로는 사이드바 사본 + 트러블슈팅 매뉴얼이었다.
     """
     return f"""
-vLLM 기반 LLM·Embedding·Risk 런타임을 하나의 OpenAI 호환 API로 제공합니다.
+LLM·Embedding·Risk 기능을 하나의 OpenAI 호환 API로 제공합니다.
 이 문서의 한도·파라미터 값은 실제 배포 설정에서 자동으로 만들어집니다.
 지금 적용 중인 값은 `GET /v1/models`에서 확인하세요.
 
@@ -657,7 +657,7 @@ curl -X POST "$GATEWAY/v1/chat/completions" \\
 RISK_SIGNAL_SERVICE_TAGS_METADATA = [
     {
         "name": "Operations",
-        "description": "`/health`는 프로세스가 살아 있는지, `/ready`는 탐지기 vLLM이 준비됐는지 확인합니다.",
+        "description": "`/health`는 프로세스가 살아 있는지, `/ready`는 활성화된 remote detector dependency가 준비됐는지 확인합니다. local-only 구성은 별도 모델 dependency가 없습니다.",
     },
     {
         "name": "Monitoring",
@@ -697,10 +697,11 @@ RISK_SIGNAL_SERVICE_DESCRIPTION_TEMPLATE = """
 
 ## Aggregate 실행 순서
 
-`pii → secret → prompt` 순서로 차례대로 실행합니다. 어느 하나라도 탐지하면 `risk_detected: true`입니다.
+현재 deployment에서 활성화된 detector를 configured order로 실행합니다. Static local-risk에서는 `pii → secret`만 실행하고, Prompt runtime이 effective일 때만 Prompt detector가 추가됩니다. 어느 하나라도 탐지하면 `risk_detected: true`입니다.
 
 ## Readiness
 
-- 활성화된 vLLM 탐지기 런타임이 준비되면 → HTTP 200 + `phase: serving`
-- 모델 로딩 중 → HTTP 503 + `phase: waiting_for_dependencies`
+- 활성화된 remote detector dependency가 모두 준비되면 → HTTP 200 + `phase: serving`
+- local-only detector 구성은 별도 model dependency 없이 serving 상태입니다.
+- required remote detector가 로딩 중이면 → HTTP 503 + `phase: waiting_for_dependencies`
 """

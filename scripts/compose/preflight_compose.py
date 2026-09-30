@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
+from ai_model_serving.deployment_target import load_deployment_target  # noqa: E402
 from ai_model_serving.main_model.boot import (  # noqa: E402
     render_boot_override,
     resolve_compose_relative_path,
@@ -37,6 +38,7 @@ from ai_model_serving.access_profile import (  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import LOCAL_ENVIRONMENTS, resolve_env_file  # noqa: E402
 from scripts.compose.effective_host_ports import effective_host_ports  # noqa: E402
+from ai_model_serving.runtime_topology import load_runtime_topology  # noqa: E402
 from scripts.compose.validate_vllm_compose import validate_alignment  # noqa: E402
 
 
@@ -335,6 +337,18 @@ def _effective_compose_document(
 
 
 
+def _prompt_runtime_effective() -> bool:
+    target = load_deployment_target(
+        ROOT / "configs/deployment_targets.yaml",
+        _env_value("DEPLOYMENT_TARGET", "").strip() or None,
+    )
+    variant = _env_value("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
+    topology = load_runtime_topology(ROOT, main_resource_variant=variant)
+    return "prompt_injection_detector" in topology.runtime_keys_for_features(
+        target.features
+    )
+
+
 def _phase2(canonical_mode: str, *, boot_override: Path) -> int:
     print("[preflight] Phase 2: compose and runtime checks")
     compose_file = os.environ.get("COMPOSE_FILE", "ops/compose/full-stack.private-network.yaml")
@@ -421,7 +435,9 @@ def _phase2(canonical_mode: str, *, boot_override: Path) -> int:
         print(f"[preflight] missing: HF cache dir is not writable: {cache_path}", file=sys.stderr)
         fail = True
 
-    if os.environ.get("SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK", "0") != "1":
+    if not _prompt_runtime_effective():
+        print("[preflight] skip: Prompt detector runtime is not in the effective topology")
+    elif os.environ.get("SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK", "0") != "1":
         risk = _run_status(["bash", "scripts/models/check_risk_vllm_image_config.sh"])
         if risk.returncode == 0:
             print("[preflight] ok: risk vLLM image loads Kanana HF configs")

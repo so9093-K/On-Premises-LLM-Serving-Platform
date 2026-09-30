@@ -85,6 +85,10 @@
 
 ### Changed
 
+- Risk Signal Service OpenAPI의 legacy `getRiskAdapterHealth` / `getRiskAdapterReadiness` / `getRiskAdapterMetrics` operationId를 canonical `getRiskSignalService*` 이름으로 정리했다. HTTP path, request/response schema와 인증 계약은 바뀌지 않지만 operationId를 client method 이름으로 사용하는 generated SDK는 재생성이 필요하다.
+- Smoke, live runtime validation과 Prompt preflight가 선언 topology의 `enabled`만 보지 않고 Deployment Target feature + Main resource variant의 effective topology를 사용한다. Prompt detector가 static target 또는 resource policy에서 unavailable이면 Kanana image/config 검증과 Prompt 전용 probe도 요구하지 않는다.
+- Generated artifact drift 검증은 실패 파일뿐 아니라 bounded unified diff를 함께 출력해 CI에서 source/generated 불일치를 바로 진단할 수 있다.
+
 - `make runtime-validate`가 실행 중인 Compose project에 one-off validator container로
   참여해 service DNS/container port로 vLLM·Risk·Prometheus·Grafana를 검증한다. Validator는
   `--no-deps`로 dependency lifecycle을 변경하지 않고 검증 source를 read-only mount한다.

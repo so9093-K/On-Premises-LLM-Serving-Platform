@@ -354,7 +354,7 @@ def _resolve_profile_image(
     - ``None`` inherits the shared ``runtime.image``.
     - ``"${VAR}"`` is resolved from ``env`` (set by CI/deploy, like compose's
       ``${MAIN_MODEL_VLLM_IMAGE_OVERRIDE}``). When ``VAR`` is unset/empty the profile override is not built yet,
-      so the profile inherits the shared base only to keep the sidecar booting; the
+      so the profile inherits the shared base only to keep Runtime Controller booting; the
       profile's declared capabilities are unchanged (it is a multimodal model, not a
       separate text-only one), and the switch-time boot canary is what proves the live
       runtime can actually serve them — a switch to a not-yet-built runtime fails the

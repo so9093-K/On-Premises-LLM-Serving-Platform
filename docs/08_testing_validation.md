@@ -19,7 +19,7 @@ make validate
 make test
       ↓
 실행 환경 확인
-ready-local / ready-full
+target readiness gate (`make up` 내부)
       ↓
 Live Runtime 검증
 make runtime-validate
@@ -31,7 +31,7 @@ make runtime-validate
 | `make app-check` | application 정적 계약과 결정론적 테스트가 모두 통과하는가? | Python application, Config, Contract |
 | `make validate` | 설정·계약·생성물이 서로 일치하고 Python 코드에 버그 신호(정의되지 않은 이름, 쓰지 않는 import, 문법 오류)가 없는가? | Config, Schema, OpenAPI, Compose, Python lint |
 | `make test` | application logic이 예상한 동작을 수행하는가? | Gateway, Risk, Auth, Runtime Control |
-| `ready-local` / `ready-full` | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
+| target readiness gate | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
 | `make runtime-validate` | 실제 vLLM API·고급 요청·모니터링 연결이 동작하는가? | Full-stack Runtime |
 
 저장소는 성능 benchmark·baseline·SLO 판정을 두지 않는다
@@ -62,7 +62,7 @@ API 변경
 Config 변경
   ├─ YAML / 정책 / 참조 관계    → make validate
   ├─ 설정 해석과 decision logic  → make test
-  ├─ Runtime 반영               → ready-full
+  ├─ Runtime 반영               → target readiness / `GET /ready`
   └─ 운영 환경 증빙             → runtime-validate
 ```
 
@@ -116,7 +116,7 @@ make validate
 | Model / Runtime Policy | model registry, risk budget, resource-control policy | 모델 실행 정책 |
 | Shell Script | script syntax; 실제 실행 동작과 Bash runtime 요구사항은 별도 테스트·진단 | Build·배포·운영 명령 |
 | Exposure | exposure profile과 service category coverage | 서비스 host 공개 범위 |
-| Compose Projection | exposure 설정에서 생성되는 Compose override | 실제 Compose topology |
+| Compose Projection | canonical/target Compose와 generated runtime override | 실제 Compose topology |
 | Environment Example Contract | `.env.*.example`과 `env_contract.yaml` | 예시 환경변수 키 누락 |
 | Runtime Artifact | Source config에서 생성되는 runtime artifact. FastAPI가 만드는 OpenAPI와 checked-in spec 비교를 포함한다 | runtime 생성물 정합성, 구현과 API spec 정합성 |
 | Docs Bundle | vendoring한 `/docs` JS 번들의 고정 해시 | 외부 egress 없이 문서 화면이 뜨는지 |
@@ -425,7 +425,7 @@ media canary는 switch-time boot validation과 같은 checked-in tiny fixture를
 선언하지 않은 modality는 실행하지 않는다.
 
 ```text
-ready-full
+target readiness gate
   → 서비스가 실제 요청을 처리할 준비가 되었는지 확인
 
 runtime-validate
@@ -621,7 +621,7 @@ Source와 artifact 관계가 핵심이면 validator를 강화하고, application
 | Runtime Asset Drift | runtime artifact 생성 상태 |
 | Unit Test | 해당 decision function의 behavior |
 | Contract Test | 공개 계약 또는 module 간 invariant |
-| `ready-local` | Gateway / Risk Signal Service process 상태 |
+| local readiness gate | Gateway / Risk Signal Service process 상태 |
 | Gateway `/ready` | dependency와 runtime loading 상태 |
 | Smoke Test | Chat / Risk / Embedding inference path |
 | Runtime Validation | vLLM, monitoring, advanced inference category |

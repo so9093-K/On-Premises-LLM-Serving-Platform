@@ -66,6 +66,17 @@ def test_partial_runtime_controller_bundle_fails_closed(tmp_path) -> None:
         load_deployment_target(path, "linux-nvidia-dynamic")
 
 
+def test_prompt_detection_without_risk_fails_closed(tmp_path) -> None:
+    document = yaml.safe_load(CATALOG.read_text(encoding="utf-8"))
+    document["targets"]["linux-nvidia-dynamic"]["features"]["risk"] = False
+    document["targets"]["linux-nvidia-dynamic"]["features"]["prompt_detection"] = True
+    path = tmp_path / "deployment_targets.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="prompt_detection requires risk"):
+        load_deployment_target(path, "linux-nvidia-dynamic")
+
+
 def test_non_boolean_monitoring_capability_fails_closed(tmp_path) -> None:
     document = yaml.safe_load(CATALOG.read_text(encoding="utf-8"))
     document["targets"]["linux-nvidia-dynamic"]["runs_monitoring_stack"] = "true"
@@ -96,7 +107,7 @@ def test_control_mode_and_lifecycle_owner_must_align(tmp_path) -> None:
         load_deployment_target(path, "linux-nvidia-static")
 
 
-def test_macos_target_uses_its_mlx_profile_and_main_only_admission(monkeypatch) -> None:
+def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
     monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
@@ -279,7 +290,6 @@ def test_static_readiness_fails_when_external_main_is_down(monkeypatch) -> None:
 
 def test_static_target_requires_an_explicit_serving_profile(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
-    monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
     monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
 
     with pytest.raises(RuntimeError, match="MAIN_MODEL_STATIC_PROFILE is required"):

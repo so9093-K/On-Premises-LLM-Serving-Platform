@@ -38,6 +38,25 @@ def test_runtime_topology_uses_explicit_lifecycle_bindings() -> None:
     }
 
 
+def test_risk_feature_does_not_project_prompt_runtime() -> None:
+    root = Path(__file__).resolve().parents[2]
+    topology = load_runtime_topology(root)
+
+    assert topology.runtime_keys_for_features(frozenset({"risk"})) == frozenset()
+
+
+def test_prompt_detection_feature_projects_prompt_runtime() -> None:
+    root = Path(__file__).resolve().parents[2]
+    topology = load_runtime_topology(root)
+
+    assert topology.runtime_keys_for_features(
+        frozenset({"prompt_detection"})
+    ) == frozenset({"prompt_injection_detector"})
+    assert topology.required_keys_for_features(
+        frozenset({"prompt_detection"})
+    ) == frozenset({"prompt_injection_detector"})
+
+
 def test_runtime_topology_loads_without_compose_file(tmp_path) -> None:
     _copy_runtime_configs(tmp_path)
 

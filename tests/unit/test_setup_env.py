@@ -62,7 +62,7 @@ def test_setup_env_force_rejects_duplicate_existing_env(tmp_path, capsys):
 
 def test_setup_env_sync_rejects_quoted_existing_env(tmp_path, capsys):
     out = tmp_path / '.env'
-    out.write_text('BUILD_PROFILE=compose\nEXPOSURE_MODE="master_open"\n', encoding='utf-8')
+    out.write_text('BUILD_PROFILE=compose\nEXPOSURE_MODE="private_network"\n', encoding='utf-8')
 
     rc = setup_env.main(['--sync-env', '--env-file', str(out)])
 

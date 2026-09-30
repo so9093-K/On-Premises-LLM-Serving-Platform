@@ -11,7 +11,7 @@ GATEWAY_RUNTIME_DIR_RELPATH=".runtime/gateway"
 REQUEST_EVENT_LOG_DIR_RELPATH=".runtime/request-events"
 
 # 이 함수로 준비하는 디렉터리는 platform image의 non-root 프로세스가 쓰는 곳이다.
-# Gateway state는 Gateway만, request event 디렉터리는 Gateway/Risk Adapter가 각자
+# Gateway state는 Gateway만, request event 디렉터리는 Gateway/Risk Signal Service가 각자
 # 서비스별 파일을 쓴다.
 # bind mount라 소유권은 호스트가 정하는데, 이미지 안의 uid와 호스트 uid 사이에는
 # 아무 관계가 없다. 그래서 "누가 먼저 만들었나"가 소유권을 결정해 버린다:

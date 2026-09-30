@@ -21,7 +21,7 @@ Gateway는 고정 Main endpoint로 Chat과 Streaming을 제공하고, Compose �
 Client -> Gateway -> externally managed Main runtime
 ```
 
-Embedding, Retrieval, Sidecar, 모델 전환과 GPU admission은 static feature set에 포함되지 않는다.
+Embedding, Retrieval, Runtime Controller, 모델 전환과 GPU admission은 static feature set에 포함되지 않는다.
 Risk Signal Service는 공통 `ops/compose/overrides/static.local-risk.yaml`에서 실행하며 PII/Secret은
 in-process로 제공한다. Prompt Injection detector는 별도 model-backed capability라 static target에서는
 비활성이고 Prompt 전용 endpoint는 `DETECTOR_DISABLED`를 반환한다. `/v1/models`에는 local Main만
@@ -309,7 +309,7 @@ vLLM runtime은 초기화 과정에서 GPU memory를 확인하고 runtime memory
 
 Gateway는 기본적으로 `risk-signal-service`와 `main-llm-vllm`의 상태를 기준으로 기동되며, Runtime Controller는 Gateway의 hard startup dependency로 두지 않는다.
 
-따라서 Sidecar 장애는 Main Model control에 영향을 주지만 Gateway process 자체의 기동과 직접 결합되지는 않는다.
+따라서 Runtime Controller 장애는 Main Model control에 영향을 주지만 Gateway process 자체의 기동과 직접 결합되지는 않는다.
 
 Prometheus, Grafana, Loki, Alloy 등 observability 계층은 serving path와 독립적으로 운영된다.
 
