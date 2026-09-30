@@ -31,6 +31,33 @@ def load_preflight() -> ModuleType:
     return module
 
 
+def test_prompt_runtime_effective_for_dynamic_reference_policy(monkeypatch) -> None:
+    module = load_preflight()
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-dynamic")
+    monkeypatch.delenv("MAIN_MODEL_RESOURCE_VARIANT", raising=False)
+
+    assert module._prompt_runtime_effective() is True
+
+
+def test_prompt_runtime_not_effective_for_4090_resource_policy(monkeypatch) -> None:
+    module = load_preflight()
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-dynamic")
+    monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
+
+    assert module._prompt_runtime_effective() is False
+
+
+def test_prompt_runtime_not_effective_for_static_target(monkeypatch) -> None:
+    module = load_preflight()
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
+    monkeypatch.delenv("MAIN_MODEL_RESOURCE_VARIANT", raising=False)
+
+    assert module._prompt_runtime_effective() is False
+
+
 def test_compose_preflight_rejects_local_open_without_local_only_policy(monkeypatch) -> None:
     module = load_preflight()
 
