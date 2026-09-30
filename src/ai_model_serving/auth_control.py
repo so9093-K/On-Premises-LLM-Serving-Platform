@@ -310,7 +310,6 @@ def diagnose_auth(settings: AppSettings, project_root: Path) -> list[AuthFinding
     exposure_mode = _exposure_mode_from_env()
     data = load_yaml_mapping(project_root / "configs" / "exposure_profiles.yaml")
     canonical_mode = exposure_mode
-    exposure_profile_data = _exposure_profile(project_root, canonical_mode)
     exposure_audience = _env("EXPOSURE_AUDIENCE", "").strip()
 
     access_profile = _env("ACCESS_PROFILE", "").strip()
