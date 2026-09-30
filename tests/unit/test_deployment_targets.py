@@ -66,6 +66,17 @@ def test_partial_runtime_controller_bundle_fails_closed(tmp_path) -> None:
         load_deployment_target(path, "linux-nvidia-dynamic")
 
 
+def test_prompt_detection_without_risk_fails_closed(tmp_path) -> None:
+    document = yaml.safe_load(CATALOG.read_text(encoding="utf-8"))
+    document["targets"]["linux-nvidia-dynamic"]["features"]["risk"] = False
+    document["targets"]["linux-nvidia-dynamic"]["features"]["prompt_detection"] = True
+    path = tmp_path / "deployment_targets.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="prompt_detection requires risk"):
+        load_deployment_target(path, "linux-nvidia-dynamic")
+
+
 def test_non_boolean_monitoring_capability_fails_closed(tmp_path) -> None:
     document = yaml.safe_load(CATALOG.read_text(encoding="utf-8"))
     document["targets"]["linux-nvidia-dynamic"]["runs_monitoring_stack"] = "true"
