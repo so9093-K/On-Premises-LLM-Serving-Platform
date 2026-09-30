@@ -169,7 +169,7 @@ runtime backend, capability, lifecycle ownership의 차이다.
 | **Runtime Topology** | `configs/runtime_topology.yaml` | feature-runtime 연결과 resource-aware composition constraint |
 | **GPU Budget** | `configs/gpu_budgets.yaml` | managed runtime의 GPU memory budget과 전체 admission ceiling |
 | **Service / Port** | `configs/services.yaml` | 서비스 identity, 내부 port와 연결 정보 |
-| **Access / Exposure / Auth** | `configs/access_profiles.yaml`, `configs/exposure_profiles.yaml`, `configs/auth_profiles.yaml` | 접속 의도, host publish와 인증 정책 |
+| **Access / Host Boundary / Auth** | `configs/access_profiles.yaml`, `configs/services.yaml`, `configs/auth_profiles.yaml` | 접속 의도, host-publish service role, bind/TLS와 인증 정책 |
 | **Monitoring** | `configs/monitoring.yaml` | Metrics, logs와 dashboard 관련 설정 |
 
 설정 간 우선순위와 생성 artifact는 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 다룬다.
