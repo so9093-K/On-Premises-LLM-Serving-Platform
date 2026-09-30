@@ -107,7 +107,7 @@ def test_control_mode_and_lifecycle_owner_must_align(tmp_path) -> None:
         load_deployment_target(path, "linux-nvidia-static")
 
 
-def test_macos_target_uses_its_mlx_profile_and_main_only_admission(monkeypatch) -> None:
+def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
     monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
@@ -290,7 +290,6 @@ def test_static_readiness_fails_when_external_main_is_down(monkeypatch) -> None:
 
 def test_static_target_requires_an_explicit_serving_profile(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
-    monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
     monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
 
     with pytest.raises(RuntimeError, match="MAIN_MODEL_STATIC_PROFILE is required"):
