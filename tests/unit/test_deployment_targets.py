@@ -111,6 +111,9 @@ def test_macos_target_uses_its_mlx_profile_and_main_only_admission(monkeypatch) 
     assert settings.public_models[0]["backend"] == "mlx-vlm"
     assert settings.deployment_target.main_profile_catalog == "configs/macos_mlx_runtime.yaml"
     assert set(settings.runtime_endpoints) == {"main_llm"}
+    assert [detector.key for detector in settings.enabled_risk_detectors()] == ["pii", "secret"]
+    assert settings.aggregate_detector_order == ("pii", "secret")
+    assert "prompt_detection" not in settings.deployment_target.features
     assert settings.runtime("main_llm").max_concurrency == 1
     assert settings.default_main_model_gateway_policy["max_output_tokens"] == 8192
     limits = settings.default_main_model_gateway_policy["request_limits"]
