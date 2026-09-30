@@ -271,7 +271,7 @@ make up
 
 1. `.env` contract 검증
 2. runtime secret 준비
-3. Exposure Profile 적용
+3. Access Profile의 auth/audience/bind policy 확인
 4. persisted Main Model profile을 반영한 boot projection 생성
 5. 같은 boot projection으로 effective Compose config와 preflight 검증
 6. 선택된 Main Model의 Hugging Face cache 준비
