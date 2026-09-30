@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: AI Model Serving Gateway
-  description: "\nvLLM 기반 LLM·Embedding·Risk 런타임을 하나의 OpenAI 호환 API로 제공합니다.\n이 문서의\
+  description: "\nLLM·Embedding·Risk 기능을 하나의 OpenAI 호환 API로 제공합니다.\n이 문서의\
     \ 한도·파라미터 값은 실제 배포 설정에서 자동으로 만들어집니다.\n지금 적용 중인 값은 `GET /v1/models`에서 확인하세요.\n\n\
     ## 첫 호출\n\n`$GATEWAY`는 이 문서를 열고 있는 주소입니다.\n\n```bash\ncurl -X POST \"$GATEWAY/v1/chat/completions\"\
     \ \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -H \"Content-Type: application/json\"\
@@ -5118,7 +5118,7 @@ components:
       scheme: bearer
 tags:
 - name: Operations
-  description: "`/health`는 프로세스가 살아 있는지, `/ready`는 vLLM과 Risk Signal Service가 모두 준비됐는지\
+  description: "`/health`는 프로세스가 살아 있는지, `/ready`는 현재 target의 required runtime과 Risk Signal Service가 모두 준비됐는지\
     \ 확인합니다.\n\n문제가 생긴 요청 하나를 끝까지 추적하는 방법도 여기에 정리했습니다.\n\n### 요청 추적 헤더\n\n| 헤더 | 언제\
     \ | 내용 |\n|---|---|---|\n| `X-Request-Id` | 애플리케이션 응답 | 요청 추적 키. 접근 로그의 `request_id`와\
     \ 같습니다 |\n| `X-Error-Code` | 오류 응답 | `error.code`. status만으로 원인을 나누면 안 됩니다 |\n\
