@@ -120,7 +120,7 @@ def _check_auth_profile_preflight() -> None:
             for failure in failures:
                 _fail(failure)
             raise SystemExit(
-                "[preflight] configuration preflight failed; fix auth/exposure policy."
+                "[preflight] configuration preflight failed; fix auth/network policy."
             )
         return
     if auth_mode == "custom":
