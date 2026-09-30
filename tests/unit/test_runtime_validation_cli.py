@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts.validation.runtime.cli import build_parser
 
 
-def test_runtime_validation_parser_selects_compose_network_scope() -> None:
-    args = build_parser().parse_args(["--network-scope", "compose"])
-
-    assert args.network_scope == "compose"
+def test_runtime_validation_parser_rejects_retired_network_scope() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--network-scope", "compose"])
 
 
 def test_prompt_detector_override_uses_canonical_destination_with_legacy_alias() -> None:

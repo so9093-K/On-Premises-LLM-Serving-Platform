@@ -333,8 +333,6 @@ Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 �
 | `/v1/embeddings` / `local-embed` | 현재 active인 일반 embedding path |
 | `/v1/embeddings` / `local-embed-ko` | 현재 active인 Korean retrieval embedding path |
 
-Risk Signal Service host port를 사용할 수 있는 exposure에서는 Risk Signal Service health/readiness와 detector API도 함께 확인한다.
-
 `scripts/ops/smoke_test.sh`는 `make up`의 strict serving gate 안에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
 
 `make up`은 내부 `ready_full.sh`의 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
@@ -395,11 +393,11 @@ validator는 dependency를 시작하거나 재시작하지 않는다. 필요한 
 validation script를 포함하지 않으며 repository의 validation source/config를 read-only로
 mount한다.
 
-직접 `runtime_validation.py`를 실행하는 maintainer 호환 경로에서는 CLI 또는
-`RUNTIME_VALIDATION_*_BASE_URL`로 특정 후보 endpoint를 명시할 수 있다. 이 override는
-원격 후보를 좁혀 검사할 때만 사용하며 canonical full-stack qualification은
-`make runtime-validate`다. API key, admin key, internal service token과 raw prompt·응답·
-token은 명령 출력과 runtime report에 남기지 않는다.
+host에서 직접 `runtime_validation.py`를 실행하는 maintainer 경로는 검사할 endpoint를
+CLI 또는 `RUNTIME_VALIDATION_*_BASE_URL`로 명시한다. 자동 fallback은 host-published
+internal service 주소를 추론하지 않으며 canonical full-stack qualification은
+Compose 내부망의 `make runtime-validate`다. API key, admin key, internal service token과
+raw prompt·응답·token은 명령 출력과 runtime report에 남기지 않는다.
 
 ### 검증 범위
 

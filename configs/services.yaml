@@ -1,16 +1,17 @@
 # version은 이 레지스트리 스키마의 버전이며 패키지 배포 버전이 아니다.
 version: 0.1.0
 
-# Compose 서비스명·컨테이너 포트·host bind 환경변수의 단일 기준이다.
+# Compose 서비스 identity와 실제 endpoint projection의 단일 기준이다.
 # container_port: Compose 네트워크 안에서 서비스가 수신하는 고정 포트다.
-# host_env_port/default_host_port: host에 공개할 때 사용할 포트 환경변수와 기본값이다.
-# host_env_bind/default_bind: host 공개 주소 환경변수와 기본값이다. 실제 공개 여부는
-# service role과 target Compose의 ports 선언이 함께 결정하며 default_bind만으로 포트가 열리지는 않는다.
-# 기본 host port는 application/model API에 9400~9409, observability endpoint에
-# 9410~9419를 사용한다. Container 내부 port는 upstream 고유값을 유지할 수 있으며
-# 서비스별 network namespace가 다르므로 서로 같아도 충돌하지 않는다.
+# host_env_port/default_host_port: host에 직접 실행하거나 host에 publish되는 service가
+# 사용할 port 환경변수와 기본값이다. internal-only service에는 두지 않는다.
+# host_env_bind/default_bind: Compose가 실제 host boundary에 publish하는 service의
+# bind 환경변수와 기본값이다. host-published service에만 존재한다.
+# Container 내부 port는 upstream 고유값을 유지할 수 있으며 서비스별 network namespace가
+# 다르므로 서로 같아도 충돌하지 않는다.
 # categories: host-boundary validator와 운영 도구가 서비스 역할을 분류하는 식별자다.
 #   gateway/public_entrypoint = 외부 API 진입점
+#   host_process = app-only lifecycle에서 host process로 직접 실행 가능한 application service
 #   model_runtime/vllm_runtime = 모델 runtime, risk_model_runtime = risk 전용 모델
 #   operations_endpoint = 운영 endpoint, visualization = Grafana UI
 #   metrics_backend/metrics_exporter/gpu_metrics/container_metrics/log_backend = 관측성 역할
@@ -26,26 +27,23 @@ services:
     categories:
       - gateway
       - public_entrypoint
+      - host_process
 
   # PII·secret·Prompt Injection detector 결과를 정규화하는 내부 Risk Signal Service.
+  # Compose에서는 internal이지만 app-only lifecycle에서는 host process로 직접 실행한다.
   risk_signal_service:
     compose_service: risk-signal-service
     container_port: 9405
     host_env_port: RISK_SIGNAL_SERVICE_PORT
     default_host_port: 9405
-    host_env_bind: RISK_SIGNAL_SERVICE_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - risk_signal_service
+      - host_process
 
   # active main-model profile을 실행하는 주 대화 모델 runtime.
   main_llm_vllm:
     compose_service: main-llm-vllm
     container_port: 9401
-    host_env_port: MAIN_MODEL_VLLM_PORT
-    default_host_port: 9401
-    host_env_bind: MAIN_MODEL_VLLM_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - model_runtime
       - vllm_runtime
@@ -54,10 +52,6 @@ services:
   embedding_vllm:
     compose_service: embedding-vllm
     container_port: 9402
-    host_env_port: EMBEDDING_VLLM_PORT
-    default_host_port: 9402
-    host_env_bind: EMBEDDING_VLLM_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - model_runtime
       - vllm_runtime
@@ -66,10 +60,6 @@ services:
   embedding_ko_vllm:
     compose_service: embedding-ko-vllm
     container_port: 9406
-    host_env_port: EMBEDDING_KO_VLLM_PORT
-    default_host_port: 9406
-    host_env_bind: EMBEDDING_KO_VLLM_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - model_runtime
       - vllm_runtime
@@ -78,10 +68,6 @@ services:
   prompt_injection_detector_runtime:
     compose_service: prompt-injection-detector-runtime
     container_port: 9403
-    host_env_port: PROMPT_INJECTION_DETECTOR_RUNTIME_PORT
-    default_host_port: 9403
-    host_env_bind: PROMPT_INJECTION_DETECTOR_RUNTIME_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - model_runtime
       - vllm_runtime
@@ -91,10 +77,6 @@ services:
   prometheus:
     compose_service: prometheus
     container_port: 9090
-    host_env_port: PROMETHEUS_PORT
-    default_host_port: 9410
-    host_env_bind: PROMETHEUS_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - operations_endpoint
       - metrics_backend
@@ -107,18 +89,13 @@ services:
     default_host_port: 9411
     host_env_bind: GRAFANA_BIND_ADDR
     default_bind: "0.0.0.0"
-    # private_network에서도 Grafana는 host에 공개한다. 차단되는 운영 endpoint와 시각화 UI를 구분한다.
     categories:
       - visualization
 
-  # NVIDIA GPU metric exporter. Upstream 내부 포트 9400과 host 기본 포트 9412는 의도적으로 다르다.
+  # NVIDIA GPU metric exporter.
   dcgm_exporter:
     compose_service: dcgm-exporter
     container_port: 9400
-    host_env_port: DCGM_EXPORTER_PORT
-    default_host_port: 9412
-    host_env_bind: DCGM_EXPORTER_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - operations_endpoint
       - metrics_exporter
@@ -128,24 +105,15 @@ services:
   cadvisor:
     compose_service: cadvisor
     container_port: 8080
-    host_env_port: CADVISOR_PORT
-    default_host_port: 9413
-    host_env_bind: CADVISOR_BIND_ADDR
-    default_bind: "0.0.0.0"
     categories:
       - operations_endpoint
       - metrics_exporter
       - container_metrics
 
-  # request log 저장·조회 backend. Alloy는 조회 API가 없으므로 이 목록에 없다.
+  # request log 저장·조회 backend. Alloy는 조회 API가 없어 이 목록에 없다.
   loki:
     compose_service: loki
     container_port: 3100
-    host_env_port: LOKI_PORT
-    default_host_port: 9414
-    host_env_bind: LOKI_BIND_ADDR
-    default_bind: "0.0.0.0"
-    # Alloy는 조회 API가 없어 canonical host boundary의 publish 대상이 아니다.
     categories:
       - operations_endpoint
       - log_backend

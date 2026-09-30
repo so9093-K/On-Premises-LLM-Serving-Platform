@@ -12,19 +12,20 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from ai_model_serving.host_exposure import host_published_compose_services  # noqa: E402
+from ai_model_serving.host_exposure import (  # noqa: E402
+    host_published_compose_services,
+    host_published_service_ids,
+)
 
 
 _EXPECTED_ACCESS_PROFILES = {"local", "private", "edge"}
 _SERVICE_REQUIRED_FIELDS = {
     "compose_service",
     "container_port",
-    "host_env_port",
-    "default_host_port",
-    "host_env_bind",
-    "default_bind",
     "categories",
 }
+_HOST_PORT_FIELDS = {"host_env_port", "default_host_port"}
+_HOST_BIND_FIELDS = {"host_env_bind", "default_bind"}
 _ACCESS_REQUIRED_FIELDS = {
     "description",
     "auth_mode",
@@ -52,27 +53,90 @@ def load_services(path: Path) -> dict[str, Any]:
 
 def validate_services(services: dict[str, Any]) -> list[str]:
     violations: list[str] = []
+    host_published_ids = host_published_service_ids(services)
+
     for name, service in services.items():
         if not isinstance(service, dict):
             violations.append(f"services.{name} must be a mapping")
             continue
+
         missing = sorted(_SERVICE_REQUIRED_FIELDS - set(service))
         if missing:
             violations.append(
                 f"services.{name} missing required fields: {', '.join(missing)}"
             )
+
+        compose_service = service.get("compose_service")
+        if not isinstance(compose_service, str) or not compose_service.strip():
+            violations.append(f"services.{name}.compose_service must be non-empty")
+
+        container_port = service.get("container_port")
+        if isinstance(container_port, bool):
+            violations.append(f"services.{name}.container_port must be numeric")
+        else:
+            try:
+                int(container_port)
+            except (TypeError, ValueError):
+                violations.append(f"services.{name}.container_port must be numeric")
+
         categories = service.get("categories")
         if not isinstance(categories, list) or not categories:
             violations.append(f"services.{name}.categories must be a non-empty list")
-        for field in ("container_port", "default_host_port"):
-            value = service.get(field)
-            if isinstance(value, bool):
-                violations.append(f"services.{name}.{field} must be numeric")
-                continue
-            try:
-                int(value)
-            except (TypeError, ValueError):
-                violations.append(f"services.{name}.{field} must be numeric")
+            category_set: set[str] = set()
+        else:
+            category_set = {str(item) for item in categories}
+
+        present_host_ports = _HOST_PORT_FIELDS & set(service)
+        present_host_binds = _HOST_BIND_FIELDS & set(service)
+        requires_host_port = name in host_published_ids or "host_process" in category_set
+
+        if requires_host_port:
+            missing_host_ports = sorted(_HOST_PORT_FIELDS - set(service))
+            if missing_host_ports:
+                violations.append(
+                    f"services.{name} missing host endpoint fields: "
+                    + ", ".join(missing_host_ports)
+                )
+        elif present_host_ports:
+            violations.append(
+                f"internal-only service {name} must not define host port metadata: "
+                + ", ".join(sorted(present_host_ports))
+            )
+
+        if present_host_ports == _HOST_PORT_FIELDS:
+            env_key = service.get("host_env_port")
+            if not isinstance(env_key, str) or not env_key.strip():
+                violations.append(f"services.{name}.host_env_port must be non-empty")
+            host_port = service.get("default_host_port")
+            if isinstance(host_port, bool):
+                violations.append(f"services.{name}.default_host_port must be numeric")
+            else:
+                try:
+                    int(host_port)
+                except (TypeError, ValueError):
+                    violations.append(f"services.{name}.default_host_port must be numeric")
+
+        if name in host_published_ids:
+            missing_host_binds = sorted(_HOST_BIND_FIELDS - set(service))
+            if missing_host_binds:
+                violations.append(
+                    f"host-published service {name} missing host bind fields: "
+                    + ", ".join(missing_host_binds)
+                )
+        elif present_host_binds:
+            violations.append(
+                f"internal service {name} must not define host bind metadata: "
+                + ", ".join(sorted(present_host_binds))
+            )
+
+        if present_host_binds == _HOST_BIND_FIELDS:
+            bind_key = service.get("host_env_bind")
+            default_bind = service.get("default_bind")
+            if not isinstance(bind_key, str) or not bind_key.strip():
+                violations.append(f"services.{name}.host_env_bind must be non-empty")
+            if not isinstance(default_bind, str) or not default_bind.strip():
+                violations.append(f"services.{name}.default_bind must be non-empty")
+
     expected = host_published_compose_services(services)
     if not expected:
         violations.append(
@@ -174,19 +238,6 @@ def validate_access_profiles(
                 "access edge must declare edge_proxy as external TLS owner"
             )
 
-    host_published_ids = {
-        service_id
-        for service_id, service in services.items()
-        if isinstance(service, dict)
-        and str(service.get("compose_service", ""))
-        in host_published_compose_services(services)
-    }
-    for service_id in host_published_ids:
-        service = services.get(service_id)
-        if not isinstance(service, dict) or not service.get("host_env_bind"):
-            violations.append(
-                f"host-published service {service_id} must define host_env_bind"
-            )
     return violations
 
 

@@ -40,8 +40,9 @@ Platform image는 application runtime artifact이며 validation script를 포함
 6. `master_open`, generated exposure override, `exposure-plan/apply/status` surface를 제거한다.
 7. 기존 `EXPOSURE_MODE=master_open` env는 `private_network`로 자동 재해석하지 않는다.
    운영자가 `ACCESS=local|private|edge`를 명시해 plan을 확인한 뒤 migration한다.
-8. 특정 원격 후보 endpoint를 좁혀 검사하는 CLI/process URL override는 maintainer 호환 경로로
-   남길 수 있지만, full-stack qualification의 canonical 경로는 내부망 `make runtime-validate`다.
+8. Full-stack validation의 자동 endpoint resolution은 Compose 내부 service identity만 사용한다.
+   특정 원격 후보 endpoint를 검사할 때는 CLI/process URL override를 명시하며, host publication
+   metadata에서 내부 service URL을 추론하는 별도 compatibility scope는 두지 않는다.
 
 ## Consequences
 
@@ -50,7 +51,7 @@ Platform image는 application runtime artifact이며 validation script를 포함
 | 검증을 위해 raw runtime/operations port를 host에 열지 않는다 | Validator용 one-off Compose 정의와 mount 경계를 유지해야 한다 |
 | public request boundary가 Gateway로 단순해진다 | 실제 NVIDIA host qualification은 일반 GitHub-hosted CI가 대신할 수 없다 |
 | diagnostic exposure override와 관련 validation/plan/apply 코드가 사라진다 | 기존 master_open 환경은 한 번 명시적 Access migration이 필요하다 |
-| service endpoint authority가 host port 복제 대신 service registry로 수렴한다 | 원격 후보 검증은 endpoint override를 명시해야 한다 |
+| service endpoint authority가 host port 복제 대신 service registry의 Compose identity로 수렴한다 | 원격 후보 검증은 endpoint override를 명시해야 한다 |
 | dependency가 내려간 상태를 validator가 고쳐 숨기지 않는다 | qualification 전에 stack이 이미 실행 중이어야 한다 |
 
 ## Operational impact

@@ -67,54 +67,41 @@ def validate_deploy_profiles() -> None:
 
 
 def validate_ports() -> None:
-    """서비스 host port 정책과 runtime projection이 레지스트리와 같은지 확인한다.
+    """실제 host endpoint port 정책만 service registry 기준으로 검증한다.
 
-    configs/model_serving.yaml의 models.X.port는 vLLM이 --port로 받는 값이고,
-    configs/services.yaml은 같은 포트를 host publish 관점에서 한 벌 더 들고 있다.
-    container_port 일치는 load_runtime_topology()가 소유하므로 여기서 반복하지 않는다.
+    Compose 내부 runtime port 일치는 load_runtime_topology()가 소유한다. 여기서는
+    host-published service와 app-only host_process가 선언한 default_host_port만 본다.
     """
     services = read_yaml('configs/services.yaml')['services']
     host_ports = service_default_host_ports()
     owners_by_port: dict[int, str] = {}
-    application_categories = {'gateway', 'risk_signal_service', 'model_runtime'}
-    observability_categories = {'operations_endpoint', 'visualization'}
-    for service_id, service in services.items():
-        host_port = int(service['default_host_port'])
+
+    for service_id, host_port in host_ports.items():
         previous = owners_by_port.get(host_port)
         if previous is not None:
             raise SystemExit(
                 f'duplicate default_host_port {host_port}: {previous} and {service_id}'
             )
-        owners_by_port[host_port] = str(service_id)
-        categories = set(service.get('categories', []))
-        if categories & application_categories and not 9400 <= host_port <= 9409:
-            raise SystemExit(
-                f'{service_id} application/model host port must be in 9400..9409, got {host_port}'
-            )
-        if categories & observability_categories and not 9410 <= host_port <= 9419:
-            raise SystemExit(
-                f'{service_id} observability host port must be in 9410..9419, got {host_port}'
-            )
-    if host_ports.get('gateway') != 9400:
-        raise SystemExit(f'gateway default_host_port must remain 9400, got {host_ports.get("gateway")}')
+        owners_by_port[host_port] = service_id
 
-    model_serving = read_yaml('configs/model_serving.yaml')
-    runtime_topology = read_yaml('configs/runtime_topology.yaml').get('runtimes', {})
-    checks = {}
-    for key, cfg in model_serving['models'].items():
-        if cfg.get('enabled', True) is not True:
-            continue
-        binding = runtime_topology.get(key)
-        if not isinstance(binding, dict) or not isinstance(binding.get('service_id'), str):
-            raise SystemExit(f'runtime topology binding missing for enabled model {key}')
-        service_id = binding['service_id']
-        checks[service_id] = cfg['port']
-    for service_id, value in checks.items():
-        if host_ports.get(service_id) != value:
+        service = services[service_id]
+        categories = set(service.get('categories', []))
+        if (
+            {'public_entrypoint', 'host_process'} & categories
+            and not 9400 <= host_port <= 9409
+        ):
             raise SystemExit(
-                f'port mismatch: {service_id} default_host_port expected {value}, '
-                f'got {host_ports.get(service_id)}'
+                f'{service_id} application host port must be in 9400..9409, got {host_port}'
             )
+        if 'visualization' in categories and not 9410 <= host_port <= 9419:
+            raise SystemExit(
+                f'{service_id} visualization host port must be in 9410..9419, got {host_port}'
+            )
+
+    if host_ports.get('gateway') != 9400:
+        raise SystemExit(
+            f'gateway default_host_port must remain 9400, got {host_ports.get("gateway")}'
+        )
 
     metal_port = int(read_yaml('configs/macos_mlx_runtime.yaml')['runtime']['port'])
     main_runtime_port = int(services['main_llm_vllm']['container_port'])
