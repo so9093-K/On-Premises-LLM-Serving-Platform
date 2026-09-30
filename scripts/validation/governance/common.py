@@ -32,6 +32,7 @@ def service_default_host_ports() -> dict[str, int]:
     return {
         str(service_name): int(service['default_host_port'])
         for service_name, service in services.items()
+        if isinstance(service, dict) and 'default_host_port' in service
     }
 
 
