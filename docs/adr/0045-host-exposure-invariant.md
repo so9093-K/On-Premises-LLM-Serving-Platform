@@ -44,6 +44,11 @@ fail-closed 진단에도 실제로 사용된다.
    - `master_open` 등 non-private 값은 자동 재해석하지 않고 explicit
      `ACCESS=local|private|edge CONFIRM=access` migration을 요구한다.
 7. `EXPOSURE_AUDIENCE`는 현재 safety boundary이므로 유지한다.
+8. Service registry의 host endpoint metadata는 실제 consumer가 있는 역할에만 둔다.
+   - `host_env_bind/default_bind`는 실제 host-published service만 가진다.
+   - `host_env_port/default_host_port`는 host-published service 또는 app-only `host_process`만 가진다.
+   - model runtime과 operations backend처럼 Compose 내부망만 사용하는 service는
+     `compose_service + container_port`만 endpoint authority로 사용한다.
 
 ## Consequences
 
@@ -51,6 +56,7 @@ fail-closed 진단에도 실제로 사용된다.
 - Access Profile은 사용자 접근 의도만 표현하며 infrastructure topology selector 역할을 하지 않는다.
 - 새로운 host-published service를 추가하려면 service role과 target Compose port를 같은 변경에서
   수정해야 하고 validator가 drift를 거부한다.
+- internal-only service에 host bind/port metadata를 다시 추가하면 validator가 role drift로 거부한다.
 - old `EXPOSURE_MODE`를 쓰는 deployment는 한 번의 explicit migration이 필요하다.
 - legacy/custom 지원을 향후 종료하면 `EXPOSURE_AUDIENCE`의 persistent projection도 별도로
   재평가할 수 있지만 이 ADR에서는 제거하지 않는다.
