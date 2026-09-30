@@ -51,6 +51,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str((Path.cwd() / "src").resolve()))
+from ai_model_serving.deployment_target import load_deployment_target
 from ai_model_serving.runtime_topology import load_runtime_topology
 
 catalog = yaml.safe_load(Path("configs/model_catalog.yaml").read_text(encoding="utf-8"))
@@ -65,10 +66,13 @@ def required(value: object, label: str) -> str:
 detectors = serving["risk_signal_service"]["detectors"]
 prompt_detector = detectors["prompt"]
 variant = os.getenv("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
-topology = load_runtime_topology(Path.cwd(), main_resource_variant=variant)
-enabled_runtime_keys = {
-    key for key, binding in topology.bindings_by_key.items() if binding.enabled
-}
+root = Path.cwd()
+target = load_deployment_target(
+    root / "configs/deployment_targets.yaml",
+    os.getenv("DEPLOYMENT_TARGET", "").strip() or None,
+)
+topology = load_runtime_topology(root, main_resource_variant=variant)
+enabled_runtime_keys = topology.runtime_keys_for_features(target.features)
 prompt_service_key = required(
     prompt_detector["service_key"], "risk_signal_service.detectors.prompt.service_key"
 )
