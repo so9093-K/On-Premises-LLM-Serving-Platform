@@ -124,8 +124,8 @@ Client ──────────►│         Gateway         │
               ┌────────────────┼────────────────┐
               │                │                │
               ▼                ▼                ▼
-           vLLM          Risk Signal Service       Sidecar
-        Inference        Detection          Control
+           Model Runtime     Risk Signal Service     Runtime Controller
+        Inference        Detection             Control
 ```
 
 ### 요청 검증
@@ -154,7 +154,7 @@ Runtime 상태 확인 방식은 기능에 따라 다르다.
 | **Retrieval** | Gateway runtime state에서 선택한 embedding runtime 확인 |
 | **Prompt Guard** | Prompt model을 사용하는 경로에서 `prompt_injection_detector` runtime 상태 확인 |
 
-Main Model 전환 중에는 generation gate가 닫히며 신규 Chat Completions와 Responses 요청은 `MAIN_MODEL_SWITCH_IN_PROGRESS`로 응답한다. Sidecar에 접근할 수 없는 경우 두 generation surface는 `MAIN_MODEL_CONTROL_UNAVAILABLE`로 응답한다.
+Main Model 전환 중에는 generation gate가 닫히며 신규 Chat Completions와 Responses 요청은 `MAIN_MODEL_SWITCH_IN_PROGRESS`로 응답한다. Runtime Controller에 접근할 수 없는 경우 두 generation surface는 `MAIN_MODEL_CONTROL_UNAVAILABLE`로 응답한다.
 
 Embedding, Retrieval, Prompt Guard는 각 기능에 필요한 runtime의 상태를 독립적으로 확인한다.
 
@@ -237,7 +237,7 @@ Gateway
   │
   ├─ Main Model in-flight 등록
   │
-  ├─ Sidecar에서 active profile / gate 조회
+  ├─ Runtime Controller에서 active profile / gate 조회
   │
   ├─ 현재 deployed modality 확인
   │
@@ -535,7 +535,7 @@ validator만 Compose 내부 service DNS로 runtime·Risk·Prometheus를 직접 �
 
 ### Admin Control 경로
 
-운영 요청은 Gateway의 `/admin/*` API에서 Sidecar 내부 API로 변환된다.
+운영 요청은 Gateway의 `/admin/*` API에서 Runtime Controller 내부 API로 변환된다.
 
 ```text
 Operator
@@ -591,11 +591,11 @@ Gateway /ready /metrics /admin/*
 | **Admin / Operations** | `/ready`, `/metrics`, `/admin/*` | `ADMIN_API_KEY_REQUIRED`에 따라 Admin Bearer token 적용 |
 | **Gateway Internal** | `/internal/main-model/drain-status` | `INTERNAL_SERVICE_AUTH_REQUIRED`에 따라 Internal Service token 적용 |
 | **Gateway → Risk Signal Service** | Risk Signal Service `/v1/risk/*` | `INTERNAL_SERVICE_AUTH_REQUIRED`에 따라 Internal Service token 적용 |
-| **Gateway → Sidecar** | Sidecar control API | `INTERNAL_SERVICE_AUTH_REQUIRED`에 따라 Internal Service token 적용 |
+| **Gateway → Runtime Controller** | Runtime Controller control API | `INTERNAL_SERVICE_AUTH_REQUIRED`에 따라 Internal Service token 적용 |
 
 Gateway의 `/v1/*`와 `/admin/*`는 서로 다른 bearer credential을 사용할 수 있다.
 
-Sidecar는 Docker Engine을 제어하므로 플랫폼에서 권한이 가장 높은 프로세스다. 그래서
+Runtime Controller는 Docker Engine을 제어하므로 플랫폼에서 권한이 가장 높은 프로세스다. 그래서
 인증 활성 여부를 토큰이 비었는지가 아니라 선언된 `INTERNAL_SERVICE_AUTH_REQUIRED`로
 정한다. 인증을 요구한 구성에서 `INTERNAL_SERVICE_TOKEN`이 비어 있거나 placeholder면
 무인증으로 열리는 대신 기동을 거부한다. 내부 인증 없음을 선언한 profile(`local_open`)에서는
@@ -644,7 +644,7 @@ Runtime Controller
 Docker / Runtime Control
 ```
 
-외부 애플리케이션 경로와 runtime 제어 경로가 Gateway에서 분리되고, Docker 제어 권한은 Sidecar 내부 경계에 집중된다.
+외부 애플리케이션 경로와 runtime 제어 경로가 Gateway에서 분리되고, Docker 제어 권한은 Runtime Controller 내부 경계에 집중된다.
 
 ## 다음 문서
 
