@@ -18,44 +18,6 @@ def _specs() -> dict[str, dict[str, object]]:
     }
 
 
-def test_remote_image_contract_rejects_mutable_third_party_tag():
-    errors = validate_image_refs.remote_env_errors(
-        {"PROMETHEUS_IMAGE": "prom/prometheus:v3-distroless"},
-        specs=_specs(),
-    )
-
-    assert errors == [
-        "PROMETHEUS_IMAGE (prometheus) must be an immutable registry digest "
-        "(name@sha256:<64 lowercase hex>)"
-    ]
-
-
-def test_remote_image_contract_accepts_alternate_immutable_digest():
-    errors = validate_image_refs.remote_env_errors(
-        {"PROMETHEUS_IMAGE": "registry.example/prometheus@sha256:" + "b" * 64},
-        specs=_specs(),
-    )
-
-    assert errors == []
-
-
-def test_image_contract_uses_declared_env_key_instead_of_name_projection():
-    specs = {
-        "metrics_backend": {
-            "env_key": "PROMETHEUS_IMAGE",
-            "reference_policy": "immutable_upstream",
-            "default": "prom/prometheus@sha256:" + "a" * 64,
-        }
-    }
-
-    errors = validate_image_refs.remote_env_errors(
-        {"PROMETHEUS_IMAGE": "registry.example/prometheus@sha256:" + "b" * 64},
-        specs=specs,
-    )
-
-    assert errors == []
-
-
 def test_image_contract_rejects_duplicate_env_key():
     specs = _specs()
     specs["other"] = {

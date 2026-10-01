@@ -31,7 +31,6 @@ class ControlPlaneBootstrapProjection:
     """
 
     platform_version: str
-    release_id: str | None
     deployment_target: str
     deployment_display_name: str
     deployment_platform: str
@@ -128,7 +127,6 @@ def build_control_plane_bootstrap_projection(
     target = settings.deployment_target
     return ControlPlaneBootstrapProjection(
         platform_version=settings.project_version,
-        release_id=None,
         deployment_target=target.target_id,
         deployment_display_name=target.display_name,
         deployment_platform=target.platform,
@@ -168,7 +166,6 @@ def control_plane_bootstrap_document(
         "bootstrap_version": BOOTSTRAP_VERSION,
         "platform": {
             "version": projection.platform_version,
-            "release_id": projection.release_id,
         },
         "deployment": {
             "target": projection.deployment_target,

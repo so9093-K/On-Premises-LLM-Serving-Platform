@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Container image authority와 remote env immutable 계약을 검증한다."""
+"""Repository가 소유하는 container image authority를 검증한다."""
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 from typing import Any
@@ -78,25 +77,6 @@ def _validated_entries(
     return entries, errors
 
 
-def remote_env_errors(
-    values: dict[str, str],
-    *,
-    specs: dict[str, dict[str, Any]] | None = None,
-) -> list[str]:
-    specs = specs or _image_specs()
-    entries, errors = _validated_entries(specs)
-    for name, env_key, reference_policy, _default in entries:
-        if reference_policy != "immutable_upstream":
-            continue
-        value = values.get(env_key, "").strip()
-        if not is_registry_digest_image_ref(value):
-            errors.append(
-                f"{env_key} ({name}) must be an immutable registry digest "
-                "(name@sha256:<64 lowercase hex>)"
-            )
-    return errors
-
-
 def repository_contract_errors() -> list[str]:
     specs = _image_specs()
     entries, errors = _validated_entries(specs)
@@ -124,23 +104,9 @@ def validate_repository_image_refs() -> None:
         raise SystemExit("\n".join(errors))
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate repository image authority and remote immutable refs."
-    )
-    parser.add_argument(
-        "--env-file",
-        type=Path,
-        help="Validate a deployment env instead of repository defaults/projection.",
-    )
-    args = parser.parse_args(argv)
-
+def main() -> int:
     try:
-        if args.env_file is None:
-            errors = repository_contract_errors()
-        else:
-            values = load_strict_env_file(args.env_file)
-            errors = remote_env_errors(values)
+        errors = repository_contract_errors()
     except (OSError, RuntimeError, yaml.YAMLError) as exc:
         print(f"[image-ref] ERROR: {exc}", file=sys.stderr)
         return 2
