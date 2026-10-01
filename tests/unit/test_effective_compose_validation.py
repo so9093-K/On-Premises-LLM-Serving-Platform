@@ -67,6 +67,18 @@ def test_effective_main_must_match_exact_boot_projection(tmp_path, field):
         validator.validate_alignment(effective_compose=effective, boot_override=boot)
 
 
+def test_auxiliary_vllm_image_must_use_shared_authority(tmp_path):
+    document = validator.load_yaml(validator.COMPOSE_PATH)
+    document["services"]["embedding-ko-vllm"]["image"] = (
+        "${EMBEDDING_KO_VLLM_IMAGE:?legacy per-runtime image authority}"
+    )
+    compose_path = tmp_path / "compose.yaml"
+    compose_path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="embedding-ko-vllm.image must reference VLLM_IMAGE"):
+        validator.validate_alignment(compose_path)
+
+
 def test_auxiliary_gpu_budget_must_match_registry(tmp_path):
     _, boot, effective = boot_config(tmp_path)
     command = effective["services"]["embedding-ko-vllm"]["command"]

@@ -10,6 +10,65 @@ from .common import (
 )
 
 
+def _writable_volume_targets(volume: object, target: str) -> bool:
+    if isinstance(volume, str):
+        parts = volume.split(":")
+        if len(parts) < 2 or parts[1] != target:
+            return False
+        options = set(parts[2].split(",")) if len(parts) > 2 else set()
+        return "ro" not in options
+    if isinstance(volume, dict):
+        return str(volume.get("target", "")) == target and volume.get("read_only") is not True
+    return False
+
+
+def validate_gateway_platform_state_projection(
+    target_id: str,
+    compose_files: list[str],
+) -> None:
+    """Every target Gateway must persist the canonical platform state root."""
+    from ai_model_serving.platform_state import DEFAULT_PLATFORM_STATE_DIR
+
+    expected_root = str(DEFAULT_PLATFORM_STATE_DIR)
+    state_declared = False
+    state_mounted = False
+
+    for path in compose_files:
+        if not (ROOT / path).exists():
+            continue
+        services = read_yaml(path).get("services")
+        gateway = services.get("gateway") if isinstance(services, dict) else None
+        if not isinstance(gateway, dict):
+            continue
+
+        environment = gateway.get("environment")
+        if isinstance(environment, dict) and "PLATFORM_STATE_DIR" in environment:
+            actual_root = str(environment["PLATFORM_STATE_DIR"])
+            if actual_root != expected_root:
+                raise SystemExit(
+                    f"deployment target {target_id!r} Gateway PLATFORM_STATE_DIR must be "
+                    f"{expected_root!r}, got {actual_root!r} in {path}"
+                )
+            state_declared = True
+
+        volumes = gateway.get("volumes") or []
+        if isinstance(volumes, list) and any(
+            _writable_volume_targets(volume, expected_root) for volume in volumes
+        ):
+            state_mounted = True
+
+    if not state_declared:
+        raise SystemExit(
+            f"deployment target {target_id!r} Gateway must declare PLATFORM_STATE_DIR="
+            f"{expected_root}"
+        )
+    if not state_mounted:
+        raise SystemExit(
+            f"deployment target {target_id!r} Gateway must mount PLATFORM_STATE_DIR "
+            f"{expected_root} on a writable persistent volume"
+        )
+
+
 def validate_deployment_targets() -> None:
     from ai_model_serving.deployment_target import load_deployment_target
     from ai_model_serving.serving_profile import load_main_serving_catalog
@@ -27,6 +86,8 @@ def validate_deployment_targets() -> None:
         # Console은 runs_monitoring_stack으로 Grafana 링크를 보인다. compose와 어긋나면
         # 없는 Grafana를 가리키거나 있는 것을 숨긴다. dynamic target은 full-stack compose를 쓴다.
         compose_files = raw_target.get('compose_files') or ['ops/compose/full-stack.private-network.yaml']
+        compose_files = [str(path) for path in compose_files if isinstance(path, str)]
+        validate_gateway_platform_state_projection(str(target_id), compose_files)
         runs_prometheus = False
         for path in compose_files:
             if not (ROOT / path).exists():

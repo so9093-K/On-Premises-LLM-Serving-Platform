@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,8 @@ from tests.support.asgi import InlineASGITestClient as TestClient
 from tests.unit.gateway.helpers import FakeGatewayClients
 from tests.unit.gateway.helpers import FakeRuntimeClient
 from ai_model_serving.settings import RuntimeEndpoint
+from scripts.validation.governance import model_config as model_config_governance
+from scripts.validation.governance.common import read_yaml as governance_read_yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,6 +108,32 @@ def test_control_mode_and_lifecycle_owner_must_align(tmp_path) -> None:
 
     with pytest.raises(RuntimeError, match="requires lifecycle_owner='external'"):
         load_deployment_target(path, "linux-nvidia-static")
+
+
+@pytest.mark.parametrize("mutation", ["state_root", "state_mount"])
+def test_deployment_target_governance_rejects_gateway_platform_state_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    def read_yaml(path: str):
+        document = deepcopy(governance_read_yaml(path))
+        if path == "ops/compose/full-stack.private-network.yaml":
+            gateway = document["services"]["gateway"]
+            if mutation == "state_root":
+                gateway["environment"]["PLATFORM_STATE_DIR"] = "/tmp/alternate-platform-state"
+            else:
+                gateway["volumes"] = [
+                    volume
+                    for volume in gateway["volumes"]
+                    if "/var/lib/ai-model-serving" not in str(volume)
+                ]
+        return document
+
+    monkeypatch.setattr(model_config_governance, "read_yaml", read_yaml)
+
+    expected = "PLATFORM_STATE_DIR must be" if mutation == "state_root" else "writable persistent volume"
+    with pytest.raises(SystemExit, match=expected):
+        model_config_governance.validate_deployment_targets()
 
 
 def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
