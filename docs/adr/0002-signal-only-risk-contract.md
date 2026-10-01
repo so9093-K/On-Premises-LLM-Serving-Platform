@@ -4,6 +4,9 @@
 
 Accepted
 
+> Current terminology: ADR-0029 이후 사용자-facing 이름은 **Risk Signal Service**다.
+> 아래의 `Risk Adapter` 표기는 이 결정 당시의 역사적 명칭이다.
+
 ## Context
 
 Risk Signal 계층은 최종 `allow`, `review`, `block` 결정을 하지 않는 독립 signal provider로 둔다.

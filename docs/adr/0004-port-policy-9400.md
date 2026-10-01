@@ -4,6 +4,11 @@
 
 Accepted
 
+> Current implementation note (2026-10-01): 사용자-facing `Risk Adapter` 명칭은
+> **Risk Signal Service**로 바뀌었고 ReDoc surface는 제거됐다. Host publish 경계는
+> `configs/services.yaml`, target Compose와 Access Profile projection이 소유한다.
+> 아래 본문은 이 ADR이 채택될 당시의 용어와 문서 surface를 기록한다.
+
 ## 결정
 
 외부 애플리케이션 진입점은 Gateway `9400`으로 둔다. 기본 host port는 다음 대역으로 구분한다.

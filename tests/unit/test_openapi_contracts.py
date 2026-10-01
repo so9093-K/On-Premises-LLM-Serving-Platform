@@ -1,7 +1,7 @@
 """OpenAPI의 동적 인증·예시 보존과 오류 경계를 검증한다.
 
 기본 request/response schema가 checked-in 계약과 일치하는지는 ``make validate``의
-generated artifacts 단계가 Gateway와 Risk Adapter 전체에 대해 검사한다.
+generated artifacts 단계가 Gateway와 Risk Signal Service 전체에 대해 검사한다.
 """
 
 from __future__ import annotations

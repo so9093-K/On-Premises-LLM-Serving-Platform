@@ -59,7 +59,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog와 static Compose 파일 목록 |
 | GPU resource budget | `configs/gpu_budgets.yaml` | runtime별 GPU budget과 admission 기준 정의 |
 | Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env와 host-boundary service role 정의 |
-| Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
+| Runtime Startup Profile | `configs/deploy_profiles.yaml` | `make up`의 full-stack 기동에서 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/required/controllable binding과 Main resource-policy composition constraint 정의 |
 | Authentication profile | `configs/auth_profiles.yaml` | `AUTH_MODE`별 인증·관리 endpoint 보호 정책 정의 |
 | Environment example contract | `configs/env_contract.yaml` | `.env` 예시 파일에 포함할 키 정의 |
@@ -251,7 +251,7 @@ main-llm-vllm
 
 `configs/main_model_profiles.yaml`은 선택 가능한 profile을 정의한다.
 
-실제 `compose-up` 시에는 persisted Main Model state와 boot policy를 읽어 temporary Compose override를 생성하고, 그 결과로 Main Model container의 실행 command를 확정한다.
+실제 full-stack `make up` 내부에서는 persisted Main Model state와 boot policy를 읽어 temporary Compose override를 생성하고, 그 결과로 Main Model container의 실행 command를 확정한다.
 
 `.runtime/*`는 현재 선택된 상태와 운영 산출물을 저장한다. 지속적으로 관리하는 configuration definition은 `configs/`의 Source of Truth를 기준으로 한다.
 
@@ -290,7 +290,7 @@ Access Profile은 이 서비스 집합을 바꾸지 않고 auth, `EXPOSURE_AUDIE
 
 ## 5.7 Runtime Startup Profile
 
-`configs/deploy_profiles.yaml`은 compose-up 이후 non-main Model Runtime의 초기 운영 상태를 정의한다. profile을 명시하지 않으면 `default_profile: main_only`가 적용되어 embedding 계열과 Prompt Injection 모델은 컨테이너만 생성되고 시작되지 않는다. Risk Signal Service와 PII·Secret 검사 경로는 그대로 유지된다.
+`configs/deploy_profiles.yaml`은 full-stack `make up` 이후 non-main Model Runtime의 초기 운영 상태를 정의한다. profile을 명시하지 않으면 `default_profile: main_only`가 적용되어 embedding 계열과 Prompt Injection 모델은 컨테이너만 생성되고 시작되지 않는다. Risk Signal Service와 PII·Secret 검사 경로는 그대로 유지된다.
 
 현재 control 대상은 다음과 같다.
 
@@ -559,7 +559,7 @@ bash scripts/compose/compose_config.sh
 | GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
 | Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `make validate`, `bash scripts/compose/compose_config.sh` |
 | Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make validate`, `make up ACCESS=...` |
-| Deploy profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | compose-up, full deploy 또는 runtime reconcile |
+| Runtime Startup Profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | full-stack `make up` 또는 runtime reconcile |
 | Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
 | Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
 | `.env` | runtime environment | 현재 실행 instance의 endpoint, secret, timeout 등 | 대상 process/container 재기동 가능 |

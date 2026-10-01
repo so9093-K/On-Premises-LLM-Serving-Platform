@@ -60,6 +60,16 @@ The required CI gate continues to validate:
 
 It does not build a source archive solely to prove that source-archive code still works.
 
+### 6. Removed release orchestration does not retain a Compose ownership bypass
+
+The canonical lifecycle always checks that an existing Compose project belongs to the current
+checkout before mutating it. The former `ALLOW_SHARED_COMPOSE_PROJECT` escape hatch belonged to
+release orchestration that no longer exists, so it is removed rather than retained as a generic
+way to bypass checkout ownership.
+
+External automation that intentionally operates multiple checkouts must use distinct
+`COMPOSE_PROJECT_NAME` values instead of disabling the ownership guard.
+
 ## Consequences
 
 | Positive | Negative |

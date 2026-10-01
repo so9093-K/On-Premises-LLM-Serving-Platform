@@ -57,6 +57,8 @@
 
 ### Changed
 
+- Current-state cleanup으로 Gateway runtime state를 `PLATFORM_STATE_DIR/runtime-state.json` 하나에서만 파생하고, 제거된 remote release orchestration이 사용하던 `ALLOW_SHARED_COMPOSE_PROJECT` Compose ownership bypass를 삭제했다. Model catalog의 도달 불가능한 `public_adapter_endpoint` fallback과 과거 이름의 부재만 반복 확인하던 회귀 테스트를 제거했으며, operator 문서와 active test 설명은 `make up`, Runtime Controller, Risk Signal Service 등 canonical terminology로 정렬했다.
+
 - Remote release state machine 제거 뒤 실제 deployment consumer 없이 남아 있던 repository-owned source ZIP과 release manifest/provenance subsystem을 제거했다. Git commit/tree가 source identity를, published immutable image digest가 deployable image identity를 소유하며 CI는 application/contracts, Control Plane, Platform image를 직접 검증한다. `make package`와 package 전용 CI/test surface는 더 이상 제공하지 않는다. ([ADR-0046](docs/adr/0046-source-transport-is-not-platform-authority.md))
 
 - Control Plane bootstrap에서 remote release 제거 뒤 항상 `null`이던 `platform.release_id`를 제거했다. Console은 project version만 표시하며, Runtime Validation의 Prompt Injection Detector override와 image reference validation은 현재 canonical 입력·repository authority만 유지한다.

@@ -1,4 +1,4 @@
-"""Risk Adapter 앱 계약 테스트가 공유하는 fake client와 기본 설정."""
+"""Risk Signal Service 앱 계약 테스트가 공유하는 fake client와 기본 설정."""
 
 from __future__ import annotations
 

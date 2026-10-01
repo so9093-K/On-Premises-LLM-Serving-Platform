@@ -20,7 +20,7 @@ Main Model cache와 runtime startup을 현재 상태에 맞춰 수렴한다. man
 이미 현재 source와 맞는 image와 pinned model snapshot은 재사용한다.
 
 개발자는 코드 변경 검증을 위해 `make app-check` 또는 `make check`를 사용한다.
-개별 image build, runtime validation, package 생성과 implementation script는 변경 범위를
+개별 image build, runtime validation과 implementation script는 변경 범위를
 검증하기 위한 developer/maintainer surface이며 정상 operator lifecycle을 확장하지 않는다.
 
 명령 책임과 파괴 범위는 [ADR-0039](adr/0039-operator-intent-lifecycle-and-diagnostics.md)을
@@ -539,6 +539,6 @@ developer/maintainer implementation surface다.
 | Platform build script | `scripts/build/build_platform_image.sh` | Provider-neutral Platform build |
 | Unified vLLM build config | `configs/vllm_unified_build.yaml` | target platform, base image와 compatibility pin |
 | Unified vLLM Dockerfile | `ops/images/vllm-unified/Dockerfile` | derived vLLM runtime image |
-| Target lifecycle | `scripts/platform_cli.py` | setup/build/prepare/up/status/down 조합 |
+| Target lifecycle | `scripts/platform_cli.py` | `make up/status/down/logs/reset/purge` intent를 target-aware convergence로 구현 |
 | Checkout 전체 종료 | `scripts/ops/down_all.sh` | `.env` 독립적인 project-owned runtime 회수 |
 | 프로젝트 로컬 상태 초기화 | `scripts/ops/reset_all.sh` | 확인 기반 project-local state 삭제 |

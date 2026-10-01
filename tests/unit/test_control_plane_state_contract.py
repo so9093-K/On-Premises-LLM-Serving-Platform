@@ -22,7 +22,5 @@ def test_static_and_dynamic_gateway_share_platform_state_contract() -> None:
 
     assert static_gateway["environment"]["PLATFORM_STATE_DIR"] == _STATE_ROOT
     assert dynamic_gateway["environment"]["PLATFORM_STATE_DIR"] == _STATE_ROOT
-    assert "GATEWAY_RUNTIME_STATE_PATH" not in static_gateway["environment"]
-    assert "GATEWAY_RUNTIME_STATE_PATH" not in dynamic_gateway["environment"]
     assert _STATE_BIND in static_gateway["volumes"]
     assert _STATE_BIND in dynamic_gateway["volumes"]

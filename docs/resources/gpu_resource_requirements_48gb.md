@@ -38,7 +38,7 @@
 | 모델 상주 방식 | enabled 모델만 vLLM 기반으로 GPU에 상주시킨다. |
 | 인스턴스 구성 | Main LLM, Embedding, Prompt Risk를 각각 독립된 vLLM 인스턴스로 운용한다. |
 | Main LLM canary context | `max_model_len=20000`, `max_num_seqs=1`, `max_num_batched_tokens=20000`, `optimization_level=3`, `gpu_memory_utilization=0.76` |
-| Risk Adapter 구성 | enabled detector registry 기준 prompt-only aggregate |
+| Risk Signal Service 구성 | enabled detector registry 기준 prompt-only aggregate |
 | 운영 기준 | 모델 weight, KV cache, CUDA context, executor overhead, allocator fragmentation, runtime peak reserve를 포함한다. |
 
 ## 4. 모델 사실과 리소스 해석

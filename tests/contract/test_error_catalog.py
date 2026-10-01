@@ -1,6 +1,6 @@
 """공개 오류 code가 endpoint의 실제 책임과 인증 경계를 따르는지 검증한다.
 
-Gateway의 upstream-backed Chat과 Risk Adapter의 local detector는 같은 POST이지만
+Gateway의 upstream-backed Chat과 Risk Signal Service의 local detector는 같은 POST이지만
 발생 가능한 오류가 다르다. strict 문서의 readiness는 실제 admin security에
 맞게 공통 401 envelope를 공개해야 한다.
 """

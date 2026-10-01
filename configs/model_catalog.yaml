@@ -53,7 +53,6 @@ models:
     runtime:
       served_model_name: risk-prompt
       internal_endpoint: /v1/chat/completions
-      public_adapter_endpoint: /v1/risk/detectors/prompt/assessments
       max_output_tokens: 1
     gateway_listing:
       enabled: true

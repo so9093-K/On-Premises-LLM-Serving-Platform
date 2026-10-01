@@ -74,8 +74,8 @@ Local image
 ```
 
 외부 registry digest는 `make up`의 artifact convergence가 다시 build하지 않고 보존한다. Publish 결과를 특정
-host에서 사용하려면 해당 host의 image pin을 명시적으로 갱신하고 같은
-`setup/build/prepare/up/status` lifecycle로 수렴시킨다.
+host에서 사용하려면 해당 host의 image pin을 명시적으로 갱신하고 canonical
+`make up` convergence와 `make status` 확인으로 수렴시킨다.
 
 SSH/Ansible/CI runner가 이 lifecycle을 다른 host에서 호출할 수는 있지만, repository는 source
 전송, rolling/full mode, release symlink, remote automatic rollback을 별도 deployment protocol로

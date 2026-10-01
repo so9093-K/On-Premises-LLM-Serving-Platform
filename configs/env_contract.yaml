@@ -170,6 +170,12 @@ service_env_projections:
 # 템플릿에 존재한 적 없는 host 전용 설정(MAIN_MODEL_STATE_PATH 등)이 정상적으로 들어갈 수
 # 있으므로, 지울 키는 여기에 명시적으로 등록한다.
 removed_keys:
+  GATEWAY_RUNTIME_STATE_PATH: >-
+    Gateway runtime state는 PLATFORM_STATE_DIR 아래 runtime-state.json으로 고정된다.
+    과거 개별 state-file override는 더 이상 runtime contract가 아니다.
+  ALLOW_SHARED_COMPOSE_PROJECT: >-
+    제거된 remote release orchestration이 cross-checkout Compose mutation guard를 우회하던
+    process flag다. 현재 lifecycle은 checkout ownership 검사를 우회하지 않는다.
   EXPOSURE_MODE: >-
     host exposure topology가 Gateway/Grafana 중심의 canonical private boundary 하나로 고정되어
     선택 가능한 runtime env state가 아니다. 기존 private_network marker는 sync-env에서

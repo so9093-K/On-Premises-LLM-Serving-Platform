@@ -4,6 +4,9 @@
 
 Accepted
 
+> Current terminology: `Risk Adapter`는 **Risk Signal Service**, `admin-sidecar`는
+> **Runtime Controller**다. 아래 명칭은 이 결정 당시의 구현 이름을 보존한다.
+
 ## Context
 
 Gateway와 Risk Adapter의 `http_request_completed`는 요청 ID, route, 상태, 지연과

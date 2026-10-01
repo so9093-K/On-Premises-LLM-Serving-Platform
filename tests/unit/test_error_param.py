@@ -297,7 +297,7 @@ def test_sidecar_failure_is_publicly_generic_and_internally_correlated(monkeypat
     body = response.json()["error"]
     assert body["code"] == "MAIN_MODEL_CONTROL_UNAVAILABLE"
     assert body["message"] == "Main model control service is temporarily unavailable."
-    for secret in ("/var/lib/ai-model-serving", "admin-sidecar", "HTTP 500"):
+    for secret in ("/var/lib/ai-model-serving", "Runtime Controller", "HTTP 500"):
         assert secret not in response.text
 
     records = [json.loads(line) for line in (tmp_path / "gateway.jsonl").read_text().splitlines()]

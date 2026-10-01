@@ -83,7 +83,7 @@ class ModelRegistry:
                     ),
                     serving_key=serving_key,
                     port=int(serving_cfg["port"]) if "port" in serving_cfg else None,
-                    endpoint_path=str(runtime.get("endpoint", runtime.get("internal_endpoint", runtime.get("public_adapter_endpoint", ""))) or "") or None,
+                    endpoint_path=str(runtime.get("endpoint", runtime.get("internal_endpoint", "")) or "") or None,
                     max_model_len=int(max_model_len) if max_model_len is not None else None,
                     max_output_tokens=int(max_output_tokens) if max_output_tokens is not None else None,
                     embedding_dimensions=tuple(int(item) for item in dimensions),
