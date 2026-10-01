@@ -56,13 +56,11 @@ def test_configuration_plan_change_contract_matches_metadata_grammar() -> None:
     assert set(properties["apply_mode"]["enum"]) == set(CONFIGURATION_APPLY_MODES)
     assert set(properties["risk"]["enum"]) == set(CONFIGURATION_RISKS)
 
+    plan_change = load_contract_schema("configuration_plan_change.schema.json")
     plan = load_contract_schema("configuration_plan_response.schema.json")
     rollback = load_contract_schema("configuration_rollback_plan_response.schema.json")
     history = load_contract_schema("configuration_history_response.schema.json")
 
-    assert plan["properties"]["changes"]["items"]["$ref"] == "configuration_plan_change.schema.json"
-    assert rollback["properties"]["changes"]["items"]["$ref"] == "configuration_plan_change.schema.json"
-    assert (
-        history["$defs"]["historyItem"]["properties"]["changes"]["items"]["$ref"]
-        == "configuration_plan_change.schema.json"
-    )
+    assert plan["properties"]["changes"]["items"] == plan_change
+    assert rollback["properties"]["changes"]["items"] == plan_change
+    assert history["$defs"]["historyItem"]["properties"]["changes"]["items"] == plan_change
