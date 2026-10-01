@@ -175,3 +175,26 @@ def test_generation_openapi_projects_profile_tool_choice_subset(schema_name, nar
     assert narrowed["properties"]["tool_choice"]["oneOf"] == [
         {"type": "string", "enum": ["auto", "none"]}
     ]
+
+
+def test_risk_signal_service_public_routes_remain_risk_domain_contract() -> None:
+    document = create_risk_signal_service_app(risk_settings(), FakeRiskClients()).openapi()
+    public_paths = {path for path in document["paths"] if path.startswith("/v1/")}
+
+    assert public_paths
+    assert all(path.startswith("/v1/risk/") for path in public_paths)
+
+
+def test_gateway_and_risk_signal_service_share_public_risk_route_namespace() -> None:
+    gateway = create_gateway_app(gateway_settings(), FakeGatewayClients()).openapi()
+    risk = create_risk_signal_service_app(risk_settings(), FakeRiskClients()).openapi()
+
+    gateway_risk_paths = {
+        path for path in gateway["paths"] if path.startswith("/v1/risk/")
+    }
+    service_risk_paths = {
+        path for path in risk["paths"] if path.startswith("/v1/risk/")
+    }
+
+    assert gateway_risk_paths
+    assert gateway_risk_paths == service_risk_paths

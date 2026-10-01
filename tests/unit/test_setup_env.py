@@ -315,3 +315,13 @@ def test_setup_env_refuses_non_empty_runtime_secret_directory(tmp_path, monkeypa
 
     assert rc == 2
     assert 'must be a file, but it is a non-empty directory' in capsys.readouterr().err
+
+
+def test_fresh_compose_env_uses_single_shared_vllm_authority(tmp_path) -> None:
+    out = tmp_path / ".env"
+
+    rc = setup_env.main(["--profile", "compose", "--output", str(out)])
+
+    assert rc == 0
+    values = setup_env.read_env_values(out)
+    assert values["VLLM_IMAGE"].startswith("ai-model-serving-vllm-unified:")

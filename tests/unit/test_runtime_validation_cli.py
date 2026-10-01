@@ -1,11 +1,45 @@
 from __future__ import annotations
 
-from scripts.validation.runtime.cli import build_parser
+from types import SimpleNamespace
+
+from scripts.validation.runtime.config import _url_value
 
 
-def test_prompt_detector_override_uses_canonical_destination() -> None:
-    args = build_parser().parse_args(
-        ["--prompt-injection-detector-base", "http://prompt-injection-detector-runtime:9403/v1"]
+def test_runtime_validation_endpoint_precedence(monkeypatch) -> None:
+    args = SimpleNamespace(gateway_base=" http://cli.example/v1/ ")
+    monkeypatch.setenv(
+        "RUNTIME_VALIDATION_GATEWAY_BASE_URL",
+        "http://env.example/v1/",
     )
 
-    assert args.prompt_injection_detector_base == "http://prompt-injection-detector-runtime:9403/v1"
+    assert (
+        _url_value(
+            args,
+            "gateway_base",
+            "RUNTIME_VALIDATION_GATEWAY_BASE_URL",
+            "http://derived.internal/v1/",
+        )
+        == "http://cli.example/v1"
+    )
+
+    args.gateway_base = "   "
+    assert (
+        _url_value(
+            args,
+            "gateway_base",
+            "RUNTIME_VALIDATION_GATEWAY_BASE_URL",
+            "http://derived.internal/v1/",
+        )
+        == "http://env.example/v1"
+    )
+
+    monkeypatch.delenv("RUNTIME_VALIDATION_GATEWAY_BASE_URL")
+    assert (
+        _url_value(
+            args,
+            "gateway_base",
+            "RUNTIME_VALIDATION_GATEWAY_BASE_URL",
+            "http://derived.internal/v1/",
+        )
+        == "http://derived.internal/v1"
+    )

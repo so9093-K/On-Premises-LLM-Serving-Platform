@@ -122,10 +122,14 @@ def test_main_model_operation_contract_excludes_internal_controller_state() -> N
     assert "boot_reconcile" not in schema["properties"]
 
 
-def test_main_model_profile_contract_exposes_resource_policy_without_hardware_allowlist_semantics() -> None:
+def test_main_model_profile_contract_exposes_optional_resource_policy_projection() -> None:
     schema = load_contract_schema("main_model_profile.schema.json")
     properties = schema["properties"]
-    assert "resource_variant" in properties
-    assert "resource_variants" in properties
-    assert "hardware support verdict" in properties["resource_variant"]["description"]
-    assert "supported-GPU allowlist" in properties["resource_variants"]["description"]
+
+    assert properties["resource_variant"]["type"] == ["string", "null"]
+    assert properties["resource_variant"]["minLength"] == 1
+    assert properties["resource_variants"]["type"] == "array"
+    assert properties["resource_variants"]["uniqueItems"] is True
+    assert properties["resource_variants"]["items"]["type"] == "string"
+    assert "resource_variant" not in schema["required"]
+    assert "resource_variants" not in schema["required"]
