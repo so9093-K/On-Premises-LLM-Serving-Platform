@@ -34,7 +34,7 @@ from .profile_state import validate_profile_state
 
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 # 프로필 이미지는 리터럴 digest이거나 CI/deploy가 이를 resolve하는 단일 ${ENV_VAR} 참조일 수 있다 —
-# compose의 `${RISK_VLLM_IMAGE}`와 동일한 방식으로, 파생 런타임(예: audio/multimodal 이미지)이
+# Compose의 `${VLLM_IMAGE}`와 동일한 방식으로, profile-specific runtime image가
 # 수동이 아니라 파이프라인에 의해 고정(pin)된다.
 _IMAGE_ENV_REF_RE = re.compile(r"^\$\{([A-Z_][A-Z0-9_]*)\}$")
 # switch-time media boot canary가 실제로 아는 modality 집합이다. deployed_input은 이

@@ -41,12 +41,9 @@ compose_context_init() {
 }
 
 # 동일 Docker daemon에서 다른 working directory가 같은 Compose project name을
-# 사용 중이면 up/down/restart는 그 컨테이너를 재생성·중지할 수 있다. 개발 명령은
-# 이를 기본 거부한다. release 경로를 의도적으로 넘나드는 배포 자동화만
-# ALLOW_SHARED_COMPOSE_PROJECT=1을 명시할 수 있다.
+# 사용 중이면 up/down/restart는 그 컨테이너를 재생성·중지할 수 있으므로 항상 거부한다.
 compose_context_assert_mutation_safe() {
   local expected_dir actual_dir container_id
-  [[ "${ALLOW_SHARED_COMPOSE_PROJECT:-0}" == "1" ]] && return 0
   command -v docker >/dev/null 2>&1 || return 0
 
   expected_dir="$(readlink -f "$(dirname "$COMPOSE_FILE_ABS")")"
@@ -58,7 +55,6 @@ compose_context_assert_mutation_safe() {
     if [[ "$actual_dir" != "$expected_dir" ]]; then
       echo "[compose] refusing to mutate project '$COMPOSE_PROJECT_NAME_EFFECTIVE': it has a container from $actual_dir" >&2
       echo "[compose] current command uses $expected_dir. Choose a unique COMPOSE_PROJECT_NAME for this environment." >&2
-      echo "[compose] Only intentional release orchestration may set ALLOW_SHARED_COMPOSE_PROJECT=1." >&2
       return 2
     fi
   done < <(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME_EFFECTIVE" 2>/dev/null || true)

@@ -129,7 +129,7 @@ Readiness, smoke, Compose config/diagnostics와 cheap clean은 public Make alias
 | Compose | `ops/compose/` | full-stack Container topology와 Compose 구성 |
 | Runtime Image | `ops/images/` | Platform에서 사용하는 Runtime Image 정의 |
 | Monitoring | `ops/prometheus/`, `ops/grafana/`, `ops/loki/`, `ops/alloy/` | Metrics / Logs 수집과 Dashboard 구성 |
-| Platform Lifecycle | `scripts/platform_cli.py` | target-aware setup/build/prepare/up/status/down 조합 |
+| Platform Lifecycle | `scripts/platform_cli.py` | target-aware `up/status/down/logs/reset/purge` intent 구현 |
 | Build Script | `scripts/build/` | Container Image build와 개발 환경 준비 |
 | Compose Script | `scripts/compose/` | Compose 실행, 구성 확인, diagnostics |
 | Validation Script | `scripts/validation/` | 정적 검증과 Runtime 검증 |

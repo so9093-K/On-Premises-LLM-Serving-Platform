@@ -557,7 +557,7 @@ curl -X PATCH \
 
 Start 과정에서는 prerequisite와 GPU budget을 확인하고 필요한 runtime을 startup order에 따라 시작한다.
 
-full-stack compose-up 시 처음부터 활성화할 non-main Model Runtime 조합은 `configs/deploy_profiles.yaml`에서 결정한다. `RUNTIME_STARTUP_PROFILE`이 유일한 startup profile input이며, 값을 생략하면 `main_only`가 적용되어 모든 non-main Model Runtime은 초기 중지 상태가 된다. Retrieval이 즉시 필요하면 `retrieval_ready`를 명시한다.
+full-stack `make up` 시 처음부터 활성화할 non-main Model Runtime 조합은 `configs/deploy_profiles.yaml`에서 결정한다. `RUNTIME_STARTUP_PROFILE`이 유일한 startup profile input이며, 값을 생략하면 `main_only`가 적용되어 모든 non-main Model Runtime은 초기 중지 상태가 된다. Retrieval이 즉시 필요하면 `retrieval_ready`를 명시한다.
 
 ---
 
@@ -604,7 +604,7 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 | Main Model profile | `configs/main_model_profiles.yaml` | model, revision, image, vLLM command, capability, Gateway 요청 정책, compatibility 정의 |
 | GPU budget | `configs/gpu_budgets.yaml` | GPU admission ceiling과 runtime resource policy 정의 |
 | Runtime serving policy | `configs/model_serving.yaml` | Gateway runtime 연결, timeout, admission 정의 |
-| Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack compose-up 후 non-main Model Runtime 초기 deferred 구성 정의 |
+| Runtime Startup Profile | `configs/deploy_profiles.yaml` | full-stack `make up` 후 non-main Model Runtime 초기 deferred 구성 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
 | Compose topology | `ops/compose/full-stack.private-network.yaml` | Main / non-main Model Runtime container 기본 topology 정의 |
 | Main Model state | `.runtime/main-model/main-model-state.json` 또는 deployment state path | active profile, gate, runtime state, switch operation 기록 |

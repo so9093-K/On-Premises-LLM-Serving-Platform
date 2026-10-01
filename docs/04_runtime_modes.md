@@ -498,7 +498,7 @@ Runtime 시작과 Main Model 전환 시에는 현재 활성화된 runtime의 GPU
 | Base Compose topology   | `ops/compose/full-stack.private-network.yaml` | 전체 서비스의 기본 컨테이너 구성과 연결 관계 정의        |
 | Service / port registry | `configs/services.yaml`                       | 서비스 이름, 포트, bind 정보 등 서비스 메타데이터 정의  |
 | Host exposure boundary  | `configs/services.yaml` + target Compose `ports` | host-published service role과 실제 port projection |
-| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack compose-up 시 초기 deferred runtime 조합 정의 |
+| Runtime Startup Profile  | `configs/deploy_profiles.yaml`                | full-stack `make up` 시 초기 deferred runtime 조합 정의 |
 | Effective Runtime topology | `configs/runtime_topology.yaml`             | feature/lifecycle binding과 Main resource-policy composition constraint 정의 |
 | Model runtime           | `configs/model_serving.yaml`                  | 모델 runtime 연결, 제한값 및 serving 정책 정의  |
 | Main Model profile      | `configs/main_model_profiles.yaml`            | Main Model별 runtime 및 실행 profile 정의 |
@@ -526,6 +526,6 @@ embedding 두 종 상주 뒤 가용량이 그보다 작았기 때문이다.
 runtime으로 동작한다.
 
 effective topology는 Gateway 모델 목록과 readiness, Risk Signal Service detector registry,
-Runtime Controller, compose-up/startup profile, smoke/runtime validation에 공통으로 투영된다.
+Runtime Controller, `make up`의 startup profile, smoke/runtime validation에 공통으로 투영된다.
 따라서 unavailable composition에서는 prompt 단독 endpoint가 `DETECTOR_DISABLED`이고 aggregate는
 PII/Secret만 사용하지만 Risk feature 자체는 계속 제공된다.

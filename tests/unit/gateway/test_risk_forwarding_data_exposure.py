@@ -1,8 +1,8 @@
 """PII/Secret detector 엔드포인트에 대한 Gateway 포워딩 테스트.
 
 확인하는 것:
-- Gateway가 /v1/risk/detectors/pii/assessments를 Risk Adapter로 포워딩함
-- Gateway가 /v1/risk/detectors/secret/assessments를 Risk Adapter로 포워딩함
+- Gateway가 /v1/risk/detectors/pii/assessments를 Risk Signal Service로 포워딩함
+- Gateway가 /v1/risk/detectors/secret/assessments를 Risk Signal Service로 포워딩함
 - Risk usage가 응답과 요청 로그에 같은 값으로 남음
 """
 from __future__ import annotations

@@ -49,7 +49,7 @@ class FakeBackend:
         self.stopped = 0
         self.started = 0
         # 컨테이너의 관측된 Docker State.StartedAt을 흉내낸다. 테스트가 외부에서
-        # main-llm-vllm이 재시작된 상황(admin-sidecar 제어 API를 안 거친 경우)을
+        # main-llm-vllm이 재시작된 상황(Runtime Controller 제어 API를 안 거친 경우)을
         # 시뮬레이션하려면 validate() 호출 사이에 이 값을 바꿔주면 된다.
         self.started_at = started_at
         self.observed_started_at_calls = 0
@@ -98,7 +98,7 @@ def catalog():
 
 
 def test_real_catalog_profile_views_are_json_serializable() -> None:
-    # admin-sidecar의 GET /main-model은 프로필 스냅샷을 stdlib JSON 인코더로
+    # Runtime Controller의 GET /main-model은 프로필 스냅샷을 stdlib JSON 인코더로
     # 직렬화한다. 직렬화 불가능한 값(예: 따옴표 없는 YAML 날짜가 datetime.date로
     # 파싱된 경우)이 있으면 이 엔드포인트가 500을 반환하고, Gateway는 이를
     # SidecarUnavailable로 읽어 모든 main-model 요청에 503을 낸다 — 배포를

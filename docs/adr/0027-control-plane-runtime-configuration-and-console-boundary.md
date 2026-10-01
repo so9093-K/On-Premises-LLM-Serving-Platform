@@ -32,7 +32,7 @@ Gateway service, middleware, RuntimeClient가 그 객체에서 값을 읽으므�
 - runtime endpoint/model identity
 - 인증 bootstrap과 secret reference
 - Main Model catalog/profile identity
-- release/deployment identity
+- Deployment Target과 immutable runtime image identity
 
 운영 중 즉시 다시 읽을 수 있는 operator policy는 별도
 `RuntimeConfigurationSnapshot`/`RuntimeConfigurationProvider`가 소유한다.
@@ -77,9 +77,10 @@ constraint, applicability 정보를 추가한다.
 
 ADR-0021의 operator override 개념은 canonical platform state root 아래에 유지한다. 현재
 Gateway는 supported static/dynamic target 모두 `PLATFORM_STATE_DIR`을 같은 persistent state
-계약으로 사용하며, operator overrides와 Main Model state가 release/container 교체와 분리된
-platform state에 남는다. target별 Compose 표현은 달라도 state root의 의미를 다시 정의하지
-않는다.
+계약으로 사용하며, operator overrides와 Main Model state가 container 교체와 분리된 platform
+state에 남는다. Gateway runtime state도 이 root의 `runtime-state.json`에서 파생하며 별도
+state-file override를 두지 않는다. target별 Compose 표현은 달라도 state root의 의미를 다시
+정의하지 않는다.
 
 Operator store는 Main Model state와 같은 수준의 durability를 요구한다.
 
@@ -113,7 +114,7 @@ Control Plane UI는 Gateway가 same-origin으로 제공하는 first-party self-h
 외부 CDN, runtime Node server, SSR/React Server Components에 의존하지 않는다. Frontend build
 artifact는 air-gap에서 독립적으로 서빙 가능해야 한다.
 
-Console asset lifecycle은 API docs와 분리한다. `FASTAPI_DOCS_ENABLED=false`가 Scalar/ReDoc을
+Console asset lifecycle은 API docs와 분리한다. `FASTAPI_DOCS_ENABLED=false`가 Scalar을
 끄더라도 Admin Console을 함께 제거해서는 안 된다.
 
 일반 운영자 UX는 ADR-0025의 Access Profile을 우선 표시한다.
@@ -151,7 +152,7 @@ v1에서는 기존 Admin Bearer API contract를 유지한다. 별도 cookie sess
 - Operations
 - History
 
-Grafana는 time-series/troubleshooting, Scalar/ReDoc은 API reference 책임을 계속 유지한다.
+Grafana는 time-series/troubleshooting, Scalar은 API reference 책임을 계속 유지한다.
 Console이 두 도구를 다시 구현하지 않는다.
 
 ## Consequences

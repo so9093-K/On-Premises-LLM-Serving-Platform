@@ -29,16 +29,6 @@ def test_platform_state_children_derive_from_one_configured_root(tmp_path: Path)
     )
 
 
-def test_gateway_runtime_state_path_keeps_explicit_legacy_override(tmp_path: Path) -> None:
-    explicit = tmp_path / "legacy-runtime-state.json"
-    environment = {
-        "PLATFORM_STATE_DIR": str(tmp_path / "platform"),
-        "GATEWAY_RUNTIME_STATE_PATH": str(explicit),
-    }
-
-    assert gateway_runtime_state_path(environment) == explicit
-
-
 def test_container_default_root_is_explicit_boundary_fallback() -> None:
     environment: dict[str, str] = {}
 

@@ -1,7 +1,7 @@
 """Data exposure 응답이 공개 risk contract를 통과하는지 검증한다.
 
 private category helper의 내부 분기 대신 ``validate_risk_response()``를 통해
-실제 Risk Adapter와 Gateway가 소비하는 response 계약만 고정한다.
+실제 Risk Signal Service와 Gateway가 소비하는 response 계약만 고정한다.
 """
 from __future__ import annotations
 

@@ -501,7 +501,7 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 
 | 변경 유형 | 기본 검증 | 실행 환경 확인 | 빌드 / 배포 범위 |
 |---|---|---|---|
-| Gateway / Risk Signal Service Python | `make validate`, `make test` | `make status` | Platform / Rolling 중심 |
+| Gateway / Risk Signal Service Python | `make validate`, `make test` | `make status` | Platform Image + canonical `make up` lifecycle |
 | API / Schema | `make validate`, `make test` | app-only 또는 full-stack | Platform Image |
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
 | Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |

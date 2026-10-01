@@ -37,10 +37,8 @@ persistent image authority는 `VLLM_IMAGE`다. Main LLM의 일반 profile,
 embedding, embedding-ko, risk-prompt는 이 authority가 가리키는 검증된 artifact를
 공유한다.
 
-`EMBEDDING_KO_VLLM_IMAGE`와 `RISK_VLLM_IMAGE`는 retired persistent key이며
-runtime 또는 local build의 override로 해석하지 않는다. 기존 `.env`에 남아 있으면
-`python scripts/config/setup_env.py --sync-env --env-file .env`가 제거한다. Main Model profile이 명시적으로 다른 image를 선택해야 할 때는
-`MAIN_MODEL_VLLM_IMAGE_OVERRIDE`가 그 profile-specific override를 소유한다.
+Main Model profile이 명시적으로 다른 image를 선택해야 할 때는
+`MAIN_MODEL_VLLM_IMAGE_OVERRIDE`가 profile-specific override를 소유한다.
 
 Registry publish 결과를 운영에 사용할 때는 immutable `name@sha256:...` digest를
 target host의 persistent `VLLM_IMAGE`에 명시적으로 pin한 뒤 canonical lifecycle로

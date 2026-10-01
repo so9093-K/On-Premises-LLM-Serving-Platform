@@ -35,11 +35,7 @@ def platform_state_path(
 def gateway_runtime_state_path(
     environment: Mapping[str, str] | None = None,
 ) -> Path | None:
-    source = os.environ if environment is None else environment
-    explicit = source.get("GATEWAY_RUNTIME_STATE_PATH", "").strip()
-    if explicit:
-        return Path(explicit)
-    return platform_state_path("runtime-state.json", environment=source)
+    return platform_state_path("runtime-state.json", environment=environment)
 
 
 def runtime_transition_history_path(
