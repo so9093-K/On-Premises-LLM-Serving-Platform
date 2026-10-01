@@ -25,7 +25,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--embedding-ko-base", default=None, help="embedding-ko vLLM base URL입니다. 우선순위: CLI > RUNTIME_VALIDATION_EMBEDDING_KO_BASE_URL > Compose 내부 주소.")
     parser.add_argument(
         "--prompt-injection-detector-base",
-        "--risk-prompt-base",
         dest="prompt_injection_detector_base",
         default=None,
         help="Prompt Injection Detector Runtime base URL입니다. CLI override가 없으면 Compose 내부 주소에서 파생합니다.",

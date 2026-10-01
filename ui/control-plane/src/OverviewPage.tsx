@@ -118,7 +118,6 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   };
   const serviceDashboardUrl = serviceOverviewDashboardUrl(bootstrap.links.grafana);
 
-  const release = bootstrap.platform.release_id ?? 'development';
   const runtimes = runtimesQuery.data?.runtimes ?? [];
   const topology = runtimesQuery.data?.topology ?? [];
   const unavailableTopology = topology.filter((item) => !item.available);
@@ -402,7 +401,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <dl className="facts">
             <dt>접근 프로필</dt><dd>{accessProfileLabel(bootstrap.access.profile)}</dd>
             <dt>관리자 인증</dt><dd>{bootstrap.access.admin_auth_required ? '필요' : '필요 없음'}</dd>
-            <dt>버전</dt><dd>{bootstrap.platform.version} ({release})</dd>
+            <dt>버전</dt><dd>{bootstrap.platform.version}</dd>
             <dt>관측</dt>
             <dd>{bootstrap.monitoring.grafana_available ? 'Grafana 사용 가능' : bootstrap.monitoring.available ? '지표 수집만 사용 가능' : '사용할 수 없음'}</dd>
           </dl>

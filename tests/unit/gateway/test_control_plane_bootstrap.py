@@ -65,7 +65,7 @@ def test_local_bootstrap_projects_safe_links_and_never_serializes_secrets(monkey
     assert response.status_code == 200
     body = response.json()
     Draft202012Validator(SCHEMA).validate(body)
-    assert body["platform"] == {"version": "0.1.0", "release_id": None}
+    assert body["platform"] == {"version": "0.1.0"}
     assert client.get("/openapi.json").json()["info"]["version"] == "0.1.0"
     assert body["access"]["profile"] == "local"
     assert body["links"]["docs"] == "/docs"

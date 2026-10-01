@@ -57,6 +57,8 @@
 
 ### Changed
 
+- Control Plane bootstrap에서 remote release 제거 뒤 항상 `null`이던 `platform.release_id`를 제거했다. Console은 project version만 표시하며, Runtime Validation의 Prompt Injection Detector override와 image reference validation은 현재 canonical 입력·repository authority만 유지한다.
+
 - Runtime validation의 자동 endpoint resolution을 Compose 내부 service identity로 고정했다. 원격·후보 endpoint 검증은 명시적 `--*-base`/process override만 사용하며, internal model/runtime/Prometheus/exporter/Loki의 과거 host bind/port metadata는 제거한다. 기존 `.env`에 남은 해당 `*_BIND_ADDR`·`*_PORT` key는 configuration sync에서 삭제된다. Gateway/Grafana host publication과 app-only Gateway/Risk Signal Service host process port는 실제 consumer가 있어 유지한다. ([ADR-0043](docs/adr/0043-internal-runtime-validation-and-private-host-exposure.md), [ADR-0045](docs/adr/0045-host-exposure-invariant.md))
 
 ### Fixed

@@ -27,10 +27,14 @@ def validate_deployment_targets() -> None:
         # Console은 runs_monitoring_stack으로 Grafana 링크를 보인다. compose와 어긋나면
         # 없는 Grafana를 가리키거나 있는 것을 숨긴다. dynamic target은 full-stack compose를 쓴다.
         compose_files = raw_target.get('compose_files') or ['ops/compose/full-stack.private-network.yaml']
-        runs_prometheus = any(
-            (ROOT / path).exists() and '\n  prometheus:' in (ROOT / path).read_text(encoding='utf-8')
-            for path in compose_files
-        )
+        runs_prometheus = False
+        for path in compose_files:
+            if not (ROOT / path).exists():
+                continue
+            compose_services = read_yaml(path).get('services')
+            if isinstance(compose_services, dict) and 'prometheus' in compose_services:
+                runs_prometheus = True
+                break
         if target.runs_monitoring_stack != runs_prometheus:
             raise SystemExit(
                 f'deployment target {target_id!r} declares runs_monitoring_stack='
