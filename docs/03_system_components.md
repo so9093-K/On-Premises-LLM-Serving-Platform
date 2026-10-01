@@ -6,7 +6,7 @@ AI Model Serving Platform은 외부 API를 처리하는 **Gateway**, runtime과 
 
 ## 3.1 전체 시스템 구성
 
-![AI 모델 서빙 플랫폼 시스템 구성도](../assets/ai_model_serving_system_architecture.jpg)
+![AI 모델 서빙 플랫폼 시스템 구성도](../assets/ai_model_serving_system_architecture.png)
 
 > 위 구성도는 주요 요청 경로와 서비스 관계를 나타낸다. 일부 운영 및 관리 컴포넌트는 가독성을 위해 생략되어 있으며, 상세 구성은 아래 컴포넌트별 설명을 참고한다.
 
