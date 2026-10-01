@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024" role="img" aria-labelledby="title desc">
+<title id="title">온프레미스 LLM 서빙 플랫폼</title>
+<desc id="desc">사용자와 애플리케이션이 OpenAI-compatible API를 통해 API Gateway에 연결되고, 대화·멀티모달, 임베딩·검색, 위험 신호 탐지 기능과 운영 제어, 모니터링, Linux/NVIDIA 및 Apple Silicon 실행 환경을 사용하는 플랫폼 구성도</desc>
+<defs>
+<style>
+.t{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo",sans-serif;fill:#111827}.title{font-size:56px;font-weight:800;letter-spacing:-2px}.subtitle{font-size:24px;fill:#334155}.h1{font-size:32px;font-weight:800}.h2{font-size:25px;font-weight:800}.h3{font-size:20px;font-weight:750}.body{font-size:18px;fill:#334155}.small{font-size:15px;fill:#475569}.label{font-size:17px;font-weight:650}.line{stroke:#475569;stroke-width:2;fill:none}.thin{stroke:#cbd5e1;stroke-width:1.2;fill:none}.panel{fill:#fbfcfd;stroke:#94a3b8;stroke-width:1.3}.card{fill:#fff;stroke:#cbd5e1;stroke-width:1.2}.icon{fill:#475569}.icon2{fill:#334155}
+</style>
+<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#475569"/></marker>
+<marker id="arrowStart" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto"><path d="M8 0L0 4L8 8Z" fill="#475569"/></marker>
+</defs>
+<rect width="1536" height="1024" fill="#fff"/>
+<text class="t title" x="50" y="82">온프레미스 LLM 서빙 플랫폼</text>
+<text class="t subtitle" x="50" y="135">하나의 API로 다양한 AI 기능을 안전하고 안정적으로 실행 · 관리할 수 있는 통합 플랫폼입니다.</text>
+
+<rect class="panel" x="28" y="187" width="1480" height="147" rx="9"/>
+<circle class="icon" cx="73" cy="240" r="13"/><circle class="icon" cx="97" cy="240" r="13"/><circle class="icon" cx="85" cy="220" r="15"/>
+<path class="icon" d="M52 275c0-18 10-28 21-28s21 10 21 28v4H52zm25 4v-4c0-18 10-29 20-29s21 11 21 29v4z"/>
+<text class="t h2" x="140" y="244">사용자 / 애플리케이션</text><text class="t body" x="140" y="278">사내 구성원, 내부 시스템,</text><text class="t body" x="140" y="307">AI 애플리케이션</text>
+
+<g>
+<rect class="card" x="423" y="211" width="212" height="96" rx="8"/><path class="icon" d="M454 233h30a13 13 0 0113 13v10a13 13 0 01-13 13h-12l-11 9v-9h-7a13 13 0 01-13-13v-10a13 13 0 0113-13z"/><text class="t h3" x="510" y="260">AI 챗봇</text>
+<rect class="card" x="646" y="211" width="199" height="96" rx="8"/><path class="icon" d="M676 230h25l12 12v39h-37z"/><path fill="#fff" d="M684 252h20v3h-20zm0 10h20v3h-20z"/><text class="t h3" x="730" y="260">문서 분석</text>
+<rect class="card" x="856" y="211" width="198" height="96" rx="8"/><path class="line" stroke-width="4" d="M896 241l-13 13 13 13m27-26l13 13-13 13m-12-32l-9 38"/><text class="t h3" x="947" y="260">코드 지원</text>
+<rect class="card" x="1065" y="211" width="212" height="96" rx="8"/><circle class="line" stroke-width="5" cx="1103" cy="250" r="17"/><path class="line" stroke-width="5" d="M1116 263l17 17"/><text class="t h3" x="1152" y="260">RAG / 검색</text>
+<rect class="card" x="1288" y="211" width="206" height="96" rx="8"/><circle class="icon" cx="1326" cy="252" r="13"/><path class="icon" d="M1322 226h8l2 10 8 3 8-6 6 6-6 8 3 8 10 2v8l-10 2-3 8 6 8-6 6-8-6-8 3-2 10h-8l-2-10-8-3-8 6-6-6 6-8-3-8-10-2v-8l10-2 3-8-6-8 6-6 8 6 8-3z"/><text class="t h3" x="1372" y="260">사내 도구 연동</text>
+</g>
+
+<line class="line" x1="768" y1="334" x2="768" y2="366" marker-start="url(#arrowStart)" marker-end="url(#arrow)"/>
+<rect x="615" y="366" width="306" height="42" rx="21" fill="#e5e7eb"/><text class="t h3" x="662" y="394">OpenAI-compatible API</text>
+<line class="line" x1="768" y1="408" x2="768" y2="430" marker-end="url(#arrow)"/>
+
+<rect class="panel" x="28" y="430" width="914" height="422" rx="9"/>
+<path class="icon" d="M50 466l28-15 28 15-28 16zm0 5l25 14v31l-25-15zm56 0l-25 14v31l25-15z"/>
+<text class="t h1" x="126" y="487">AI 모델 서빙</text><text class="t small" x="126" y="520">하나의 API로 다양한 모델을 실행하고,</text><text class="t small" x="126" y="543">검색과 안전성을 통합하여 제공합니다.</text>
+
+<rect class="card" x="392" y="458" width="529" height="92" rx="8"/>
+<circle class="icon" cx="565" cy="486" r="7"/><circle class="icon" cx="585" cy="475" r="7"/><circle class="icon" cx="585" cy="497" r="7"/><path class="line" stroke-width="4" d="M571 483l9-5m-9 11l9 5"/>
+<text class="t h2" x="602" y="500">API Gateway</text><text class="t body" x="434" y="532">인증   ·   요청 검증   ·   라우팅   ·   오케스트레이션   ·   응답 검증</text>
+<path class="line" d="M495 550v16H171v32" marker-end="url(#arrow)"/><path class="line" d="M495 550v48" marker-end="url(#arrow)"/><path class="line" d="M495 566h296v32" marker-end="url(#arrow)"/>
+
+<rect class="card" x="48" y="598" width="279" height="230" rx="8"/><path class="icon" d="M84 622h29a13 13 0 0113 13v10a13 13 0 01-13 13h-12l-12 10v-10h-5a13 13 0 01-13-13v-10a13 13 0 0113-13z"/>
+<text class="t h2" x="145" y="655">대화 / 멀티모달</text><circle class="icon2" cx="84" cy="703" r="4"/><text class="t body" x="109" y="710">텍스트 · 이미지 등</text><circle class="icon2" cx="84" cy="737" r="4"/><text class="t body" x="109" y="744">스트리밍</text><circle class="icon2" cx="84" cy="771" r="4"/><text class="t body" x="109" y="778">도구 호출</text>
+
+<rect class="card" x="342" y="598" width="285" height="230" rx="8"/><ellipse class="icon" cx="391" cy="633" rx="20" ry="8"/><rect class="icon" x="371" y="633" width="40" height="34"/><ellipse fill="#fff" cx="391" cy="644" rx="18" ry="6"/><ellipse class="icon" cx="391" cy="650" rx="20" ry="8"/>
+<text class="t h2" x="438" y="655">임베딩 / 검색</text><circle class="icon2" cx="392" cy="703" r="4"/><text class="t body" x="418" y="710">범용 임베딩</text><circle class="icon2" cx="392" cy="737" r="4"/><text class="t body" x="418" y="744">한국어 임베딩</text><circle class="icon2" cx="392" cy="771" r="4"/><text class="t body" x="418" y="778">검색 (Retrieval) 지원</text>
+
+<rect class="card" x="643" y="598" width="279" height="230" rx="8"/><path class="icon" d="M690 618l28 10v22c0 19-11 31-28 40-17-9-28-21-28-40v-22z"/><path fill="#fff" d="M678 651l9 9 17-19 5 5-22 24-14-14z"/>
+<text class="t h2" x="737" y="655">위험 신호 탐지</text><circle class="icon2" cx="690" cy="703" r="4"/><text class="t body" x="716" y="710">PII · 개인정보 탐지</text><circle class="icon2" cx="690" cy="737" r="4"/><text class="t body" x="716" y="744">비밀정보 탐지</text><circle class="icon2" cx="690" cy="771" r="4"/><text class="t body" x="716" y="778">프롬프트 주입 탐지</text>
+
+<rect class="panel" x="954" y="430" width="272" height="422" rx="9"/><circle class="icon" cx="1004" cy="478" r="23"/><circle fill="#fff" cx="1004" cy="478" r="8"/>
+<text class="t h2" x="1046" y="487">운영 제어</text><text class="t small" x="1046" y="520">모델과 실행 환경을 안전하고</text><text class="t small" x="1046" y="542">효율적으로 관리합니다.</text>
+<rect class="card" x="968" y="554" width="244" height="274" rx="8"/>
+<circle class="icon" cx="1004" cy="583" r="13"/><path fill="#fff" d="M999 576l12 7-12 7z"/><text class="t body" x="1045" y="590">모델 시작 / 중지</text><line class="thin" x1="989" y1="609" x2="1192" y2="609"/>
+<text class="t h2" x="991" y="642">⟳</text><text class="t body" x="1045" y="642">모델 전환</text><line class="thin" x1="989" y1="660" x2="1192" y2="660"/>
+<rect class="icon" x="991" y="674" width="27" height="27" rx="4"/><text class="t body" x="1045" y="695">GPU 자원 관리</text><line class="thin" x1="989" y1="712" x2="1192" y2="712"/>
+<path class="icon" d="M993 724h22v26h-22z"/><text class="t body" x="1045" y="746">실행 상태 관리</text><line class="thin" x1="989" y1="764" x2="1192" y2="764"/>
+<path class="line" stroke-width="4" d="M990 798h12l6-18 8 34 7-22 6 6h14"/><text class="t body" x="1045" y="802">헬스 체크 · 상태 동기화</text>
+<line class="line" x1="928" y1="656" x2="964" y2="656" marker-start="url(#arrowStart)" marker-end="url(#arrow)"/>
+
+<rect class="panel" x="1236" y="430" width="272" height="422" rx="9"/><rect class="icon" x="1262" y="470" width="10" height="28" rx="2"/><rect class="icon" x="1278" y="457" width="10" height="41" rx="2"/><rect class="icon" x="1294" y="445" width="10" height="53" rx="2"/>
+<text class="t h2" x="1320" y="487">모니터링 / 관측</text><text class="t small" x="1320" y="520">시스템과 모델의 상태를</text><text class="t small" x="1320" y="542">수집하고 시각화합니다.</text>
+<rect class="card" x="1250" y="554" width="244" height="274" rx="8"/>
+<rect class="icon" x="1276" y="574" width="22" height="20" rx="3"/><text class="t body" x="1320" y="590">서비스 상태</text><line class="thin" x1="1272" y1="609" x2="1475" y2="609"/>
+<path class="icon" d="M1277 620h20v25h-20z"/><text class="t body" x="1320" y="642">애플리케이션 로그</text><line class="thin" x1="1272" y1="660" x2="1475" y2="660"/>
+<rect class="icon" x="1276" y="675" width="22" height="22" rx="3"/><text class="t body" x="1320" y="695">GPU 사용량</text><line class="thin" x1="1272" y1="712" x2="1475" y2="712"/>
+<rect class="icon" x="1274" y="727" width="26" height="19" rx="2"/><text class="t body" x="1320" y="746">시스템 상태 대시보드</text>
+<line class="line" x1="1236" y1="656" x2="1218" y2="656" marker-end="url(#arrowStart)"/>
+
+<rect class="panel" x="28" y="874" width="1480" height="100" rx="9"/><rect class="icon" x="51" y="900" width="43" height="14" rx="3"/><rect class="icon" x="51" y="918" width="43" height="14" rx="3"/><rect class="icon" x="51" y="936" width="43" height="14" rx="3"/>
+<text class="t h2" x="116" y="936">모델 실행 환경</text><text class="t small" x="282" y="936">다양한 환경에 최적화된 런타임으로 모델을 실행합니다.</text>
+<line class="thin" x1="690" y1="892" x2="690" y2="956"/><text class="t h3" x="738" y="927">Linux / NVIDIA GPU</text><rect x="965" y="902" width="94" height="45" rx="8" fill="#eef1f4"/><text class="t label" x="994" y="931">vLLM</text>
+<line class="thin" x1="1080" y1="897" x2="1080" y2="951"/><text class="t h3" x="1126" y="927">Apple Silicon (macOS)</text><rect x="1391" y="902" width="94" height="45" rx="8" fill="#eef1f4"/><text class="t label" x="1407" y="931">MLX-VLM</text>
+</svg>

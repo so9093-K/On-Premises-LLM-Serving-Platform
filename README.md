@@ -24,7 +24,7 @@ runtime 차이와 관계없이 Gateway의 공통 API 계약을 사용한다.
 
 Gateway를 중심으로 Model Runtime, Risk Signal Service, Runtime Controller와 관측 서비스가 연결된다.
 
-![AI 모델 서빙 플랫폼 시스템 구성도](assets/ai_model_serving_system_architecture.jpg)
+![AI 모델 서빙 플랫폼 시스템 구성도](assets/ai_model_serving_system_architecture.svg)
 
 전체 구성과 서비스별 역할은 [시스템 구성](docs/03_system_components.md)에서 설명한다.
 
