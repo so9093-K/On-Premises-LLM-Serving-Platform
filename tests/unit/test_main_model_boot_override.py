@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from ai_model_serving.main_model.control import MainModelConfigurationError, MainModelStateError
-from ai_model_serving.main_model.boot import render_boot_override
+from ai_model_serving.main_model.boot import render_boot_override, resolve_compose_relative_path
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "configs/main_model_profiles.yaml"
@@ -187,3 +187,21 @@ def test_boot_override_refuses_a_profile_without_this_hosts_variant(tmp_path):
 
     with pytest.raises(MainModelConfigurationError):
         render_boot_override(catalog_path=CATALOG, state_path=state, env_path=env)
+
+
+def test_hf_cache_relative_path_uses_compose_file_directory(tmp_path: Path) -> None:
+    compose = tmp_path / "ops" / "compose" / "full-stack.yaml"
+    compose.parent.mkdir(parents=True)
+    compose.write_text("services: {}\n", encoding="utf-8")
+
+    assert resolve_compose_relative_path(
+        "./model_cache/huggingface", compose
+    ) == compose.parent / "model_cache/huggingface"
+
+
+def test_hf_cache_absolute_path_is_preserved(tmp_path: Path) -> None:
+    absolute = tmp_path / "hf-cache"
+
+    assert resolve_compose_relative_path(
+        str(absolute), tmp_path / "compose.yaml"
+    ) == absolute

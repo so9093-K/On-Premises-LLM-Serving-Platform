@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 from scripts.validation.runtime.live_checks import provisioned_dashboard_uids
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,8 +32,17 @@ def test_expected_dashboards_follow_grafana_mounts_and_json_uids(tmp_path: Path)
     assert provisioned_dashboard_uids(tmp_path) == ["mounted-uid"]
 
 
-def test_full_stack_provisions_the_service_overview_home_dashboard() -> None:
-    uids = provisioned_dashboard_uids(ROOT)
+def test_full_stack_home_dashboard_is_a_provisioned_mount() -> None:
+    compose_path = ROOT / "ops/compose/full-stack.private-network.yaml"
+    compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    grafana = compose["services"]["grafana"]
+    home_path = grafana["environment"]["GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH"]
 
-    assert "service_overview" in uids
-    assert "main-runtime-health" not in uids
+    source = next(
+        str(volume).split(":", 1)[0]
+        for volume in grafana["volumes"]
+        if str(volume).split(":")[1] == home_path
+    )
+    dashboard = json.loads((compose_path.parent / source).resolve().read_text(encoding="utf-8"))
+
+    assert dashboard["uid"] in provisioned_dashboard_uids(ROOT)

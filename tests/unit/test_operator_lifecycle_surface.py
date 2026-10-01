@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -216,3 +219,66 @@ def test_raw_logs_include_native_metal_runtime(
     output = capsys.readouterr().out
     assert "runtime.log" in output
     assert "metal-ready" in output
+
+
+def test_compose_mutation_rejects_foreign_checkout_but_allows_current_checkout(
+    tmp_path: Path,
+) -> None:
+    current_compose_dir = tmp_path / "repo-a" / "ops" / "compose"
+    foreign_compose_dir = tmp_path / "repo-b" / "ops" / "compose"
+    current_compose_dir.mkdir(parents=True)
+    foreign_compose_dir.mkdir(parents=True)
+    compose_file = current_compose_dir / "full-stack.private-network.yaml"
+    compose_file.write_text("services: {}\n", encoding="utf-8")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker = bin_dir / "docker"
+    docker.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"ps\" ]; then echo container-1; exit 0; fi\n"
+        "if [ \"$1\" = \"inspect\" ]; then printf '%s\\n' \"$FAKE_DOCKER_WORKING_DIR\"; exit 0; fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{bin_dir}{os.pathsep}{env['PATH']}",
+            "PYTHON_BIN": sys.executable,
+            "COMPOSE_FILE": str(compose_file),
+            "COMPOSE_PROJECT_NAME": "shared-project",
+        }
+    )
+    command = (
+        'source scripts/lib/compose_context.sh; '
+        'compose_context_init "$PWD"; '
+        'compose_context_assert_mutation_safe'
+    )
+
+    foreign_env = dict(env)
+    foreign_env["FAKE_DOCKER_WORKING_DIR"] = str(foreign_compose_dir)
+    rejected = subprocess.run(
+        ["bash", "-c", command],
+        cwd=ROOT,
+        env=foreign_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rejected.returncode == 2
+    assert "refusing to mutate project 'shared-project'" in rejected.stderr
+
+    current_env = dict(env)
+    current_env["FAKE_DOCKER_WORKING_DIR"] = str(current_compose_dir)
+    allowed = subprocess.run(
+        ["bash", "-c", command],
+        cwd=ROOT,
+        env=current_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert allowed.returncode == 0

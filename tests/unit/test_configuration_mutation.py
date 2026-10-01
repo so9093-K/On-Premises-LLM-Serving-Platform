@@ -384,3 +384,26 @@ def test_pending_index_fails_closed_when_history_directory_disappears(tmp_path: 
     with pytest.raises(ConfigurationWriteUnavailable) as exc_info:
         _ = history.pending_count
     assert exc_info.value.reason == "history_unreadable"
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_plan_rejects_non_finite_numeric_values_before_persistence(
+    tmp_path: Path,
+    value: float,
+) -> None:
+    _, store, _, _, _, engine = _components(tmp_path)
+
+    with pytest.raises(ConfigurationValidationError, match="finite number"):
+        engine.plan(
+            base_revision=0,
+            changes=[
+                {
+                    "key": "streaming.max_duration_seconds",
+                    "op": "set",
+                    "value": value,
+                }
+            ],
+        )
+
+    assert store.read().revision == 0
+    assert store.read().overrides == {}
