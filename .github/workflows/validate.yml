@@ -43,11 +43,6 @@ jobs:
         run: make setup-dev PYTHON_BIN=python
       - name: Check application and contracts
         run: make app-check
-      # CI owns no release selection rules. Exercise the same provider-neutral command
-      # used from a developer workstation so Linux/macOS cannot silently diverge.
-      - name: Build canonical release package
-        run: PACKAGE_SKIP_VALIDATION=1 make package
-
   console:
     name: Control Plane frontend
     runs-on: ubuntu-24.04

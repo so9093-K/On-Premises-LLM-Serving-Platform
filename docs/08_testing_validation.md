@@ -233,7 +233,6 @@ Contract Test는 여러 모듈이나 artifact가 공유하는 규칙을 검증�
 - 공개 error contract
 - authentication·authorization invariant
 - model / runtime policy
-- release artifact 규칙
 - sensitive data handling contract
 - 여러 consumer가 공유하는 Source of Truth invariant
 
@@ -247,24 +246,6 @@ Contract Test
   → module / artifact 사이의 공유 계약을 검증
   → OpenAI-compatible surface는 pinned 공식 Python SDK가 실제 HTTP wire shape를 소비하는지도 검증
 ```
-
-### 테스트 소스와 Release Package
-
-테스트 소스는 source repository에서 build-time 품질 게이트로 사용한다.
-Release ZIP은 Ubuntu 인계 후에도 같은 application/contract 검증을 재현할 수 있도록
-`tests/`를 포함한다. 실제 모델·GPU가 필요한 live 결과나 로컬 cache는 패키징하지 않는다.
-
-릴리스 준비 단계에서는 source checkout에서 다음 순서로 실행한다.
-
-```bash
-make validate
-make test
-make package
-```
-
-로컬 개발과 Build 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_build.md)를 참고한다.
-
----
 
 ## 8.4 실행 환경 검증
 
@@ -463,7 +444,6 @@ Runtime report는 check 결과와 latency·상태 정보를 중심으로 기록�
 | Platform `Dockerfile` / dependency | `make build-image`(image의 기본 CMD로 Gateway를 띄워 `/health`, Console, `/docs` asset을 HTTP로 확인) | image 실행 후 readiness |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
-| Release packaging logic | `make validate` → `make test` → `make package` | package artifact 확인 |
 
 ### 일반 Application 변경
 

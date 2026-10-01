@@ -1,6 +1,6 @@
-# Release와 Version Reference
+# Version Reference
 
-이 문서는 package version, API version, container image tag, config schema version의 역할을 구분하고 release artifact를 만들 때 확인할 기준을 정리한다. 실제 값은 `VERSION`, `pyproject.toml`, OpenAPI와 image 설정을 기준으로 한다.
+이 문서는 project version, Python package version, API contract version, container image tag와 config schema version의 역할을 구분한다. 실제 값은 `VERSION`, `pyproject.toml`, OpenAPI와 image 설정이 소유한다.
 
 ---
 
@@ -8,25 +8,27 @@
 
 | 구분 | 기준 | `make reset-version` 반영 |
 |---|---|:---:|
-| Package version | `VERSION` | 예 |
+| Project version | `VERSION` | 예 |
 | Python package version | `pyproject.toml` | 예. prerelease는 PEP 440 표기 사용 |
 | API contract version | `specs/openapi.*.yaml` | 예 |
 | Platform / Unified vLLM 로컬 기본 image tag | `.env.compose.example`, `configs/recommended_images.yaml` | 예 |
 | Third-party upstream image digest | `configs/recommended_images.yaml` | 아니오 |
 | Config schema version | 각 `configs/*.yaml`의 `version` | 아니오 |
-| Project-built runtime image digest | publish 결과와 target host `.env` | 아니오 |
+| Published project image identity | registry가 반환한 immutable digest | 아니오 |
 
-`VERSION`은 package와 project-built image의 사람이 읽는 로컬 기본 tag 기준이다. Project-built 운영 image의 identity는 publish 결과 digest가 소유하고, third-party upstream image는 `configs/recommended_images.yaml`의 pinned manifest digest가 소유한다. config schema version은 package version과 독립적이며 해당 config의 구조가 바뀔 때만 변경한다.
+`VERSION`은 project와 project-built image의 사람이 읽는 기준선이다. 운영에서 실제 image 내용을 식별하는 값은 registry publish 결과의 immutable digest이고, third-party upstream image는 `configs/recommended_images.yaml`의 pinned manifest digest가 소유한다. Config schema version은 project version과 독립적이며 해당 config 구조가 바뀔 때만 변경한다.
+
+Git source 자체의 identity는 commit/tree가 소유한다. 저장소는 별도의 source ZIP, release manifest 또는 release provenance format을 플랫폼 계약으로 만들지 않는다.
 
 ---
 
 ## VERSION을 올리는 시점
 
-다음 중 하나에 해당할 때 새 package version을 만든다.
+다음 중 하나에 해당할 때 새 project version을 만든다.
 
 - 공개 API 계약 또는 OpenAPI schema가 바뀜
 - 환경변수의 이름·의미·기본 동작이 바뀜
-- 운영자가 image 또는 배포 artifact를 새로운 기준선으로 구분해야 함
+- 운영자가 image 또는 배포 기준선을 새로운 버전으로 구분해야 함
 - 공유된 기준선의 실제 버그를 수정함
 - GPU/vLLM 검증 결과를 반영해 새 운영 기준선을 만듦
 
@@ -46,49 +48,14 @@ make reset-version NEW_VERSION=<x.y.z 또는 x.y.z-rc.n>
 make validate
 ```
 
-이 명령은 `VERSION`, version manifest, Python package version, checked-in OpenAPI version,
-compose env template과 권장 image 설정의 **project-built image tag**를 함께 맞춘다.
-Third-party upstream digest는 version reset 대상이 아니며 해당 upstream image qualification 결과로만 변경한다.
+`make reset-version`은 다음 version reference를 하나의 선언(`scripts/lib/version_refs.py`)에서 갱신한다.
 
-과거 `CHANGELOG` 항목, config schema version, CI에서 생성한 digest와 대상 서버의 runtime state는 변경하지 않는다.
+- `VERSION`
+- `pyproject.toml`의 Python package version
+- Gateway / Risk Signal Service checked-in OpenAPI `info.version`
+- `.env.compose.example`의 project-built Platform / Unified vLLM 기본 image tag
+- `configs/recommended_images.yaml`의 project-built Platform / Unified vLLM 기본 image tag
 
----
+Third-party upstream digest, config schema version, publish 결과 digest와 실행 중 runtime state는 version reset 대상이 아니다.
 
-## Release Package와 canonical manifest
-
-Release source package는 배포 transport와 무관하게 필요할 때만 만든다.
-
-```bash
-make validate
-make test
-make package
-```
-
-출력은 `dist/ai_model_serving_platform_<VERSION>.zip`이다. ZIP에는 Git tracked source,
-config, spec, 필요한 ops artifact, 동일 버전을 검증할 `tests/`와 안전한 env example을
-포함한다. 실제 `.env`, `.runtime`, log, model cache, Python cache, private tool directory,
-GitHub Actions workflow는 포함하지 않는다.
-
-Release payload의 Source of Truth는 `scripts/release/release_artifact.py`가 생성하는
-`RELEASE_MANIFEST.json`이다. Manifest는 logical release root 기준으로 각 파일의
-`path`, canonical `mode`, `size`, `sha256`과 전체 `payload_sha256`, source revision을
-기록한다. `RELEASE_PROVENANCE.json`은 기존 consumer를 위한 compatibility projection이며
-manifest에서 파생될 뿐 별도의 release identity를 소유하지 않는다.
-
-`make package`는 `scripts/release/release_artifact.py`의 resolver/materializer를
-직접 사용한다. Package는 materialized tree를 deterministic ZIP transport로 감쌀 뿐,
-Runtime state나 target host를 변경하지 않는다. GitHub Actions도 별도 packaging 규칙을
-갖지 않고 같은 `make package`를 실행한다.
-
-Packaging은 개발 중 검증을 위해 tracked dirty tree도 허용한다. 이 경우 manifest의
-`source.tracked_state`가 `dirty`로 기록되고 실제 file hash가 artifact identity를 고정한다.
-Untracked file은 release 입력이 아니므로 manifest payload와 `tracked_state`에 영향을 주지
-않는다. 따라서 cache/report/개인 메모가 checkout에 존재해도 동일 tracked source에서
-release payload identity가 달라지지 않는다.
-
-재현성의 기준은 두 층으로 나눈다.
-
-- **Payload reproducibility**: 같은 tracked release input은 OS와 transport에 관계없이 같은 path/mode/size/hash 집합과 `payload_sha256`을 가져야 한다.
-- **Archive reproducibility**: ZIP writer는 정렬된 entry, 고정 timestamp, Git에서 파생한 0644/0755 mode와 고정 compression level을 사용해 host filesystem metadata가 결과에 섞이지 않게 한다.
-
-Image build·publish와 immutable digest 전달의 경계는 [9. 자동화 경계](../09_cicd.md), target lifecycle과 component rollback은 [10. 배포](../10_deployment.md)를 따른다.
+Source archive가 필요하면 Git commit/tree를 기준으로 사용하는 source-control 또는 외부 배포 자동화가 transport를 소유한다. Repository가 소유하는 배포 경계는 [9. 자동화 경계](../09_cicd.md), [10. 배포](../10_deployment.md), image build와 digest 정책은 [7. 로컬 개발과 빌드](../07_local_dev_build.md)를 따른다.

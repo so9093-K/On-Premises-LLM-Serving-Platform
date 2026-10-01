@@ -1,6 +1,6 @@
 # ADR-0037: Local lifecycle owns deployment; remove the remote release state machine
 
-- Status: Accepted; operator command surface refined by [ADR-0039](./0039-operator-intent-lifecycle-and-diagnostics.md)
+- Status: Accepted; operator command surface refined by [ADR-0039](./0039-operator-intent-lifecycle-and-diagnostics.md); source-package decision superseded by [ADR-0046](./0046-source-transport-is-not-platform-authority.md)
 - Date: 2026-09-20
 - Refines: [ADR-0013](./0013-env-lifecycle-non-destructive-sync.md), ADR-0023, [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md)
 
@@ -62,6 +62,8 @@ Component rollback remains where it has current semantic ownership:
   lifecycle and verification.
 
 ### 3. Keep deterministic release artifacts independent of deployment
+
+> Superseded by [ADR-0046](./0046-source-transport-is-not-platform-authority.md). This section records the earlier decision; the repository no longer owns a source ZIP or release-manifest contract.
 
 `scripts/release/release_artifact.py` and `make package` remain.
 

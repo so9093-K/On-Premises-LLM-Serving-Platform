@@ -13,7 +13,7 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock package runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev
 
 PUBLIC_TARGETS := up status down logs reset purge
@@ -107,9 +107,6 @@ build-vllm-unified-image: ## native linux/amd64 Docker의 NVIDIA vLLM image buil
 lock: ## Platform과 MLX dependency lock 갱신 (암묵적 전체 upgrade 없음)
 	$(UV) lock
 	$(UV) lock --project runtimes/mlx
-
-package: ## 릴리스 ZIP 생성
-	bash scripts/build/package_release.sh
 
 runtime-validate: ## 실제 서비스·GPU 검증
 	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/runtime_validate_compose.sh

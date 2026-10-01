@@ -6,7 +6,6 @@ source scripts/lib/project_image_ownership.sh
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "[image] Docker CLI is required." >&2
-  echo "[image] Use 'make package' when only the release ZIP is needed." >&2
   exit 2
 fi
 if ! DAEMON_PLATFORM="$(docker info --format '{{.OSType}}/{{.Architecture}}' 2>/dev/null)"; then
@@ -74,7 +73,7 @@ done
 echo "[image] source revision=${SOURCE_REVISION} state=${SOURCE_STATE}"
 echo "[image] target platform=${EFFECTIVE_PLATFORM}"
 if [[ "$SOURCE_STATE" == "dirty" ]]; then
-  echo "[image] WARNING: building from a modified working tree; this is not a clean-commit release artifact." >&2
+  echo "[image] WARNING: building from a modified working tree; this is not a clean-source image build." >&2
 fi
 echo "[image] building platform image ${IMAGE}"
 docker build "${build_args[@]}" .

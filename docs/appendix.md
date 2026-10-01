@@ -34,7 +34,6 @@
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |
 | Image Digest | Registry의 Container Image 내용을 고유하게 식별하는 `sha256` 값. | `image@sha256:...` |
-| Release Artifact | source/config을 deterministic payload와 manifest로 고정한 전달·감사 artifact. Runtime state authority는 아니다. | `RELEASE_MANIFEST.json` |
 | Source of Truth | 특정 설정이나 계약의 기준이 되는 코드 또는 설정 파일. | 영역별 canonical config |
 | Generated Artifact | Source of Truth에서 스크립트가 생성하는 Runtime/Compose/OpenAPI 관련 파일. | generated files |
 
@@ -97,7 +96,6 @@ Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 ta
 | Platform Image 직접 Build | `make build-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 | Unified vLLM Image 직접 Build | `make build-vllm-unified-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 | GPU/vLLM qualification 검증 | `make runtime-validate` | [8. 테스트와 검증](./08_testing_validation.md) |
-| Release ZIP 생성 | `make package` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 | Generated artifact 갱신 | `make render-runtime-assets` | [5. 설정 체계와 Source of Truth](./05_configuration.md) |
 
 Readiness, smoke, Compose config/diagnostics와 cheap clean은 public Make alias가 아니라
@@ -132,7 +130,7 @@ Readiness, smoke, Compose config/diagnostics와 cheap clean은 public Make alias
 | Runtime Image | `ops/images/` | Platform에서 사용하는 Runtime Image 정의 |
 | Monitoring | `ops/prometheus/`, `ops/grafana/`, `ops/loki/`, `ops/alloy/` | Metrics / Logs 수집과 Dashboard 구성 |
 | Platform Lifecycle | `scripts/platform_cli.py` | target-aware setup/build/prepare/up/status/down 조합 |
-| Build Script | `scripts/build/` | Container Image build와 release package 생성 |
+| Build Script | `scripts/build/` | Container Image build와 개발 환경 준비 |
 | Compose Script | `scripts/compose/` | Compose 실행, 구성 확인, diagnostics |
 | Validation Script | `scripts/validation/` | 정적 검증과 Runtime 검증 |
 | Operations Script | `scripts/ops/` | Readiness, smoke test 등 운영 확인 |
