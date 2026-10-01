@@ -34,8 +34,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # runtime image는 uv.lock의 Platform dependency만 설치한다. 운영 스크립트(scripts/)와 governance
-# 문서용 명세(specs/openapi.*.yaml, docs/reference/)는 CI/release
-# artifact의 책임이며 application image에 넣지 않는다. specs/schemas만 예외다:
+# 문서용 명세(specs/openapi.*.yaml, docs/reference/)는 repository/CI 검증 대상이며
+# application image에는 넣지 않는다. specs/schemas만 예외다:
 # openapi_contracts.py::load_contract_schema()가 /docs(Scalar) 렌더링 시 이 JSON
 # 스키마를 런타임에 직접 읽어 request schema/examples를 주입한다. 빠지면 /docs가
 # 계약 스키마 대신 FastAPI의 제네릭 dict 스키마로 조용히 degrade된다.

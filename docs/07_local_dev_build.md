@@ -360,7 +360,7 @@ PLATFORM_BUILD_PLATFORM=linux/amd64 make build-image
 ```
 
 Build 로그와 image label에는 Git revision, working tree의 clean/dirty 상태와 target
-platform이 남는다. dirty 상태는 개발 중 image로 허용하지만 clean-commit release artifact로
+platform이 남는다. dirty 상태는 개발 중 image로 허용하지만 clean source에서 만든 운영 image로
 오인하지 않도록 경고한다. 로컬 tag는 mutable하므로 배포 입력으로 사용하지 않는다.
 
 Platform Image build는 `scripts/build/build_platform_image.sh`, Unified vLLM Image build는
@@ -445,47 +445,7 @@ build/prepare 순서를 요구하지 않는다.
 
 ---
 
-## 7.7 Release Package
-
-배포용 source artifact는 ZIP package로 생성한다.
-
-```bash
-make package
-```
-
-기본 출력은 다음과 같다.
-
-```text
-dist/ai_model_serving_platform_<VERSION>.zip
-```
-
-Release package에는 Git이 추적하는 파일 중 실행에 필요한 source, config, spec, ops
-artifact, 테스트와 `env_contract.yaml`에 선언된 안전한 `.env.*.example` 파일이
-포함된다. GitHub Actions workflow는 배포 artifact에 포함하지 않는다.
-
-Packaging 과정에서는 다음 항목을 배포 artifact에서 분리한다.
-
-- `.venv/`
-- local log / run data
-- model cache
-- runtime-generated state와 report
-- 실제 `.env`
-- private key / secret file
-- local tool / private workspace directory
-
-ZIP entry의 timestamp는 고정값을 사용해 동일한 source에서 재생 가능한 package 형태를 유지한다.
-패키지 입력은 현재 working tree의 Git tracked 파일로 한정해, 로컬의 untracked
-메모나 임시 파일이 같은 commit의 ZIP에 섞이지 않게 한다.
-
-`make package`는 package 생성 전에 별도 축약 검증을 만들지 않고 `make validate`와 같은 전체 정적 gate를 수행한다. 생성된 ZIP은 제외 대상 파일과 환경 파일이 포함되지 않았는지 다시 검사한다.
-
-Release ZIP은 배포에 필요한 artifact와 `tests/`를 함께 담는다. CI와 배포 전 `make check`가
-같은 source의 테스트를 실행할 수 있어야 한다. 테스트 구조와 release gate의 관계는
-[8. 테스트와 검증](./08_testing_validation.md), 실제 배포 절차는 [10. 배포](./10_deployment.md)에서 설명한다.
-
----
-
-## 7.8 종료·초기화·폐기
+## 7.7 종료·초기화·폐기
 
 일반 종료는 checkout이 소유한 실행 리소스를 정지하고 image, model cache와 persistent
 configuration을 보존한다. `.env`가 일부 손상되거나 없어도 checkout ownership label/PID
@@ -529,7 +489,7 @@ Compose volume과 diagnostic/build artifact를 제거하고 configuration state�
 
 ---
 
-## 7.9 결과 확인
+## 7.8 결과 확인
 
 | 작업 | 확인 명령 | 확인 범위 |
 |---|---|---|
@@ -538,7 +498,6 @@ Compose volume과 diagnostic/build artifact를 제거하고 configuration state�
 | Platform Image 직접 검증 | `make build-image` | Docker build + application import |
 | Unified vLLM Image 직접 검증 | `make build-vllm-unified-image` | CUDA runtime image build |
 | 서비스/Runtime raw log | `make logs SERVICE=<id>` | 선택 service의 bounded raw evidence |
-| Release ZIP | `make package` | package validation + ZIP 생성 |
 
 Compose effective config만 확인하는 maintainer 작업은
 `bash scripts/compose/compose_config.sh`를 사용한다. 일반 운영에서는 `make up` preflight가
@@ -546,7 +505,7 @@ Compose effective config만 확인하는 maintainer 작업은
 
 ---
 
-## 7.10 작업별 빠른 참조
+## 7.9 작업별 빠른 참조
 
 | 목적 | 명령 |
 |---|---|
@@ -565,7 +524,7 @@ developer/maintainer implementation surface다.
 
 ---
 
-## 7.11 관련 문서와 Source of Truth
+## 7.10 관련 문서와 Source of Truth
 
 | 영역 | 문서 / 파일 | 역할 |
 |---|---|---|
@@ -583,4 +542,3 @@ developer/maintainer implementation surface다.
 | Target lifecycle | `scripts/platform_cli.py` | setup/build/prepare/up/status/down 조합 |
 | Checkout 전체 종료 | `scripts/ops/down_all.sh` | `.env` 독립적인 project-owned runtime 회수 |
 | 프로젝트 로컬 상태 초기화 | `scripts/ops/reset_all.sh` | 확인 기반 project-local state 삭제 |
-| Release package | `scripts/build/package_release.sh` | 배포용 ZIP 생성 |

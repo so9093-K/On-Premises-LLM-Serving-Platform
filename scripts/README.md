@@ -38,7 +38,7 @@ make down
 | 디렉터리 | 역할 |
 |---|---|
 | `auth/` | auth profile plan/apply/status/doctor와 profile sanity check |
-| `build/` | bootstrap, image build, package, Python/version checks |
+| `build/` | bootstrap, image build, Python/version checks |
 | `compose/` | full-stack compose preflight, up, diagnostics, compose validation |
 | `config/` | `.env` 생성 |
 | `models/` | model registry CLI, vLLM command rendering, HF/unified image checks |
@@ -73,7 +73,6 @@ make down
 | `compose/preflight_compose.sh` | full-stack compose 전 exposure config를 먼저 검증하고, 통과한 뒤 Docker, GPU 표시, effective compose host-published port, secret 상태를 점검한다. compose 내부 `expose` ports는 host port 검사 대상이 아니다. host bind와 port는 `docker compose config` 결과를 따른다. |
 | `validation/runtime_validation.py` | 실제 runtime 검증 결과를 `reports/runtime/` 아래에 기록한다. |
 | `models/check_hf_model_config.py` | 고정 vLLM runtime 환경에서 Transformers `AutoConfig`만 로드해 engine·GPU 이전 config loader 문제를 분리한다. |
-| `build/package_release.sh` | 배포 ZIP을 만들고 secret, log, cache, egg-info, generated runtime report를 제외한다. ZIP root는 항상 `ai_model_serving_platform/`로 고정한다. |
 | `ops/down_all.sh` | `.env`와 Compose project name에 의존하지 않고 이 checkout의 host process와 Compose container/network를 정지한다. |
 | `ops/clean_project.sh` | build/test 산출물과 runtime report를 정리한다. 실행 중인 host process가 있으면 중단하며 `--dry-run`, `--logs`만 지원한다. |
 | `ops/reset_all.sh` | 기본 실행은 project-local 초기화 plan만 출력하고, 정확한 확인값에서 해당 state만 삭제한다. Docker build cache와 전역 model cache는 보존한다. |
@@ -92,7 +91,7 @@ make down
 - 저비용 repository build/test artifact만 직접 정리해야 하는 maintainer 작업은
   `scripts/ops/clean_project.sh --dry-run`으로 범위를 확인한다. 일반 사용자는
   `reset` 또는 `purge`의 명확한 파괴 범위를 사용한다.
-- `.runtime/`은 정상 local runtime state이며 release/source package에 포함되지 않는다.
+- `.runtime/`은 정상 local runtime state이며 source checkout과 Platform image의 durable contract가 아니다.
 
 ## Full-stack 진단
 

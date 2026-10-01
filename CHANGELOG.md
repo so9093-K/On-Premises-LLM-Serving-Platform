@@ -57,6 +57,8 @@
 
 ### Changed
 
+- Remote release state machine 제거 뒤 실제 deployment consumer 없이 남아 있던 repository-owned source ZIP과 release manifest/provenance subsystem을 제거했다. Git commit/tree가 source identity를, published immutable image digest가 deployable image identity를 소유하며 CI는 application/contracts, Control Plane, Platform image를 직접 검증한다. `make package`와 package 전용 CI/test surface는 더 이상 제공하지 않는다. ([ADR-0046](docs/adr/0046-source-transport-is-not-platform-authority.md))
+
 - Control Plane bootstrap에서 remote release 제거 뒤 항상 `null`이던 `platform.release_id`를 제거했다. Console은 project version만 표시하며, Runtime Validation의 Prompt Injection Detector override와 image reference validation은 현재 canonical 입력·repository authority만 유지한다.
 
 - Runtime validation의 자동 endpoint resolution을 Compose 내부 service identity로 고정했다. 원격·후보 endpoint 검증은 명시적 `--*-base`/process override만 사용하며, internal model/runtime/Prometheus/exporter/Loki의 과거 host bind/port metadata는 제거한다. 기존 `.env`에 남은 해당 `*_BIND_ADDR`·`*_PORT` key는 configuration sync에서 삭제된다. Gateway/Grafana host publication과 app-only Gateway/Risk Signal Service host process port는 실제 consumer가 있어 유지한다. ([ADR-0043](docs/adr/0043-internal-runtime-validation-and-private-host-exposure.md), [ADR-0045](docs/adr/0045-host-exposure-invariant.md))

@@ -67,7 +67,7 @@ run_check "environment contract" "$PYTHON_BIN" scripts/validation/validate_env_c
 run_check "generated artifacts" "$PYTHON_BIN" scripts/render_runtime_assets.py --check
 # Console build 자체는 별도 Linux/Node job이 수행한다. Python validation에서는
 # checked-in dist/manifest/lock/source 정책만 검증해 app-contract matrix가 Node에
-# 의존하지 않으면서도 package/release에서 누락된 UI를 fail-closed로 잡는다.
+# 의존하지 않으면서도 Platform runtime image에 필요한 UI 누락을 fail-closed로 잡는다.
 run_check "console artifacts" "$PYTHON_BIN" scripts/validation/validate_console_assets.py
 # /docs 번들은 vendoring 되어 있고 CDN 폴백이 없다. 파일이 없거나 잘리면 배포된
 # 문서가 조용히 빈 화면이 되므로 로컬 해시만 확인한다(네트워크 불필요).

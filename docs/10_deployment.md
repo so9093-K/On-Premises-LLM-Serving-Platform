@@ -198,31 +198,7 @@ Main Model 변경은 가능하면 전체 stack 재배포 대신 Main Model Contr
 
 ---
 
-## 10.9 Release package
-
-`make package`는 계속 제공한다.
-
-```bash
-make package
-```
-
-Package는 deterministic release manifest와 materialized payload를 만든다. 용도는:
-
-- 배포 외부 전달물
-- archive
-- audit
-- reproducibility 확인
-- 외부 automation 입력
-
-이다.
-
-Package 자체는 Runtime state를 변경하지 않으며 remote deployment protocol을 의미하지 않는다.
-External automation이 package를 다른 host로 전달하더라도, Runtime 수렴은 해당 host에서
-동일한 canonical lifecycle을 실행해야 한다.
-
----
-
-## 10.10 원격 운영
+## 10.9 원격 운영
 
 SSH, Ansible, CI runner 등 외부 도구를 사용해 원격 host에서 lifecycle을 실행하는 것은 가능하다.
 

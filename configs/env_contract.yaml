@@ -214,8 +214,8 @@ removed_keys:
     Runtime startup generation은 compose-up이 process environment로 매 실행 생성하므로 persistent
     .env로 이관하지 않고 제거한다.
   PACKAGE_NAME: >-
-    release ZIP 이름을 바꾸는 package_release.sh process override다. Runtime .env 계약이 아니므로
-    persistent env에서는 제거한다. 필요하면 package 명령 실행 시 process env로 지정한다.
+    제거된 source ZIP packaging 명령의 legacy process override다. 더 이상 consumer가 없으며
+    기존 persistent .env에 남은 값만 sync-env가 정리한다.
   PYTHON_VERSION: >-
     실행 중인 코드와 image build가 소비하지 않는다. Platform image의 Python patch는
     Dockerfile의 digest-pinned base image가 소유하고, 개발 지원 범위는 pyproject.toml과

@@ -17,7 +17,6 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 | Application·contract 검사 | `make check` | `pyproject.toml`, `uv.lock`, configs, specs, tests |
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
-| Release source package | `make package` | Git tracked source와 packaging exclusion |
 | Operator lifecycle | `make up/status/down/logs/reset/purge` | deployment target, `.env`, local Runtime convergence와 operator UX |
 | Runtime / Main Model mutation | Control Plane Plan/Apply APIs | component-owned runtime state와 rollback |
 | 외부 transport | Repository contract 아님 | SSH/Ansible/CI 등이 canonical lifecycle을 호출 |
