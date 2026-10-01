@@ -50,6 +50,7 @@ def load_yaml(path: Path) -> Any:
 
 
 _COMPOSE_VAR_DEFAULT = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}$")
+_COMPOSE_VARIABLE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::[-?][^}]*)?\}$")
 _COMMIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -192,6 +193,30 @@ def validate_main_llm_bootstrap_image(compose: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_shared_vllm_image_authority(
+    compose: dict[str, Any],
+    registry: ModelRegistry,
+) -> list[str]:
+    """Non-main vLLM services must consume the single shared VLLM_IMAGE authority."""
+    errors: list[str] = []
+    services = compose.get("services", {})
+    for runtime in registry.iter_runtime_services():
+        if runtime.backend != "vllm" or runtime.service_key == "main_llm":
+            continue
+        service_name = runtime.compose_service_name
+        service = services.get(service_name)
+        if not isinstance(service, dict):
+            continue  # missing services are reported by the main alignment loop.
+        image = service.get("image")
+        match = _COMPOSE_VARIABLE.fullmatch(str(image or ""))
+        if match is None or match.group(1) != "VLLM_IMAGE":
+            errors.append(
+                f"{service_name}.image must reference VLLM_IMAGE as the shared non-main "
+                f"vLLM artifact authority, got {image!r}"
+            )
+    return errors
+
+
 def validate_gemma4_chat_template() -> list[str]:
     """vLLM 기동 전 Gemma 4 템플릿의 문법과 thinking 입력 형식을 확인한다."""
     if not GEMMA4_CHAT_TEMPLATE_PATH.is_file():
@@ -273,6 +298,7 @@ def validate_alignment(
 
     errors.extend(validate_production_compose_no_build_blocks(compose_path))
     errors.extend(validate_main_llm_bootstrap_image(source_compose))
+    errors.extend(validate_shared_vllm_image_authority(source_compose, registry))
     errors.extend(validate_gemma4_chat_template())
 
     for runtime in registry.iter_runtime_services():
