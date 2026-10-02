@@ -17,15 +17,13 @@ from ..main_model.docker_backend import DockerMainModelBackend
 from ..configuration import load_yaml_mapping
 from ..gpu_budget import Participant, budget_snapshot, plan_activation
 from ..service_logging import service_logger
-from ..main_model.control import (
-    MainModelManager,
-    MainModelStateError,
-    MainModelStateStore,
-    MainModelSwitchError,
+from ..main_model.catalog import (
     gpu_util_override_from_mapping,
-    resource_variant_from_mapping,
     load_main_model_catalog,
+    resource_variant_from_mapping,
 )
+from ..main_model.control import MainModelManager, MainModelSwitchError
+from ..main_model.state import MainModelStateError, MainModelStateStore
 from ..log_target_manifest import build_targets, write_manifest
 from ..platform_state import DEFAULT_PLATFORM_STATE_DIR, configured_platform_state_root
 from ..docker_scope import (

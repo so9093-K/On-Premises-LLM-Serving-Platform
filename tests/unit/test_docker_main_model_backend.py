@@ -13,7 +13,7 @@ import pytest
 
 import ai_model_serving.main_model.docker_backend as backend_module
 from ai_model_serving.main_model.docker_backend import DockerMainModelBackend
-from ai_model_serving.main_model.control import load_main_model_catalog
+from ai_model_serving.main_model.catalog import load_main_model_catalog
 
 from pathlib import Path
 

@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .control import load_main_model_catalog
+from .catalog import load_main_model_catalog
 from .cache import default_hf_hub_cache_dir, prepare_model_snapshot
 
 
