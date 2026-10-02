@@ -6,6 +6,8 @@
 
 ### Added
 
+- Gateway upstream admission의 현재 `inflight`·`waiting`·resolved `limit`과 queue wait 분포를 Prometheus에 노출하고, 서비스 개요 Dashboard에서 Gateway admission queue와 vLLM scheduler queue를 별도 패널로 비교한다. `QUEUE_TIMEOUT` 요청도 실제 admission 대기 시간을 요청 로그와 histogram에 남기며, admission 거부 원인은 기존 `upstream_errors_total`의 `QUEUE_TIMEOUT`·`CIRCUIT_OPEN`을 그대로 사용한다.
+
 - Host exposure를 선택 가능한 `EXPOSURE_MODE`/profile이 아니라 deployment invariant로 단순화했다. `configs/exposure_profiles.yaml`과 `exposure_profile_applies`를 제거하고 Gateway 및 target별 Grafana host publication을 `configs/services.yaml` service role과 실제 Compose `ports`의 정합성으로 검증한다. Access Profile은 auth, `EXPOSURE_AUDIENCE`, bind/TLS만 투영한다. 기존 `EXPOSURE_MODE=private_network` marker는 sync에서 제거하며 `master_open` 같은 과거 값은 explicit Access migration 전까지 fail-closed한다. ([ADR-0045](docs/adr/0045-host-exposure-invariant.md))
 
 - Linux NVIDIA static과 macOS Metal static target에 GPU/별도 model runtime이 필요 없는 PII·Secret Risk Signal Service를 추가했다. `risk`는 local detector capability, `prompt_detection`은 model-backed Prompt Injection Detector capability로 분리되며 OS 이름으로 detector availability를 판단하지 않는다. Static aggregate는 PII/Secret만 실행하고 Prompt 전용 endpoint는 `409 DETECTOR_DISABLED`를 유지한다. ([ADR-0044](docs/adr/0044-risk-capability-and-prompt-runtime-separation.md))
