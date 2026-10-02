@@ -8,6 +8,7 @@ from .domain import ModelRegistry
 from .deployment_target import DeploymentTarget, load_deployment_target
 from .serving_profile import load_main_serving_catalog
 from .main_model.catalog import gpu_util_override_from_mapping, load_main_model_catalog
+from .main_model.engine_policy import MlxEnginePolicy
 from .runtime_topology import load_runtime_topology
 from .risk_input import detector_prompt_char_budget
 from .configuration import load_yaml_mapping
@@ -63,13 +64,7 @@ def _static_main_engine_projection(
         if not isinstance(runtime, dict):
             raise RuntimeError(f"static Main runtime config is invalid: {catalog_path}")
         try:
-            return {
-                "max_kv_size": int(runtime["max_kv_size"]),
-                "max_generation_tokens": int(runtime["max_generation_tokens"]),
-                # Native MLX launcher projects runtime.max_concurrency to --max-num-seqs.
-                "max_num_seqs": int(runtime["max_concurrency"]),
-                "vision_cache_size": int(runtime["vision_cache_size"]),
-            }, None
+            return MlxEnginePolicy.from_runtime_config(runtime).public_view(), None
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(
                 f"static MLX engine policy is invalid: {catalog_path}"
