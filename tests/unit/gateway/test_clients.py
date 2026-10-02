@@ -23,6 +23,18 @@ def test_gateway_clients_build_embedding_clients_from_profiles(monkeypatch):
     assert created.count("local-embed-ko") == 1
 
 
+def test_gateway_clients_pass_one_admission_observer_to_all_upstreams(monkeypatch):
+    SpyRuntimeClient.created_endpoints = []
+    SpyRuntimeClient.created_observers = []
+    monkeypatch.setattr(gateway_app_module, "RuntimeClient", SpyRuntimeClient)
+    observer = object()
+
+    GatewayClients(settings(), admission_observer=observer)
+
+    assert SpyRuntimeClient.created_observers
+    assert all(item is observer for item in SpyRuntimeClient.created_observers)
+
+
 def test_gateway_clients_consume_resolved_risk_service_admission(monkeypatch):
     SpyRuntimeClient.created_endpoints = []
     monkeypatch.setattr(gateway_app_module, "RuntimeClient", SpyRuntimeClient)
