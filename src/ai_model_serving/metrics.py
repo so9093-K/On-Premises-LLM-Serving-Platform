@@ -227,6 +227,47 @@ class Metrics:
             ["service", "state"],
             registry=self.registry,
         )
+        self.upstream_admission_inflight = Gauge(
+            "upstream_admission_inflight",
+            "Application-side upstream admission slots currently held.",
+            ["service", "target"],
+            registry=self.registry,
+        )
+        self.upstream_admission_waiting = Gauge(
+            "upstream_admission_waiting",
+            "Requests currently waiting for an application upstream admission slot.",
+            ["service", "target"],
+            registry=self.registry,
+        )
+        self.upstream_admission_limit = Gauge(
+            "upstream_admission_limit",
+            "Resolved application-side upstream admission slot limit.",
+            ["service", "target"],
+            registry=self.registry,
+        )
+        self.upstream_admission_wait = Histogram(
+            "upstream_admission_wait_seconds",
+            "Time spent waiting for an application upstream admission slot.",
+            ["service", "target"],
+            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120),
+            registry=self.registry,
+        )
+
+    def register_admission(self, target: str, limit: int) -> None:
+        self.upstream_admission_limit.labels(self.service, target).set(limit)
+        self.upstream_admission_inflight.labels(self.service, target).set(0)
+        self.upstream_admission_waiting.labels(self.service, target).set(0)
+        # Histogram child를 미리 만들면 실제 traffic 전에도 /metrics에서 contract를 확인할 수 있다.
+        self.upstream_admission_wait.labels(self.service, target)
+
+    def change_admission_waiting(self, target: str, delta: int) -> None:
+        self.upstream_admission_waiting.labels(self.service, target).inc(delta)
+
+    def observe_admission_wait(self, target: str, seconds: float) -> None:
+        self.upstream_admission_wait.labels(self.service, target).observe(max(0.0, seconds))
+
+    def change_admission_inflight(self, target: str, delta: int) -> None:
+        self.upstream_admission_inflight.labels(self.service, target).inc(delta)
 
     def observe_http_request(self, *, scope: Scope, status_code: int, elapsed_seconds: float) -> None:
         """완료된 HTTP 요청 한 건을 count/latency/auth metric에 반영한다.
