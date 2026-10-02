@@ -279,6 +279,7 @@ def test_load_settings_uses_serving_runtime_defaults(tmp_path):
     embedding = serving["models"]["embedding"]
     main_admission = main_llm["resource_control"]["admission_control"]
     embedding_admission = embedding["resource_control"]["admission_control"]
+    risk_admission = serving["risk_signal_service"]["admission_control"]
 
     settings = load_settings(root)
     assert settings.default_main_model_gateway_policy == default_policy
@@ -286,11 +287,16 @@ def test_load_settings_uses_serving_runtime_defaults(tmp_path):
     assert settings.runtime("main_llm").queue_timeout_seconds == main_admission["queue_timeout_seconds"]
     assert settings.runtime("embedding").max_concurrency == embedding_admission["max_concurrency"]
     assert settings.runtime("embedding").queue_timeout_seconds == embedding_admission["queue_timeout_seconds"]
+    assert settings.risk_signal_service_endpoint is not None
+    assert settings.risk_signal_service_endpoint.max_concurrency == risk_admission["max_concurrency"]
+    assert settings.risk_signal_service_endpoint.queue_timeout_seconds == risk_admission["queue_timeout_seconds"]
 
     main_admission["max_concurrency"] += 1
     main_admission["queue_timeout_seconds"] += 1
     embedding_admission["max_concurrency"] += 1
     embedding_admission["queue_timeout_seconds"] += 1
+    risk_admission["max_concurrency"] += 1
+    risk_admission["queue_timeout_seconds"] += 1
     serving_path.write_text(yaml.safe_dump(serving, allow_unicode=True), encoding="utf-8")
 
     settings = load_settings(root)
@@ -299,6 +305,9 @@ def test_load_settings_uses_serving_runtime_defaults(tmp_path):
     assert settings.runtime("main_llm").queue_timeout_seconds == main_admission["queue_timeout_seconds"]
     assert settings.runtime("embedding").max_concurrency == embedding_admission["max_concurrency"]
     assert settings.runtime("embedding").queue_timeout_seconds == embedding_admission["queue_timeout_seconds"]
+    assert settings.risk_signal_service_endpoint is not None
+    assert settings.risk_signal_service_endpoint.max_concurrency == risk_admission["max_concurrency"]
+    assert settings.risk_signal_service_endpoint.queue_timeout_seconds == risk_admission["queue_timeout_seconds"]
 
 
 def test_load_settings_rejects_invalid_or_missing_required_model_configuration(tmp_path):
@@ -337,6 +346,15 @@ def test_load_settings_rejects_invalid_or_missing_required_model_configuration(t
     serving["risk_signal_service"].pop("detectors")
     serving_path.write_text(yaml.safe_dump(serving, allow_unicode=True), encoding="utf-8")
     with pytest.raises(RuntimeError, match="risk_signal_service.detectors must be a non-empty mapping"):
+        load_settings(root)
+
+    serving = yaml.safe_load((repo / "configs" / "model_serving.yaml").read_text(encoding="utf-8"))
+    serving["risk_signal_service"]["admission_control"]["max_concurrency"] = 0
+    serving_path.write_text(yaml.safe_dump(serving, allow_unicode=True), encoding="utf-8")
+    with pytest.raises(
+        RuntimeError,
+        match="risk-signal-service.admission_control.max_concurrency must be >= 1",
+    ):
         load_settings(root)
 
 
@@ -394,6 +412,9 @@ def test_load_settings_uses_canonical_risk_signal_service_application_env(monkey
 
     assert settings.risk_signal_service_base_url == "http://canonical-risk:9505"
     assert settings.risk_signal_service_timeout_seconds == 16
+    assert settings.risk_signal_service_endpoint is not None
+    assert settings.risk_signal_service_endpoint.max_concurrency == 4
+    assert settings.risk_signal_service_endpoint.queue_timeout_seconds == 2
 
 
 def test_load_settings_rejects_risk_signal_service_timeout_below_sequential_budget(tmp_path, monkeypatch):
@@ -481,12 +502,28 @@ def _minimal_settings_kwargs() -> dict:
             internal_service_token="internal",
         ),
         "gateway_timeout_seconds": 1,
-        "risk_signal_service_timeout_seconds": 1,
-        "risk_signal_service_base_url": "http://risk",
+        "risk_signal_service_endpoint": RuntimeEndpoint(
+            "risk-signal-service",
+            "http://risk",
+            "risk-signal-service",
+            1,
+            max_concurrency=4,
+        ),
         "runtime_endpoints": {"main_llm": main_endpoint, "embedding": endpoint},
         "default_embedding_model": "local-embed",
         "default_retrieval_model": "local-embed",
     }
+
+
+def test_app_settings_requires_risk_service_endpoint_for_risk_target() -> None:
+    kwargs = _minimal_settings_kwargs()
+    kwargs.pop("risk_signal_service_endpoint")
+
+    with pytest.raises(
+        ValueError,
+        match="risk-enabled deployment target requires risk_signal_service_endpoint",
+    ):
+        AppSettings(**kwargs)
 
 
 def test_app_settings_allows_embedding_feature_to_be_absent() -> None:

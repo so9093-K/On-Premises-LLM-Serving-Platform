@@ -42,7 +42,7 @@ from ..openapi_contracts import install_contract_openapi, narrow_chat_request_sc
 from ..runtime_configuration import RuntimeConfigurationProvider
 from ..runtime_transition_history import RuntimeTransitionHistoryStore
 from ..security import require_bearer_auth
-from ..settings import AppSettings, RuntimeEndpoint, SecuritySettings, load_settings
+from ..settings import AppSettings, SecuritySettings, load_settings
 from ..services.gateway_service import GatewayService
 from ..upstream import RuntimeClient
 from ..api_descriptions import gateway_description, gateway_tags_metadata
@@ -109,16 +109,8 @@ class GatewayClients:
                 self.runtime_clients_by_service_key[service_key] = client
             self.embedding_clients[model_id] = client
         self.risk_signal_service = (
-            RuntimeClient(
-                RuntimeEndpoint(
-                    logical_id="risk-signal-service",
-                    base_url=settings.risk_signal_service_base_url,
-                    model="risk-signal-service",
-                    timeout_seconds=settings.risk_signal_service_timeout_seconds,
-                    max_concurrency=4,
-                )
-            )
-            if settings.feature_enabled("risk")
+            RuntimeClient(settings.risk_signal_service_endpoint)
+            if settings.risk_signal_service_endpoint is not None
             else None
         )
         self.runtimes: dict[str, Any] = {"main_llm": self.main_llm}

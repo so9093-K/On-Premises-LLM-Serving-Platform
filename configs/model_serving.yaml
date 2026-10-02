@@ -183,6 +183,11 @@ models:
 risk_signal_service:
   # PII·secret·prompt detector를 조합하는 내부 서비스 정책이다.
   endpoint: http://risk-signal-service:9405
+  # Gateway -> Risk Signal Service 호출도 model runtime과 같은 bounded admission
+  # guard를 쓴다. 값은 코드 상수가 아니라 이 service policy가 소유한다.
+  admission_control:
+    max_concurrency: 4
+    queue_timeout_seconds: 2
   detectors:
     pii:
       type: local
@@ -224,7 +229,6 @@ risk_signal_service:
     - secret
     - prompt
     execution: sequential
-  timeout_seconds: 15
   input_policy:
     # 최소 enabled vLLM detector context에서 64 token을 뺀 값을 문자 수로 환산한 상한이다.
     # 초과 입력은 detector를 호출하지 않고 코드에 고정된 TRUNCATED_INPUT 시스템 신호를 반환한다.
