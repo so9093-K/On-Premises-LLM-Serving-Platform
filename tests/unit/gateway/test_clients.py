@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .helpers import *  # noqa: F401,F403
 
 def test_gateway_clients_build_embedding_clients_from_profiles(monkeypatch):
@@ -19,6 +21,27 @@ def test_gateway_clients_build_embedding_clients_from_profiles(monkeypatch):
     created = [endpoint.logical_id for endpoint in SpyRuntimeClient.created_endpoints]
     assert created.count("local-embed") == 1
     assert created.count("local-embed-ko") == 1
+
+
+def test_gateway_clients_consume_resolved_risk_service_admission(monkeypatch):
+    SpyRuntimeClient.created_endpoints = []
+    monkeypatch.setattr(gateway_app_module, "RuntimeClient", SpyRuntimeClient)
+    base = settings()
+    assert base.risk_signal_service_endpoint is not None
+    risk_endpoint = replace(
+        base.risk_signal_service_endpoint,
+        max_concurrency=7,
+        queue_timeout_seconds=3,
+    )
+
+    GatewayClients(replace(base, risk_signal_service_endpoint=risk_endpoint))
+
+    created = {
+        endpoint.logical_id: endpoint
+        for endpoint in SpyRuntimeClient.created_endpoints
+    }
+    assert created["risk-signal-service"].max_concurrency == 7
+    assert created["risk-signal-service"].queue_timeout_seconds == 3
 
 
 def test_gateway_clients_pick_up_new_embedding_route_without_code_change(monkeypatch):

@@ -113,8 +113,7 @@ class AppSettings:
     security: SecuritySettings
     deployment_target: DeploymentTarget
     gateway_timeout_seconds: float
-    risk_signal_service_timeout_seconds: float
-    risk_signal_service_base_url: str
+    risk_signal_service_endpoint: RuntimeEndpoint | None = None
     runtime_endpoints: dict[str, RuntimeEndpoint] = field(default_factory=dict)
     required_runtime_keys: frozenset[str] = frozenset()
     controllable_runtime_keys: frozenset[str] = frozenset()
@@ -158,6 +157,16 @@ class AppSettings:
     runtime_startup_generation: str = ""
     log_request_response_body: bool = False
 
+    @property
+    def risk_signal_service_base_url(self) -> str:
+        endpoint = self.risk_signal_service_endpoint
+        return endpoint.base_url if endpoint is not None else ""
+
+    @property
+    def risk_signal_service_timeout_seconds(self) -> float:
+        endpoint = self.risk_signal_service_endpoint
+        return endpoint.timeout_seconds if endpoint is not None else 0.0
+
     def runtime_service_id(self, runtime_key: str) -> str:
         """이 runtime이 배포 토폴로지에서 갖는 service 식별자를 반환한다."""
         try:
@@ -170,6 +179,10 @@ class AppSettings:
     def __post_init__(self) -> None:
         if "main_llm" not in self.runtime_endpoints:
             raise ValueError("main_llm runtime endpoint must be configured")
+        if self.feature_enabled("risk") and self.risk_signal_service_endpoint is None:
+            raise ValueError(
+                "risk-enabled deployment target requires risk_signal_service_endpoint"
+            )
         unknown_required = self.required_runtime_keys - self.runtime_endpoints.keys()
         if unknown_required:
             raise ValueError(

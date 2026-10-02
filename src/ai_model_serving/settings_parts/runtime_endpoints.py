@@ -84,6 +84,74 @@ def build_runtime_endpoint(
     )
 
 
+def build_internal_service_endpoint(
+    *,
+    logical_id: str,
+    base_url: str,
+    timeout_seconds: float,
+    service_config: dict[str, Any],
+    operational_limits: dict[str, Any],
+) -> RuntimeEndpoint:
+    """Resolve a non-model Gateway upstream into the same traffic-guard contract."""
+
+    admission = service_config.get("admission_control", {})
+    if not isinstance(admission, dict):
+        raise RuntimeError(f"{logical_id}.admission_control must be an object")
+
+    max_concurrency = int(
+        admission.get(
+            "max_concurrency",
+            operational_limits.get("per_upstream_concurrency", 1),
+        )
+    )
+    if max_concurrency < 1:
+        raise RuntimeError(f"{logical_id}.admission_control.max_concurrency must be >= 1")
+
+    queue_timeout_seconds = float(
+        admission.get(
+            "queue_timeout_seconds",
+            operational_limits.get("queue_timeout_seconds", 2),
+        )
+    )
+    if queue_timeout_seconds < 0:
+        raise RuntimeError(
+            f"{logical_id}.admission_control.queue_timeout_seconds must be >= 0"
+        )
+
+    failure_threshold = int(
+        operational_limits.get("circuit_breaker_failure_threshold", 3)
+    )
+    if failure_threshold < 1:
+        raise RuntimeError("operational_limits.circuit_breaker_failure_threshold must be >= 1")
+
+    reset_seconds = float(
+        operational_limits.get("circuit_breaker_reset_seconds", 15)
+    )
+    if reset_seconds < 0.1:
+        raise RuntimeError(
+            "operational_limits.circuit_breaker_reset_seconds must be >= 0.1"
+        )
+
+    http_limits = operational_limits.get("http_client", {})
+    if not isinstance(http_limits, dict):
+        raise RuntimeError("operational_limits.http_client must be an object")
+
+    return RuntimeEndpoint(
+        logical_id=logical_id,
+        base_url=base_url.rstrip("/"),
+        model=logical_id,
+        timeout_seconds=timeout_seconds,
+        max_concurrency=max_concurrency,
+        queue_timeout_seconds=queue_timeout_seconds,
+        circuit_breaker_failure_threshold=failure_threshold,
+        circuit_breaker_reset_seconds=reset_seconds,
+        http_max_connections=int(http_limits.get("max_connections", 100)),
+        http_max_keepalive_connections=int(
+            http_limits.get("max_keepalive_connections", 20)
+        ),
+    )
+
+
 def validate_timeout_budget(
     *,
     gateway_timeout_seconds: float,

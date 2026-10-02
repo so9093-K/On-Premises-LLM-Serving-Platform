@@ -18,7 +18,11 @@ from .settings_parts.env import (
     env as _env,
     load_local_dotenv_when_allowed,
 )
-from .settings_parts.runtime_endpoints import build_runtime_endpoint, validate_timeout_budget
+from .settings_parts.runtime_endpoints import (
+    build_internal_service_endpoint,
+    build_runtime_endpoint,
+    validate_timeout_budget,
+)
 from .settings_parts.security import build_security_settings
 from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettings, EmbeddingProfile, RiskDetectorSettings, RuntimeEndpoint, RuntimeTopologyStatus
 # security.py와 app 모듈이 settings에서 가져가는 공개 re-export다.
@@ -366,6 +370,20 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     if deployment_target.supports("risk") and not isinstance(risk_signal_service_cfg, dict):
         raise RuntimeError("risk_signal_service must be configured in configs/model_serving.yaml")
     risk_signal_service_cfg = risk_signal_service_cfg if isinstance(risk_signal_service_cfg, dict) else {}
+    risk_signal_service_endpoint = (
+        build_internal_service_endpoint(
+            logical_id="risk-signal-service",
+            base_url=_env(
+                "RISK_SIGNAL_SERVICE_BASE_URL",
+                str(risk_signal_service_cfg.get("endpoint", "")),
+            ),
+            timeout_seconds=risk_signal_service_timeout_seconds,
+            service_config=risk_signal_service_cfg,
+            operational_limits=operational_limits,
+        )
+        if deployment_target.supports("risk")
+        else None
+    )
     risk_detectors = (
         _risk_detectors_from_config(
             risk_signal_service_cfg,
@@ -422,12 +440,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         deployment_target=deployment_target,
         security=security,
         gateway_timeout_seconds=gateway_timeout_seconds,
-        risk_signal_service_timeout_seconds=risk_signal_service_timeout_seconds,
-        risk_signal_service_base_url=(
-            _env("RISK_SIGNAL_SERVICE_BASE_URL", str(risk_signal_service_cfg.get("endpoint", ""))).rstrip("/")
-            if deployment_target.supports("risk")
-            else ""
-        ),
+        risk_signal_service_endpoint=risk_signal_service_endpoint,
         runtime_endpoints=runtime_endpoints,
         required_runtime_keys=required_runtime_keys,
         runtime_service_ids={
