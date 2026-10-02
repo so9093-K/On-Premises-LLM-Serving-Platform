@@ -97,6 +97,47 @@ Gateway와 Risk Signal Service의 `RuntimeClient`는 upstream 호출 전에 boun
 
 vLLM의 `num_requests_running`·`num_requests_waiting`은 이 Gateway queue 뒤의 **engine scheduler 상태**다. 따라서 `inflight / limit`을 LLM capacity percentage로 해석하거나 두 queue를 하나의 load score로 합치지 않는다. Gateway waiting이 증가하는지, vLLM waiting·KV cache·TTFT/ITL이 증가하는지를 같은 시간축에서 나란히 보고 병목 계층을 구분한다.
 
+### Effective Serving Envelope
+
+`GET /admin/serving-envelope`는 현재 Main Model의 **동적 상태 지표가 아니라 effective serving context**를 읽기 전용으로 보여 준다. Prometheus가 지금 몇 건이 기다리는지를 답한다면, 이 endpoint는 어떤 admission/engine 조건에서 그 상태가 발생했는지를 설명한다.
+
+응답은 다음 세 축을 분리한다.
+
+- `profile`: 현재 profile ID와 resource variant, projection source
+- `admission`: Gateway가 실제 `RuntimeEndpoint`에 적용한 `max_concurrency`와 `queue_timeout_seconds`
+- `engine`: backend catalog/runtime authority가 resolve한 capacity 관련 engine knob
+
+Linux/vLLM managed target에서는 Runtime Controller의 현재 active profile에 resource variant와 host override가 적용된 뒤의 `max_model_len`, `max_num_seqs`, `max_num_batched_tokens`, `gpu_memory_utilization`을 사용한다. Static target은 Runtime Controller가 없으므로 선택된 static profile/catalog 계약을 사용한다. 특히 external lifecycle인 static target의 `engine`은 **외부 프로세스를 실시간 inspect한 값이 아니라 플랫폼이 기대하는 serving configuration**이다.
+
+예시:
+
+```json
+{
+  "runtime": "main_llm",
+  "public_model": "local-main",
+  "deployment_target": "linux-nvidia-dynamic",
+  "backend": "vllm-cuda",
+  "control_mode": "runtime_controller",
+  "profile": {
+    "id": "gemma4-e4b-it",
+    "resource_variant": "rtx4090-24gb",
+    "source": "runtime_controller_active_profile"
+  },
+  "admission": {
+    "max_concurrency": 4,
+    "queue_timeout_seconds": 90
+  },
+  "engine": {
+    "max_model_len": 65000,
+    "max_num_seqs": 4,
+    "max_num_batched_tokens": 4096,
+    "gpu_memory_utilization": 0.76
+  }
+}
+```
+
+이 값은 capacity 예측이나 tuning 추천이 아니다. `capacity_percent`, 예상 최대 사용자 수, recommended concurrency를 계산하지 않으며, 실제 병목 판정은 admission metrics와 engine scheduler/KV/TTFT/ITL 관측을 함께 사용한다.
+
 ### 서비스 개요 Dashboard
 
 full-stack Grafana의 Home은 **서비스 개요** Dashboard다. "지금 서비스가 요청을 제대로 처리하고
