@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import anyio
 import httpx
 
 from ai_model_serving.errors import ServiceError, error_response
@@ -16,6 +17,28 @@ from ai_model_serving.upstream import (
     _counts_as_upstream_failure,
     _http_status_to_service_error,
 )
+
+
+class RecordingAdmissionObserver:
+    def __init__(self) -> None:
+        self.registrations: list[tuple[str, int]] = []
+        self.waiting = 0
+        self.inflight = 0
+        self.waits: list[tuple[str, float]] = []
+
+    def register_admission(self, target: str, limit: int) -> None:
+        self.registrations.append((target, limit))
+
+    def change_admission_waiting(self, target: str, delta: int) -> None:
+        assert target == "local-main"
+        self.waiting += delta
+
+    def observe_admission_wait(self, target: str, seconds: float) -> None:
+        self.waits.append((target, seconds))
+
+    def change_admission_inflight(self, target: str, delta: int) -> None:
+        assert target == "local-main"
+        self.inflight += delta
 
 
 def _response_headers(exc: ServiceError):
@@ -111,8 +134,6 @@ def test_queue_timeout_error_carries_fixed_retry_after_hint() -> None:
     ep = RuntimeEndpoint("local-main", "http://runtime/v1", "local-main", 1, max_concurrency=1, queue_timeout_seconds=0.01)
     client = RuntimeClient(ep)
 
-    import anyio
-
     async def run() -> ServiceError:
         await client._semaphore.acquire()  # 유일한 admission slot을 붙잡아둔다
         try:
@@ -126,6 +147,65 @@ def test_queue_timeout_error_carries_fixed_retry_after_hint() -> None:
     assert exc.status_code == 503
     assert exc.retry_after_seconds == QUEUE_TIMEOUT_RETRY_AFTER_SECONDS
     assert _response_headers(exc)["retry-after"] == "5"
+
+
+def test_admission_observer_tracks_effective_limit_wait_and_inflight_lifecycle() -> None:
+    ep = RuntimeEndpoint(
+        "local-main",
+        "http://runtime/v1",
+        "local-main",
+        1,
+        max_concurrency=2,
+    )
+    observer = RecordingAdmissionObserver()
+    client = RuntimeClient(ep, admission_observer=observer)
+
+    async def run() -> None:
+        scope = client._admission()
+        await scope.acquire()
+        assert observer.waiting == 0
+        assert observer.inflight == 1
+        scope.release(None)
+
+    anyio.run(run)
+
+    assert observer.registrations == [("local-main", 2)]
+    assert observer.waiting == 0
+    assert observer.inflight == 0
+    assert len(observer.waits) == 1
+    assert observer.waits[0][0] == "local-main"
+    assert observer.waits[0][1] >= 0
+
+
+def test_admission_timeout_observes_wait_without_leaking_waiting_or_inflight() -> None:
+    ep = RuntimeEndpoint(
+        "local-main",
+        "http://runtime/v1",
+        "local-main",
+        1,
+        max_concurrency=1,
+        queue_timeout_seconds=0.01,
+    )
+    observer = RecordingAdmissionObserver()
+    client = RuntimeClient(ep, admission_observer=observer)
+
+    async def run() -> None:
+        await client._semaphore.acquire()
+        try:
+            try:
+                await client._admission().acquire()
+                raise AssertionError("expected QUEUE_TIMEOUT")
+            except ServiceError as exc:
+                assert exc.code == "QUEUE_TIMEOUT"
+        finally:
+            client._semaphore.release()
+
+    anyio.run(run)
+
+    assert observer.waiting == 0
+    assert observer.inflight == 0
+    assert len(observer.waits) == 1
+    assert observer.waits[0][1] >= 0.01
 
 
 def test_service_error_without_retry_after_omits_header() -> None:
@@ -153,7 +233,5 @@ def test_readiness_probe_bypasses_open_circuit_breaker() -> None:
             return FakeResponse()
 
     client._client = FakeHttpClient()
-
-    import anyio
 
     assert anyio.run(client.probe_json, "models") == {"object": "list", "data": []}
