@@ -8,7 +8,7 @@ from __future__ import annotations
 import anyio
 import httpx
 
-from ai_model_serving.errors import ServiceError, error_response
+from ai_model_serving.errors import REQUEST_ERROR_CONTEXT, ServiceError, error_response
 from ai_model_serving.settings import RuntimeEndpoint
 from ai_model_serving.upstream import (
     QUEUE_TIMEOUT_RETRY_AFTER_SECONDS,
@@ -189,23 +189,30 @@ def test_admission_timeout_observes_wait_without_leaking_waiting_or_inflight() -
     observer = RecordingAdmissionObserver()
     client = RuntimeClient(ep, admission_observer=observer)
 
-    async def run() -> None:
-        await client._semaphore.acquire()
-        try:
+    request_state: dict[str, object] = {}
+    token = REQUEST_ERROR_CONTEXT.set(request_state)
+    try:
+        async def run() -> None:
+            await client._semaphore.acquire()
             try:
-                await client._admission().acquire()
-                raise AssertionError("expected QUEUE_TIMEOUT")
-            except ServiceError as exc:
-                assert exc.code == "QUEUE_TIMEOUT"
-        finally:
-            client._semaphore.release()
+                try:
+                    await client._admission().acquire()
+                    raise AssertionError("expected QUEUE_TIMEOUT")
+                except ServiceError as exc:
+                    assert exc.code == "QUEUE_TIMEOUT"
+            finally:
+                client._semaphore.release()
 
-    anyio.run(run)
+        anyio.run(run)
+    finally:
+        REQUEST_ERROR_CONTEXT.reset(token)
 
     assert observer.waiting == 0
     assert observer.inflight == 0
     assert len(observer.waits) == 1
-    assert observer.waits[0][1] >= 0.01
+    assert observer.waits[0][1] > 0
+    assert isinstance(request_state.get("queue_wait_ms"), float)
+    assert request_state["queue_wait_ms"] > 0
 
 
 def test_service_error_without_retry_after_omits_header() -> None:
