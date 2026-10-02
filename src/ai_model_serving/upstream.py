@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -17,6 +17,18 @@ from .settings import RuntimeEndpoint
 # MAIN_MODEL_SWITCH_IN_PROGRESS / MAIN_MODEL_CONTROL_UNAVAILABLE에 이미
 # 사용 중인 고정 힌트값과 일치시킨다.
 QUEUE_TIMEOUT_RETRY_AFTER_SECONDS = 5.0
+
+
+class AdmissionObserver(Protocol):
+    """Observe bounded RuntimeClient admission state without owning policy."""
+
+    def register_admission(self, target: str, limit: int) -> None: ...
+
+    def change_admission_waiting(self, target: str, delta: int) -> None: ...
+
+    def observe_admission_wait(self, target: str, seconds: float) -> None: ...
+
+    def change_admission_inflight(self, target: str, delta: int) -> None: ...
 
 
 class CircuitBreaker:
@@ -61,29 +73,62 @@ class _AdmissionScope:
     CIRCUIT_OPEN을 올린다. 둘 다 slot을 잡기 전이므로 ``release``는 부르지 않는다.
     """
 
-    __slots__ = ("_endpoint", "_circuit_breaker", "_semaphore", "_held", "queue_wait_seconds")
+    __slots__ = (
+        "_endpoint",
+        "_circuit_breaker",
+        "_semaphore",
+        "_observer",
+        "_held",
+        "queue_wait_seconds",
+    )
 
-    def __init__(self, endpoint: RuntimeEndpoint, circuit_breaker: CircuitBreaker, semaphore: asyncio.Semaphore) -> None:
+    def __init__(
+        self,
+        endpoint: RuntimeEndpoint,
+        circuit_breaker: CircuitBreaker,
+        semaphore: asyncio.Semaphore,
+        observer: AdmissionObserver | None = None,
+    ) -> None:
         self._endpoint = endpoint
         self._circuit_breaker = circuit_breaker
         self._semaphore = semaphore
+        self._observer = observer
         self._held = False
         self.queue_wait_seconds = 0.0
+
+    def _record_wait(self, waiting_since: float) -> None:
+        self.queue_wait_seconds = max(0.0, time.monotonic() - waiting_since)
+        # 요청 로그와 Prometheus가 같은 admission wait 관측값을 사용한다. timeout으로
+        # slot을 얻지 못한 요청도 실제로 기다린 시간을 남겨 queue pressure를 숨기지 않는다.
+        record_queue_wait(self.queue_wait_seconds)
+        if self._observer is not None:
+            self._observer.observe_admission_wait(
+                self._endpoint.logical_id,
+                self.queue_wait_seconds,
+            )
 
     async def acquire(self) -> None:
         self._circuit_breaker.before_request(self._endpoint.logical_id)
         waiting_since = time.monotonic()
+        if self._observer is not None:
+            self._observer.change_admission_waiting(self._endpoint.logical_id, 1)
         try:
-            await asyncio.wait_for(self._semaphore.acquire(), timeout=self._endpoint.queue_timeout_seconds)
+            await asyncio.wait_for(
+                self._semaphore.acquire(),
+                timeout=self._endpoint.queue_timeout_seconds,
+            )
         except TimeoutError as exc:
+            self._record_wait(waiting_since)
             raise ServiceError(
                 "QUEUE_TIMEOUT", f"Timed out waiting for upstream capacity: {self._endpoint.logical_id}", retry_after_seconds=QUEUE_TIMEOUT_RETRY_AFTER_SECONDS,
             ) from exc
+        finally:
+            if self._observer is not None:
+                self._observer.change_admission_waiting(self._endpoint.logical_id, -1)
         self._held = True
-        self.queue_wait_seconds = time.monotonic() - waiting_since
-        # 느린 요청의 원인을 대기와 추론으로 가를 수 있도록 요청 단위 로그에 남긴다.
-        # Prometheus latency histogram은 둘을 합친 값만 보여준다.
-        record_queue_wait(self.queue_wait_seconds)
+        self._record_wait(waiting_since)
+        if self._observer is not None:
+            self._observer.change_admission_inflight(self._endpoint.logical_id, 1)
 
     def release(self, exc: BaseException | None) -> None:
         """slot을 반납하고 circuit breaker에 결과를 반영한다.
@@ -102,6 +147,8 @@ class _AdmissionScope:
                 self._circuit_breaker.record_failure()
         finally:
             self._semaphore.release()
+            if self._observer is not None:
+                self._observer.change_admission_inflight(self._endpoint.logical_id, -1)
 
     async def __aenter__(self) -> "_AdmissionScope":
         await self.acquire()
@@ -207,7 +254,12 @@ class RuntimeClient:
     수명주기)은 여기 없고 services/runtime_controller_client.py가 따로 소유한다.
     """
 
-    def __init__(self, endpoint: RuntimeEndpoint) -> None:
+    def __init__(
+        self,
+        endpoint: RuntimeEndpoint,
+        *,
+        admission_observer: AdmissionObserver | None = None,
+    ) -> None:
         self.endpoint = endpoint
         self._client: httpx.AsyncClient | None = None
         self._semaphore = asyncio.Semaphore(endpoint.max_concurrency)
@@ -215,6 +267,12 @@ class RuntimeClient:
             failure_threshold=endpoint.circuit_breaker_failure_threshold,
             reset_seconds=endpoint.circuit_breaker_reset_seconds,
         )
+        self._admission_observer = admission_observer
+        if admission_observer is not None:
+            admission_observer.register_admission(
+                endpoint.logical_id,
+                endpoint.max_concurrency,
+            )
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -245,7 +303,12 @@ class RuntimeClient:
         return f"{self.endpoint.base_url.rstrip('/')}/{path.lstrip('/')}"
 
     def _admission(self) -> _AdmissionScope:
-        return _AdmissionScope(self.endpoint, self._circuit_breaker, self._semaphore)
+        return _AdmissionScope(
+            self.endpoint,
+            self._circuit_breaker,
+            self._semaphore,
+            self._admission_observer,
+        )
 
     async def _with_operational_guards(self, operation: Callable[[], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         async with self._admission():
