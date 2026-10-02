@@ -152,7 +152,9 @@ class MainModelProfile:
             "max_model_len": _flag_value("--max-model-len", int),
             "max_num_seqs": _flag_value("--max-num-seqs", int),
             "max_num_batched_tokens": _flag_value("--max-num-batched-tokens", int),
-            "gpu_memory_utilization": _flag_value("--gpu-memory-utilization", float),
+            # vLLM flag가 없을 때도 loader는 기본값 0.9를 vram_fraction으로
+            # resolve한다. Envelope는 argv 존재 여부가 아니라 같은 effective 값을 쓴다.
+            "gpu_memory_utilization": self.vram_fraction,
         }
 
     def public_view(self) -> dict[str, Any]:
