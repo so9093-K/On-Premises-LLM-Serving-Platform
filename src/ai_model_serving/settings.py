@@ -7,6 +7,7 @@ from typing import Any
 from .domain import ModelRegistry
 from .deployment_target import DeploymentTarget, load_deployment_target
 from .serving_profile import load_main_serving_catalog
+from .main_model.control import gpu_util_override_from_mapping, load_main_model_catalog
 from .runtime_topology import load_runtime_topology
 from .risk_input import detector_prompt_char_budget
 from .configuration import load_yaml_mapping
@@ -29,6 +30,55 @@ from .settings_parts.types import AppSettings, CorsSettings, DocumentationSettin
 from .settings_parts.types import SecuritySettings as SecuritySettings
 
 ROOT = _resolve_project_root()
+
+
+def _static_main_engine_projection(
+    deployment_target: DeploymentTarget,
+    catalog_path: Path,
+    profile_id: str,
+    *,
+    resource_variant: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Resolve capacity-relevant engine policy for externally managed static Main runtimes."""
+    if deployment_target.control_mode != "static":
+        return {}, None
+
+    if deployment_target.runtime_backend == "vllm-cuda":
+        catalog = load_main_model_catalog(
+            catalog_path,
+            gpu_memory_utilization_override=gpu_util_override_from_mapping({
+                "MAIN_MODEL_GPU_MEMORY_UTILIZATION": _env(
+                    "MAIN_MODEL_GPU_MEMORY_UTILIZATION", ""
+                )
+            }),
+            resource_variant=resource_variant,
+            resolve_runtime_images=False,
+        )
+        profile = catalog.profiles[profile_id]
+        return profile.engine_policy(), profile.resource_variant
+
+    if deployment_target.runtime_backend == "mlx-vlm":
+        document = load_yaml_mapping(catalog_path)
+        runtime = document.get("runtime")
+        if not isinstance(runtime, dict):
+            raise RuntimeError(f"static Main runtime config is invalid: {catalog_path}")
+        try:
+            return {
+                "max_kv_size": int(runtime["max_kv_size"]),
+                "max_generation_tokens": int(runtime["max_generation_tokens"]),
+                # Native MLX launcher projects runtime.max_concurrency to --max-num-seqs.
+                "max_num_seqs": int(runtime["max_concurrency"]),
+                "vision_cache_size": int(runtime["vision_cache_size"]),
+            }, None
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"static MLX engine policy is invalid: {catalog_path}"
+            ) from exc
+
+    raise RuntimeError(
+        f"static serving envelope does not support backend "
+        f"{deployment_target.runtime_backend!r}"
+    )
 
 
 def _public_models_from_registry(
@@ -283,6 +333,12 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     runtime_topology = load_runtime_topology(
         project_root, main_resource_variant=main_resource_variant
     )
+    static_main_engine_policy, static_main_resource_variant = _static_main_engine_projection(
+        deployment_target,
+        main_catalog_path,
+        selected_main_profile,
+        resource_variant=main_resource_variant,
+    )
 
     documentation = _documentation_settings(documentation_cfg)
     cors = _cors_settings()
@@ -499,6 +555,8 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             else ""
         ),
         static_main_profile=static_main_profile,
+        static_main_engine_policy=static_main_engine_policy,
+        static_main_resource_variant=static_main_resource_variant,
         runtime_startup_generation=_env("RUNTIME_STARTUP_GENERATION", ""),
         log_request_response_body=_as_bool(_env("LOG_REQUEST_RESPONSE_BODY", "false"), False),
     )
