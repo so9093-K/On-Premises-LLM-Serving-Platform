@@ -35,9 +35,12 @@ from ..api.routers.risk_signal_service_risk import build_router as _build_risk_r
 
 
 class RiskClients:
-    def __init__(self, settings: AppSettings) -> None:
+    def __init__(self, settings: AppSettings, *, admission_observer: Metrics | None = None) -> None:
         self.detectors = {
-            detector.key: RuntimeClient(settings.runtime(detector.service_key))
+            detector.key: RuntimeClient(
+                settings.runtime(detector.service_key),
+                admission_observer=admission_observer,
+            )
             for detector in settings.enabled_risk_detectors()
             if detector.detector_type == "vllm" and detector.service_key
         }
@@ -92,10 +95,10 @@ def _ensure_detector_client_map(clients: Any) -> dict[str, Any]:
 
 def create_risk_signal_service_app(settings: AppSettings | None = None, clients: RiskClients | None = None) -> FastAPI:
     settings = settings or load_settings()
-    clients = clients or RiskClients(settings)
+    metrics = Metrics("risk-signal-service")
+    clients = clients or RiskClients(settings, admission_observer=metrics)
     _ensure_detector_client_map(clients)
     local_detectors = _build_local_detectors(settings)
-    metrics = Metrics("risk-signal-service")
     logger = service_logger("risk-signal-service")
     service = RiskAssessmentService(
         clients,
