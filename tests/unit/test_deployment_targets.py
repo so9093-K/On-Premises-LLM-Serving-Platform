@@ -169,6 +169,42 @@ def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     assert limits["max_image_inputs"] == 8
 
 
+def test_static_serving_envelope_uses_selected_catalog_without_runtime_controller(monkeypatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
+    settings = load_settings()
+    clients = FakeGatewayClients()
+    clients.runtime_controller = None
+    client = TestClient(create_gateway_app(settings, clients))
+
+    response = client.get("/admin/serving-envelope")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "runtime": "main_llm",
+        "public_model": "local-main",
+        "deployment_target": "macos-metal-static",
+        "backend": "mlx-vlm",
+        "control_mode": "static",
+        "profile": {
+            "id": "gemma4-26b-a4b-qat-4bit-mlx",
+            "resource_variant": None,
+            "source": "static_configuration",
+        },
+        "admission": {
+            "max_concurrency": 1,
+            "queue_timeout_seconds": settings.runtime("main_llm").queue_timeout_seconds,
+        },
+        "engine": {
+            "max_kv_size": 32768,
+            "max_generation_tokens": 8192,
+            "max_num_seqs": 1,
+            "vision_cache_size": 4,
+        },
+    }
+
+
 def test_macos_reasoning_uses_the_mlx_top_level_parameter_and_stays_opt_in(monkeypatch) -> None:
     """MLX는 chat_template_kwargs가 아니라 최상위 enable_thinking을 쓴다.
 
