@@ -155,6 +155,13 @@ def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     assert settings.aggregate_detector_order == ("pii", "secret")
     assert "prompt_detection" not in settings.deployment_target.features
     assert settings.runtime("main_llm").max_concurrency == 1
+    assert settings.static_main_resource_variant is None
+    assert settings.static_main_engine_policy == {
+        "max_kv_size": 32768,
+        "max_generation_tokens": 8192,
+        "max_num_seqs": 1,
+        "vision_cache_size": 4,
+    }
     assert settings.default_main_model_gateway_policy["max_output_tokens"] == 8192
     limits = settings.default_main_model_gateway_policy["request_limits"]
     assert limits["max_model_len"] == 32768
@@ -215,6 +222,13 @@ def test_static_settings_project_only_main_runtime(monkeypatch) -> None:
     assert settings.risk_signal_service_base_url == "http://risk-signal-service:9405"
     assert settings.runtime_controller_url == ""
     assert settings.static_main_profile == "gemma4-e4b-it"
+    assert settings.static_main_resource_variant is None
+    assert settings.static_main_engine_policy == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 50000,
+        "gpu_memory_utilization": 0.76,
+    }
     assert settings.default_main_model_gateway_policy["max_output_tokens"] == 15_000
     assert [item["id"] for item in settings.public_models] == ["local-main"]
 
