@@ -492,6 +492,24 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
     # ------------------------------------------------------------------ 관리자 런타임 제어
     EndpointSpec(
         method="GET",
+        path="/admin/serving-envelope",
+        operation_id="getServingEnvelope",
+        tag="Runtime Control",
+        summary="Effective Serving Envelope 조회",
+        description=(
+            "현재 Main Model이 어떤 조건으로 요청을 받고 engine을 실행하도록 구성되어 있는지 읽기 전용으로 투영합니다. "
+            "Gateway admission의 resolved `max_concurrency`·`queue_timeout_seconds`와 backend별 capacity 관련 engine policy를 "
+            "한 응답에서 보되, 이를 capacity percentage·최대 사용자 수·권장 concurrency로 변환하지 않습니다.\n\n"
+            "managed dynamic target은 Runtime Controller의 현재 active profile에서 engine policy를 읽습니다. "
+            "static target은 lifecycle owner가 외부이므로 선택된 static profile/catalog의 계약을 보여 주며, "
+            "외부 프로세스를 실시간 inspect한 값이라고 해석하면 안 됩니다."
+        ),
+        request_schema=None,
+        response_schema="serving_envelope_response.schema.json",
+        error_codes=("MAIN_MODEL_CONTROL_UNAVAILABLE", "MODEL_UNAVAILABLE"),
+    ),
+    EndpointSpec(
+        method="GET",
         path="/admin/runtimes",
         operation_id="listRuntimes",
         tag="Runtime Control",
