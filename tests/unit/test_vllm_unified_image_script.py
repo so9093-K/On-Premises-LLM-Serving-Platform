@@ -90,9 +90,9 @@ def test_vllm_version_is_an_explicit_build_compatibility_pin():
         check=False,
     )
 
-    assert document["compatibility_pins"]["vllm"] == "0.25.1"
+    assert document["compatibility_pins"]["vllm"] == "0.30.0"
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.25.1"
+    assert result.stdout.strip() == "0.30.0"
 
 
 def test_vllm_unified_source_manifest_is_owned_by_image_helper():

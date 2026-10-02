@@ -143,6 +143,46 @@ class LiveRuntimeChecks:
     def _chat_url(self) -> str:
         return f"{self.gateway_base}/v1/chat/completions"
 
+    def check_main_runtime_artifact(self) -> CheckResult:
+        """Record the artifact actually observed by the Runtime Controller."""
+        status, body, latency = self.http.json(
+            "GET", f"{self.gateway_base}/admin/main-model", admin=True
+        )
+        observed = body.get("observed_runtime")
+        observed = observed if isinstance(observed, dict) else {}
+        engine = observed.get("runtime_engine")
+        engine = engine if isinstance(engine, dict) else {}
+        details = {
+            "profile_id": observed.get("profile_id"),
+            "image_ref": observed.get("image_ref"),
+            "image_id": observed.get("image_id"),
+            "image_digest": observed.get("image_digest"),
+            "runtime_engine": {
+                "name": engine.get("name"),
+                "version": engine.get("version"),
+            },
+        }
+        ok = (
+            status == 200
+            and observed.get("status") == "ready"
+            and engine.get("name") == "vllm"
+            and isinstance(engine.get("version"), str)
+            and bool(engine["version"])
+            and isinstance(observed.get("image_id"), str)
+            and bool(observed["image_id"])
+        )
+        return CheckResult(
+            "vllm-runtime",
+            "main runtime artifact",
+            "pass" if ok else "fail",
+            latency,
+            detail=(
+                f"engine={engine.get('version') or 'unknown'} "
+                f"image_digest={observed.get('image_digest') or 'unavailable'}"
+            ),
+            details=details,
+        )
+
     def _main_model_name(self) -> str:
         return str(self.config.model_serving["models"]["main_llm"]["served_model_name"])
 

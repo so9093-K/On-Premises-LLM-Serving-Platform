@@ -101,6 +101,31 @@ def test_models_check_records_the_main_model_input_modalities() -> None:
     ]
 
 
+def test_main_runtime_artifact_records_observed_engine_and_digest() -> None:
+    checks, http = _checks()
+    original_json = http.json
+
+    def json_with_artifact(method: str, url: str, payload=None, **kwargs):
+        if url.endswith("/admin/main-model"):
+            assert kwargs.get("admin") is True
+            return 200, {"observed_runtime": {
+                "status": "ready",
+                "profile_id": "gemma4-12b-unified-fp8",
+                "image_ref": "registry.example/vllm@sha256:" + "a" * 64,
+                "image_id": "sha256:" + "b" * 64,
+                "image_digest": "sha256:" + "a" * 64,
+                "runtime_engine": {"name": "vllm", "version": "0.30.0"},
+            }}, 1
+        return original_json(method, url, payload, **kwargs)
+
+    http.json = json_with_artifact
+    result = checks.check_main_runtime_artifact()
+
+    assert result.passed
+    assert result.details["runtime_engine"] == {"name": "vllm", "version": "0.30.0"}
+    assert result.details["image_digest"] == "sha256:" + "a" * 64
+
+
 def test_media_canaries_use_checked_in_data_fixtures() -> None:
     checks, http = _checks()
 

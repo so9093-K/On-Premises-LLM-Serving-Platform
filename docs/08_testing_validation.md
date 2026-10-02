@@ -470,6 +470,12 @@ make runtime-validate
 
 `macos-metal-static`은 별도 target이다. MLX runtime/profile/lifecycle 변경은 Mac target에서 `make up` + `make status` + 관련 smoke로 검증하고, Linux/NVIDIA `runtime-validate`로 대체하지 않는다.
 
+Linux/NVIDIA live report의 `runtime_artifact`는 `/admin/main-model`에서 실제 관측한
+Main Model profile, image ref/local image ID, registry digest, vLLM version을 기록한다.
+local image라 registry digest가 없는 경우 `null`로 남기며 값을 추측하지 않는다.
+engine image 후보를 승격할 때는 digest로 pin한 image에서 report를 만들어 후보
+artifact와 실제 실행 image가 일치하는지 확인한다.
+
 vLLM engine pin 변경은 runtime 실측 전에 정적 계약부터 확인한다. `make validate`는
 `configs/vllm_unified_build.yaml`의 current vLLM pin과
 `docs/reference/vllm_security_posture.md`의 Security review contract가 일치하는지 확인한다.

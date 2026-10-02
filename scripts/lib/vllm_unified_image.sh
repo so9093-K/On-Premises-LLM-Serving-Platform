@@ -15,6 +15,7 @@ vllm_unified_image_source_paths() {
     LICENSE \
     NOTICE \
     ops/images/vllm-unified/Dockerfile \
+    ops/images/vllm-unified/requirements.bnb.lock \
     ops/images/vllm-unified/requirements.media.lock \
     ops/patches/apply_gemma4_multimodal_patches.py \
     ops/patches/apply_gemma4_streaming_reasoning_patch.py \

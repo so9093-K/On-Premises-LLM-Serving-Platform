@@ -75,6 +75,7 @@ class RuntimeValidator:
         self.safe_check("gateway-runtime", "gateway /health", self.live_checks.check_gateway_health)
         self.safe_check("gateway-runtime", "gateway /ready", self.live_checks.check_gateway_ready)
         model_listing = self.safe_check("gateway-runtime", "gateway /v1/models", self.live_checks.check_models)
+        self.safe_check("vllm-runtime", "main runtime artifact", self.live_checks.check_main_runtime_artifact)
         self.safe_check("risk-signal-service-runtime", "risk-signal-service /health", self.live_checks.check_risk_health)
         self.safe_check("risk-signal-service-runtime", "risk-signal-service /ready", self.live_checks.check_risk_ready)
         for key, base in self.vllm_bases.items():

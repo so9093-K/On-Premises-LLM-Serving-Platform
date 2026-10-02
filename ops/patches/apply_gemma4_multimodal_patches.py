@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Carry two local fixes for Gemma 4 *unified* multimodal on the pinned
-``vllm/vllm-openai:v0.25.1-cu129`` + transformers stack.
+vLLM/Transformers stack. The current 0.30.0 base still needs both edits.
 
 원래는 vLLM ``0.1.dev17235+gf52870f26.d20260603`` / transformers ``5.10.1``
 기준으로 작성됐다. vLLM ``0.25.1``(transformers ``5.13.1``)로 올리면서 같은

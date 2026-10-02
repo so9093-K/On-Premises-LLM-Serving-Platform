@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backport vLLM PR #48262 to the pinned vLLM 0.25.1 image, plus one local fix.
+"""Verify vLLM PR #48262 or backport it when absent, then apply one local fix.
 
 Upstream: https://github.com/vllm-project/vllm/pull/48262
 License: Apache License 2.0 (vLLM); this project modifies the installed file.
