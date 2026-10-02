@@ -6,6 +6,8 @@
 
 ### Added
 
+- macOS Metal의 고정 Gemma 4 MLX/MTP 프로필에서 function tool 호출·결과 왕복과 `auto`/`none`/`required`/지정 함수 선택을 공개한다. Responses API의 `reasoning.effort=medium`으로 thinking을 명시적으로 켤 수 있으며, Chat과 Responses 모두 reasoning 기본값은 off다. Responses 요청이 reasoning을 생략해도 native 서버의 thinking 기본값을 따르지 않는다.
+
 - `GET /admin/serving-envelope`를 추가해 Main Model의 current profile/resource variant, Gateway resolved admission(`max_concurrency`, `queue_timeout_seconds`)과 backend별 capacity 관련 engine policy를 한 read-only projection으로 조회할 수 있게 했다. Dynamic target은 Runtime Controller active profile의 resolved vLLM policy를, static target은 선택된 external-runtime catalog 계약을 사용하며 capacity percentage·추천 concurrency·최대 사용자 수는 계산하지 않는다.
 
 - Gateway upstream admission의 현재 `inflight`·`waiting`·resolved `limit`과 queue wait 분포를 Prometheus에 노출하고, 서비스 개요 Dashboard에서 Gateway admission queue와 vLLM scheduler queue를 별도 패널로 비교한다. `QUEUE_TIMEOUT` 요청도 실제 admission 대기 시간을 요청 로그와 histogram에 남기며, admission 거부 원인은 기존 `upstream_errors_total`의 `QUEUE_TIMEOUT`·`CIRCUIT_OPEN`을 그대로 사용한다.

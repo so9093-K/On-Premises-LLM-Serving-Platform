@@ -79,16 +79,23 @@ profiles:
         # 실행 모드에서 확인한 공개 계약이다. 고정된 mlx-vlm 0.6.17은 draft model을
         # 쓰는 speculative decoding과 response_format을 함께 요청하면 명시적으로
         # 거부하므로 MTP를 켠 기본 profile에서는 structured output을 광고하지 않는다.
-        # Gemma4 tool parser도 package에는 있지만 target checkpoint의 tool round-trip을
-        # qualification하기 전까지 tools/tool_choice를 열지 않는다.
+        # 고정 checkpoint/MTP 조합에서 function tool 왕복, auto/none/required/named
+        # 선택과 streaming tool call을 확인했다. 병렬 호출은 공개하지 않는다.
         # stream_options는 생성 동작을 바꾸지 않고 서버가 마지막에 usage 객체를
         # 덧붙일지만 정한다. 고정 mlx-vlm 0.6.17에서 include_usage=true 요청이
         # usage를 실제로 싣는 것을 native runtime에 직접 확인했다. 이것이 없으면
         # streaming 요청의 토큰 수가 요청 로그에 영원히 비어, 같은 request_id로
         # 두 경로를 조회한다는 계약이 Linux에서만 성립한다.
-        supported_parameters: [stream, stream_options, temperature, max_tokens, top_p, top_k, min_p, repetition_penalty, reasoning, user]
+        supported_parameters: [stream, stream_options, temperature, max_tokens, top_p, top_k, min_p, repetition_penalty, tools, tool_choice, parallel_tool_calls, reasoning, user]
         drop_upstream_parameters: [user]
         max_n: 1
+        tool_calling:
+          enabled: true
+          max_tools: 64
+          allow_parallel_tool_calls: false
+          tool_choice:
+            allowed: [auto, none, required]
+            allow_named: true
         # API가 선언한 대로 opt-in이다. 문서의 with_reasoning 예제가
         # "Reasoning/thinking opt-in"이라고 적고 reasoning=true를 명시해서 보낸다.
         # 이 target만 default_on이라 그 선언과 어긋나 있었고, 요청하지 않은
@@ -98,4 +105,5 @@ profiles:
           enabled: true
           default: false
           mode: request_opt_in
+          responses_effort: medium
           upstream_parameter: enable_thinking
