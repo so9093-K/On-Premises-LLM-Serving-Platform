@@ -163,12 +163,19 @@ Retrieval Score
 | Readiness | `GET` | `/ready` | Admin |
 | Metrics | `GET` | `/metrics` | Admin |
 | Runtime Control | `GET` | `/admin/runtimes` | Admin |
+| Runtime Control | `GET` | `/admin/serving-envelope` | Admin |
 | Runtime Control | `PATCH` | `/admin/runtimes/{service_key}` | Admin |
 | Main Model | `GET` | `/admin/main-model` | Admin |
 | Main Model | `GET` | `/admin/main-model/profiles` | Admin |
 | Main Model | `POST` | `/admin/main-model/switch` | Admin |
 | Main Model | `GET` | `/admin/main-model/operations` | Admin |
 | Main Model | `GET` | `/admin/main-model/operations/{operation_id}` | Admin |
+
+### 1.7 Effective Serving Envelope
+
+`GET /admin/serving-envelope`는 Main Model의 현재 serving 조건을 운영자용 read-only projection으로 반환한다. Gateway admission의 resolved 동시성/queue timeout과 backend별 engine resource policy를 함께 보여 주며 capacity score나 추천값은 계산하지 않는다.
+
+Dynamic target은 Runtime Controller가 마지막으로 검증해 기록한 active profile의 resolved engine policy를 사용한다. Static target은 외부 lifecycle을 inspect하지 않으므로 선택된 static profile/catalog 계약을 반환한다. 응답의 `profile.source`로 두 경우를 구분한다.
 
 ---
 
