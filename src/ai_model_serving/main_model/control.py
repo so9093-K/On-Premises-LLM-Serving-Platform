@@ -137,6 +137,24 @@ class MainModelProfile:
     # 이 profile이 선언한 모든 variant id다(선택 여부와 무관).
     resource_variants: tuple[str, ...] = ()
 
+    def engine_policy(self) -> dict[str, Any]:
+        """Resolved vLLM resource knobs safe to expose as serving context."""
+
+        def _flag_value(flag: str, caster: type[int] | type[float]) -> int | float | None:
+            if flag not in self.command:
+                return None
+            try:
+                return caster(self.command[self.command.index(flag) + 1])
+            except (IndexError, ValueError):
+                return None
+
+        return {
+            "max_model_len": _flag_value("--max-model-len", int),
+            "max_num_seqs": _flag_value("--max-num-seqs", int),
+            "max_num_batched_tokens": _flag_value("--max-num-batched-tokens", int),
+            "gpu_memory_utilization": _flag_value("--gpu-memory-utilization", float),
+        }
+
     def public_view(self) -> dict[str, Any]:
         return {
             "id": self.profile_id,
@@ -718,6 +736,10 @@ class MainModelManager:
             # (공유된 runtime.image를 오버라이드할 수 있다); 아직 활성 프로필이 없으면
             # 공유 이미지로 폴백한다.
             "runtime_image": active.image if active else self.catalog.runtime.get("image"),
+            # command 전체를 노출하지 않고 capacity 진단에 필요한 resolved resource knob만
+            # 별도 projection한다. resource variant와 host GPU-util override가 이미 command에
+            # 적용된 뒤의 값이므로 raw YAML을 다시 해석하지 않는다.
+            "engine_policy": active.engine_policy() if active else None,
             "state_recovery_error": state.get("state_recovery_error"),
         }
 
