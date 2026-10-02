@@ -283,6 +283,9 @@ def test_successful_switch_commits_only_after_validation(tmp_path):
     assert manager.operation(operation_id)["status"] == "completed"
     assert manager.operation(operation_id)["stage"] == "completed"
     assert manager.snapshot()["active_profile"]["id"] == "gemma4-12b-unified-fp8"
+    assert manager.snapshot()["engine_policy"] == loaded.profiles[
+        "gemma4-12b-unified-fp8"
+    ].engine_policy()
     assert manager.snapshot()["gate"] == "open"
 
 
@@ -1033,6 +1036,18 @@ def test_resource_variant_overrides_only_the_declared_resource_knob() -> None:
     assert tuned.revision == base.revision
     assert tuned.capabilities == base.capabilities
     assert tuned.gateway_policy == base.gateway_policy
+    assert base.engine_policy() == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 50000,
+        "gpu_memory_utilization": 0.76,
+    }
+    assert tuned.engine_policy() == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 4096,
+        "gpu_memory_utilization": 0.76,
+    }
 
 
 def test_resource_variant_is_recorded_on_the_profile_snapshot() -> None:
