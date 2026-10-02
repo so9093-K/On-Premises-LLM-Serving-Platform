@@ -205,6 +205,23 @@ def test_static_serving_envelope_uses_selected_catalog_without_runtime_controlle
     }
 
 
+def test_static_linux_serving_projection_applies_selected_resource_variant(monkeypatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-e4b-it")
+    monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9401/v1")
+
+    settings = load_settings()
+
+    assert settings.static_main_resource_variant == "rtx4090-24gb"
+    assert settings.static_main_engine_policy == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 4096,
+        "gpu_memory_utilization": 0.76,
+    }
+
+
 def test_macos_reasoning_uses_the_mlx_top_level_parameter_and_stays_opt_in(monkeypatch) -> None:
     """MLX는 chat_template_kwargs가 아니라 최상위 enable_thinking을 쓴다.
 
