@@ -980,6 +980,7 @@ def test_gpu_util_override_rewrites_command_and_fraction():
         cmd = list(profile.command)
         assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.55"
         assert profile.vram_fraction == 0.55
+        assert profile.resolved_engine_policy.public_view() == profile.engine_policy()
 
 
 def test_gpu_util_override_appends_when_command_omits_flag(tmp_path):

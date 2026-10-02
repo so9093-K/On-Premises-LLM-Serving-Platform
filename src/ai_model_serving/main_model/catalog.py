@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from ..image_refs import is_immutable_image_ref
+from .engine_policy import VllmEnginePolicy
 from .profile_state import validate_profile_state
 
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -50,9 +51,10 @@ class MainModelProfile:
     # 값으로 resolve하므로) 빈 이미지가 Docker 경계까지 도달하는 일은 절대 없다.
     # 따라서 런타임 capability(예: audio 디코드 라이브러리)는 활성 프로필과 함께 이동한다.
     image: str
-    # 이 프로필이 예약하는 전체 GPU VRAM의 비율
-    # (--gpu-memory-utilization). 공유 GPU budget / admission planner에서 사용된다.
-    vram_fraction: float = 0.9
+    # resource variant와 host override까지 적용된 final command에서 loader가 한 번
+    # resolve한 capacity 관련 vLLM policy다. Serving Envelope와 GPU budget은 이 값을
+    # 소비하고 command 문자열을 각자 다시 해석하지 않는다.
+    resolved_engine_policy: VllmEnginePolicy
     # 이 host에 실제로 적용된 resource variant. base 자원 정책으로 서빙 중이면
     # None이다. admin 응답과 request log가 이 값을 함께 보여주므로, 같은 profile이
     # 어떤 자원 정책으로 서빙 중인지 구분된다.
@@ -60,25 +62,13 @@ class MainModelProfile:
     # 이 profile이 선언한 모든 variant id다(선택 여부와 무관).
     resource_variants: tuple[str, ...] = ()
 
+    @property
+    def vram_fraction(self) -> float:
+        return self.resolved_engine_policy.gpu_memory_utilization
+
     def engine_policy(self) -> dict[str, Any]:
         """Resolved vLLM resource knobs safe to expose as serving context."""
-
-        def _flag_value(flag: str, caster: type[int] | type[float]) -> int | float | None:
-            if flag not in self.command:
-                return None
-            try:
-                return caster(self.command[self.command.index(flag) + 1])
-            except (IndexError, ValueError):
-                return None
-
-        return {
-            "max_model_len": _flag_value("--max-model-len", int),
-            "max_num_seqs": _flag_value("--max-num-seqs", int),
-            "max_num_batched_tokens": _flag_value("--max-num-batched-tokens", int),
-            # vLLM flag가 없을 때도 loader는 기본값 0.9를 vram_fraction으로
-            # resolve한다. Envelope는 argv 존재 여부가 아니라 같은 effective 값을 쓴다.
-            "gpu_memory_utilization": self.vram_fraction,
-        }
+        return self.resolved_engine_policy.public_view()
 
     def public_view(self) -> dict[str, Any]:
         return {
@@ -123,16 +113,6 @@ class MainModelCatalog:
         if profile is None or profile.resource_variant == self.resource_variant:
             return None
         return self.resource_variant
-
-
-def _parse_gpu_fraction(command: list[str]) -> float:
-    """프로필 명령에서 ``--gpu-memory-utilization`` 값을 추출한다(vLLM 기본값 0.9)."""
-    if "--gpu-memory-utilization" in command:
-        try:
-            return float(command[command.index("--gpu-memory-utilization") + 1])
-        except (IndexError, ValueError):
-            pass
-    return 0.9
 
 
 # main model의 --gpu-memory-utilization에 대한 호스트별 오버라이드. catalog 값은
@@ -421,6 +401,7 @@ def load_main_model_catalog(
         # 호스트별 gpu-memory-utilization 오버라이드가 있으면 적용하여
         # 런타임 커맨드와 파싱된 vram_fraction이 항상 서로 일치하도록 한다.
         command = _apply_util_override(command, gpu_memory_utilization_override)
+        resolved_engine_policy = VllmEnginePolicy.from_command(command)
         try:
             profile_state = validate_profile_state(
                 str(profile_id),
@@ -512,7 +493,7 @@ def load_main_model_catalog(
             capabilities=dict(capabilities),
             gateway_policy=dict(gateway_policy),
             image=resolved_image,
-            vram_fraction=_parse_gpu_fraction(command),
+            resolved_engine_policy=resolved_engine_policy,
             resource_variant=applied_variant,
             resource_variants=tuple(sorted(declared_variants)),
         )
