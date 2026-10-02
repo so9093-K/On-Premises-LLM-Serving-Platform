@@ -318,13 +318,16 @@ def _settings_with_embedding_profiles(
 
 class SpyRuntimeClient(FakeRuntimeClient):
     created_endpoints: list[RuntimeEndpoint] = []
+    created_observers: list[object | None] = []
     closed_endpoints: list[str] = []
 
-    def __init__(self, endpoint: RuntimeEndpoint):
+    def __init__(self, endpoint: RuntimeEndpoint, *, admission_observer=None):
         super().__init__(endpoint=endpoint)
         self.endpoint = endpoint
+        self.admission_observer = admission_observer
         self.closed = False
         self.__class__.created_endpoints.append(endpoint)
+        self.__class__.created_observers.append(admission_observer)
 
     async def aclose(self):
         self.closed = True

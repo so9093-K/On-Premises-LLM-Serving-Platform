@@ -82,6 +82,21 @@ vLLM traceback 등 컨테이너 stdout/stderr는 full-stack에서 Docker LogPath
 
 Gateway의 주요 사용자 트래픽은 Chat, Embedding, Risk API를 중심으로 확인한다. `/health`, `/ready`, `/metrics`, API 문서 경로와 같은 운영·제어 요청은 사용자 트래픽 지표와 분리한다.
 
+### Upstream admission과 Model Runtime queue
+
+Gateway와 Risk Signal Service의 `RuntimeClient`는 upstream 호출 전에 bounded admission slot을 적용한다. 이 상태는 model engine의 처리 용량과 같은 값이 아니며, 다음 Prometheus 지표는 **application-side backpressure**만 나타낸다.
+
+| 지표 | 의미 |
+|---|---|
+| `upstream_admission_inflight{service,target}` | admission slot을 획득해 현재 upstream 호출을 점유한 요청 수 |
+| `upstream_admission_waiting{service,target}` | admission slot을 기다리는 요청 수 |
+| `upstream_admission_limit{service,target}` | settings resolution을 거친 실제 `RuntimeEndpoint.max_concurrency` 값 |
+| `upstream_admission_wait_seconds{service,target}` | admission slot을 기다린 시간 분포. slot 획득 성공과 `QUEUE_TIMEOUT`을 모두 포함 |
+
+`target`은 resolved `RuntimeEndpoint.logical_id`를 사용하며 기존 `upstream_errors_total{target,code}`와 같은 bounded upstream 식별자다. Admission 거부는 별도 counter를 중복 생성하지 않고 기존 `upstream_errors_total`의 `QUEUE_TIMEOUT`·`CIRCUIT_OPEN` code로 확인한다.
+
+vLLM의 `num_requests_running`·`num_requests_waiting`은 이 Gateway queue 뒤의 **engine scheduler 상태**다. 따라서 `inflight / limit`을 LLM capacity percentage로 해석하거나 두 queue를 하나의 load score로 합치지 않는다. Gateway waiting이 증가하는지, vLLM waiting·KV cache·TTFT/ITL이 증가하는지를 같은 시간축에서 나란히 보고 병목 계층을 구분한다.
+
 ### 서비스 개요 Dashboard
 
 full-stack Grafana의 Home은 **서비스 개요** Dashboard다. "지금 서비스가 요청을 제대로 처리하고
@@ -92,7 +107,7 @@ full-stack Grafana의 Home은 **서비스 개요** Dashboard다. "지금 서비�
 | 영역 | 패널 | 판정 방식 |
 |---|---|---|
 | 지금 상태 | 메인 모델 요청(허용·차단), 요청 처리량, 서버 오류율, 응답 시간 p95, 첫 응답 p95(스트리밍), GPU 메모리 여유 | 서버 오류율은 0%가 아니면 주황, GPU 메모리 여유는 `configs/gpu_budgets.yaml`의 운영 상한(0.93)을 넘으면 주황이다. 정해진 지연 목표가 없으므로 지연은 색으로 판정하지 않는다. |
-| 추이 | 요청 결과(2xx·4xx·5xx), 지연(p50·p95·TTFT), 처리 중·대기 요청, 메인 모델 vLLM 지연(TTFT·ITL·E2E), 토큰 처리량, KV 캐시 사용률 | 같은 시간축에서 부하·지연·자원을 함께 본다. |
+| 추이 | 요청 결과(2xx·4xx·5xx), 지연(p50·p95·첫 SSE chunk), Gateway admission(inflight·waiting·limit·queue wait p95), vLLM scheduler(running·waiting), 메인 모델 vLLM 지연(TTFT·ITL·E2E), 토큰 처리량, KV 캐시 사용률 | Gateway backpressure와 engine scheduler 상태를 같은 시간축에 두되 서로 다른 queue로 해석한다. |
 | 원인 | Upstream 오류(코드별), 요청 거부(사유별), 비정상 스트림 종료 | 값이 하나뿐이어도 어떤 코드인지 보이도록 표로 보여 준다. 없으면 `없음`이다. |
 
 수집 자체가 없는 panel은 `0`이 아니라 `수집 안 됨`으로 표시한다. 예를 들어 Apple Silicon
@@ -175,7 +190,7 @@ OOM과 컨테이너 재시작 신호는 cAdvisor 지표를 기준으로 확인�
 | Client Host | 호출 대상별 요청 확인 |
 | Latency | 응답 지연 요청 확인 |
 | Token Usage | Chat 요청의 입력·출력 Token 사용량 확인. streaming 요청도 같은 필드를 남긴다 |
-| Queue Wait | upstream admission slot 대기 시간. Latency에서 빼면 대기와 추론을 구분한다 |
+| Queue Wait | upstream admission slot을 실제로 기다린 시간. slot 획득 성공 여부와 무관하게 기록하므로 `QUEUE_TIMEOUT` 요청도 대기 시간을 남긴다. Latency와 함께 보면 Gateway 대기와 이후 처리를 구분할 수 있다 |
 | First SSE Chunk | streaming 요청에서 upstream 요청 시작 후 첫 SSE chunk를 관찰할 때까지의 시간. Prometheus first-chunk metric과 같은 관측값이며 first token/TTFT 의미를 새로 부여하지 않는다 |
 | Stream Status | SSE relay 종료 사유(`completed` / `client_disconnect` / `error`). status code 200 안에서 중단된 요청을 구분한다 |
 | Upstream Response ID | model runtime이 생성에 붙인 id(vLLM은 `chatcmpl-...`). runtime 컨테이너 로그에 같은 값이 남아 있어 시간대 추정 없이 연결한다 |

@@ -40,6 +40,10 @@ metric_sources:
     - streaming_chunks_per_response_bucket
     - streaming_client_disconnects_total
     - request_validation_rejections_total
+    - upstream_admission_inflight
+    - upstream_admission_waiting
+    - upstream_admission_limit
+    - upstream_admission_wait_seconds_bucket
   risk_signal_service:
     metrics_path: /metrics
     required_metrics:

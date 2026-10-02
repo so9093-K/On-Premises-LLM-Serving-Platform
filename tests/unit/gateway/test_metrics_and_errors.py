@@ -53,6 +53,27 @@ def test_request_log_records_profile_but_omits_reference_resource_variant() -> N
     assert "main_resource_variant" not in record
 
 
+def test_admission_metrics_expose_resolved_limit_and_live_state() -> None:
+    metrics = Metrics("gateway")
+    metrics.register_admission("local-main", 4)
+    metrics.change_admission_waiting("local-main", 1)
+    metrics.observe_admission_wait("local-main", 0.25)
+    metrics.change_admission_inflight("local-main", 1)
+
+    body = metrics.response().body.decode()
+
+    assert 'upstream_admission_limit{service="gateway",target="local-main"} 4.0' in body
+    assert 'upstream_admission_waiting{service="gateway",target="local-main"} 1.0' in body
+    assert 'upstream_admission_inflight{service="gateway",target="local-main"} 1.0' in body
+    assert 'upstream_admission_wait_seconds_count{service="gateway",target="local-main"} 1.0' in body
+
+    metrics.change_admission_waiting("local-main", -1)
+    metrics.change_admission_inflight("local-main", -1)
+    body = metrics.response().body.decode()
+    assert 'upstream_admission_waiting{service="gateway",target="local-main"} 0.0' in body
+    assert 'upstream_admission_inflight{service="gateway",target="local-main"} 0.0' in body
+
+
 def test_gateway_error_uses_incoming_request_id():
     client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))
     response = client.get("/v1/models", headers={"x-request-id": "req_from_client"})
