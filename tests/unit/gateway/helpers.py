@@ -320,7 +320,7 @@ class SpyRuntimeClient(FakeRuntimeClient):
     created_endpoints: list[RuntimeEndpoint] = []
     closed_endpoints: list[str] = []
 
-    def __init__(self, endpoint: RuntimeEndpoint):
+    def __init__(self, endpoint: RuntimeEndpoint, **kwargs):
         super().__init__(endpoint=endpoint)
         self.endpoint = endpoint
         self.closed = False
