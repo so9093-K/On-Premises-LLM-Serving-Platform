@@ -16,16 +16,14 @@ from pathlib import Path
 
 import pytest
 
-from ai_model_serving.main_model.control import (
+from ai_model_serving.main_model.catalog import (
     MainModelConfigurationError,
-    MainModelManager,
-    MainModelStateError,
-    MainModelStateStore,
-    MainModelSwitchError,
     load_main_model_catalog,
     resolve_boot_profile,
     resource_variant_from_mapping,
 )
+from ai_model_serving.main_model.control import MainModelManager, MainModelSwitchError
+from ai_model_serving.main_model.state import MainModelStateError, MainModelStateStore
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -973,7 +971,7 @@ def test_capabilities_rejects_unknown_fields(tmp_path):
 
 
 def test_gpu_util_override_rewrites_command_and_fraction():
-    from ai_model_serving.main_model.control import load_main_model_catalog as _load
+    from ai_model_serving.main_model.catalog import load_main_model_catalog as _load
 
     loaded = _load(ROOT / "configs/main_model_profiles.yaml", gpu_memory_utilization_override=0.55)
     # override는 모든 프로필에 대해 runtime command와 파싱된 budget cost 양쪽에
@@ -995,7 +993,7 @@ def test_gpu_util_override_appends_when_command_omits_flag(tmp_path):
 
 
 def test_gpu_util_override_from_mapping_parses_and_validates():
-    from ai_model_serving.main_model.control import gpu_util_override_from_mapping as f
+    from ai_model_serving.main_model.catalog import gpu_util_override_from_mapping as f
 
     assert f({}) is None
     assert f({"MAIN_MODEL_GPU_MEMORY_UTILIZATION": ""}) is None

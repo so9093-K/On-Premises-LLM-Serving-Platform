@@ -7,7 +7,7 @@ from typing import Any
 from .domain import ModelRegistry
 from .deployment_target import DeploymentTarget, load_deployment_target
 from .serving_profile import load_main_serving_catalog
-from .main_model.control import gpu_util_override_from_mapping, load_main_model_catalog
+from .main_model.catalog import gpu_util_override_from_mapping, load_main_model_catalog
 from .runtime_topology import load_runtime_topology
 from .risk_input import detector_prompt_char_budget
 from .configuration import load_yaml_mapping

@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ai_model_serving.main_model.control import MainModelConfigurationError, MainModelStateError
+from ai_model_serving.main_model.catalog import MainModelConfigurationError
+from ai_model_serving.main_model.state import MainModelStateError
 from ai_model_serving.main_model.boot import render_boot_override, resolve_compose_relative_path
 
 ROOT = Path(__file__).resolve().parents[2]

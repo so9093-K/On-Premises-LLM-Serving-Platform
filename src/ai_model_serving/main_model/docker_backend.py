@@ -11,7 +11,7 @@ import httpx
 from ..contracts.chat_response import validate_chat_response
 from ..docker_scope import compose_container_filter, scoped_container_id
 from ..errors import ServiceError
-from .control import MainModelCatalog, MainModelProfile
+from .catalog import MainModelCatalog, MainModelProfile
 from ..media_samples import TINY_JPEG_1X1_B64, TINY_M4A_AAC_B64, TINY_MP4_VIDEO_B64
 from .cache import default_hf_hub_cache_dir, prepare_model_snapshot
 

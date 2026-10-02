@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .control import (
+from .catalog import (
     gpu_util_override_from_mapping,
     load_main_model_catalog,
     resolve_boot_profile,
