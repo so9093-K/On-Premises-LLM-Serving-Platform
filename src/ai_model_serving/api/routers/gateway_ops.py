@@ -6,13 +6,21 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from ...app_kernel import readiness_response
+from ...errors import ServiceError
 from ...logging_policy import record_readiness_failure
 from ..endpoint_spec import GATEWAY_ENDPOINTS
 from ...api_examples import loading_response_example, ready_response_example
 from ...services.readiness import DependencyProbe, collect_readiness
 from ...services.runtime_state import RuntimeState
 from ...status import NOT_READY, READY
-from ...services.runtime_controller_client import RuntimeControllerUnavailableError
+from ...services.runtime_controller_client import (
+    RuntimeControllerRequestError,
+    RuntimeControllerUnavailableError,
+)
+from ..error_responses import (
+    runtime_controller_request_error_response,
+    runtime_controller_unavailable_response,
+)
 
 _GW = {(s.method, s.path): s for s in GATEWAY_ENDPOINTS}
 
@@ -136,6 +144,87 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         )
         record_readiness_failure(request, body)
         return readiness_response(body)
+
+    _s = _GW[("GET", "/admin/serving-envelope")]
+
+    @router.get(
+        "/admin/serving-envelope",
+        dependencies=admin_dependencies,
+        tags=[_s.tag],
+        summary=_s.summary,
+        operation_id=_s.operation_id,
+        description=_s.description,
+        responses={
+            200: {"description": "현재 Main Model의 resolved admission과 engine serving context"},
+            401: {"description": "Admin Bearer token 필요"},
+            503: {"description": "Dynamic target에서 active profile 또는 Runtime Controller 상태를 확인할 수 없음"},
+        },
+    )
+    async def serving_envelope() -> JSONResponse:
+        main_endpoint = settings.runtime("main_llm")
+        target = settings.deployment_target
+
+        if target.control_mode == "runtime_controller":
+            runtime_controller = getattr(clients, "runtime_controller", None)
+            if runtime_controller is None:
+                raise ServiceError(
+                    "MAIN_MODEL_CONTROL_UNAVAILABLE",
+                    "Runtime Controller is not configured",
+                    retry_after_seconds=5,
+                )
+            try:
+                snapshot = await runtime_controller.main_model(observed=False)
+            except RuntimeControllerRequestError as exc:
+                return runtime_controller_request_error_response(exc)
+            except RuntimeControllerUnavailableError as exc:
+                return runtime_controller_unavailable_response(exc)
+            active_profile = snapshot.get("active_profile")
+            engine_policy = snapshot.get("engine_policy")
+            if not isinstance(active_profile, dict) or not active_profile.get("id"):
+                raise ServiceError(
+                    "MODEL_UNAVAILABLE",
+                    "Main Model has no active profile for serving-envelope projection.",
+                    retry_after_seconds=5,
+                )
+            if not isinstance(engine_policy, dict) or not engine_policy:
+                raise ServiceError(
+                    "MAIN_MODEL_CONTROL_UNAVAILABLE",
+                    "Runtime Controller did not provide the resolved Main Model engine policy.",
+                    retry_after_seconds=5,
+                )
+            profile_id = str(active_profile["id"])
+            resource_variant = active_profile.get("resource_variant")
+            if not isinstance(resource_variant, str) or not resource_variant.strip():
+                resource_variant = None
+            profile_source = "runtime_controller_active_profile"
+        else:
+            profile_id = settings.static_main_profile
+            engine_policy = settings.static_main_engine_policy
+            resource_variant = settings.static_main_resource_variant
+            profile_source = "static_configuration"
+            if not profile_id or not isinstance(engine_policy, dict) or not engine_policy:
+                raise ServiceError(
+                    "MODEL_UNAVAILABLE",
+                    "Static Main Model serving configuration is incomplete.",
+                )
+
+        return JSONResponse({
+            "runtime": "main_llm",
+            "public_model": main_endpoint.model,
+            "deployment_target": target.target_id,
+            "backend": target.runtime_backend,
+            "control_mode": target.control_mode,
+            "profile": {
+                "id": profile_id,
+                "resource_variant": resource_variant,
+                "source": profile_source,
+            },
+            "admission": {
+                "max_concurrency": main_endpoint.max_concurrency,
+                "queue_timeout_seconds": main_endpoint.queue_timeout_seconds,
+            },
+            "engine": engine_policy,
+        })
 
     _s = _GW[("GET", "/metrics")]
 

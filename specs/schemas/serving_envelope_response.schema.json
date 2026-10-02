@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServingEnvelopeResponse",
+  "type": "object",
+  "required": [
+    "runtime",
+    "public_model",
+    "deployment_target",
+    "backend",
+    "control_mode",
+    "profile",
+    "admission",
+    "engine"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "runtime": {
+      "const": "main_llm"
+    },
+    "public_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deployment_target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "backend": {
+      "type": "string",
+      "minLength": 1
+    },
+    "control_mode": {
+      "type": "string",
+      "enum": ["runtime_controller", "static"]
+    },
+    "profile": {
+      "type": "object",
+      "required": ["id", "resource_variant", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource_variant": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": ["runtime_controller_active_profile", "static_configuration"]
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "required": ["max_concurrency", "queue_timeout_seconds"],
+      "additionalProperties": false,
+      "properties": {
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "queue_timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "max_model_len": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "max_num_seqs": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "max_num_batched_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "gpu_memory_utilization": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "max_kv_size": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "max_generation_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "vision_cache_size": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

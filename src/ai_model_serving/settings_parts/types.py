@@ -154,6 +154,11 @@ class AppSettings:
     streaming_max_bytes: int = 104_857_600
     runtime_controller_url: str = ""
     static_main_profile: str = ""
+    # static target은 Runtime Controller가 없으므로 Gateway startup에서 선택된
+    # backend catalog의 capacity 관련 engine policy를 한 번 resolve해 보관한다.
+    # dynamic target은 active profile이 바뀔 수 있어 이 값을 사용하지 않는다.
+    static_main_engine_policy: dict[str, Any] = field(default_factory=dict)
+    static_main_resource_variant: str | None = None
     runtime_startup_generation: str = ""
     log_request_response_body: bool = False
 

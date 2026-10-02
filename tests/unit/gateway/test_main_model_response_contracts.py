@@ -29,8 +29,11 @@ class ContractMainModelSidecar:
         "resource_variants": ["rtx4090-24gb"],
     }
 
+    def __init__(self) -> None:
+        self.observed_requested: list[bool] = []
+
     async def main_model(self, *, observed: bool = True):
-        assert observed is True
+        self.observed_requested.append(observed)
         return {
             "public_model": "local-main",
             "active_profile": self.profile,
@@ -43,6 +46,12 @@ class ContractMainModelSidecar:
             "last_operation": None,
             "stats": {},
             "runtime_image": self.profile["runtime_image"],
+            "engine_policy": {
+                "max_model_len": 50000,
+                "max_num_seqs": 3,
+                "max_num_batched_tokens": 50000,
+                "gpu_memory_utilization": 0.76,
+            },
             "state_recovery_error": None,
             "observed_runtime": {
                 "status": "ready",
@@ -87,12 +96,28 @@ class ContractMainModelSidecar:
 
 def test_main_model_admin_reads_match_checked_in_contracts():
     clients = FakeGatewayClients()
-    clients.runtime_controller = ContractMainModelSidecar()
+    sidecar = ContractMainModelSidecar()
+    clients.runtime_controller = sidecar
     client = TestClient(create_gateway_app(settings(), clients))
 
     status = client.get("/admin/main-model")
     assert status.status_code == 200
     _validate("main_model_status_response.schema.json", status.json())
+
+    envelope = client.get("/admin/serving-envelope")
+    assert envelope.status_code == 200
+    _validate("serving_envelope_response.schema.json", envelope.json())
+    assert envelope.json()["profile"] == {
+        "id": "gemma4-12b-unified-fp8",
+        "resource_variant": None,
+        "source": "runtime_controller_active_profile",
+    }
+    assert envelope.json()["admission"] == {
+        "max_concurrency": 1,
+        "queue_timeout_seconds": 2.0,
+    }
+    assert envelope.json()["engine"]["max_num_seqs"] == 3
+    assert sidecar.observed_requested == [True, False]
 
     profiles = client.get("/admin/main-model/profiles")
     assert profiles.status_code == 200

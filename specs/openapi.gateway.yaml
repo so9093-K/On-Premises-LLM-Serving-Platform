@@ -4,9 +4,9 @@
 openapi: 3.1.0
 info:
   title: AI Model Serving Gateway
-  description: "\nLLM·Embedding·Risk 기능을 하나의 OpenAI 호환 API로 제공합니다.\n이 문서의\
-    \ 한도·파라미터 값은 실제 배포 설정에서 자동으로 만들어집니다.\n지금 적용 중인 값은 `GET /v1/models`에서 확인하세요.\n\n\
-    ## 첫 호출\n\n`$GATEWAY`는 이 문서를 열고 있는 주소입니다.\n\n```bash\ncurl -X POST \"$GATEWAY/v1/chat/completions\"\
+  description: "\nLLM·Embedding·Risk 기능을 하나의 OpenAI 호환 API로 제공합니다.\n이 문서의 한도·파라미터\
+    \ 값은 실제 배포 설정에서 자동으로 만들어집니다.\n지금 적용 중인 값은 `GET /v1/models`에서 확인하세요.\n\n## 첫 호출\n\
+    \n`$GATEWAY`는 이 문서를 열고 있는 주소입니다.\n\n```bash\ncurl -X POST \"$GATEWAY/v1/chat/completions\"\
     \ \\\n  -H \"Authorization: Bearer $API_KEY\" \\\n  -H \"Content-Type: application/json\"\
     \ \\\n  -d '{\n    \"model\": \"local-main\",\n    \"messages\": [{\"role\": \"\
     user\", \"content\": \"안녕하세요\"}]\n  }'\n```\n\n응답은 OpenAI chat completion 형식입니다.\
@@ -4359,6 +4359,76 @@ paths:
         required: true
       x-contract-schema: runtime_transition_apply_request.schema.json
       x-response-contract-schema: runtime_transition_apply_response.schema.json
+  /admin/serving-envelope:
+    get:
+      tags:
+      - Runtime Control
+      summary: Effective Serving Envelope 조회
+      description: '현재 Main Model이 어떤 조건으로 요청을 받고 engine을 실행하도록 구성되어 있는지 읽기 전용으로 투영합니다.
+        Gateway admission의 resolved `max_concurrency`·`queue_timeout_seconds`와 backend별
+        capacity 관련 engine policy를 한 응답에서 보되, 이를 capacity percentage·최대 사용자 수·권장 concurrency로
+        변환하지 않습니다.
+
+
+        managed dynamic target은 Runtime Controller의 현재 active profile에서 engine policy를
+        읽습니다. static target은 lifecycle owner가 외부이므로 선택된 static profile/catalog의 계약을
+        보여 주며, 외부 프로세스를 실시간 inspect한 값이라고 해석하면 안 됩니다.'
+      operationId: getServingEnvelope
+      responses:
+        '200':
+          description: 현재 Main Model의 resolved admission과 engine serving context
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/serving_envelope_response.schema.json
+        '503':
+          description: 'Dynamic target에서 active profile 또는 Runtime Controller 상태를
+            확인할 수 없음
+
+
+            이 status로 올 수 있는 `error.code`:
+
+            - `MAIN_MODEL_CONTROL_UNAVAILABLE` — 메인 모델 Runtime Controller를 사용할 수 없다.
+            (재시도 가능)
+
+            - `MODEL_UNAVAILABLE` — 대상 모델 런타임을 현재 사용할 수 없다(미기동·축출 등). (재시도 가능)'
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: ./schemas/common_error.schema.json
+                - type: object
+                  properties:
+                    error:
+                      type: object
+                      properties:
+                        code:
+                          enum:
+                          - MAIN_MODEL_CONTROL_UNAVAILABLE
+                          - MODEL_UNAVAILABLE
+        '401':
+          description: 'Admin Bearer token 필요
+
+
+            이 status로 올 수 있는 `error.code`:
+
+            - `UNAUTHORIZED` — API 키 또는 인증 정보가 없거나 유효하지 않다. (재시도 불가)'
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: ./schemas/common_error.schema.json
+                - type: object
+                  properties:
+                    error:
+                      type: object
+                      properties:
+                        code:
+                          enum:
+                          - UNAUTHORIZED
+      security:
+      - adminBearerAuth: []
+      x-response-contract-schema: serving_envelope_response.schema.json
   /admin/main-model:
     get:
       tags:
@@ -5118,16 +5188,16 @@ components:
       scheme: bearer
 tags:
 - name: Operations
-  description: "`/health`는 프로세스가 살아 있는지, `/ready`는 현재 target의 required runtime과 Risk Signal Service가 모두 준비됐는지\
-    \ 확인합니다.\n\n문제가 생긴 요청 하나를 끝까지 추적하는 방법도 여기에 정리했습니다.\n\n### 요청 추적 헤더\n\n| 헤더 | 언제\
-    \ | 내용 |\n|---|---|---|\n| `X-Request-Id` | 애플리케이션 응답 | 요청 추적 키. 접근 로그의 `request_id`와\
-    \ 같습니다 |\n| `X-Error-Code` | 오류 응답 | `error.code`. status만으로 원인을 나누면 안 됩니다 |\n\
-    | `Retry-After` | 재시도 가능한 429/503 | 다음 재시도까지 기다릴 초(올림, 최소 `1`) |\n\n`X-Request-Id`를\
-    \ 직접 보내지 않으면 Gateway가 `req_<hex>`를 발급합니다. 호출할 때 붙이면\n(최대 128자) 클라이언트 로그와 서버 로그를\
-    \ 같은 키로 맞출 수 있습니다.\n\n같은 HTTP status에 여러 code가 몰립니다. 예를 들어 `503`은 `MODEL_UNAVAILABLE`,\n\
-    `QUEUE_TIMEOUT`, `CIRCUIT_OPEN`, `MAIN_MODEL_SWITCH_IN_PROGRESS`가 모두 씁니다.\n\n\
-    ### 오류 본문\n\n```json\n{\n  \"error\": {\n    \"code\": \"VALIDATION_ERROR\",\n\
-    \    \"message\": \"...\",\n    \"retryable\": false,\n    \"request_id\": \"\
+  description: "`/health`는 프로세스가 살아 있는지, `/ready`는 현재 target의 required runtime과 Risk\
+    \ Signal Service가 모두 준비됐는지 확인합니다.\n\n문제가 생긴 요청 하나를 끝까지 추적하는 방법도 여기에 정리했습니다.\n\n\
+    ### 요청 추적 헤더\n\n| 헤더 | 언제 | 내용 |\n|---|---|---|\n| `X-Request-Id` | 애플리케이션 응답\
+    \ | 요청 추적 키. 접근 로그의 `request_id`와 같습니다 |\n| `X-Error-Code` | 오류 응답 | `error.code`.\
+    \ status만으로 원인을 나누면 안 됩니다 |\n| `Retry-After` | 재시도 가능한 429/503 | 다음 재시도까지 기다릴\
+    \ 초(올림, 최소 `1`) |\n\n`X-Request-Id`를 직접 보내지 않으면 Gateway가 `req_<hex>`를 발급합니다. 호출할\
+    \ 때 붙이면\n(최대 128자) 클라이언트 로그와 서버 로그를 같은 키로 맞출 수 있습니다.\n\n같은 HTTP status에 여러 code가\
+    \ 몰립니다. 예를 들어 `503`은 `MODEL_UNAVAILABLE`,\n`QUEUE_TIMEOUT`, `CIRCUIT_OPEN`, `MAIN_MODEL_SWITCH_IN_PROGRESS`가\
+    \ 모두 씁니다.\n\n### 오류 본문\n\n```json\n{\n  \"error\": {\n    \"code\": \"VALIDATION_ERROR\"\
+    ,\n    \"message\": \"...\",\n    \"retryable\": false,\n    \"request_id\": \"\
     req_...\",\n    \"param\": \"response_format.json_schema\"\n  }\n}\n```\n\n- `code`\
     \ / `retryable` — 오류 조건이 일시적일 가능성을 나타냅니다. 자동 재전송은 작업의\n  중복 실행 안전성도 확인하고 `Retry-After`가\
     \ 있으면 따라야 합니다.\n- `param` — 문제가 된 요청 필드명입니다. 메시지 문자열을 파싱하지 말고 이 값을 쓰세요\n  (예:\

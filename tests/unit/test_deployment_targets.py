@@ -155,11 +155,71 @@ def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     assert settings.aggregate_detector_order == ("pii", "secret")
     assert "prompt_detection" not in settings.deployment_target.features
     assert settings.runtime("main_llm").max_concurrency == 1
+    assert settings.static_main_resource_variant is None
+    assert settings.static_main_engine_policy == {
+        "max_kv_size": 32768,
+        "max_generation_tokens": 8192,
+        "max_num_seqs": 1,
+        "vision_cache_size": 4,
+    }
     assert settings.default_main_model_gateway_policy["max_output_tokens"] == 8192
     limits = settings.default_main_model_gateway_policy["request_limits"]
     assert limits["max_model_len"] == 32768
     assert limits["input_modalities"] == ["text", "image"]
     assert limits["max_image_inputs"] == 8
+
+
+def test_static_serving_envelope_uses_selected_catalog_without_runtime_controller(monkeypatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
+    settings = load_settings()
+    clients = FakeGatewayClients()
+    clients.runtime_controller = None
+    client = TestClient(create_gateway_app(settings, clients))
+
+    response = client.get("/admin/serving-envelope")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "runtime": "main_llm",
+        "public_model": "local-main",
+        "deployment_target": "macos-metal-static",
+        "backend": "mlx-vlm",
+        "control_mode": "static",
+        "profile": {
+            "id": "gemma4-26b-a4b-qat-4bit-mlx",
+            "resource_variant": None,
+            "source": "static_configuration",
+        },
+        "admission": {
+            "max_concurrency": 1,
+            "queue_timeout_seconds": settings.runtime("main_llm").queue_timeout_seconds,
+        },
+        "engine": {
+            "max_kv_size": 32768,
+            "max_generation_tokens": 8192,
+            "max_num_seqs": 1,
+            "vision_cache_size": 4,
+        },
+    }
+
+
+def test_static_linux_serving_projection_applies_selected_resource_variant(monkeypatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-e4b-it")
+    monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9401/v1")
+
+    settings = load_settings()
+
+    assert settings.static_main_resource_variant == "rtx4090-24gb"
+    assert settings.static_main_engine_policy == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 4096,
+        "gpu_memory_utilization": 0.76,
+    }
 
 
 def test_macos_reasoning_uses_the_mlx_top_level_parameter_and_stays_opt_in(monkeypatch) -> None:
@@ -215,6 +275,13 @@ def test_static_settings_project_only_main_runtime(monkeypatch) -> None:
     assert settings.risk_signal_service_base_url == "http://risk-signal-service:9405"
     assert settings.runtime_controller_url == ""
     assert settings.static_main_profile == "gemma4-e4b-it"
+    assert settings.static_main_resource_variant is None
+    assert settings.static_main_engine_policy == {
+        "max_model_len": 65000,
+        "max_num_seqs": 4,
+        "max_num_batched_tokens": 50000,
+        "gpu_memory_utilization": 0.76,
+    }
     assert settings.default_main_model_gateway_policy["max_output_tokens"] == 15_000
     assert [item["id"] for item in settings.public_models] == ["local-main"]
 
