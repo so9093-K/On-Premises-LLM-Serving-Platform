@@ -74,7 +74,7 @@ from ..services.main_model_inflight import MainModelInFlight
 
 
 class GatewayClients:
-    def __init__(self, settings: AppSettings) -> None:
+    def __init__(self, settings: AppSettings, *, admission_observer: Metrics | None = None) -> None:
         state_path = gateway_runtime_state_path()
 
         def _runtime_directive(name: str) -> list[str]:
@@ -98,18 +98,18 @@ class GatewayClients:
             if settings.runtime_controller_url
             else None
         )
-        self.main_llm = RuntimeClient(settings.runtime("main_llm"))
+        self.main_llm = RuntimeClient(settings.runtime("main_llm"), admission_observer=admission_observer)
         self.runtime_clients_by_service_key: dict[str, RuntimeClient] = {}
         self.embedding_clients: dict[str, RuntimeClient] = {}
         for model_id, profile in settings.embedding_profiles.items():
             service_key = profile.service_key
             client = self.runtime_clients_by_service_key.get(service_key)
             if client is None:
-                client = RuntimeClient(settings.runtime(service_key))
+                client = RuntimeClient(settings.runtime(service_key), admission_observer=admission_observer)
                 self.runtime_clients_by_service_key[service_key] = client
             self.embedding_clients[model_id] = client
         self.risk_signal_service = (
-            RuntimeClient(settings.risk_signal_service_endpoint)
+            RuntimeClient(settings.risk_signal_service_endpoint, admission_observer=admission_observer)
             if settings.risk_signal_service_endpoint is not None
             else None
         )
@@ -136,17 +136,17 @@ class GatewayClients:
 
 def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClients | None = None) -> FastAPI:
     settings = settings or load_settings()
-    clients = clients or GatewayClients(settings)
+    metrics = Metrics(
+        "gateway",
+        recent_traffic=RecentTrafficWindow(),
+    )
+    clients = clients or GatewayClients(settings, admission_observer=metrics)
     if not hasattr(clients, "main_model_inflight"):
         clients.main_model_inflight = MainModelInFlight()
     if not hasattr(clients, "runtime_transition_history"):
         clients.runtime_transition_history = RuntimeTransitionHistoryStore(None)
     if clients.runtime_transition_history.available:
         clients.runtime_transition_history.recover_interrupted_operations()
-    metrics = Metrics(
-        "gateway",
-        recent_traffic=RecentTrafficWindow(),
-    )
     logger = service_logger("gateway")
 
     schema_items = configuration_schema_items()
