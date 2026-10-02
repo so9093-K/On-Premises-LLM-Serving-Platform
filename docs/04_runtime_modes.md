@@ -62,8 +62,15 @@ make status
 ```
 
 고정 기본 profile은 Gemma 4 26B A4B QAT 4-bit와 QAT MTP assistant이며, 24,576 input,
-8,192 generation, 이미지 1~4장, Thinking/MTP 활성, TurboQuant 비활성, 동시성 1이다.
+8,192 generation, 이미지 1~4장, MTP 활성, TurboQuant 비활성, 동시성 1이다.
 5~8장은 기능 제외가 아니라 extended qualification 구간이다.
+
+Thinking은 기본 off이며 Chat의 `reasoning: true` 또는 Responses의
+`reasoning: {"effort": "medium"}`으로 명시적으로 켠다. Responses의 `effort: "none"`은
+thinking을 끈다. Function tools는 Chat/Responses에서 결과 왕복과 streaming을 지원하며
+`tool_choice`는 `auto`, `none`, `required`, 지정 함수 선택을 허용한다. 병렬 호출은
+비활성이다. 고정 MLX-VLM의 MTP 경로는 structured `response_format`과 호환되지 않아
+구조화 응답은 공개하지 않는다.
 
 첫 `make up`은 target catalog에서 `MAIN_MODEL_STATIC_PROFILE`과 Docker Gateway가 native
 runtime에 연결할 endpoint를 `.env`로 투영하고 필요한 image/model cache를 준비한다. `up`은 native MLX runtime을 프로젝트

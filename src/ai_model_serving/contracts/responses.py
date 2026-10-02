@@ -408,6 +408,20 @@ def normalize_responses_request_for_runtime(
     # vLLM의 Responses store는 별도 in-memory feature이며 플랫폼 durable state가 아니다.
     # Gateway는 stateless contract를 소유하므로 항상 false를 명시한다.
     upstream["store"] = False
+    reasoning_policy = _chat_policy(policy).get("reasoning", {})
+    if isinstance(reasoning_policy, dict) and reasoning_policy.get("enabled") is True:
+        # A runtime's thinking default must not override the profile's opt-in
+        # contract when a Responses client omits reasoning.
+        if "reasoning" not in upstream and reasoning_policy.get("default", False) is not True:
+            upstream["reasoning"] = {"effort": "none"}
+        parameter = reasoning_policy.get("upstream_parameter")
+        if isinstance(parameter, str) and parameter:
+            reasoning = upstream.get("reasoning")
+            upstream[parameter] = (
+                reasoning.get("effort") != "none"
+                if isinstance(reasoning, dict)
+                else reasoning_policy.get("default", False) is True
+            )
     tool_policy = _chat_policy(policy).get("tool_calling", {})
     if upstream.get("tools") and isinstance(tool_policy, dict) and tool_policy.get("allow_parallel_tool_calls") is not True:
         upstream.setdefault("parallel_tool_calls", False)

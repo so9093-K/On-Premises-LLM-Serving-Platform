@@ -437,6 +437,20 @@ def test_gateway_allows_advanced_combinations_and_models_projection():
     assert client.post("/v1/chat/completions", headers=auth_headers(), json=base).status_code == 200
     assert clients.main_llm.last_payload["tool_choice"] == "auto"
 
+    call = clients.main_llm.post_response["choices"][0]["message"]["tool_calls"][0]
+    call["index"] = 0
+    message = clients.main_llm.post_response["choices"][0]["message"]
+    message.update(reasoning=None, reasoning_content=None)
+    completed = client.post("/v1/chat/completions", headers=auth_headers(), json=base)
+    assert completed.status_code == 200
+    assert "index" not in completed.json()["choices"][0]["message"]["tool_calls"][0]
+    assert "reasoning" not in completed.json()["choices"][0]["message"]
+    assert "reasoning_content" not in completed.json()["choices"][0]["message"]
+    for invalid_index in (True, -1, 1, "0"):
+        call["index"] = invalid_index
+        assert client.post("/v1/chat/completions", headers=auth_headers(), json=base).status_code == 502
+    call.pop("index")
+
     clients.main_llm.post_response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = "unknown_tool"
     assert client.post("/v1/chat/completions", headers=auth_headers(), json=base).status_code == 502
     clients.main_llm.post_response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = "get_weather"

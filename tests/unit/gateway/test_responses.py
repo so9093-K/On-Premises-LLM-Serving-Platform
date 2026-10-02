@@ -3,8 +3,59 @@ from __future__ import annotations
 import io
 import json
 import logging
+from dataclasses import replace
+from pathlib import Path
+
+import pytest
+import yaml
 
 from .helpers import *  # noqa: F401,F403
+
+
+def _metal_settings():
+    document = yaml.safe_load(
+        (Path(__file__).resolve().parents[3] / "configs/macos_mlx_runtime.yaml").read_text()
+    )
+    policy = document["profiles"][document["default_profile"]]["gateway_policy"]["request_parameter_policy"]
+    cfg = settings()
+    main = replace(cfg.runtime("main_llm"), request_parameter_policy=policy)
+    return replace(cfg, runtime_endpoints={**cfg.runtime_endpoints, "main_llm": main})
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("effort,enabled", [(None, False), ("none", False), ("medium", True)])
+def test_metal_responses_reasoning_is_explicitly_opt_in(stream, effort, enabled):
+    clients = FakeGatewayClients()
+    clients.main_llm.post_response = _response_body()
+    clients.main_llm.stream_chunks = [
+        f"event: response.completed\ndata: {json.dumps({'type': 'response.completed', 'response': _response_body()})}\n\n".encode(),
+    ]
+    client = TestClient(create_gateway_app(_metal_settings(), clients))
+    payload = {"model": "local-main", "input": "hello", "stream": stream}
+    if effort is not None:
+        payload["reasoning"] = {"effort": effort}
+    response = client.post("/v1/responses", headers=auth_headers(), json=payload)
+    assert response.status_code == 200
+    assert clients.main_llm.last_payload["enable_thinking"] is enabled
+    assert clients.main_llm.last_payload["reasoning"] == {"effort": effort or "none"}
+
+
+@pytest.mark.parametrize("choice", ["auto", "required", {"type": "function", "name": "get_weather"}])
+def test_metal_responses_accepts_function_tool_choices(choice):
+    clients = FakeGatewayClients()
+    clients.main_llm.post_response = _response_body(output=[{
+        "id": "fc_1", "type": "function_call", "call_id": "call_1", "name": "get_weather",
+        "arguments": '{"city":"Seoul"}', "status": "completed",
+    }])
+    client = TestClient(create_gateway_app(_metal_settings(), clients))
+    response = client.post("/v1/responses", headers=auth_headers(), json={
+        "model": "local-main", "input": "Weather in Seoul",
+        "tools": [{"type": "function", "name": "get_weather", "parameters": {"type": "object"}}],
+        "tool_choice": choice,
+    })
+    assert response.status_code == 200
+    assert response.json()["output"][0]["name"] == "get_weather"
+    assert clients.main_llm.last_payload["parallel_tool_calls"] is False
 
 
 def _response_body(*, output=None, **extra):

@@ -276,6 +276,11 @@ def project_to_public_contract(payload: dict[str, Any]) -> dict[str, Any]:
         message = choice.get("message")
         if isinstance(message, dict):
             narrowed["message"] = _narrow(message, message_keys)
+            # An absent thinking channel is not conversation history. Omitting
+            # null metadata also makes ordinary tool-call messages reusable.
+            for field in ("reasoning", "reasoning_content"):
+                if narrowed["message"].get(field) is None:
+                    narrowed["message"].pop(field, None)
         choices.append(narrowed)
     if choices:
         projected["choices"] = choices
@@ -330,9 +335,23 @@ def validate_chat_response(
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
         raise ServiceError("UPSTREAM_RESPONSE_INVALID", "chat upstream response choices must be a non-empty array.")
+    normalized_choices = []
     for index, choice in enumerate(choices):
         if not isinstance(choice, dict):
             raise ServiceError("UPSTREAM_RESPONSE_INVALID", f"chat upstream response choices[{index}] must be an object.")
+        message = choice.get("message")
+        if isinstance(message, dict) and isinstance(message.get("tool_calls"), list):
+            calls = []
+            for position, call in enumerate(message["tool_calls"]):
+                if isinstance(call, dict) and "index" in call:
+                    # MLX also includes the streaming position in completed calls.
+                    # Verify its meaning before projecting it out of the public object.
+                    if not is_int(call["index"]) or call["index"] != position:
+                        raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Completed tool call index must match its array position.")
+                    call = {key: value for key, value in call.items() if key != "index"}
+                calls.append(call)
+            choice = {**choice, "message": {**message, "tool_calls": calls}}
+        normalized_choices.append(choice)
         _validate_assistant_response_message(
             choice.get("message"),
             choice_index=index,
@@ -343,4 +362,4 @@ def validate_chat_response(
             _validate_response_json_content(choice, choice_index=index, expectations=expectations)
             if expectations.expect_logprobs and not expectations.stream:
                 _validate_choice_logprobs(choice, choice_index=index)
-    return project_to_public_contract(payload)
+    return project_to_public_contract({**payload, "choices": normalized_choices})
