@@ -92,15 +92,39 @@ export type ChatRequestContext = {
   parameters: Record<string, unknown>;
 };
 
+export type ChatAttachmentModality = 'image' | 'audio' | 'video';
+
+export type ChatAttachment = {
+  id: string;
+  name: string;
+  modality: ChatAttachmentModality;
+  mimeType: string;
+  sizeBytes: number;
+  data: string;
+  audioFormat?: string;
+  width?: number;
+  height?: number;
+};
+
 export type Exchange = {
   id: number;
   user: string;
+  attachments: ChatAttachment[];
   sentAtSeconds: number;
   requestContext: ChatRequestContext;
   assistant: AssistantTurn;
 };
 
-export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'input_audio'; input_audio: { data: string; format: string } }
+  | { type: 'video_url'; video_url: { url: string } };
+
+export type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string | ChatContentPart[];
+};
 
 export function chatCapableModels(models: readonly PublicModel[]): PublicModel[] {
   return models.filter((model) => model.capabilities.includes('chat.completions'));
@@ -115,6 +139,141 @@ const INPUT_MODALITY_LABELS: Record<string, string> = {
 
 export function inputModalityLabel(value: string): string {
   return INPUT_MODALITY_LABELS[value] ?? value;
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function mediaLimit(model: PublicModel, modality: ChatAttachmentModality): Record<string, unknown> {
+  return objectOrEmpty(model.request_limits?.[modality]);
+}
+
+function fileExtension(name: string): string {
+  const index = name.lastIndexOf('.');
+  return index < 0 ? '' : name.slice(index + 1).toLowerCase();
+}
+
+export function attachmentAccept(model: PublicModel): string {
+  const accepted: string[] = [];
+  const modalities = new Set(model.input_modalities ?? []);
+  if (modalities.has('image')) {
+    const values = stringList(mediaLimit(model, 'image').allowed_mime_types);
+    accepted.push(...(values.length > 0 ? values : ['image/*']));
+  }
+  if (modalities.has('audio')) {
+    const values = stringList(mediaLimit(model, 'audio').allowed_formats);
+    accepted.push(...(values.length > 0 ? values.map((value) => `.${value}`) : ['audio/*']));
+  }
+  if (modalities.has('video')) {
+    const values = stringList(mediaLimit(model, 'video').allowed_mime_types);
+    accepted.push(...(values.length > 0 ? values : ['video/*']));
+  }
+  return [...new Set(accepted)].join(',');
+}
+
+export function classifyAttachment(
+  model: PublicModel,
+  candidate: { name: string; mimeType: string; sizeBytes: number },
+): { modality: ChatAttachmentModality; audioFormat?: string; error: null } | { error: string } {
+  const mimeType = candidate.mimeType.toLowerCase();
+  const extension = fileExtension(candidate.name);
+  let modality: ChatAttachmentModality | null = null;
+  if (mimeType.startsWith('image/')) modality = 'image';
+  else if (mimeType.startsWith('video/')) modality = 'video';
+  else if (mimeType.startsWith('audio/')) modality = 'audio';
+  else if (stringList(mediaLimit(model, 'audio').allowed_formats).includes(extension)) modality = 'audio';
+
+  if (modality === null) return { error: '현재 모델 계약에서 인식할 수 있는 이미지·오디오·비디오 파일이 아닙니다.' };
+  if (!(model.input_modalities ?? []).includes(modality)) {
+    return { error: `현재 모델은 ${inputModalityLabel(modality)} 입력을 지원하지 않습니다.` };
+  }
+  const limit = mediaLimit(model, modality);
+  const maxBytes = finite(limit.max_bytes);
+  if (maxBytes !== null && candidate.sizeBytes > maxBytes) {
+    return { error: `${inputModalityLabel(modality)} 파일은 ${maxBytes.toLocaleString('ko-KR')}바이트 이하여야 합니다.` };
+  }
+  if (modality === 'audio') {
+    const allowed = stringList(limit.allowed_formats);
+    if (!extension || (allowed.length > 0 && !allowed.includes(extension))) {
+      return { error: `오디오는 ${allowed.join(', ') || '현재 모델이 광고한 형식'}만 사용할 수 있습니다.` };
+    }
+    return { modality, audioFormat: extension, error: null };
+  }
+  const allowedMimeTypes = stringList(limit.allowed_mime_types);
+  if (!mimeType || (allowedMimeTypes.length > 0 && !allowedMimeTypes.includes(mimeType))) {
+    return { error: `${inputModalityLabel(modality)} MIME 형식이 현재 모델 계약에 없습니다.` };
+  }
+  return { modality, error: null };
+}
+
+export function validateChatAttachments(
+  model: PublicModel,
+  attachments: readonly ChatAttachment[],
+): string | null {
+  const counts: Record<ChatAttachmentModality, number> = { image: 0, audio: 0, video: 0 };
+  for (const attachment of attachments) {
+    const classified = classifyAttachment(model, {
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+    });
+    if (!('modality' in classified)) return classified.error;
+    if (classified.modality !== attachment.modality) return '첨부 파일 modality가 현재 모델 계약과 일치하지 않습니다.';
+    if (attachment.modality === 'audio' && classified.audioFormat !== attachment.audioFormat) {
+      return '오디오 형식이 현재 모델 계약과 일치하지 않습니다.';
+    }
+    if (attachment.modality === 'image') {
+      const maxPixels = finite(mediaLimit(model, 'image').max_pixels);
+      if (
+        maxPixels !== null
+        && attachment.width !== undefined
+        && attachment.height !== undefined
+        && attachment.width * attachment.height > maxPixels
+      ) {
+        return `이미지는 최대 ${maxPixels.toLocaleString('ko-KR')}픽셀까지 사용할 수 있습니다.`;
+      }
+    }
+    counts[attachment.modality] += 1;
+  }
+  for (const modality of ['image', 'audio', 'video'] as const) {
+    const maxInputs = integerOrNull(mediaLimit(model, modality).max_inputs);
+    if (maxInputs !== null && counts[modality] > maxInputs) {
+      return `${inputModalityLabel(modality)} 입력은 요청 전체에서 최대 ${maxInputs}개까지 사용할 수 있습니다.`;
+    }
+  }
+  return null;
+}
+
+export function attachmentContentPart(attachment: ChatAttachment): ChatContentPart {
+  if (attachment.modality === 'image') {
+    return { type: 'image_url', image_url: { url: attachment.data } };
+  }
+  if (attachment.modality === 'video') {
+    return { type: 'video_url', video_url: { url: attachment.data } };
+  }
+  return {
+    type: 'input_audio',
+    input_audio: { data: attachment.data, format: attachment.audioFormat ?? '' },
+  };
+}
+
+function userMessageContent(text: string, attachments: readonly ChatAttachment[]): string | ChatContentPart[] {
+  if (attachments.length === 0) return text;
+  const parts: ChatContentPart[] = [];
+  if (text) parts.push({ type: 'text', text });
+  parts.push(...attachments.map(attachmentContentPart));
+  return parts;
+}
+
+function exchangeIncludedInHistory(exchange: Exchange): boolean {
+  return exchange.assistant.status !== 'failed' && exchange.assistant.content !== '';
+}
+
+export function conversationAttachments(exchanges: readonly Exchange[]): ChatAttachment[] {
+  return exchanges
+    .filter(exchangeIncludedInHistory)
+    .flatMap((exchange) => exchange.attachments);
 }
 
 export function modelFeatureLabels(model: PublicModel): string[] {
@@ -307,15 +466,19 @@ export function conversationMessages(
   exchanges: readonly Exchange[],
   nextUserText: string,
   systemPrompt: string,
+  nextAttachments: readonly ChatAttachment[] = [],
 ): ChatMessage[] {
   const messages: ChatMessage[] = [];
   if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt });
   for (const exchange of exchanges) {
-    if (exchange.assistant.status === 'failed' || !exchange.assistant.content) continue;
-    messages.push({ role: 'user', content: exchange.user });
+    if (!exchangeIncludedInHistory(exchange)) continue;
+    messages.push({
+      role: 'user',
+      content: userMessageContent(exchange.user, exchange.attachments),
+    });
     messages.push({ role: 'assistant', content: exchange.assistant.content });
   }
-  messages.push({ role: 'user', content: nextUserText });
+  messages.push({ role: 'user', content: userMessageContent(nextUserText, nextAttachments) });
   return messages;
 }
 
@@ -324,11 +487,21 @@ export function buildChatRequest(
   settings: ChatSettings,
   exchanges: readonly Exchange[],
   nextUserText: string,
+  nextAttachments: readonly ChatAttachment[] = [],
 ): { body: Record<string, unknown>; error: string | null } {
+  if (!nextUserText && nextAttachments.length === 0) {
+    return { body: {}, error: '메시지나 첨부 파일을 입력하세요.' };
+  }
+  const attachmentError = validateChatAttachments(
+    model,
+    [...conversationAttachments(exchanges), ...nextAttachments],
+  );
+  if (attachmentError) return { body: {}, error: attachmentError };
+
   const controls = chatControls(model);
   const body: Record<string, unknown> = {
     model: model.id,
-    messages: conversationMessages(exchanges, nextUserText, settings.systemPrompt),
+    messages: conversationMessages(exchanges, nextUserText, settings.systemPrompt, nextAttachments),
   };
 
   const streamEnabled = controls.stream

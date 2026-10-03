@@ -22,6 +22,7 @@ import {
   startTurn,
   stopTurn,
   type AssistantTurn,
+  type ChatAttachment,
   type ChatSettings,
   type Exchange,
   type PublicModel,
@@ -38,7 +39,7 @@ type ChatSessionValue = {
   settings: ChatSettings;
   updateSettings: (patch: Partial<ChatSettings>) => void;
   busy: boolean;
-  send: (model: PublicModel, text: string) => string | null;
+  send: (model: PublicModel, text: string, attachments?: readonly ChatAttachment[]) => string | null;
   stop: () => void;
   clear: () => void;
 };
@@ -78,10 +79,14 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     setExchanges([]);
   }, []);
 
-  const send = useCallback((model: PublicModel, text: string): string | null => {
+  const send = useCallback((
+    model: PublicModel,
+    text: string,
+    attachments: readonly ChatAttachment[] = [],
+  ): string | null => {
     if (abortRef.current !== null) return '이전 응답을 받는 중입니다. 중지한 뒤 다시 보내세요.';
     const { apiKey: key, exchanges: history, settings: current } = latest.current;
-    const { body, error } = buildChatRequest(model, current, history, text);
+    const { body, error } = buildChatRequest(model, current, history, text, attachments);
     if (error) return error;
 
     const id = ++nextIdRef.current;
@@ -93,6 +98,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       {
         id,
         user: text,
+        attachments: [...attachments],
         sentAtSeconds: Date.now() / 1000,
         requestContext: createRequestContext(model, body),
         assistant: startTurn(performance.now()),
