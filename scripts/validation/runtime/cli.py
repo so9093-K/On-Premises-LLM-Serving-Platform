@@ -35,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grafana-password", default="", help="Grafana API 기본 인증 비밀번호입니다. 기본값은 GRAFANA_ADMIN_PASSWORD 또는 admin입니다.")
     parser.add_argument("--api-key", default="")
     parser.add_argument("--admin-api-key", default="")
+    parser.add_argument(
+        "--expected-main-image-digest",
+        default=None,
+        help="후보 Main Model 이미지의 sha256 digest. EXPECTED_MAIN_IMAGE_DIGEST보다 우선합니다.",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=30)
     parser.add_argument("--allow-failures", action="store_true", help="live check가 실패해도 report를 기록하고 exit code 0으로 종료합니다.")
     return parser

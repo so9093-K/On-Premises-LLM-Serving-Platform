@@ -329,9 +329,11 @@ Readiness
 Bounded engine/runtime canary
 ```
 
-`make runtime-validate`의 JSON/Markdown report에서 `runtime_artifact`의 실제
-vLLM version과 registry image digest를 확인한다. local image ID는 registry digest와
-다르므로, 후보 승격 근거는 digest로 실행한 canary에서 남긴다.
+`EXPECTED_MAIN_IMAGE_DIGEST=sha256:<64 hex> make runtime-validate`로 후보 artifact를
+명시하고 JSON/Markdown report의 `runtime_artifact`를 확인한다. validator는 실제
+vLLM version을 canonical build pin과 비교하고, 기대 digest가 설정되면 registry digest도
+비교한다. local image ID는 registry digest와 다르므로 후보 승격 근거에는 digest로
+실행한 canary를 사용한다.
 
 `compatibility_pins.vllm`을 변경하면
 [ vLLM 보안 노출 경계](./reference/vllm_security_posture.md)의 Security review contract도

@@ -474,7 +474,12 @@ Linux/NVIDIA live report의 `runtime_artifact`는 `/admin/main-model`에서 실�
 Main Model profile, image ref/local image ID, registry digest, vLLM version을 기록한다.
 local image라 registry digest가 없는 경우 `null`로 남기며 값을 추측하지 않는다.
 engine image 후보를 승격할 때는 digest로 pin한 image에서 report를 만들어 후보
-artifact와 실제 실행 image가 일치하는지 확인한다.
+artifact와 실제 실행 image가 일치하는지 확인한다. validator는 관측한 engine version을
+`configs/vllm_unified_build.yaml`의 pin과 자동 비교한다. 후보 digest도 검증하려면
+`EXPECTED_MAIN_IMAGE_DIGEST=sha256:<64 hex> make runtime-validate`로 실행한다.
+설정한 digest가 관측값과 다르면 해당 check가 실패한다.
+Tool calling은 `tool_choice:auto`가 공개된 profile에서 실제 function call과 JSON
+arguments를 검증하고, named choice는 해당 profile이 명시적으로 허용할 때만 실행한다.
 
 vLLM engine pin 변경은 runtime 실측 전에 정적 계약부터 확인한다. `make validate`는
 `configs/vllm_unified_build.yaml`의 current vLLM pin과

@@ -161,15 +161,20 @@ class LiveRuntimeChecks:
                 "name": engine.get("name"),
                 "version": engine.get("version"),
             },
+            "expected_engine_version": self.config.expected_vllm_version,
+            "expected_image_digest": self.config.expected_main_image_digest,
         }
         ok = (
             status == 200
             and observed.get("status") == "ready"
             and engine.get("name") == "vllm"
-            and isinstance(engine.get("version"), str)
-            and bool(engine["version"])
+            and engine.get("version") == self.config.expected_vllm_version
             and isinstance(observed.get("image_id"), str)
             and bool(observed["image_id"])
+            and (
+                self.config.expected_main_image_digest is None
+                or observed.get("image_digest") == self.config.expected_main_image_digest
+            )
         )
         return CheckResult(
             "vllm-runtime",
@@ -178,7 +183,9 @@ class LiveRuntimeChecks:
             latency,
             detail=(
                 f"engine={engine.get('version') or 'unknown'} "
-                f"image_digest={observed.get('image_digest') or 'unavailable'}"
+                f"expected_engine={self.config.expected_vllm_version} "
+                f"image_digest={observed.get('image_digest') or 'unavailable'} "
+                f"expected_digest={self.config.expected_main_image_digest or 'unspecified'}"
             ),
             details=details,
         )
@@ -231,6 +238,11 @@ class LiveRuntimeChecks:
                 return False
             function = call.get("function")
             if not isinstance(function, dict) or not isinstance(function.get("name"), str) or not isinstance(function.get("arguments"), str):
+                return False
+            try:
+                if not isinstance(json.loads(function["arguments"]), dict):
+                    return False
+            except json.JSONDecodeError:
                 return False
         return True
 
@@ -599,6 +611,64 @@ class LiveRuntimeChecks:
         status, body, latency = self.http.json("POST", self._chat_url(), payload)
         ok = status == 200 and body.get("object") == "chat.completion"
         return CheckResult("logit-bias-shape-canary", "logit_bias shape", "pass" if ok else "fail", latency, details={"status": status, "token_id_semantics": "served_model_tokenizer"})
+
+    def check_tool_auto(self) -> CheckResult:
+        """Exercise the Gemma parser with the auto choice supported by Linux profiles."""
+        tool_name = "get_runtime_answer"
+        payload = {
+            "model": self._main_model_name(),
+            "messages": [{
+                "role": "user",
+                "content": (
+                    "Use the provided get_runtime_answer function to return the runtime "
+                    "validation result. Do not answer directly. Set topic to runtime_validation."
+                ),
+            }],
+            "max_tokens": 256,
+            "temperature": 0,
+            "tools": [{
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "description": "Return the runtime validation result through a function call.",
+                    "parameters": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "topic": {"type": "string", "enum": ["runtime_validation"]}
+                        },
+                        "required": ["topic"],
+                    },
+                },
+            }],
+            "tool_choice": "auto",
+            "parallel_tool_calls": False,
+        }
+        status, body, latency = self.http.json("POST", self._chat_url(), payload)
+        valid = self._has_valid_tool_calls(body)
+        choice = self._choice(body)
+        message = choice.get("message")
+        calls = message.get("tool_calls") if isinstance(message, dict) else None
+        matched = (
+            valid
+            and len(calls) == 1
+            and calls[0]["function"]["name"] == tool_name
+            and json.loads(calls[0]["function"]["arguments"])
+            == {"topic": "runtime_validation"}
+        )
+        return CheckResult(
+            "tool-auto-canary",
+            "tool auto",
+            "pass" if status == 200 and matched else "fail",
+            latency,
+            details={
+                "status": status,
+                "finish_reason": choice.get("finish_reason"),
+                "tool_calls_valid": valid,
+                "expected_function_called": matched,
+                "feature_degraded_on_failure": "tool_auto",
+            },
+        )
 
     def check_named_tool_choice(self) -> CheckResult:
         """named tool_choice가 지정한 함수 하나를 실제로 호출하는지 확인한다.
