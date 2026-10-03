@@ -461,6 +461,89 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
             ) : null}
           </div>
         </details>
+
+        {controls.responseFormat ? (
+          <details className="chat-output-settings">
+            <summary>응답 형식</summary>
+            <div className="chat-output-settings-body">
+              <div className="chat-setting-field">
+                <label htmlFor="chat-response-format">출력 형식</label>
+                <select
+                  id="chat-response-format"
+                  value={settings.responseFormat}
+                  onChange={(event) => updateSettings({
+                    responseFormat: event.currentTarget.value as typeof settings.responseFormat,
+                  })}
+                >
+                  <option value="default">모델 기본값</option>
+                  {controls.responseFormat.allowedTypes.map((value) => (
+                    <option key={value} value={value}>
+                      {value === 'text' ? 'Text' : value === 'json_object' ? 'JSON object' : value === 'json_schema' ? 'JSON Schema' : value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {settings.responseFormat === 'json_object' && controls.responseFormat.requireJsonInstruction ? (
+                <small>JSON object 모드는 시스템 프롬프트나 메시지에 JSON으로 답하라는 지시가 있어야 합니다.</small>
+              ) : null}
+
+              {settings.responseFormat === 'json_schema' && controls.responseFormat.jsonSchema ? (
+                <>
+                  <div className="chat-setting-field">
+                    <label htmlFor="chat-json-schema-name">Schema 이름</label>
+                    <input
+                      id="chat-json-schema-name"
+                      type="text"
+                      value={settings.jsonSchemaName}
+                      onChange={(event) => updateSettings({ jsonSchemaName: event.currentTarget.value })}
+                    />
+                    <small>이름의 최종 형식 검증은 Gateway 계약이 수행합니다.</small>
+                  </div>
+                  {controls.responseFormat.jsonSchema.strictRequireTrue ? (
+                    <label className="chat-toggle">
+                      <input type="checkbox" checked disabled />
+                      Strict schema
+                      <small>현재 모델 정책에서 true로 고정</small>
+                    </label>
+                  ) : controls.responseFormat.jsonSchema.strictAllowed ? (
+                    <OptionalBooleanSetting
+                      id="chat-json-schema-strict"
+                      label="Strict schema"
+                      value={settings.jsonSchemaStrict}
+                      defaultEnabled={null}
+                      onChange={(value) => updateSettings({ jsonSchemaStrict: value })}
+                    />
+                  ) : null}
+                  <div className="chat-setting-field">
+                    <label htmlFor="chat-json-schema">JSON Schema</label>
+                    <textarea
+                      id="chat-json-schema"
+                      rows={10}
+                      spellCheck={false}
+                      value={settings.jsonSchemaText}
+                      placeholder='{"type":"object","properties":{},"required":[],"additionalProperties":false}'
+                      onChange={(event) => updateSettings({ jsonSchemaText: event.currentTarget.value })}
+                    />
+                    <small>
+                      {[
+                        controls.responseFormat.jsonSchema.maxSchemaBytes !== null
+                          ? `최대 ${controls.responseFormat.jsonSchema.maxSchemaBytes.toLocaleString('ko-KR')} bytes`
+                          : null,
+                        controls.responseFormat.jsonSchema.maxDepth !== null
+                          ? `depth ${controls.responseFormat.jsonSchema.maxDepth}`
+                          : null,
+                        controls.responseFormat.jsonSchema.maxTotalProperties !== null
+                          ? `properties ${controls.responseFormat.jsonSchema.maxTotalProperties}개`
+                          : null,
+                      ].filter(Boolean).join(' · ')}
+                    </small>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </div>
     </details>
   );
@@ -658,7 +741,15 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                     setSelectedId(event.currentTarget.value);
                     setAttachments([]);
                     // 추론 기본값은 모델마다 다르다. 이전 모델에서 고른 값을 끌고 가지 않는다.
-                    session.updateSettings({ reasoning: null, logprobs: null, topLogprobs: '' });
+                    session.updateSettings({
+                      reasoning: null,
+                      logprobs: null,
+                      topLogprobs: '',
+                      responseFormat: 'default',
+                      jsonSchemaName: 'response',
+                      jsonSchemaText: '',
+                      jsonSchemaStrict: null,
+                    });
                   }}
                   disabled={busy}
                 >

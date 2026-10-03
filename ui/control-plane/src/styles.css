@@ -1018,6 +1018,7 @@ input {
 .chat-composer textarea,
 .chat-settings textarea,
 .chat-settings input[type='number'],
+.chat-settings input[type='text'],
 .chat-settings select,
 .chat-model-select select {
   width: 100%;
@@ -1147,17 +1148,20 @@ input {
   margin-top: 0.5rem;
 }
 
-.chat-advanced-settings {
+.chat-advanced-settings,
+.chat-output-settings {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--console-border);
 }
 
-.chat-advanced-settings > summary {
+.chat-advanced-settings > summary,
+.chat-output-settings > summary {
   font-size: 0.875rem;
 }
 
-.chat-advanced-settings-body {
+.chat-advanced-settings-body,
+.chat-output-settings-body {
   display: grid;
   gap: 0.5rem;
   margin-top: 0.75rem;

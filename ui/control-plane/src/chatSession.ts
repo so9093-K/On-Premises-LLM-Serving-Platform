@@ -32,6 +32,22 @@ export type StringListControl = {
   maxItems: number | null;
 };
 
+export type ResponseFormatType = 'text' | 'json_object' | 'json_schema';
+
+export type ResponseFormatControl = {
+  allowedTypes: ResponseFormatType[];
+  requireJsonInstruction: boolean;
+  jsonSchema: {
+    maxSchemaBytes: number | null;
+    maxDepth: number | null;
+    maxTotalProperties: number | null;
+    requireRootObject: boolean;
+    requireAdditionalPropertiesFalse: boolean;
+    strictAllowed: boolean;
+    strictRequireTrue: boolean;
+  } | null;
+};
+
 export type ChatControls = {
   temperature: NumberControl | null;
   maxTokens: NumberControl | null;
@@ -47,6 +63,7 @@ export type ChatControls = {
   reasoning: BooleanControl | null;
   stream: BooleanControl | null;
   logprobs: BooleanControl | null;
+  responseFormat: ResponseFormatControl | null;
   includeUsage: boolean;
   fixedN: number | null;
 };
@@ -67,6 +84,10 @@ export type ChatSettings = {
   reasoning: boolean | null;
   stream: boolean;
   logprobs: boolean | null;
+  responseFormat: 'default' | ResponseFormatType;
+  jsonSchemaName: string;
+  jsonSchemaText: string;
+  jsonSchemaStrict: boolean | null;
 };
 
 export type TurnStatus = 'streaming' | 'complete' | 'stopped' | 'failed';
@@ -366,6 +387,32 @@ function fixedNumericValue(spec: ParameterSpec | undefined): number | null {
   return min !== null && max !== null && min === max ? min : null;
 }
 
+function responseFormatControl(spec: ParameterSpec | undefined): ResponseFormatControl | null {
+  if (spec === undefined) return null;
+  const allowedTypes = stringList(spec.allowed_types).filter(
+    (value): value is ResponseFormatType => (
+      value === 'text' || value === 'json_object' || value === 'json_schema'
+    ),
+  );
+  const jsonObject = objectOrEmpty(spec.json_object);
+  const schema = objectOrEmpty(spec.json_schema);
+  const strict = objectOrEmpty(schema.strict);
+  const schemaEnabled = allowedTypes.includes('json_schema');
+  return {
+    allowedTypes,
+    requireJsonInstruction: jsonObject.require_json_instruction === true,
+    jsonSchema: schemaEnabled ? {
+      maxSchemaBytes: integerOrNull(schema.max_schema_bytes),
+      maxDepth: integerOrNull(schema.max_depth),
+      maxTotalProperties: integerOrNull(schema.max_total_properties),
+      requireRootObject: schema.require_root_object === true,
+      requireAdditionalPropertiesFalse: schema.require_additional_properties_false === true,
+      strictAllowed: strict.allowed !== false,
+      strictRequireTrue: strict.require_true === true,
+    } : null,
+  };
+}
+
 export function numberControlRangeHint(control: NumberControl): string {
   const parts: string[] = [];
   if (control.minimum) {
@@ -394,6 +441,7 @@ export function chatControls(model: PublicModel): ChatControls {
     reasoning: booleanControl(params.reasoning),
     stream: booleanControl(params.stream),
     logprobs: booleanControl(params.logprobs),
+    responseFormat: responseFormatControl(params.response_format),
     includeUsage: params.stream_options !== undefined,
     fixedN: fixedNumericValue(params.n),
   };
@@ -417,6 +465,10 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   reasoning: null,
   stream: true,
   logprobs: null,
+  responseFormat: 'default',
+  jsonSchemaName: 'response',
+  jsonSchemaText: '',
+  jsonSchemaStrict: null,
 };
 
 function boundViolated(value: number, bound: NumericBound, minimum: boolean): boolean {
@@ -460,6 +512,136 @@ function parseStopValue(
   return { value: values.length === 1 ? values[0] : values, error: null };
 }
 
+const SCHEMA_VALUE_KEYS = new Set([
+  'additionalProperties', 'items', 'contains', 'propertyNames',
+  'unevaluatedItems', 'unevaluatedProperties', 'if', 'then', 'else', 'not',
+]);
+const SCHEMA_ARRAY_KEYS = new Set(['anyOf', 'oneOf', 'allOf', 'prefixItems']);
+const SCHEMA_MAP_KEYS = new Set([
+  'properties', '$defs', 'definitions', 'dependentSchemas', 'patternProperties',
+]);
+
+function schemaChildren(value: Record<string, unknown>): Record<string, unknown>[] {
+  const children: Record<string, unknown>[] = [];
+  for (const [key, item] of Object.entries(value)) {
+    if (SCHEMA_VALUE_KEYS.has(key) && typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      children.push(item as Record<string, unknown>);
+    } else if (SCHEMA_ARRAY_KEYS.has(key) && Array.isArray(item)) {
+      for (const child of item) {
+        if (typeof child === 'object' && child !== null && !Array.isArray(child)) {
+          children.push(child as Record<string, unknown>);
+        }
+      }
+    } else if (SCHEMA_MAP_KEYS.has(key) && typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      for (const child of Object.values(item as Record<string, unknown>)) {
+        if (typeof child === 'object' && child !== null && !Array.isArray(child)) {
+          children.push(child as Record<string, unknown>);
+        }
+      }
+    }
+  }
+  return children;
+}
+
+function schemaObjects(root: Record<string, unknown>): Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [root];
+  for (let index = 0; index < result.length; index += 1) {
+    result.push(...schemaChildren(result[index]));
+  }
+  return result;
+}
+
+function schemaDepth(value: Record<string, unknown>): number {
+  const children = schemaChildren(value);
+  return 1 + (children.length === 0 ? 0 : Math.max(...children.map(schemaDepth)));
+}
+
+function totalSchemaProperties(value: Record<string, unknown>): number {
+  return schemaObjects(value).reduce((total, item) => (
+    total + (typeof item.properties === 'object' && item.properties !== null && !Array.isArray(item.properties)
+      ? Object.keys(item.properties).length
+      : 0)
+  ), 0);
+}
+
+function messagesContainJsonInstruction(messages: readonly ChatMessage[]): boolean {
+  return messages.some((message) => {
+    if (typeof message.content === 'string') return message.content.toLowerCase().includes('json');
+    return message.content.some((part) => part.type === 'text' && part.text.toLowerCase().includes('json'));
+  });
+}
+
+function structuredResponseFormat(
+  control: ResponseFormatControl,
+  settings: ChatSettings,
+  messages: readonly ChatMessage[],
+): { value: Record<string, unknown> | null; error: string | null } {
+  if (settings.responseFormat === 'default') return { value: null, error: null };
+  if (!control.allowedTypes.includes(settings.responseFormat)) {
+    return { value: null, error: '현재 모델이 광고하지 않은 응답 형식입니다.' };
+  }
+  if (settings.responseFormat === 'text') return { value: { type: 'text' }, error: null };
+  if (settings.responseFormat === 'json_object') {
+    if (control.requireJsonInstruction && !messagesContainJsonInstruction(messages)) {
+      return { value: null, error: 'JSON object 모드는 메시지나 시스템 프롬프트에 JSON 지시문이 필요합니다.' };
+    }
+    return { value: { type: 'json_object' }, error: null };
+  }
+
+  const policy = control.jsonSchema;
+  if (!policy) return { value: null, error: '현재 모델은 JSON Schema 출력을 광고하지 않습니다.' };
+  const name = settings.jsonSchemaName.trim();
+  if (!name) {
+    return { value: null, error: 'JSON Schema 이름을 입력하세요.' };
+  }
+  let schema: unknown;
+  try {
+    schema = JSON.parse(settings.jsonSchemaText);
+  } catch {
+    return { value: null, error: 'JSON Schema가 유효한 JSON이 아닙니다.' };
+  }
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
+    return { value: null, error: 'JSON Schema는 object여야 합니다.' };
+  }
+  const schemaObject = schema as Record<string, unknown>;
+  const encodedBytes = new TextEncoder().encode(JSON.stringify(schemaObject)).length;
+  if (policy.maxSchemaBytes !== null && encodedBytes > policy.maxSchemaBytes) {
+    return { value: null, error: `JSON Schema는 ${policy.maxSchemaBytes.toLocaleString('ko-KR')}바이트 이하여야 합니다.` };
+  }
+  if (policy.maxDepth !== null && schemaDepth(schemaObject) > policy.maxDepth) {
+    return { value: null, error: `JSON Schema depth는 ${policy.maxDepth} 이하여야 합니다.` };
+  }
+  if (
+    policy.maxTotalProperties !== null
+    && totalSchemaProperties(schemaObject) > policy.maxTotalProperties
+  ) {
+    return { value: null, error: `JSON Schema 전체 property는 ${policy.maxTotalProperties}개 이하여야 합니다.` };
+  }
+  if (policy.requireRootObject && schemaObject.type !== 'object') {
+    return { value: null, error: 'JSON Schema root type은 object여야 합니다.' };
+  }
+  if (policy.requireAdditionalPropertiesFalse) {
+    const missing = schemaObjects(schemaObject).some((item) => (
+      (item.type === 'object' || (typeof item.properties === 'object' && item.properties !== null))
+      && item.additionalProperties !== false
+    ));
+    if (missing) {
+      return { value: null, error: '모든 object schema는 additionalProperties:false가 필요합니다.' };
+    }
+  }
+
+  const jsonSchema: Record<string, unknown> = { name, schema: schemaObject };
+  if (policy.strictRequireTrue) {
+    jsonSchema.strict = true;
+  } else if (policy.strictAllowed && settings.jsonSchemaStrict !== null) {
+    jsonSchema.strict = settings.jsonSchemaStrict;
+  }
+  return {
+    value: { type: 'json_schema', json_schema: jsonSchema },
+    error: null,
+  };
+}
+
 // 대화 기록은 성공한 주고받기만 보낸다. 실패하거나 빈 답을 보내면 user 메시지가
 // 연속되고, 역할이 번갈아야 하는 chat template은 그 요청을 거부한다.
 export function conversationMessages(
@@ -499,9 +681,10 @@ export function buildChatRequest(
   if (attachmentError) return { body: {}, error: attachmentError };
 
   const controls = chatControls(model);
+  const messages = conversationMessages(exchanges, nextUserText, settings.systemPrompt, nextAttachments);
   const body: Record<string, unknown> = {
     model: model.id,
-    messages: conversationMessages(exchanges, nextUserText, settings.systemPrompt, nextAttachments),
+    messages,
   };
 
   const streamEnabled = controls.stream
@@ -570,6 +753,12 @@ export function buildChatRequest(
       }
       body.top_logprobs = parsed.value;
     }
+  }
+
+  if (controls.responseFormat) {
+    const structured = structuredResponseFormat(controls.responseFormat, settings, messages);
+    if (structured.error) return { body, error: structured.error };
+    if (structured.value) body.response_format = structured.value;
   }
   return { body, error: null };
 }
