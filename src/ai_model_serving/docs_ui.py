@@ -85,10 +85,19 @@ FAVICON_SVG = (
 ).encode("utf-8")
 
 
+# Scalar는 vendored JS만 self-host해도 기본 설정에 따라 localhost Agent와
+# fonts.scalar.com을 사용할 수 있다. API 문서는 on-prem/air-gap surface이므로
+# 런타임 egress를 암묵적 default에 맡기지 않고 명시적으로 닫는다.
+# modelsSectionLabel은 플랫폼의 public "Models" 개념과 OpenAPI schema section을
+# 구분하기 위한 UI label이다. API의 Models tag 이름은 바꾸지 않는다.
 SCALAR_CONFIG = json.dumps({
     "theme": "default",
     "customCss": DOCS_CUSTOM_CSS,
     "defaultHttpClient": {"targetKey": "shell", "clientKey": "curl"},
+    "agent": {"disabled": True},
+    "telemetry": False,
+    "withDefaultFonts": False,
+    "modelsSectionLabel": "Schemas",
 })
 
 

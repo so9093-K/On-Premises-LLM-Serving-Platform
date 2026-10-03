@@ -67,4 +67,6 @@ Gateway 문서 화면은 네 곳에 나눠 설명을 싣는다. 태그 설명의
 
 Scalar asset은 self-host 한다. 번들(`src/ai_model_serving/static/`)이 애플리케이션 패키지에 함께 실려 `/static/scalar-api-reference-<version>.js`로 같은 origin에서 나가므로, air-gapped 망이나 외부 CDN을 막은 환경에서도 `/docs`가 그대로 뜬다. 페이지는 same-origin 응답에도 `integrity` 속성을 유지하므로 번들이 손상되면 브라우저가 실행하지 않는다.
 
+Self-host JS와 런타임 네트워크 정책은 별개다. `SCALAR_CONFIG`는 Agent를 명시적으로 비활성화하고, telemetry와 Scalar default web font를 끈다. 따라서 localhost에서도 Agent가 문서를 외부 서비스로 업로드하지 않고 `fonts.scalar.com`을 요청하지 않는다. OpenAPI `components.schemas` section은 플랫폼의 Models 개념과 구분되도록 `Schemas`로 표시한다. 이 설정은 API의 `Models` tag 이름이나 OpenAPI 계약을 바꾸지 않는다.
+
 버전과 SRI 해시는 `ai_model_serving/docs_ui.py`가 단독으로 선언한다. 올릴 때는 그 값을 바꾸고 `python scripts/build/fetch_docs_assets.py`를 돌린다. 선언된 해시와 다른 번들은 받아도 기록하지 않는다. `make validate`는 네트워크 없이 vendoring 파일의 해시만 확인한다.
