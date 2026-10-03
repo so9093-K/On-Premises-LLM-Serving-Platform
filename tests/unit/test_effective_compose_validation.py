@@ -136,7 +136,7 @@ def test_effective_compile_cache_accepts_compose_normalized_mounts(tmp_path):
     validator.validate_alignment(effective_compose=effective, boot_override=boot)
 
 
-@pytest.mark.parametrize("mutation", ["global-name", "aliased-name", "missing-project"])
+@pytest.mark.parametrize("mutation", ["global-name", "aliased-name", "missing-project", "missing-name"])
 def test_effective_compile_cache_rejects_overridden_volume_names(tmp_path, mutation):
     _, boot, effective = boot_config(tmp_path)
     effective["name"] = "test-project"
@@ -144,6 +144,8 @@ def test_effective_compile_cache_rejects_overridden_volume_names(tmp_path, mutat
         effective["volumes"][source] = {"name": f"test-project_{source}"}
     if mutation == "missing-project":
         del effective["name"]
+    elif mutation == "missing-name":
+        del effective["volumes"]["embedding-vllm-cache"]["name"]
     else:
         effective["volumes"]["embedding-vllm-cache"]["name"] = (
             "shared-global-cache" if mutation == "global-name"

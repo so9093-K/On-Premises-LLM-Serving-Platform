@@ -288,9 +288,9 @@ def validate_vllm_compile_cache(
         if definition.get("external") or (not resolved_names and definition.get("name")):
             errors.append(f"{name}: compile cache volume must be Compose project-scoped")
         actual_name = definition.get("name") if resolved_names else None
-        if actual_name is not None:
+        if resolved_names:
             project = compose.get("name")
-            if not project or actual_name != f"{project}_{source}":
+            if not actual_name or not project or actual_name != f"{project}_{source}":
                 errors.append(f"{name}: compile cache volume must resolve to its Compose project-scoped name")
         # Distinct logical volume keys may alias the same Docker volume through
         # an override's `name`. Compare the resolved identity, not just the key.
