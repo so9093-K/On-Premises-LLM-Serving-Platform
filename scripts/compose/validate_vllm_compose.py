@@ -253,6 +253,54 @@ def validate_gemma4_chat_template() -> list[str]:
     return []
 
 
+def validate_vllm_compile_cache(
+    compose: dict[str, Any], registry: ModelRegistry, *, resolved_names: bool = False,
+) -> list[str]:
+    """Executable compile artifacts belong to one runtime and Compose project."""
+    errors: list[str] = []
+    owners: dict[str, str] = {}
+    declared = compose.get("volumes", {})
+    for runtime in registry.iter_runtime_services():
+        if runtime.backend != "vllm":
+            continue
+        name = runtime.compose_service_name
+        service = compose.get("services", {}).get(name, {})
+        root = service.get("environment", {}).get("VLLM_CACHE_ROOT")
+        if root != "/root/.cache/vllm":
+            errors.append(f"{name}: VLLM_CACHE_ROOT must be /root/.cache/vllm")
+            continue
+        mounts = []
+        for volume in service.get("volumes", []):
+            if isinstance(volume, str):
+                parts = volume.split(":")
+                if len(parts) >= 2 and parts[1] == root:
+                    mounts.append((parts[0], "ro" not in (parts[2].split(",") if len(parts) > 2 else [])))
+            elif isinstance(volume, dict) and volume.get("target") == root:
+                mounts.append((volume.get("source") if volume.get("type") == "volume" else None,
+                               volume.get("read_only") is not True))
+        if len(mounts) != 1 or not mounts[0][1] or mounts[0][0] not in declared:
+            errors.append(f"{name}: compile cache requires one writable declared named volume")
+            continue
+        source = mounts[0][0]
+        definition = declared[source] or {}
+        # Effective config resolves project-scoped names; source YAML is checked
+        # separately to reject an operator-independent/global volume authority.
+        if definition.get("external") or (not resolved_names and definition.get("name")):
+            errors.append(f"{name}: compile cache volume must be Compose project-scoped")
+        actual_name = definition.get("name") if resolved_names else None
+        if resolved_names:
+            project = compose.get("name")
+            if not actual_name or not project or actual_name != f"{project}_{source}":
+                errors.append(f"{name}: compile cache volume must resolve to its Compose project-scoped name")
+        # Distinct logical volume keys may alias the same Docker volume through
+        # an override's `name`. Compare the resolved identity, not just the key.
+        identity = actual_name or source
+        if identity in owners:
+            errors.append(f"{name}: compile cache volume is shared with {owners[identity]}")
+        owners[identity] = name
+    return errors
+
+
 def default_main_profile_command() -> list[str]:
     """default profile의 vLLM 인자를 반환한다 (Compose bootstrap의 정적 대응물)."""
     document = load_yaml(MAIN_MODEL_PROFILES_PATH)
@@ -299,6 +347,9 @@ def validate_alignment(
     errors.extend(validate_production_compose_no_build_blocks(compose_path))
     errors.extend(validate_main_llm_bootstrap_image(source_compose))
     errors.extend(validate_shared_vllm_image_authority(source_compose, registry))
+    errors.extend(validate_vllm_compile_cache(source_compose, registry))
+    if effective_compose is not None:
+        errors.extend(validate_vllm_compile_cache(effective_compose, registry, resolved_names=True))
     errors.extend(validate_gemma4_chat_template())
 
     for runtime in registry.iter_runtime_services():

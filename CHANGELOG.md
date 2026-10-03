@@ -63,6 +63,8 @@
 
 ### Changed
 
+- Linux NVIDIA managed vLLM Runtime의 compile cache를 런타임별·Compose project별 named volume에 보관한다. 일반 down/up과 Main profile replace/rollback 후에도 cache가 유지되며 Hugging Face 모델 cache와 별도로 관리된다. 기존 `.env` 변경은 필요 없고 다음 컨테이너 재생성부터 적용된다. CUDA cache hit와 startup 개선 여부는 동일 GPU/profile 실측으로 판단한다.
+
 - Static projection drift 검증의 소유권을 canonical validator로 수렴했다. non-main vLLM Compose service는 shared `VLLM_IMAGE` authority를 사용해야 하며 `validate_vllm_compose.py`가 직접 검사한다. 모든 Deployment Target의 Gateway는 canonical `PLATFORM_STATE_DIR`를 선언하고 해당 경로를 writable persistent volume으로 mount해야 하며 deployment target governance가 이를 검사한다. 두 계약을 별도 YAML-copy pytest로 반복하지 않고 synthetic mutation test로 validator의 fail-closed 동작을 검증한다.
 
 - Current-state cleanup으로 Gateway runtime state를 `PLATFORM_STATE_DIR/runtime-state.json` 하나에서만 파생하고, 제거된 remote release orchestration이 사용하던 `ALLOW_SHARED_COMPOSE_PROJECT` Compose ownership bypass를 삭제했다. Model catalog의 도달 불가능한 `public_adapter_endpoint` fallback과 과거 이름의 부재만 반복 확인하던 회귀 테스트를 제거했으며, operator 문서와 active test 설명은 `make up`, Runtime Controller, Risk Signal Service 등 canonical terminology로 정렬했다.

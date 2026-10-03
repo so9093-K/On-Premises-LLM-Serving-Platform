@@ -103,7 +103,9 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
+      VLLM_CACHE_ROOT: /root/.cache/vllm
     volumes:
+    - main-vllm-cache:/root/.cache/vllm
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     - ../../configs:/app/configs:ro
     healthcheck:
@@ -151,7 +153,9 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
+      VLLM_CACHE_ROOT: /root/.cache/vllm
     volumes:
+    - embedding-vllm-cache:/root/.cache/vllm
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     depends_on:
       main-llm-vllm:
@@ -202,7 +206,9 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
+      VLLM_CACHE_ROOT: /root/.cache/vllm
     volumes:
+    - embedding-ko-vllm-cache:/root/.cache/vllm
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     depends_on:
       embedding-vllm:
@@ -266,7 +272,9 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
+      VLLM_CACHE_ROOT: /root/.cache/vllm
     volumes:
+    - prompt-vllm-cache:/root/.cache/vllm
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     healthcheck:
       test:
@@ -459,6 +467,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+volumes:
+  # Compose project-scoped, runtime-private caches survive container replacement
+  # and ordinary down/up. Never share executable cache artifacts across runtimes.
+  main-vllm-cache:
+  embedding-vllm-cache:
+  embedding-ko-vllm-cache:
+  prompt-vllm-cache:
 secrets:
   prometheus_admin_api_key:
     file: ../../.runtime/prometheus/admin_api_key
