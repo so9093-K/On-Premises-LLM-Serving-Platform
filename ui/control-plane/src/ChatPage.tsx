@@ -9,6 +9,8 @@ import { useChatSession } from './ChatSessionContext';
 import {
   chatCapableModels,
   chatControls,
+  inputModalityLabel,
+  modelFeatureLabels,
   turnFacts,
   turnNotice,
   type Exchange,
@@ -22,6 +24,24 @@ type ChatPageProps = {
 
 function rangeHint(control: NumberControl): string {
   return control.max === null ? `${control.min} 이상` : `${control.min}–${control.max}`;
+}
+
+function ModelContext({ model }: { model: PublicModel }) {
+  const features = modelFeatureLabels(model);
+  return (
+    <div className="chat-model-context">
+      <span className="chat-model-context-label">현재 모델 계약</span>
+      <div className="chat-model-identity">
+        <strong>{model.id}</strong>
+        <code>{model.backend}</code>
+      </div>
+      {features.length > 0 ? (
+        <div className="chat-feature-list" aria-label="지원 기능">
+          {features.map((feature) => <span className="chat-feature" key={feature}>{feature}</span>)}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ApiKeyForm({ rejected }: { rejected: boolean }) {
@@ -118,6 +138,23 @@ function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl
             ) : null}
           </dl>
         ) : null}
+        <details className="chat-request-context">
+          <summary>요청 정보</summary>
+          <dl className="facts compact-facts">
+            <dt>모델</dt><dd>{exchange.requestContext.modelId}</dd>
+            <dt>Backend</dt><dd><code>{exchange.requestContext.backend}</code></dd>
+            <dt>입력</dt>
+            <dd>
+              {exchange.requestContext.inputModalities.length > 0
+                ? exchange.requestContext.inputModalities.map(inputModalityLabel).join(', ')
+                : '—'}
+            </dd>
+            <dt>Capability</dt>
+            <dd>{exchange.requestContext.capabilities.join(', ') || '—'}</dd>
+            <dt>파라미터</dt>
+            <dd><code>{JSON.stringify(exchange.requestContext.parameters)}</code></dd>
+          </dl>
+        </details>
       </div>
     </li>
   );
@@ -342,6 +379,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
             ) : (
               <p className="chat-model-name">모델 <strong>{model.id}</strong></p>
             )}
+            <ModelContext model={model} />
             <ChatSettingsPanel model={model} />
           </aside>
         </div>

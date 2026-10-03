@@ -8,7 +8,9 @@ import {
   chatCapableModels,
   chatControls,
   completeFromResponse,
+  createRequestContext,
   finishTurn,
+  modelFeatureLabels,
   startTurn,
   stopTurn,
   turnFacts,
@@ -17,26 +19,82 @@ import {
 
 const MAIN = {
   id: 'local-main',
-  capabilities: ['chat.completions', 'responses'],
+  backend: 'vllm-cuda',
+  capabilities: ['chat.completions', 'chat.completions.tools', 'responses'],
+  input_modalities: ['text', 'image'],
+  request_limits: { image: { max_inputs: 1, max_bytes: 25_000_000 } },
   request_parameters: {
     temperature: { type: 'number', min: 0, max: 2 },
     max_tokens: { type: 'integer', min: 1, max: 4096, aliases: ['max_completion_tokens'] },
     stream: { type: 'boolean' },
     stream_options: { type: 'object' },
     reasoning: { type: 'boolean', default: false, mode: 'request_opt_in' },
+    tools: { type: 'array', min_items: 1, max_items: 64 },
+    response_format: { type: 'object', allowed_types: ['text', 'json_object', 'json_schema'] },
   },
 };
 
 function exchange(id, user, content, status = 'complete') {
-  return { id, user, sentAtSeconds: 0, assistant: { ...startTurn(0), status, content } };
+  return {
+    id,
+    user,
+    sentAtSeconds: 0,
+    requestContext: createRequestContext(MAIN, { model: MAIN.id, messages: [] }),
+    assistant: { ...startTurn(0), status, content },
+  };
 }
 
 test('only chat-capable public models are offered', () => {
   const models = chatCapableModels([
     MAIN,
-    { id: 'local-embed', capabilities: ['embeddings'], request_parameters: {} },
+    { id: 'local-embed', backend: 'vllm-cuda', capabilities: ['embeddings'], request_parameters: {} },
   ]);
   assert.deepEqual(models.map((model) => model.id), ['local-main']);
+});
+
+test('model feature labels come from the public model contract', () => {
+  assert.deepEqual(modelFeatureLabels(MAIN), [
+    '텍스트',
+    '이미지',
+    '도구',
+    '추론',
+    '구조화 출력',
+  ]);
+  assert.deepEqual(modelFeatureLabels({
+    ...MAIN,
+    input_modalities: ['text', 'audio'],
+    request_parameters: { stream: { type: 'boolean' } },
+  }), ['텍스트', '오디오']);
+});
+
+test('send-time request context snapshots model contract and actual parameters', () => {
+  const model = {
+    ...MAIN,
+    capabilities: [...MAIN.capabilities],
+    input_modalities: [...MAIN.input_modalities],
+  };
+  const body = {
+    model: MAIN.id,
+    messages: [{ role: 'user', content: '안녕' }],
+    temperature: 0.4,
+    stream_options: { include_usage: true },
+  };
+  const context = createRequestContext(model, body);
+
+  model.capabilities.push('future.capability');
+  model.input_modalities.push('audio');
+  body.stream_options.include_usage = false;
+
+  assert.deepEqual(context, {
+    modelId: 'local-main',
+    backend: 'vllm-cuda',
+    capabilities: ['chat.completions', 'chat.completions.tools', 'responses'],
+    inputModalities: ['text', 'image'],
+    parameters: {
+      temperature: 0.4,
+      stream_options: { include_usage: true },
+    },
+  });
 });
 
 test('the request carries only advertised parameters and omits model defaults', () => {

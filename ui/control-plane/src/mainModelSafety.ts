@@ -6,6 +6,12 @@ import type {
 
 type MainModelOperationProgressState = 'complete' | 'current' | 'pending' | 'failed';
 
+export const MAIN_MODEL_TERMINAL_QUERY_KEYS = [
+  ['main-model', 'status'],
+  ['main-model', 'profiles'],
+  ['public-models'],
+] as const;
+
 export type MainModelOperationProgressStep = {
   stage: string;
   label: string;

@@ -13,6 +13,7 @@ import {
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import {
   formatTokenLimits,
+  MAIN_MODEL_TERMINAL_QUERY_KEYS,
   mainModelTokenLimits,
   isMainModelOperationTerminal,
   mainModelOperationProgress,
@@ -183,8 +184,9 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
   useEffect(() => {
     const operation = operationQuery.data;
     if (!operation || !isMainModelOperationTerminal(operation)) return;
-    void queryClient.invalidateQueries({ queryKey: ['main-model', 'status'] });
-    void queryClient.invalidateQueries({ queryKey: ['main-model', 'profiles'] });
+    for (const queryKey of MAIN_MODEL_TERMINAL_QUERY_KEYS) {
+      void queryClient.invalidateQueries({ queryKey: [...queryKey] });
+    }
   }, [operationQuery.data, queryClient]);
 
   const profiles = profilesQuery.data?.profiles ?? [];
