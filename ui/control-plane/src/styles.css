@@ -1035,6 +1035,64 @@ input {
   resize: vertical;
 }
 
+.chat-attachment-list {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-attachment-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--console-border);
+  border-radius: 0.375rem;
+  background: var(--console-surface-raised);
+  font-size: 0.8125rem;
+}
+
+.chat-attachment-list li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-attachment-list button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--pf-t--global--color--brand--default, #06c);
+  cursor: pointer;
+  font: inherit;
+}
+
+.chat-composer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chat-attachment-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-attachment-input label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.chat-attachment-input input {
+  max-width: 100%;
+}
+
 .chat-composer-actions {
   display: flex;
   align-items: center;

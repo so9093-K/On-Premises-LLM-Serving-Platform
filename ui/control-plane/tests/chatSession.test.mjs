@@ -4,10 +4,14 @@ import test from 'node:test';
 import {
   DEFAULT_CHAT_SETTINGS,
   applyChatUpdate,
+  attachmentAccept,
+  attachmentContentPart,
   buildChatRequest,
   chatCapableModels,
   chatControls,
+  classifyAttachment,
   completeFromResponse,
+  conversationAttachments,
   createRequestContext,
   finishTurn,
   modelFeatureLabels,
@@ -16,14 +20,34 @@ import {
   stopTurn,
   turnFacts,
   turnNotice,
+  validateChatAttachments,
 } from '../src/chatSession.ts';
 
 const MAIN = {
   id: 'local-main',
   backend: 'vllm-cuda',
   capabilities: ['chat.completions', 'chat.completions.tools', 'responses'],
-  input_modalities: ['text', 'image'],
-  request_limits: { image: { max_inputs: 1, max_bytes: 25_000_000 } },
+  input_modalities: ['text', 'image', 'audio', 'video'],
+  request_limits: {
+    image: {
+      max_inputs: 1,
+      max_bytes: 25_000_000,
+      max_pixels: 12_845_056,
+      allowed_mime_types: ['image/jpeg', 'image/png'],
+      allowed_url_schemes: ['data'],
+    },
+    audio: {
+      max_inputs: 1,
+      max_bytes: 25_000_000,
+      allowed_formats: ['wav', 'm4a'],
+    },
+    video: {
+      max_inputs: 1,
+      max_bytes: 50_000_000,
+      allowed_mime_types: ['video/mp4', 'video/webm'],
+      allowed_url_schemes: ['data'],
+    },
+  },
   request_parameters: {
     temperature: { type: 'number', min: 0, max: 2 },
     max_tokens: { type: 'integer', min: 1, max: 4096, aliases: ['max_completion_tokens'] },
@@ -50,6 +74,7 @@ function exchange(id, user, content, status = 'complete') {
   return {
     id,
     user,
+    attachments: [],
     sentAtSeconds: 0,
     requestContext: createRequestContext(MAIN, { model: MAIN.id, messages: [] }),
     assistant: { ...startTurn(0), status, content },
@@ -68,6 +93,8 @@ test('model feature labels come from the public model contract', () => {
   assert.deepEqual(modelFeatureLabels(MAIN), [
     '텍스트',
     '이미지',
+    '오디오',
+    '비디오',
     '도구',
     '추론',
     '구조화 출력',
@@ -101,7 +128,7 @@ test('send-time request context snapshots model contract and actual parameters',
     modelId: 'local-main',
     backend: 'vllm-cuda',
     capabilities: ['chat.completions', 'chat.completions.tools', 'responses'],
-    inputModalities: ['text', 'image'],
+    inputModalities: ['text', 'image', 'audio', 'video'],
     parameters: {
       temperature: 0.4,
       stream_options: { include_usage: true },
@@ -207,6 +234,126 @@ test('streaming and logprobs dependencies follow the advertised contract', () =>
 
 test('fixed response count is presented as policy instead of becoming a duplicate knob', () => {
   assert.equal(chatControls(MAIN).fixedN, 1);
+});
+
+test('multimodal attachments follow public modalities and request limits', () => {
+  assert.equal(attachmentAccept(MAIN), 'image/jpeg,image/png,.wav,.m4a,video/mp4,video/webm');
+  assert.deepEqual(
+    classifyAttachment(MAIN, { name: 'photo.jpg', mimeType: 'image/jpeg', sizeBytes: 100 }),
+    { modality: 'image', error: null },
+  );
+  assert.deepEqual(
+    classifyAttachment(MAIN, { name: 'sound.m4a', mimeType: 'audio/mp4', sizeBytes: 100 }),
+    { modality: 'audio', audioFormat: 'm4a', error: null },
+  );
+  assert.match(
+    classifyAttachment(MAIN, { name: 'bad.txt', mimeType: 'text/plain', sizeBytes: 1 }).error,
+    /인식할 수 있는/,
+  );
+
+  const tooLarge = {
+    id: 'large',
+    name: 'large.png',
+    modality: 'image',
+    mimeType: 'image/png',
+    sizeBytes: 25_000_001,
+    data: 'data:image/png;base64,AAAA',
+  };
+  assert.match(validateChatAttachments(MAIN, [tooLarge]), /25,000,000바이트/);
+});
+
+test('multimodal content parts use the Gateway Chat contract exactly', () => {
+  const image = {
+    id: 'image',
+    name: 'photo.jpg',
+    modality: 'image',
+    mimeType: 'image/jpeg',
+    sizeBytes: 4,
+    data: 'data:image/jpeg;base64,AAAA',
+  };
+  const audio = {
+    id: 'audio',
+    name: 'tone.wav',
+    modality: 'audio',
+    mimeType: 'audio/wav',
+    sizeBytes: 4,
+    data: 'AAAA',
+    audioFormat: 'wav',
+  };
+  const video = {
+    id: 'video',
+    name: 'clip.mp4',
+    modality: 'video',
+    mimeType: 'video/mp4',
+    sizeBytes: 4,
+    data: 'data:video/mp4;base64,AAAA',
+  };
+  assert.deepEqual(attachmentContentPart(image), {
+    type: 'image_url',
+    image_url: { url: image.data },
+  });
+  assert.deepEqual(attachmentContentPart(audio), {
+    type: 'input_audio',
+    input_audio: { data: 'AAAA', format: 'wav' },
+  });
+  assert.deepEqual(attachmentContentPart(video), {
+    type: 'video_url',
+    video_url: { url: video.data },
+  });
+
+  const request = buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '설명해줘', [image, audio, video]);
+  assert.equal(request.error, null);
+  assert.deepEqual(request.body.messages[0].content, [
+    { type: 'text', text: '설명해줘' },
+    { type: 'image_url', image_url: { url: image.data } },
+    { type: 'input_audio', input_audio: { data: 'AAAA', format: 'wav' } },
+    { type: 'video_url', video_url: { url: video.data } },
+  ]);
+});
+
+test('attachment limits count successful conversation history across the whole request', () => {
+  const image = {
+    id: 'image',
+    name: 'photo.jpg',
+    modality: 'image',
+    mimeType: 'image/jpeg',
+    sizeBytes: 4,
+    data: 'data:image/jpeg;base64,AAAA',
+  };
+  const history = [{
+    ...exchange(1, '첫 이미지', '봤습니다'),
+    attachments: [image],
+  }];
+  assert.deepEqual(conversationAttachments(history), [image]);
+
+  const repeated = buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, history, '다음 이미지', [
+    { ...image, id: 'image-2', name: 'photo-2.jpg' },
+  ]);
+  assert.match(repeated.error, /요청 전체에서 최대 1개/);
+
+  const followup = buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, history, '이미지에 대해 더 말해줘');
+  assert.equal(followup.error, null);
+  assert.deepEqual(followup.body.messages[0].content, [
+    { type: 'text', text: '첫 이미지' },
+    { type: 'image_url', image_url: { url: image.data } },
+  ]);
+});
+
+test('attachment-only user turns are valid while empty turns are rejected', () => {
+  const image = {
+    id: 'image',
+    name: 'photo.jpg',
+    modality: 'image',
+    mimeType: 'image/jpeg',
+    sizeBytes: 4,
+    data: 'data:image/jpeg;base64,AAAA',
+  };
+  const withAttachment = buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '', [image]);
+  assert.equal(withAttachment.error, null);
+  assert.deepEqual(withAttachment.body.messages[0].content, [
+    { type: 'image_url', image_url: { url: image.data } },
+  ]);
+  assert.match(buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '').error, /메시지나 첨부 파일/);
 });
 
 test('the request carries only advertised parameters and omits model defaults', () => {

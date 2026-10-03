@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
 
@@ -7,13 +7,18 @@ import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { useChatSession } from './ChatSessionContext';
 import {
+  attachmentAccept,
   chatCapableModels,
   chatControls,
+  classifyAttachment,
+  conversationAttachments,
   inputModalityLabel,
   modelFeatureLabels,
   numberControlRangeHint,
+  validateChatAttachments,
   turnFacts,
   turnNotice,
+  type ChatAttachment,
   type Exchange,
   type NumberControl,
   type PublicModel,
@@ -99,6 +104,87 @@ function OptionalBooleanSetting({
   );
 }
 
+function formatFileBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function readFileDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('파일을 읽지 못했습니다.'));
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('파일을 base64로 변환하지 못했습니다.'));
+        return;
+      }
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function chatAttachmentFromFile(
+  file: File,
+  model: PublicModel,
+  existing: readonly ChatAttachment[],
+): Promise<{ attachment: ChatAttachment | null; error: string | null }> {
+  const classified = classifyAttachment(model, {
+    name: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size,
+  });
+  if (!('modality' in classified)) return { attachment: null, error: classified.error };
+
+  const dataUrl = await readFileDataUrl(file);
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) return { attachment: null, error: '파일을 data URL로 변환하지 못했습니다.' };
+  const attachment: ChatAttachment = {
+    id: crypto.randomUUID(),
+    name: file.name,
+    modality: classified.modality,
+    mimeType: file.type.toLowerCase(),
+    sizeBytes: file.size,
+    data: classified.modality === 'audio' ? dataUrl.slice(comma + 1) : dataUrl,
+    ...(classified.audioFormat ? { audioFormat: classified.audioFormat } : {}),
+  };
+  const error = validateChatAttachments(model, [...existing, attachment]);
+  return error ? { attachment: null, error } : { attachment, error: null };
+}
+
+function AttachmentList({
+  attachments,
+  removable = false,
+  onRemove,
+}: {
+  attachments: readonly ChatAttachment[];
+  removable?: boolean;
+  onRemove?: (id: string) => void;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <ul className="chat-attachment-list" aria-label="첨부 파일">
+      {attachments.map((attachment) => (
+        <li key={attachment.id}>
+          <span>
+            <strong>{inputModalityLabel(attachment.modality)}</strong>
+            {' · '}
+            {attachment.name}
+            {' · '}
+            {formatFileBytes(attachment.sizeBytes)}
+          </span>
+          {removable && onRemove ? (
+            <button type="button" onClick={() => onRemove(attachment.id)} aria-label={`${attachment.name} 첨부 제거`}>
+              제거
+            </button>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function ModelContext({ model }: { model: PublicModel }) {
   const features = modelFeatureLabels(model);
   return (
@@ -167,7 +253,8 @@ function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl
     <li className="chat-exchange">
       <div className="chat-message chat-message-user">
         <span className="chat-role">나</span>
-        <div className="chat-text">{exchange.user}</div>
+        {exchange.user ? <div className="chat-text">{exchange.user}</div> : null}
+        <AttachmentList attachments={exchange.attachments} />
       </div>
       <div className="chat-message chat-message-assistant" aria-busy={streaming}>
         <span className="chat-role">모델</span>
@@ -383,6 +470,8 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const session = useChatSession();
   const { apiKey, apiKeyRejected, exchanges, busy, send, stop, clear, setApiKey } = session;
   const [draft, setDraft] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const followRef = useRef(true);
@@ -416,13 +505,39 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     if (followRef.current) window.scrollTo({ top: document.documentElement.scrollHeight });
   }, [exchanges]);
 
+  async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (model === null || files.length === 0) return;
+    setAttachmentBusy(true);
+    setInputError(null);
+    try {
+      let next = [...attachments];
+      const history = conversationAttachments(exchanges);
+      for (const file of files) {
+        const result = await chatAttachmentFromFile(file, model, [...history, ...next]);
+        if (result.error) {
+          setInputError(result.error);
+          break;
+        }
+        if (result.attachment) next = [...next, result.attachment];
+      }
+      setAttachments(next);
+    } catch (reason) {
+      setInputError(reason instanceof Error ? reason.message : '첨부 파일을 읽지 못했습니다.');
+    } finally {
+      setAttachmentBusy(false);
+    }
+  }
+
   function submit() {
     const text = draft.trim();
-    if (!text || model === null) return;
-    const error = send(model, text);
+    if ((!text && attachments.length === 0) || model === null) return;
+    const error = send(model, text, attachments);
     setInputError(error);
     if (error === null) {
       setDraft('');
+      setAttachments([]);
       followRef.current = true;
     }
   }
@@ -487,6 +602,11 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 else submit();
               }}
             >
+              <AttachmentList
+                attachments={attachments}
+                removable
+                onRemove={(id) => setAttachments((items) => items.filter((item) => item.id !== id))}
+              />
               <textarea
                 id="chat-input"
                 aria-label="메시지"
@@ -496,12 +616,33 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
+              <div className="chat-composer-tools">
+                {attachmentAccept(model) ? (
+                  <div className="chat-attachment-input">
+                    <label htmlFor="chat-attachments">파일 첨부</label>
+                    <input
+                      id="chat-attachments"
+                      type="file"
+                      multiple
+                      accept={attachmentAccept(model)}
+                      disabled={busy || attachmentBusy}
+                      onChange={(event) => { void onAttachmentsSelected(event); }}
+                    />
+                  </div>
+                ) : <small>현재 모델은 파일 입력을 광고하지 않습니다.</small>}
+              </div>
               <div className="chat-composer-actions">
-                {inputError ? <p className="form-error" role="alert">{inputError}</p> : <span />}
+                {inputError ? <p className="form-error" role="alert">{inputError}</p> : attachmentBusy ? <span>첨부 파일 읽는 중…</span> : <span />}
                 {busy ? (
                   <Button type="submit" variant="danger">중지</Button>
                 ) : (
-                  <Button type="submit" variant="primary" isDisabled={!draft.trim()}>보내기</Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isDisabled={attachmentBusy || (!draft.trim() && attachments.length === 0)}
+                  >
+                    보내기
+                  </Button>
                 )}
               </div>
             </form>
@@ -515,6 +656,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   value={model.id}
                   onChange={(event) => {
                     setSelectedId(event.currentTarget.value);
+                    setAttachments([]);
                     // 추론 기본값은 모델마다 다르다. 이전 모델에서 고른 값을 끌고 가지 않는다.
                     session.updateSettings({ reasoning: null, logprobs: null, topLogprobs: '' });
                   }}
