@@ -13,21 +13,60 @@ export type PublicModel = {
   request_parameters: Record<string, ParameterSpec>;
 };
 
-export type NumberControl = { min: number; max: number | null; integer: boolean };
+export type NumericBound = { value: number; exclusive: boolean };
+
+export type NumberControl = {
+  minimum: NumericBound | null;
+  maximum: NumericBound | null;
+  integer: boolean;
+  requires: Record<string, unknown>;
+};
+
+export type BooleanControl = {
+  defaultEnabled: boolean | null;
+  constValue: boolean | null;
+  allowStream: boolean | null;
+};
+
+export type StringListControl = {
+  maxItems: number | null;
+};
 
 export type ChatControls = {
   temperature: NumberControl | null;
   maxTokens: NumberControl | null;
-  reasoning: { defaultEnabled: boolean } | null;
-  stream: boolean;
+  topP: NumberControl | null;
+  topK: NumberControl | null;
+  minP: NumberControl | null;
+  presencePenalty: NumberControl | null;
+  frequencyPenalty: NumberControl | null;
+  repetitionPenalty: NumberControl | null;
+  seed: NumberControl | null;
+  topLogprobs: NumberControl | null;
+  stop: StringListControl | null;
+  reasoning: BooleanControl | null;
+  stream: BooleanControl | null;
+  logprobs: BooleanControl | null;
   includeUsage: boolean;
+  fixedN: number | null;
 };
 
 export type ChatSettings = {
   systemPrompt: string;
   temperature: string;
   maxTokens: string;
+  topP: string;
+  topK: string;
+  minP: string;
+  presencePenalty: string;
+  frequencyPenalty: string;
+  repetitionPenalty: string;
+  stop: string;
+  seed: string;
+  topLogprobs: string;
   reasoning: boolean | null;
+  stream: boolean;
+  logprobs: boolean | null;
 };
 
 export type TurnStatus = 'streaming' | 'complete' | 'stopped' | 'failed';
@@ -117,31 +156,114 @@ function finite(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function integerOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
+function objectOrEmpty(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function numericBound(
+  inclusive: unknown,
+  exclusive: unknown,
+): NumericBound | null {
+  const exclusiveValue = finite(exclusive);
+  if (exclusiveValue !== null) return { value: exclusiveValue, exclusive: true };
+  const inclusiveValue = finite(inclusive);
+  return inclusiveValue === null ? null : { value: inclusiveValue, exclusive: false };
+}
+
 function numberControl(spec: ParameterSpec | undefined, integer: boolean): NumberControl | null {
   if (spec === undefined) return null;
-  const min = finite(spec.min) ?? finite(spec.min_exclusive) ?? 0;
-  return { min, max: finite(spec.max), integer };
+  return {
+    minimum: numericBound(spec.min, spec.min_exclusive),
+    maximum: numericBound(spec.max, spec.max_exclusive),
+    integer,
+    requires: objectOrEmpty(spec.requires),
+  };
+}
+
+function booleanControl(spec: ParameterSpec | undefined): BooleanControl | null {
+  if (spec === undefined) return null;
+  return {
+    defaultEnabled: typeof spec.default === 'boolean' ? spec.default : null,
+    constValue: typeof spec.const === 'boolean' ? spec.const : null,
+    allowStream: typeof spec.allow_stream === 'boolean' ? spec.allow_stream : null,
+  };
+}
+
+function stringListControl(spec: ParameterSpec | undefined): StringListControl | null {
+  if (spec === undefined) return null;
+  return { maxItems: integerOrNull(spec.max_items) };
+}
+
+function fixedNumericValue(spec: ParameterSpec | undefined): number | null {
+  if (spec === undefined) return null;
+  const min = finite(spec.min);
+  const max = finite(spec.max);
+  return min !== null && max !== null && min === max ? min : null;
+}
+
+export function numberControlRangeHint(control: NumberControl): string {
+  const parts: string[] = [];
+  if (control.minimum) {
+    parts.push(`${control.minimum.value} ${control.minimum.exclusive ? '초과' : '이상'}`);
+  }
+  if (control.maximum) {
+    parts.push(`${control.maximum.value} ${control.maximum.exclusive ? '미만' : '이하'}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : '제한 없음';
 }
 
 export function chatControls(model: PublicModel): ChatControls {
   const params = model.request_parameters;
-  const reasoning = params.reasoning;
   return {
     temperature: numberControl(params.temperature, false),
     maxTokens: numberControl(params.max_tokens, true),
-    reasoning: reasoning === undefined ? null : { defaultEnabled: reasoning.default === true },
-    stream: params.stream !== undefined,
+    topP: numberControl(params.top_p, false),
+    topK: numberControl(params.top_k, true),
+    minP: numberControl(params.min_p, false),
+    presencePenalty: numberControl(params.presence_penalty, false),
+    frequencyPenalty: numberControl(params.frequency_penalty, false),
+    repetitionPenalty: numberControl(params.repetition_penalty, false),
+    seed: numberControl(params.seed, true),
+    topLogprobs: numberControl(params.top_logprobs, true),
+    stop: stringListControl(params.stop),
+    reasoning: booleanControl(params.reasoning),
+    stream: booleanControl(params.stream),
+    logprobs: booleanControl(params.logprobs),
     includeUsage: params.stream_options !== undefined,
+    fixedN: fixedNumericValue(params.n),
   };
 }
 
-// 빈 값과 null은 "모델 기본값"이다. 요청에서 빼면 활성 profile이 기본값을 정한다.
+// 빈 문자열과 null은 "모델 기본값"이다. stream은 기존 Console의 streaming-first UX를
+// 유지하되 사용자가 명시적으로 끌 수 있다.
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   systemPrompt: '',
   temperature: '',
   maxTokens: '',
+  topP: '',
+  topK: '',
+  minP: '',
+  presencePenalty: '',
+  frequencyPenalty: '',
+  repetitionPenalty: '',
+  stop: '',
+  seed: '',
+  topLogprobs: '',
   reasoning: null,
+  stream: true,
+  logprobs: null,
 };
+
+function boundViolated(value: number, bound: NumericBound, minimum: boolean): boolean {
+  if (minimum) return bound.exclusive ? value <= bound.value : value < bound.value;
+  return bound.exclusive ? value >= bound.value : value > bound.value;
+}
 
 function parseControlValue(
   raw: string,
@@ -154,11 +276,29 @@ function parseControlValue(
   if (!Number.isFinite(value) || (control.integer && !Number.isInteger(value))) {
     return { value: null, error: `${label}은(는) ${control.integer ? '정수' : '숫자'}여야 합니다.` };
   }
-  if (value < control.min || (control.max !== null && value > control.max)) {
-    const range = control.max === null ? `${control.min} 이상` : `${control.min}–${control.max}`;
-    return { value: null, error: `${label}은(는) ${range} 범위여야 합니다.` };
+  if (
+    (control.minimum && boundViolated(value, control.minimum, true))
+    || (control.maximum && boundViolated(value, control.maximum, false))
+  ) {
+    return {
+      value: null,
+      error: `${label}은(는) ${numberControlRangeHint(control)} 범위여야 합니다.`,
+    };
   }
   return { value, error: null };
+}
+
+function parseStopValue(
+  raw: string,
+  control: StringListControl,
+): { value: string | string[] | null; error: string | null } {
+  if (raw === '') return { value: null, error: null };
+  const values = raw.split('\n').filter((value) => value !== '');
+  if (values.length === 0) return { value: null, error: null };
+  if (control.maxItems !== null && values.length > control.maxItems) {
+    return { value: null, error: `중지 문자열은 최대 ${control.maxItems}개까지 사용할 수 있습니다.` };
+  }
+  return { value: values.length === 1 ? values[0] : values, error: null };
 }
 
 // 대화 기록은 성공한 주고받기만 보낸다. 실패하거나 빈 답을 보내면 user 메시지가
@@ -190,21 +330,74 @@ export function buildChatRequest(
     model: model.id,
     messages: conversationMessages(exchanges, nextUserText, settings.systemPrompt),
   };
+
+  const streamEnabled = controls.stream
+    ? controls.stream.constValue ?? settings.stream
+    : false;
   if (controls.stream) {
-    body.stream = true;
-    if (controls.includeUsage) body.stream_options = { include_usage: true };
+    body.stream = streamEnabled;
+    if (streamEnabled && controls.includeUsage) body.stream_options = { include_usage: true };
   }
-  if (controls.temperature) {
-    const parsed = parseControlValue(settings.temperature, controls.temperature, '온도');
+
+  const numericSettings: Array<{
+    control: NumberControl | null;
+    raw: string;
+    label: string;
+    requestName: string;
+  }> = [
+    { control: controls.temperature, raw: settings.temperature, label: '온도', requestName: 'temperature' },
+    { control: controls.maxTokens, raw: settings.maxTokens, label: '최대 출력 토큰', requestName: 'max_tokens' },
+    { control: controls.topP, raw: settings.topP, label: 'Top P', requestName: 'top_p' },
+    { control: controls.topK, raw: settings.topK, label: 'Top K', requestName: 'top_k' },
+    { control: controls.minP, raw: settings.minP, label: 'Min P', requestName: 'min_p' },
+    { control: controls.presencePenalty, raw: settings.presencePenalty, label: '존재 페널티', requestName: 'presence_penalty' },
+    { control: controls.frequencyPenalty, raw: settings.frequencyPenalty, label: '빈도 페널티', requestName: 'frequency_penalty' },
+    { control: controls.repetitionPenalty, raw: settings.repetitionPenalty, label: '반복 페널티', requestName: 'repetition_penalty' },
+    { control: controls.seed, raw: settings.seed, label: 'Seed', requestName: 'seed' },
+  ];
+  for (const item of numericSettings) {
+    if (!item.control) continue;
+    const parsed = parseControlValue(item.raw, item.control, item.label);
     if (parsed.error) return { body, error: parsed.error };
-    if (parsed.value !== null) body.temperature = parsed.value;
+    if (parsed.value !== null) body[item.requestName] = parsed.value;
   }
-  if (controls.maxTokens) {
-    const parsed = parseControlValue(settings.maxTokens, controls.maxTokens, '최대 출력 토큰');
+
+  if (controls.stop) {
+    const parsed = parseStopValue(settings.stop, controls.stop);
     if (parsed.error) return { body, error: parsed.error };
-    if (parsed.value !== null) body.max_tokens = parsed.value;
+    if (parsed.value !== null) body.stop = parsed.value;
   }
-  if (controls.reasoning && settings.reasoning !== null) body.reasoning = settings.reasoning;
+
+  if (controls.reasoning && settings.reasoning !== null) {
+    if (controls.reasoning.constValue !== null && settings.reasoning !== controls.reasoning.constValue) {
+      return { body, error: `추론 출력은 현재 모델 정책에서 ${controls.reasoning.constValue ? '켜짐' : '꺼짐'}으로 고정되어 있습니다.` };
+    }
+    body.reasoning = settings.reasoning;
+  }
+
+  const logprobsEnabled = controls.logprobs
+    ? controls.logprobs.constValue ?? settings.logprobs
+    : null;
+  if (controls.logprobs && settings.logprobs !== null) {
+    if (controls.logprobs.constValue !== null && settings.logprobs !== controls.logprobs.constValue) {
+      return { body, error: `로그확률은 현재 모델 정책에서 ${controls.logprobs.constValue ? '켜짐' : '꺼짐'}으로 고정되어 있습니다.` };
+    }
+    if (settings.logprobs && streamEnabled && controls.logprobs.allowStream === false) {
+      return { body, error: '현재 모델은 스트리밍 응답에서 로그확률을 지원하지 않습니다.' };
+    }
+    body.logprobs = settings.logprobs;
+  }
+
+  if (controls.topLogprobs) {
+    const parsed = parseControlValue(settings.topLogprobs, controls.topLogprobs, 'Top logprobs');
+    if (parsed.error) return { body, error: parsed.error };
+    if (parsed.value !== null) {
+      if (controls.topLogprobs.requires.logprobs === true && logprobsEnabled !== true) {
+        return { body, error: 'Top logprobs를 사용하려면 로그확률을 켜야 합니다.' };
+      }
+      body.top_logprobs = parsed.value;
+    }
+  }
   return { body, error: null };
 }
 
