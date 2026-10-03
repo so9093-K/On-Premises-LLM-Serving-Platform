@@ -1282,7 +1282,6 @@ input {
 
   .chat-side {
     position: static;
-    order: -1;
   }
 }
 

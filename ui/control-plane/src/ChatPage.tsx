@@ -284,7 +284,7 @@ function ToolResultForm({
     <form className="chat-tool-result-form" aria-label="도구 결과 입력" onSubmit={submit}>
       <strong>도구 결과 입력</strong>
       <small>Console은 함수를 실행하지 않습니다. 실제 실행 결과를 입력하면 같은 <code>tool_call_id</code>로 다음 요청을 보냅니다.</small>
-      {calls.map((call) => (
+      {calls.map((call, index) => (
         <div className="chat-setting-field" key={call.id}>
           <label htmlFor={`chat-tool-result-${exchange.id}-${call.id}`}>
             <code>{call.function.name}</code> 결과
@@ -294,10 +294,14 @@ function ToolResultForm({
             rows={3}
             value={values[call.id] ?? ''}
             disabled={busy}
-            onChange={(event) => setValues((current) => ({
-              ...current,
-              [call.id]: event.currentTarget.value,
-            }))}
+            autoFocus={index === 0}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setValues((current) => ({
+                ...current,
+                [call.id]: value,
+              }));
+            }}
           />
         </div>
       ))}
