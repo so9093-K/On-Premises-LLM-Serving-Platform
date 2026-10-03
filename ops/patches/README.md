@@ -5,7 +5,7 @@
 ## `transformers_llama_head_dim_guard.py`
 
 Kanana Prompt detector의 explicit Llama `head_dim` config가 일부 Transformers/vLLM 조합에서 config validation 단계에 막히는 문제를 우회한다.
-현재 unified base는 Transformers 5.13.1과 huggingface_hub 1.23.0 조합을 정확히 검증한다.
+현재 unified base는 Transformers 5.17.0과 huggingface_hub 1.32.0 조합을 정확히 검증한다.
 과거 확인한 Transformers 하한 4.52.4는 호환성 이력일 뿐, exact pin보다 약한 빌드 입력으로
 중복 관리하지 않는다.
 
@@ -21,7 +21,7 @@ image patch 없이 허용하는 조합에서 같은 검증을 통과한 경우�
 
 ## `apply_gemma4_streaming_reasoning_patch.py`
 
-Pinned vLLM 0.25.1의 Gemma4 reasoning parser는 thinking을 켠 streaming 요청에서, model이
+vLLM 0.25.1의 Gemma4 reasoning parser는 thinking을 켠 streaming 요청에서, model이
 channel marker 없는 최종 답을 생성하면 이를 전부 `delta.reasoning`으로 분류하고 final
 `content`를 비웠다. [upstream vLLM PR #48262](https://github.com/vllm-project/vllm/pull/48262)의
 수정(2026-07-14 merge)을 backport한다. 새 model
@@ -34,8 +34,8 @@ turn은 content 상태에서 시작하고, 실제로 열린 `<|channel>` prompt�
 streaming 최종 답 끝에 그대로 노출됐다(비스트리밍에는 없었다). `TURN_END` terminal과
 `CONTENT`/`REASONING` 흡수 transition을 추가한다.
 
-patch script는 두 부분을 독립적으로 판정한다. 현재 qualified 0.25.1처럼 #48262 이전
-레이아웃이면 reasoning fix를 backport하고, #48262가 이미 포함된 후보 base에서는 해당
+patch script는 두 부분을 독립적으로 판정한다. 0.25.1처럼 #48262 이전
+레이아웃이면 reasoning fix를 backport하고, 현재 0.30.0처럼 #48262가 포함된 base에서는 해당
 동작을 source marker로 검증한 뒤 재치환하지 않는다. 로컬 `<turn|>` 흡수는 upstream에
 동일한 terminal/transition이 확인될 때까지 별도로 적용한다. 어느 한 부분이 반쯤 적용된
 레이아웃은 추측하지 않고 build를 실패시킨다.

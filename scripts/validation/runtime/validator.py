@@ -75,6 +75,7 @@ class RuntimeValidator:
         self.safe_check("gateway-runtime", "gateway /health", self.live_checks.check_gateway_health)
         self.safe_check("gateway-runtime", "gateway /ready", self.live_checks.check_gateway_ready)
         model_listing = self.safe_check("gateway-runtime", "gateway /v1/models", self.live_checks.check_models)
+        self.safe_check("vllm-runtime", "main runtime artifact", self.live_checks.check_main_runtime_artifact)
         self.safe_check("risk-signal-service-runtime", "risk-signal-service /health", self.live_checks.check_risk_health)
         self.safe_check("risk-signal-service-runtime", "risk-signal-service /ready", self.live_checks.check_risk_ready)
         for key, base in self.vllm_bases.items():
@@ -116,6 +117,11 @@ class RuntimeValidator:
         response_format = parameters.get("response_format", {}) if isinstance(parameters, dict) else {}
         response_types = set(response_format.get("allowed_types", [])) if isinstance(response_format, dict) else set()
         tool_choice = parameters.get("tool_choice", {}) if isinstance(parameters, dict) else {}
+        allowed_tool_choices = tool_choice.get("allowed") if isinstance(tool_choice, dict) else None
+        tool_auto_enabled = (
+            isinstance(allowed_tool_choices, list)
+            and "auto" in allowed_tool_choices
+        )
         named_tool_choice_enabled = (
             isinstance(tool_choice, dict) and tool_choice.get("allow_named") is True
         )
@@ -146,6 +152,18 @@ class RuntimeValidator:
             ("json-schema-with-reasoning-canary", "json_schema with reasoning", {"response_format", "reasoning"}, self.live_checks.check_json_schema_with_reasoning, "json_schema"),
         ):
             run_when_supported(category, name, required, fn, response_type=response_type)
+
+        auto_missing = {"tools", "tool_choice"} - supported
+        if not tool_auto_enabled:
+            auto_missing.add("tool_choice.auto")
+        if auto_missing:
+            self.skip_check(
+                "tool-auto-canary", "tool auto", missing_parameters=auto_missing
+            )
+        else:
+            self.safe_check(
+                "tool-auto-canary", "tool auto", self.live_checks.check_tool_auto
+            )
 
         named_missing = {"tools", "tool_choice"} - supported
         if not named_tool_choice_enabled:

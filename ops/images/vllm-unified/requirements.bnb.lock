@@ -1,0 +1,6 @@
+# vLLM 0.30.0 moved BitsAndBytes support to the official plugin.
+# These hashes are for the linux/amd64 wheels used by the unified image.
+bitsandbytes==0.49.2 \
+    --hash=sha256:54b771f06e1a3c73af5c7f16ccf0fc23a846052813d4b008d10cb6e017dd1c8c
+vllm-bnb-plugin==0.0.3 \
+    --hash=sha256:46d5ce93018ea8daf92bc15235f19a01078e1f4c16303f5946cc1575404c094c

@@ -32,11 +32,16 @@ def write_reports(
             if not item.passed and item.details.get("feature_degraded_on_failure")
         }
     )
+    artifact = next(
+        (item.details for item in results if item.name == "main runtime artifact"),
+        None,
+    )
     payload: dict[str, Any] = {
         "version": version,
         "started_at": session_started,
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "mode": mode,
+        "runtime_artifact": artifact,
         "summary": {"passed": passed, "failed": failed, "skipped": skipped, "degraded_features": degraded_features},
         "results": [item.__dict__ for item in results],
     }
@@ -45,6 +50,7 @@ def write_reports(
         "# 런타임 검증 리포트",
         "",
         f"모드: `{payload['mode']}`",
+        f"Runtime artifact: `{json.dumps(artifact, ensure_ascii=False, sort_keys=True) if artifact else 'unavailable'}`",
         f"통과: {passed}",
         f"실패: {failed}",
         f"건너뜀: {skipped}",

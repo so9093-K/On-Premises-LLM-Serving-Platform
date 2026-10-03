@@ -19,8 +19,11 @@
 #      (only risk-prompt sets an explicit head_dim; every other served model is
 #      unaffected). See ops/patches/transformers_llama_head_dim_guard.py.
 #
-# Both patch scripts assert on the exact upstream layout they were written
-# against, so a base image bump that invalidates either one fails this build
+#   3. Gemma4 streaming reasoning/content parser verification and local turn
+#      terminal fix. See ops/patches/apply_gemma4_streaming_reasoning_patch.py.
+#
+# All patch scripts assert on the exact upstream layout they were written
+# against, so a base image bump that invalidates one fails this build
 # loudly instead of shipping silently broken. Merging them into one image is
 # safe because they edit disjoint files (vllm/model_executor/models/gemma4_unified.py
 # + transformers' Gemma4UnifiedAudioFeatureExtractor vs. transformers'
@@ -62,6 +65,22 @@ RUN python3 -m pip install --no-cache-dir --no-deps --requirement /tmp/requireme
 
 RUN python3 -c "import av, soundfile, librosa; print('media decode ok', soundfile.__version__, librosa.__version__, av.__version__)"
 
+# vLLM 0.30.0 moved BitsAndBytes support to its official out-of-tree plugin.
+# Kanana still uses in-flight 4-bit quantization. Pin both wheels and verify
+# registration, otherwise the risk-prompt service fails during engine config.
+COPY ops/images/vllm-unified/requirements.bnb.lock /tmp/requirements.bnb.lock
+RUN python3 -m pip install --no-cache-dir --no-deps --require-hashes \
+    --requirement /tmp/requirements.bnb.lock \
+    && rm /tmp/requirements.bnb.lock
+RUN python3 - <<'PY'
+from vllm.plugins import load_general_plugins
+from vllm.model_executor.layers.quantization import get_quantization_config
+
+load_general_plugins()
+assert get_quantization_config("bitsandbytes").__name__ == "BitsAndBytesConfig"
+print("vllm-bnb-plugin registration ok")
+PY
+
 # ── Gemma4-unified multimodal: image FP8 mis-quant + audio fft_length fixes ─
 COPY ops/patches/apply_gemma4_multimodal_patches.py /tmp/apply_gemma4_multimodal_patches.py
 RUN python3 /tmp/apply_gemma4_multimodal_patches.py \
@@ -81,6 +100,8 @@ from __future__ import annotations
 import sys
 
 import huggingface_hub
+import torch
+import torchvision
 import transformers
 import vllm
 
@@ -88,6 +109,8 @@ expected_vllm, expected_transformers, expected_hub = sys.argv[1:]
 actual_vllm = vllm.__version__
 actual_transformers = transformers.__version__
 actual_hub = huggingface_hub.__version__
+torch_cuda = torch.__version__.partition("+")[2]
+vision_cuda = torchvision.__version__.partition("+")[2]
 
 if (
     actual_vllm != expected_vllm
@@ -102,9 +125,18 @@ if (
         file=sys.stderr,
     )
     sys.exit(1)
+if not torch_cuda or torch_cuda != vision_cuda:
+    print(
+        f"PyTorch/torchvision CUDA variant mismatch: torch={torch.__version__}, "
+        f"torchvision={torchvision.__version__}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 print(
     "vllm-unified "
-    f"vllm={actual_vllm} transformers={actual_transformers} huggingface_hub={actual_hub}"
+    f"vllm={actual_vllm} transformers={actual_transformers} "
+    f"huggingface_hub={actual_hub} torch={torch.__version__} "
+    f"torchvision={torchvision.__version__}"
 )
 PY
 

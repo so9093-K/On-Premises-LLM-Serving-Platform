@@ -6,7 +6,7 @@ separate images `vllm-gemma4-audio` (12B multimodal) and `risk-vllm-kanana`
 (Kanana risk-prompt) — merged 2026-07-24 once both patch sets were confirmed
 to touch disjoint files (see `Dockerfile` header comment).
 
-Two independent patch sets, each a no-op for the models that don't need it:
+Three independent patch sets, each a no-op for the models that don't need it:
 
 1. **Gemma4-unified multimodal** (12B only) — media decode stack (base image의
    `libsndfile1` + soundfile + librosa + PyAV), the `vision_embedder.patch_dense` FP8
@@ -16,8 +16,16 @@ Two independent patch sets, each a no-op for the models that don't need it:
 2. **Kanana Llama head_dim guard** (risk-prompt only) — explicit Llama
    `head_dim` compatibility patch. No other served model sets an explicit
    head_dim, so this is inert elsewhere.
+3. **Gemma4 streaming parser** — verify the upstream open-channel reasoning
+   fix and absorb the local `<turn|>` terminal in streaming responses.
 
-Both patch scripts assert on the exact upstream layout they were written
+vLLM 0.30.0 moved BitsAndBytes quantization to the official
+[`vllm-bnb-plugin`](https://github.com/vllm-project/vllm-bnb-plugin). The
+Kanana detector still uses `--quantization bitsandbytes`; the derived image
+installs the plugin and BitsAndBytes from `requirements.bnb.lock` with exact
+wheel hashes and verifies registration during the build.
+
+The patch scripts assert on the exact upstream layout they were written
 against, so a base image bump that invalidates either one fails the build
 loudly instead of shipping silently broken.
 
@@ -46,6 +54,15 @@ target host의 persistent `VLLM_IMAGE`에 명시적으로 pin한 뒤 canonical l
 
 기본 base image와 호환성 pin은 `configs/vllm_unified_build.yaml`에서 읽는다. 검증용
 base 교체가 필요한 경우에만 그 빌드 한 번에 한정해 immutable digest를 넘긴다.
+
+vLLM 0.30.0에서는 공식 `-cu129` amd64 image가 Torch 2.14.0+cu130과
+torchvision 0.28.0+cu129를 함께 담아 `import torchvision`이 실패했다.
+현재 canonical base는 실제 import와 GPU 접근을 확인한 CUDA 13.0 amd64 image다.
+Dockerfile은 Torch/torchvision import와 CUDA variant 일치를 빌드 중 검사한다.
+후보 base의 dependency metadata도 확인해야 한다. 현재 CUDA 13.0 base의
+`pip check`는 `nvidia-nccl-cu13` 설치 버전(2.30.7)이 Torch 메타데이터 요구 버전
+(2.29.7)과 다르다고 보고한다. 이 프로젝트의 단일 GPU/TP=1 canary가 통과해도
+다중 GPU 호환성을 확인한 근거로 해석하지 않는다.
 
 ```bash
 VLLM_BASE_IMAGE='vllm/vllm-openai@sha256:<digest>' make build-vllm-unified-image

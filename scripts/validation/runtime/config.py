@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,8 @@ class RuntimeValidationConfig:
     monitoring: dict[str, Any]
     services: dict[str, Any]
     version: str
+    expected_vllm_version: str
+    expected_main_image_digest: str | None
 
 
 def _first_csv_value(value: str) -> str:
@@ -60,6 +63,16 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
     root = Path(args.root).resolve()
     load_dotenv(root)
     model_serving = load_yaml_mapping(root / "configs/model_serving.yaml")
+    vllm_build = load_yaml_mapping(root / "configs/vllm_unified_build.yaml")
+    expected_vllm_version = str(vllm_build["compatibility_pins"]["vllm"])
+    expected_main_image_digest = (
+        _explicit_arg(args, "expected_main_image_digest")
+        or os.getenv("EXPECTED_MAIN_IMAGE_DIGEST", "").strip()
+    )
+    if expected_main_image_digest and not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", expected_main_image_digest
+    ):
+        raise ValueError("expected main image digest must be sha256:<64 lowercase hex>")
     model_catalog = load_yaml_mapping(root / "configs/model_catalog.yaml")
     monitoring = load_yaml_mapping(root / "configs/monitoring.yaml")
     services = load_yaml_mapping(root / "configs/services.yaml")["services"]
@@ -126,4 +139,6 @@ def load_runtime_config(args: Any) -> RuntimeValidationConfig:
         monitoring=monitoring,
         services=services,
         version=(root / "VERSION").read_text(encoding="utf-8").strip(),
+        expected_vllm_version=expected_vllm_version,
+        expected_main_image_digest=expected_main_image_digest or None,
     )

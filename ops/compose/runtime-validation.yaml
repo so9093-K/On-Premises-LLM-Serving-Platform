@@ -31,6 +31,7 @@ services:
       GRAFANA_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       MAIN_MODEL_RESOURCE_VARIANT: ${MAIN_MODEL_RESOURCE_VARIANT:-}
+      EXPECTED_MAIN_IMAGE_DIGEST: ${EXPECTED_MAIN_IMAGE_DIGEST:-}
     volumes:
       - ../../src:/workspace/src:ro
       - ../../scripts:/workspace/scripts:ro

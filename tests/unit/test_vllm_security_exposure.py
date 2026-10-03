@@ -86,6 +86,33 @@ def test_cache_salt_is_not_a_gateway_request_surface(
 
 
 @pytest.mark.parametrize(
+    ("validator", "payload", "kwargs"),
+    [
+        (
+            validate_chat_request,
+            {"model": "local-main", "messages": [{"role": "user", "content": "hello"}]},
+            {"expected_model": "local-main", "request_parameter_policy": _STRICT_PARAMETER_POLICY},
+        ),
+        (
+            validate_responses_request,
+            {"model": "local-main", "input": "hello"},
+            {"expected_model": "local-main"},
+        ),
+    ],
+)
+def test_request_level_media_io_kwargs_never_reach_vllm(validator, payload: dict, kwargs: dict) -> None:
+    """Video sampler controls must remain outside the public Gateway contract."""
+    with pytest.raises(ServiceError) as exc:
+        validator(
+            {**payload, "media_io_kwargs": {"video": {"max_frames": 1_000_000, "fps": 1_000_000}}},
+            **kwargs,
+        )
+
+    assert exc.value.status_code == 422
+    assert exc.value.param == "media_io_kwargs"
+
+
+@pytest.mark.parametrize(
     ("part", "kwargs", "expected_param"),
     [
         (
