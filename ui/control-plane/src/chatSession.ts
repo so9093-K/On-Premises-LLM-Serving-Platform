@@ -6,7 +6,10 @@ type ParameterSpec = Record<string, unknown>;
 
 export type PublicModel = {
   id: string;
+  backend: string;
   capabilities: readonly string[];
+  input_modalities?: readonly string[];
+  request_limits?: Record<string, ParameterSpec>;
   request_parameters: Record<string, ParameterSpec>;
 };
 
@@ -42,10 +45,19 @@ export type AssistantTurn = {
   finishedAt: number | null;
 };
 
+export type ChatRequestContext = {
+  modelId: string;
+  backend: string;
+  capabilities: string[];
+  inputModalities: string[];
+  parameters: Record<string, unknown>;
+};
+
 export type Exchange = {
   id: number;
   user: string;
   sentAtSeconds: number;
+  requestContext: ChatRequestContext;
   assistant: AssistantTurn;
 };
 
@@ -53,6 +65,52 @@ export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: stri
 
 export function chatCapableModels(models: readonly PublicModel[]): PublicModel[] {
   return models.filter((model) => model.capabilities.includes('chat.completions'));
+}
+
+const INPUT_MODALITY_LABELS: Record<string, string> = {
+  text: '텍스트',
+  image: '이미지',
+  audio: '오디오',
+  video: '비디오',
+};
+
+export function inputModalityLabel(value: string): string {
+  return INPUT_MODALITY_LABELS[value] ?? value;
+}
+
+export function modelFeatureLabels(model: PublicModel): string[] {
+  const labels = (model.input_modalities ?? []).map(inputModalityLabel);
+  const params = model.request_parameters;
+  if (params.tools !== undefined) labels.push('도구');
+  if (params.reasoning !== undefined) labels.push('추론');
+  const responseFormat = params.response_format;
+  const allowedTypes = Array.isArray(responseFormat?.allowed_types)
+    ? responseFormat.allowed_types
+    : [];
+  if (allowedTypes.some((value) => value === 'json_object' || value === 'json_schema')) {
+    labels.push('구조화 출력');
+  }
+  return [...new Set(labels)];
+}
+
+function jsonSnapshot(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+export function createRequestContext(
+  model: PublicModel,
+  body: Record<string, unknown>,
+): ChatRequestContext {
+  const parameters = Object.fromEntries(
+    Object.entries(body).filter(([name]) => name !== 'model' && name !== 'messages'),
+  );
+  return {
+    modelId: model.id,
+    backend: model.backend,
+    capabilities: [...model.capabilities],
+    inputModalities: [...(model.input_modalities ?? [])],
+    parameters: jsonSnapshot(parameters),
+  };
 }
 
 function finite(value: unknown): number | null {

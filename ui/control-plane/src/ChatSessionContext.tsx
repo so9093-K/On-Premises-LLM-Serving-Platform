@@ -14,6 +14,7 @@ import { readChatStream } from './chatStream';
 import {
   applyChatUpdate,
   buildChatRequest,
+  createRequestContext,
   completeFromResponse,
   DEFAULT_CHAT_SETTINGS,
   failTurn,
@@ -89,7 +90,13 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     setBusy(true);
     setExchanges((items) => [
       ...items,
-      { id, user: text, sentAtSeconds: Date.now() / 1000, assistant: startTurn(performance.now()) },
+      {
+        id,
+        user: text,
+        sentAtSeconds: Date.now() / 1000,
+        requestContext: createRequestContext(model, body),
+        assistant: startTurn(performance.now()),
+      },
     ]);
     const update = (change: (turn: AssistantTurn) => AssistantTurn) => {
       setExchanges((items) => items.map((item) => (

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   formatTokenLimits,
   isMainModelOperationTerminal,
+  MAIN_MODEL_TERMINAL_QUERY_KEYS,
   mainModelOperationProgress,
   mainModelOperationStagePresentation,
   mainModelProfileImpact,
@@ -37,6 +38,14 @@ function profile(
     ...overrides,
   };
 }
+
+test('terminal main-model operations invalidate model state and public capability caches', () => {
+  assert.deepEqual(MAIN_MODEL_TERMINAL_QUERY_KEYS, [
+    ['main-model', 'status'],
+    ['main-model', 'profiles'],
+    ['public-models'],
+  ]);
+});
 
 test('qualification alone controls explicit confirmation', () => {
   assert.equal(mainModelProfileRequiresConfirmation(profile('compatible', 'verified')), false);
