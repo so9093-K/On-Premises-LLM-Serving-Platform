@@ -14,6 +14,7 @@ import {
   conversationAttachments,
   inputModalityLabel,
   modelFeatureLabels,
+  normalizeChatSettingsForModel,
   numberControlRangeHint,
   pendingToolCallExchange,
   TOOL_CHOICE_DEFAULT,
@@ -280,7 +281,7 @@ function ToolResultForm({
   }
 
   return (
-    <form className="chat-tool-result-form" onSubmit={submit}>
+    <form className="chat-tool-result-form" aria-label="도구 결과 입력" onSubmit={submit}>
       <strong>도구 결과 입력</strong>
       <small>Console은 함수를 실행하지 않습니다. 실제 실행 결과를 입력하면 같은 <code>tool_call_id</code>로 다음 요청을 보냅니다.</small>
       {calls.map((call) => (
@@ -334,7 +335,7 @@ function ExchangeView({
       <div className="chat-message chat-message-user">
         <span className="chat-role">{exchange.toolResults?.length ? '도구 결과' : '나'}</span>
         {exchange.toolResults?.length ? (
-          <ul className="chat-tool-result-list">
+          <ul className="chat-tool-result-list" aria-label="전송한 도구 결과">
             {exchange.toolResults.map((result) => (
               <li key={result.toolCallId}>
                 <code>{result.toolCallId}</code>
@@ -369,7 +370,7 @@ function ExchangeView({
           <div className="chat-waiting"><Spinner size="sm" aria-label="응답 대기 중" /> 응답 대기 중…</div>
         ) : null}
         {turn.toolCalls.length > 0 ? (
-          <div className="chat-tool-calls" aria-label="모델 도구 호출">
+          <div className="chat-tool-calls" role="group" aria-label="모델 도구 호출">
             {turn.toolCalls.map((call, index) => (
               <div className="chat-tool-call" key={call.id || `tool-call-${index}`}>
                 <div>
@@ -830,6 +831,12 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
 
+  useEffect(() => {
+    if (model === null) return;
+    const normalized = normalizeChatSettingsForModel(session.settings, model);
+    if (normalized !== session.settings) session.updateSettings(normalized);
+  }, [model, session.settings, session.updateSettings]);
+
   // 사용자가 위로 스크롤해 이전 응답을 읽는 중이면 새 token이 와도 끌어내리지 않는다.
   useEffect(() => {
     const onScroll = () => {
@@ -927,7 +934,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 request_id가 표시됩니다.
               </p>
             ) : (
-              <ol className="chat-log" aria-live="polite">
+              <ol className="chat-log" aria-live="polite" aria-atomic="false" aria-relevant="additions text">
                 {exchanges.map((exchange) => (
                   <ExchangeView
                     key={exchange.id}

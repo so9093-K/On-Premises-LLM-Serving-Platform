@@ -71,6 +71,80 @@ def test_models_listing_does_not_advertise_tools_when_active_profile_rejects_the
     assert "chat.completions.tools" not in main["capabilities"]
 
 
+def test_models_listing_projects_active_request_contract_from_same_profile_snapshot():
+    runtime_controller = _FakeRuntimeController(
+        ["text", "image"],
+        gateway_policy={
+            "max_output_tokens": 321,
+            "request_limits": {
+                "input_modalities": ["text", "image"],
+                "max_image_inputs": 2,
+                "max_image_bytes": 12345,
+                "max_image_pixels": 99999,
+                "allowed_image_mime_types": ["image/png"],
+                "allowed_image_url_schemes": ["data"],
+            },
+            "request_parameter_policy": {
+                "supported_parameters": [
+                    "max_tokens",
+                    "tools",
+                    "tool_choice",
+                    "parallel_tool_calls",
+                    "reasoning",
+                    "response_format",
+                ],
+                "tool_calling": {
+                    "enabled": True,
+                    "max_tools": 3,
+                    "allow_parallel_tool_calls": False,
+                    "tool_choice": {
+                        "allowed": ["auto", "none"],
+                        "allow_named": False,
+                    },
+                },
+                "reasoning": {
+                    "enabled": True,
+                    "default": False,
+                    "mode": "request_opt_in",
+                },
+                "response_format": {
+                    "enabled": True,
+                    "types": ["text", "json_object"],
+                    "json_object": {"require_json_instruction": True},
+                },
+            },
+        },
+    )
+    main = _main_model(
+        _app_with_runtime_controller(runtime_controller).get(
+            "/v1/models", headers=auth_headers()
+        )
+    )
+
+    assert main["input_modalities"] == ["text", "image"]
+    assert "chat.completions.tools" in main["capabilities"]
+    assert main["request_parameters"]["max_tokens"]["max"] == 321
+    assert main["request_parameters"]["tools"] == {
+        "type": "array",
+        "min_items": 1,
+        "max_items": 3,
+    }
+    assert main["request_parameters"]["tool_choice"]["allowed"] == ["auto", "none"]
+    assert main["request_parameters"]["parallel_tool_calls"]["const"] is False
+    assert main["request_parameters"]["reasoning"]["default"] is False
+    assert main["request_parameters"]["response_format"]["allowed_types"] == [
+        "text",
+        "json_object",
+    ]
+    assert main["request_limits"]["image"] == {
+        "max_inputs": 2,
+        "max_bytes": 12345,
+        "max_pixels": 99999,
+        "allowed_mime_types": ["image/png"],
+        "allowed_url_schemes": ["data"],
+    }
+
+
 def test_models_listing_falls_back_when_runtime_controller_unavailable():
     cfg = settings()
     clients = FakeGatewayClients()
