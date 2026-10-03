@@ -1,6 +1,6 @@
 // 채팅 테스트 화면의 순수 로직. 요청 본문은 /v1/models가 광고한 request_parameters
 // 안에서만 만들고, 응답 누적과 지연 측정은 화면과 분리해 테스트한다.
-import type { ChatStreamUpdate, ChatUsage } from './chatStream';
+import type { ChatStreamUpdate, ChatToolCallDelta, ChatUsage } from './chatStream';
 
 type ParameterSpec = Record<string, unknown>;
 
@@ -31,6 +31,39 @@ export type BooleanControl = {
 export type StringListControl = {
   maxItems: number | null;
 };
+
+export type ToolControl = {
+  minItems: number | null;
+  maxItems: number | null;
+  choiceAllowed: string[];
+  allowNamed: boolean;
+  parallelConst: boolean | null;
+};
+
+export type ToolDraft = {
+  id: string;
+  name: string;
+  description: string;
+  parametersText: string;
+  strict: boolean | null;
+};
+
+export type ChatToolCall = {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+export type ChatToolResult = {
+  toolCallId: string;
+  content: string;
+};
+
+export const TOOL_CHOICE_DEFAULT = '__default__';
+export const TOOL_CHOICE_NAMED = '__named__';
 
 export type ResponseFormatType = 'text' | 'json_object' | 'json_schema';
 
@@ -63,6 +96,7 @@ export type ChatControls = {
   reasoning: BooleanControl | null;
   stream: BooleanControl | null;
   logprobs: BooleanControl | null;
+  tools: ToolControl | null;
   responseFormat: ResponseFormatControl | null;
   includeUsage: boolean;
   fixedN: number | null;
@@ -88,6 +122,9 @@ export type ChatSettings = {
   jsonSchemaName: string;
   jsonSchemaText: string;
   jsonSchemaStrict: boolean | null;
+  toolDrafts: ToolDraft[];
+  toolChoice: string;
+  toolChoiceName: string;
 };
 
 export type TurnStatus = 'streaming' | 'complete' | 'stopped' | 'failed';
@@ -96,6 +133,7 @@ export type AssistantTurn = {
   status: TurnStatus;
   content: string;
   reasoning: string;
+  toolCalls: ChatToolCall[];
   finishReason: string | null;
   usage: ChatUsage | null;
   error: { code: string | null; message: string } | null;
@@ -131,6 +169,7 @@ export type Exchange = {
   id: number;
   user: string;
   attachments: ChatAttachment[];
+  toolResults?: ChatToolResult[];
   sentAtSeconds: number;
   requestContext: ChatRequestContext;
   assistant: AssistantTurn;
@@ -142,10 +181,10 @@ export type ChatContentPart =
   | { type: 'input_audio'; input_audio: { data: string; format: string } }
   | { type: 'video_url'; video_url: { url: string } };
 
-export type ChatMessage = {
-  role: 'system' | 'user' | 'assistant';
-  content: string | ChatContentPart[];
-};
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string | ChatContentPart[] }
+  | { role: 'assistant'; content: string | null; tool_calls?: ChatToolCall[] }
+  | { role: 'tool'; content: string; tool_call_id: string };
 
 export function chatCapableModels(models: readonly PublicModel[]): PublicModel[] {
   return models.filter((model) => model.capabilities.includes('chat.completions'));
@@ -288,7 +327,36 @@ function userMessageContent(text: string, attachments: readonly ChatAttachment[]
 }
 
 function exchangeIncludedInHistory(exchange: Exchange): boolean {
-  return exchange.assistant.status !== 'failed' && exchange.assistant.content !== '';
+  const turn = exchange.assistant;
+  if (turn.status === 'failed') return false;
+  if (turn.toolCalls.length > 0) {
+    return turn.status === 'complete'
+      && turn.finishReason === 'tool_calls'
+      && turn.toolCalls.every((call) => call.id !== '' && call.function.name !== '');
+  }
+  return turn.content !== '';
+}
+
+function toolResultsResolveSource(source: Exchange, candidate: Exchange): boolean {
+  if (candidate.id <= source.id || !exchangeIncludedInHistory(candidate)) return false;
+  const callIds = new Set(source.assistant.toolCalls.map((call) => call.id));
+  const results = candidate.toolResults ?? [];
+  if (callIds.size === 0 || results.length !== callIds.size) return false;
+  const resultIds = new Set(results.map((result) => result.toolCallId));
+  return resultIds.size === callIds.size && [...callIds].every((id) => resultIds.has(id));
+}
+
+export function pendingToolCallExchange(exchanges: readonly Exchange[]): Exchange | null {
+  for (const exchange of exchanges) {
+    if (
+      exchange.assistant.toolCalls.length > 0
+      && exchangeIncludedInHistory(exchange)
+      && !exchanges.some((candidate) => toolResultsResolveSource(exchange, candidate))
+    ) {
+      return exchange;
+    }
+  }
+  return null;
 }
 
 export function conversationAttachments(exchanges: readonly Exchange[]): ChatAttachment[] {
@@ -387,6 +455,20 @@ function fixedNumericValue(spec: ParameterSpec | undefined): number | null {
   return min !== null && max !== null && min === max ? min : null;
 }
 
+function toolControl(params: Record<string, ParameterSpec>): ToolControl | null {
+  const tools = params.tools;
+  if (tools === undefined) return null;
+  const choice = objectOrEmpty(params.tool_choice);
+  const parallel = params.parallel_tool_calls;
+  return {
+    minItems: integerOrNull(tools.min_items),
+    maxItems: integerOrNull(tools.max_items),
+    choiceAllowed: stringList(choice.allowed),
+    allowNamed: choice.allow_named === true,
+    parallelConst: typeof parallel?.const === 'boolean' ? parallel.const : null,
+  };
+}
+
 function responseFormatControl(spec: ParameterSpec | undefined): ResponseFormatControl | null {
   if (spec === undefined) return null;
   const allowedTypes = stringList(spec.allowed_types).filter(
@@ -441,6 +523,7 @@ export function chatControls(model: PublicModel): ChatControls {
     reasoning: booleanControl(params.reasoning),
     stream: booleanControl(params.stream),
     logprobs: booleanControl(params.logprobs),
+    tools: toolControl(params),
     responseFormat: responseFormatControl(params.response_format),
     includeUsage: params.stream_options !== undefined,
     fixedN: fixedNumericValue(params.n),
@@ -469,6 +552,9 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   jsonSchemaName: 'response',
   jsonSchemaText: '',
   jsonSchemaStrict: null,
+  toolDrafts: [],
+  toolChoice: TOOL_CHOICE_DEFAULT,
+  toolChoiceName: '',
 };
 
 function boundViolated(value: number, bound: NumericBound, minimum: boolean): boolean {
@@ -510,6 +596,72 @@ function parseStopValue(
     return { value: null, error: `중지 문자열은 최대 ${control.maxItems}개까지 사용할 수 있습니다.` };
   }
   return { value: values.length === 1 ? values[0] : values, error: null };
+}
+
+function toolRequestParameters(
+  control: ToolControl | null,
+  settings: ChatSettings,
+): { value: Record<string, unknown>; error: string | null } {
+  const hasDrafts = settings.toolDrafts.length > 0;
+  const hasChoice = settings.toolChoice !== TOOL_CHOICE_DEFAULT;
+  if (control === null) {
+    return hasDrafts || hasChoice
+      ? { value: {}, error: '현재 모델은 도구 호출을 광고하지 않습니다.' }
+      : { value: {}, error: null };
+  }
+  if (control.maxItems !== null && settings.toolDrafts.length > control.maxItems) {
+    return { value: {}, error: `도구는 최대 ${control.maxItems}개까지 사용할 수 있습니다.` };
+  }
+  if (
+    settings.toolDrafts.length > 0
+    && control.minItems !== null
+    && settings.toolDrafts.length < control.minItems
+  ) {
+    return { value: {}, error: `도구를 사용하려면 최소 ${control.minItems}개를 정의해야 합니다.` };
+  }
+
+  const tools: Record<string, unknown>[] = [];
+  for (const [index, draft] of settings.toolDrafts.entries()) {
+    const name = draft.name.trim();
+    if (!name) return { value: {}, error: `도구 ${index + 1}의 function 이름을 입력하세요.` };
+    const fn: Record<string, unknown> = { name };
+    if (draft.description.trim()) fn.description = draft.description.trim();
+    if (draft.parametersText.trim()) {
+      let parameters: unknown;
+      try {
+        parameters = JSON.parse(draft.parametersText);
+      } catch {
+        return { value: {}, error: `도구 ${name}의 parameters가 유효한 JSON이 아닙니다.` };
+      }
+      if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) {
+        return { value: {}, error: `도구 ${name}의 parameters는 JSON object여야 합니다.` };
+      }
+      fn.parameters = parameters;
+    }
+    if (draft.strict !== null) fn.strict = draft.strict;
+    tools.push({ type: 'function', function: fn });
+  }
+
+  const value: Record<string, unknown> = {};
+  if (tools.length > 0) value.tools = tools;
+  if (settings.toolChoice === TOOL_CHOICE_NAMED) {
+    if (!control.allowNamed) return { value: {}, error: '현재 모델은 named tool choice를 광고하지 않습니다.' };
+    const name = settings.toolChoiceName.trim();
+    if (!name) return { value: {}, error: '고정할 function을 선택하세요.' };
+    if (!settings.toolDrafts.some((draft) => draft.name.trim() === name)) {
+      return { value: {}, error: 'Named tool choice는 현재 정의한 function 중에서 선택해야 합니다.' };
+    }
+    value.tool_choice = { type: 'function', function: { name } };
+  } else if (settings.toolChoice !== TOOL_CHOICE_DEFAULT) {
+    if (!control.choiceAllowed.includes(settings.toolChoice)) {
+      return { value: {}, error: '현재 모델이 광고하지 않은 tool_choice입니다.' };
+    }
+    if (settings.toolChoice !== 'none' && tools.length === 0) {
+      return { value: {}, error: '이 tool_choice를 사용하려면 하나 이상의 도구를 정의해야 합니다.' };
+    }
+    value.tool_choice = settings.toolChoice;
+  }
+  return { value, error: null };
 }
 
 const SCHEMA_VALUE_KEYS = new Set([
@@ -567,6 +719,7 @@ function totalSchemaProperties(value: Record<string, unknown>): number {
 function messagesContainJsonInstruction(messages: readonly ChatMessage[]): boolean {
   return messages.some((message) => {
     if (typeof message.content === 'string') return message.content.toLowerCase().includes('json');
+    if (!Array.isArray(message.content)) return false;
     return message.content.some((part) => part.type === 'text' && part.text.toLowerCase().includes('json'));
   });
 }
@@ -644,48 +797,60 @@ function structuredResponseFormat(
 
 // 대화 기록은 성공한 주고받기만 보낸다. 실패하거나 빈 답을 보내면 user 메시지가
 // 연속되고, 역할이 번갈아야 하는 chat template은 그 요청을 거부한다.
+function assistantHistoryMessage(turn: AssistantTurn): ChatMessage {
+  return {
+    role: 'assistant',
+    content: turn.content || null,
+    ...(turn.toolCalls.length > 0 ? { tool_calls: turn.toolCalls.map((call) => ({
+      id: call.id,
+      type: 'function' as const,
+      function: { ...call.function },
+    })) } : {}),
+  };
+}
+
+function historyMessages(exchanges: readonly Exchange[], systemPrompt: string): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt });
+  for (const exchange of exchanges) {
+    if (!exchangeIncludedInHistory(exchange)) continue;
+    const toolResults = exchange.toolResults ?? [];
+    if (toolResults.length > 0) {
+      messages.push(...toolResults.map((result): ChatMessage => ({
+        role: 'tool',
+        content: result.content,
+        tool_call_id: result.toolCallId,
+      })));
+    } else {
+      messages.push({
+        role: 'user',
+        content: userMessageContent(exchange.user, exchange.attachments),
+      });
+    }
+    messages.push(assistantHistoryMessage(exchange.assistant));
+  }
+  return messages;
+}
+
 export function conversationMessages(
   exchanges: readonly Exchange[],
   nextUserText: string,
   systemPrompt: string,
   nextAttachments: readonly ChatAttachment[] = [],
 ): ChatMessage[] {
-  const messages: ChatMessage[] = [];
-  if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt });
-  for (const exchange of exchanges) {
-    if (!exchangeIncludedInHistory(exchange)) continue;
-    messages.push({
-      role: 'user',
-      content: userMessageContent(exchange.user, exchange.attachments),
-    });
-    messages.push({ role: 'assistant', content: exchange.assistant.content });
-  }
-  messages.push({ role: 'user', content: userMessageContent(nextUserText, nextAttachments) });
-  return messages;
+  return [
+    ...historyMessages(exchanges, systemPrompt),
+    { role: 'user', content: userMessageContent(nextUserText, nextAttachments) },
+  ];
 }
 
-export function buildChatRequest(
+function buildRequestFromMessages(
   model: PublicModel,
   settings: ChatSettings,
-  exchanges: readonly Exchange[],
-  nextUserText: string,
-  nextAttachments: readonly ChatAttachment[] = [],
+  messages: ChatMessage[],
 ): { body: Record<string, unknown>; error: string | null } {
-  if (!nextUserText && nextAttachments.length === 0) {
-    return { body: {}, error: '메시지나 첨부 파일을 입력하세요.' };
-  }
-  const attachmentError = validateChatAttachments(
-    model,
-    [...conversationAttachments(exchanges), ...nextAttachments],
-  );
-  if (attachmentError) return { body: {}, error: attachmentError };
-
   const controls = chatControls(model);
-  const messages = conversationMessages(exchanges, nextUserText, settings.systemPrompt, nextAttachments);
-  const body: Record<string, unknown> = {
-    model: model.id,
-    messages,
-  };
+  const body: Record<string, unknown> = { model: model.id, messages };
 
   const streamEnabled = controls.stream
     ? controls.stream.constValue ?? settings.stream
@@ -755,6 +920,10 @@ export function buildChatRequest(
     }
   }
 
+  const toolParams = toolRequestParameters(controls.tools, settings);
+  if (toolParams.error) return { body, error: toolParams.error };
+  Object.assign(body, toolParams.value);
+
   if (controls.responseFormat) {
     const structured = structuredResponseFormat(controls.responseFormat, settings, messages);
     if (structured.error) return { body, error: structured.error };
@@ -763,11 +932,75 @@ export function buildChatRequest(
   return { body, error: null };
 }
 
+export function buildChatRequest(
+  model: PublicModel,
+  settings: ChatSettings,
+  exchanges: readonly Exchange[],
+  nextUserText: string,
+  nextAttachments: readonly ChatAttachment[] = [],
+): { body: Record<string, unknown>; error: string | null } {
+  if (!nextUserText && nextAttachments.length === 0) {
+    return { body: {}, error: '메시지나 첨부 파일을 입력하세요.' };
+  }
+  if (pendingToolCallExchange(exchanges) !== null) {
+    return { body: {}, error: '먼저 대기 중인 tool call의 결과를 입력해 대화를 이어가세요.' };
+  }
+  const attachmentError = validateChatAttachments(
+    model,
+    [...conversationAttachments(exchanges), ...nextAttachments],
+  );
+  if (attachmentError) return { body: {}, error: attachmentError };
+  return buildRequestFromMessages(
+    model,
+    settings,
+    conversationMessages(exchanges, nextUserText, settings.systemPrompt, nextAttachments),
+  );
+}
+
+export function buildToolResultRequest(
+  model: PublicModel,
+  settings: ChatSettings,
+  exchanges: readonly Exchange[],
+  sourceExchangeId: number,
+  results: readonly ChatToolResult[],
+): { body: Record<string, unknown>; error: string | null } {
+  const source = exchanges.find((exchange) => exchange.id === sourceExchangeId);
+  if (!source || source.assistant.status !== 'complete' || source.assistant.finishReason !== 'tool_calls') {
+    return { body: {}, error: '완료된 tool call에만 결과를 연결할 수 있습니다.' };
+  }
+  const calls = source.assistant.toolCalls;
+  if (calls.length === 0) return { body: {}, error: '연결할 tool call이 없습니다.' };
+  if (results.length !== calls.length) {
+    return { body: {}, error: '모든 tool call의 결과를 함께 입력해야 합니다.' };
+  }
+  const callIds = new Set(calls.map((call) => call.id));
+  const resultIds = new Set(results.map((result) => result.toolCallId));
+  if (resultIds.size !== results.length || resultIds.size !== callIds.size || [...resultIds].some((id) => !callIds.has(id))) {
+    return { body: {}, error: 'Tool result의 tool_call_id가 assistant tool call과 일치해야 합니다.' };
+  }
+  const alreadyResolved = exchanges.some((exchange) => toolResultsResolveSource(source, exchange));
+  if (alreadyResolved) return { body: {}, error: '이미 결과를 보낸 tool call입니다.' };
+  if (chatControls(model).tools === null) {
+    return { body: {}, error: '현재 모델은 도구 호출을 광고하지 않아 이 대화를 이어갈 수 없습니다.' };
+  }
+  const attachmentError = validateChatAttachments(model, conversationAttachments(exchanges));
+  if (attachmentError) return { body: {}, error: attachmentError };
+
+  const messages = historyMessages(exchanges, settings.systemPrompt);
+  messages.push(...results.map((result): ChatMessage => ({
+    role: 'tool',
+    content: result.content,
+    tool_call_id: result.toolCallId,
+  })));
+  return buildRequestFromMessages(model, settings, messages);
+}
+
 export function startTurn(now: number): AssistantTurn {
   return {
     status: 'streaming',
     content: '',
     reasoning: '',
+    toolCalls: [],
     finishReason: null,
     usage: null,
     error: null,
@@ -778,15 +1011,38 @@ export function startTurn(now: number): AssistantTurn {
   };
 }
 
+function applyToolCallDeltas(
+  current: readonly ChatToolCall[],
+  deltas: readonly ChatToolCallDelta[],
+): ChatToolCall[] {
+  const next = current.map((call) => ({
+    ...call,
+    function: { ...call.function },
+  }));
+  for (const delta of deltas) {
+    while (next.length <= delta.index) {
+      next.push({ id: '', type: 'function', function: { name: '', arguments: '' } });
+    }
+    const call = next[delta.index];
+    if (delta.id) call.id = delta.id;
+    if (delta.type === 'function') call.type = 'function';
+    call.function.name += delta.name;
+    call.function.arguments += delta.arguments;
+  }
+  return next;
+}
+
 export function applyChatUpdate(turn: AssistantTurn, update: ChatStreamUpdate, now: number): AssistantTurn {
   if (turn.status !== 'streaming') return turn;
   switch (update.kind) {
     case 'chunk': {
-      const produced = update.content !== '' || update.reasoning !== '';
+      const toolCallDeltas = update.toolCallDeltas ?? [];
+      const produced = update.content !== '' || update.reasoning !== '' || toolCallDeltas.length > 0;
       return {
         ...turn,
         content: turn.content + update.content,
         reasoning: turn.reasoning + update.reasoning,
+        toolCalls: applyToolCallDeltas(turn.toolCalls, toolCallDeltas),
         finishReason: update.finishReason ?? turn.finishReason,
         usage: update.usage ?? turn.usage,
         firstTokenAt: turn.firstTokenAt ?? (produced ? now : null),
@@ -831,6 +1087,25 @@ export function failTurn(
   };
 }
 
+function toolCallsFromResponse(value: unknown): ChatToolCall[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const call = objectOrEmpty(item);
+    const fn = objectOrEmpty(call.function);
+    if (
+      call.type !== 'function'
+      || typeof call.id !== 'string'
+      || typeof fn.name !== 'string'
+      || typeof fn.arguments !== 'string'
+    ) return [];
+    return [{
+      id: call.id,
+      type: 'function' as const,
+      function: { name: fn.name, arguments: fn.arguments },
+    }];
+  });
+}
+
 // 비스트리밍 응답(stream을 광고하지 않는 모델)을 같은 turn 모양으로 옮긴다.
 export function completeFromResponse(turn: AssistantTurn, payload: unknown, now: number): AssistantTurn {
   const body = typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {};
@@ -844,6 +1119,7 @@ export function completeFromResponse(turn: AssistantTurn, payload: unknown, now:
     reasoning: typeof message.reasoning === 'string'
       ? message.reasoning
       : typeof message.reasoning_content === 'string' ? message.reasoning_content : '',
+    toolCalls: toolCallsFromResponse(message.tool_calls),
     finishReason: typeof choice?.finish_reason === 'string' ? choice.finish_reason : null,
     usage: usage && typeof usage.completion_tokens === 'number' ? usage : null,
     // 한 번에 받은 응답에는 첫 토큰 시점이 없다. 전체 시간과 같은 값을 첫 토큰으로 보이지 않는다.
@@ -891,7 +1167,7 @@ export function turnNotice(turn: AssistantTurn): string | null {
   if (turn.status === 'stopped') return '중지했습니다. 받은 부분까지만 표시합니다.';
   if (turn.status === 'failed') return null;
   if (turn.finishReason === 'length') return '최대 출력 토큰에 도달해 응답이 잘렸습니다.';
-  if (turn.status === 'complete' && !turn.content && turn.reasoning) {
+  if (turn.status === 'complete' && !turn.content && turn.toolCalls.length === 0 && turn.reasoning) {
     return '생각 과정만 생성되고 답변은 없습니다. 최대 출력 토큰을 늘려 보세요.';
   }
   return null;

@@ -15,10 +15,15 @@ import {
   inputModalityLabel,
   modelFeatureLabels,
   numberControlRangeHint,
+  pendingToolCallExchange,
+  TOOL_CHOICE_DEFAULT,
+  TOOL_CHOICE_NAMED,
   validateChatAttachments,
   turnFacts,
   turnNotice,
   type ChatAttachment,
+  type ChatToolCall,
+  type ChatToolResult,
   type Exchange,
   type NumberControl,
   type PublicModel,
@@ -240,7 +245,82 @@ function ApiKeyForm({ rejected }: { rejected: boolean }) {
   );
 }
 
-function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl: string | null }) {
+function toolArgumentsAreJson(call: ChatToolCall): boolean {
+  try {
+    JSON.parse(call.function.arguments);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ToolResultForm({
+  exchange,
+  busy,
+  onSend,
+}: {
+  exchange: Exchange;
+  busy: boolean;
+  onSend: (results: readonly ChatToolResult[]) => string | null;
+}) {
+  const calls = exchange.assistant.toolCalls;
+  const [values, setValues] = useState<Record<string, string>>(
+    () => Object.fromEntries(calls.map((call) => [call.id, ''])),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const results = calls.map((call) => ({
+      toolCallId: call.id,
+      content: values[call.id] ?? '',
+    }));
+    const nextError = onSend(results);
+    setError(nextError);
+  }
+
+  return (
+    <form className="chat-tool-result-form" onSubmit={submit}>
+      <strong>도구 결과 입력</strong>
+      <small>Console은 함수를 실행하지 않습니다. 실제 실행 결과를 입력하면 같은 <code>tool_call_id</code>로 다음 요청을 보냅니다.</small>
+      {calls.map((call) => (
+        <div className="chat-setting-field" key={call.id}>
+          <label htmlFor={`chat-tool-result-${exchange.id}-${call.id}`}>
+            <code>{call.function.name}</code> 결과
+          </label>
+          <textarea
+            id={`chat-tool-result-${exchange.id}-${call.id}`}
+            rows={3}
+            value={values[call.id] ?? ''}
+            disabled={busy}
+            onChange={(event) => setValues((current) => ({
+              ...current,
+              [call.id]: event.currentTarget.value,
+            }))}
+          />
+        </div>
+      ))}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      <Button type="submit" variant="secondary" isDisabled={busy}>
+        도구 결과 보내기
+      </Button>
+    </form>
+  );
+}
+
+function ExchangeView({
+  exchange,
+  grafanaUrl,
+  pendingToolResult,
+  busy,
+  onSendToolResults,
+}: {
+  exchange: Exchange;
+  grafanaUrl: string | null;
+  pendingToolResult: boolean;
+  busy: boolean;
+  onSendToolResults: (sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
+}) {
   const turn = exchange.assistant;
   const streaming = turn.status === 'streaming';
   const facts = turnFacts(turn);
@@ -252,9 +332,22 @@ function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl
   return (
     <li className="chat-exchange">
       <div className="chat-message chat-message-user">
-        <span className="chat-role">나</span>
-        {exchange.user ? <div className="chat-text">{exchange.user}</div> : null}
-        <AttachmentList attachments={exchange.attachments} />
+        <span className="chat-role">{exchange.toolResults?.length ? '도구 결과' : '나'}</span>
+        {exchange.toolResults?.length ? (
+          <ul className="chat-tool-result-list">
+            {exchange.toolResults.map((result) => (
+              <li key={result.toolCallId}>
+                <code>{result.toolCallId}</code>
+                <pre>{result.content}</pre>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <>
+            {exchange.user ? <div className="chat-text">{exchange.user}</div> : null}
+            <AttachmentList attachments={exchange.attachments} />
+          </>
+        )}
       </div>
       <div className="chat-message chat-message-assistant" aria-busy={streaming}>
         <span className="chat-role">모델</span>
@@ -274,6 +367,31 @@ function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl
           </div>
         ) : streaming && !turn.reasoning ? (
           <div className="chat-waiting"><Spinner size="sm" aria-label="응답 대기 중" /> 응답 대기 중…</div>
+        ) : null}
+        {turn.toolCalls.length > 0 ? (
+          <div className="chat-tool-calls" aria-label="모델 도구 호출">
+            {turn.toolCalls.map((call, index) => (
+              <div className="chat-tool-call" key={call.id || `tool-call-${index}`}>
+                <div>
+                  <strong>{call.function.name || '함수 이름 수신 중…'}</strong>
+                  {call.id ? <code>{call.id}</code> : null}
+                </div>
+                <pre>{call.function.arguments || 'arguments 수신 중…'}</pre>
+                <small>
+                  {call.function.arguments
+                    ? toolArgumentsAreJson(call) ? 'arguments JSON 정상' : streaming ? 'arguments JSON 수신 중' : 'arguments JSON 파싱 실패'
+                    : 'arguments 대기 중'}
+                </small>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {pendingToolResult ? (
+          <ToolResultForm
+            exchange={exchange}
+            busy={busy}
+            onSend={(results) => onSendToolResults(exchange.id, results)}
+          />
         ) : null}
         {turn.error ? (
           <Alert isInline isPlain variant="danger" title={turn.error.code ? `${turn.error.code}: ${turn.error.message}` : turn.error.message} />
@@ -462,6 +580,143 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
           </div>
         </details>
 
+        {controls.tools ? (
+          <details className="chat-tool-settings">
+            <summary>도구 호출</summary>
+            <div className="chat-tool-settings-body">
+              <small>
+                Console은 도구를 실행하지 않고 request/response round trip만 검증합니다.
+                {controls.tools.minItems !== null ? ` · tools 사용 시 최소 ${controls.tools.minItems}개` : ''}
+                {controls.tools.maxItems !== null ? ` · 최대 ${controls.tools.maxItems}개` : ''}
+              </small>
+
+              {settings.toolDrafts.map((tool, index) => (
+                <fieldset className="chat-tool-definition" key={tool.id}>
+                  <legend>Function {index + 1}</legend>
+                  <div className="chat-setting-field">
+                    <label htmlFor={`chat-tool-name-${tool.id}`}>Function 이름</label>
+                    <input
+                      id={`chat-tool-name-${tool.id}`}
+                      type="text"
+                      value={tool.name}
+                      onChange={(event) => updateSettings({
+                        toolDrafts: settings.toolDrafts.map((item) => (
+                          item.id === tool.id ? { ...item, name: event.currentTarget.value } : item
+                        )),
+                      })}
+                    />
+                  </div>
+                  <div className="chat-setting-field">
+                    <label htmlFor={`chat-tool-description-${tool.id}`}>설명</label>
+                    <input
+                      id={`chat-tool-description-${tool.id}`}
+                      type="text"
+                      value={tool.description}
+                      onChange={(event) => updateSettings({
+                        toolDrafts: settings.toolDrafts.map((item) => (
+                          item.id === tool.id ? { ...item, description: event.currentTarget.value } : item
+                        )),
+                      })}
+                    />
+                  </div>
+                  <div className="chat-setting-field">
+                    <label htmlFor={`chat-tool-parameters-${tool.id}`}>Parameters JSON Schema</label>
+                    <textarea
+                      id={`chat-tool-parameters-${tool.id}`}
+                      rows={6}
+                      spellCheck={false}
+                      value={tool.parametersText}
+                      onChange={(event) => updateSettings({
+                        toolDrafts: settings.toolDrafts.map((item) => (
+                          item.id === tool.id ? { ...item, parametersText: event.currentTarget.value } : item
+                        )),
+                      })}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => {
+                      const next = settings.toolDrafts.filter((item) => item.id !== tool.id);
+                      updateSettings({
+                        toolDrafts: next,
+                        ...(settings.toolChoice === TOOL_CHOICE_NAMED && settings.toolChoiceName === tool.name.trim()
+                          ? { toolChoiceName: '' }
+                          : {}),
+                      });
+                    }}
+                  >
+                    Function 제거
+                  </Button>
+                </fieldset>
+              ))}
+
+              <Button
+                type="button"
+                variant="secondary"
+                isDisabled={controls.tools.maxItems !== null && settings.toolDrafts.length >= controls.tools.maxItems}
+                onClick={() => updateSettings({
+                  toolDrafts: [
+                    ...settings.toolDrafts,
+                    {
+                      id: crypto.randomUUID(),
+                      name: '',
+                      description: '',
+                      parametersText: '{}',
+                      strict: null,
+                    },
+                  ],
+                })}
+              >
+                Function 추가
+              </Button>
+
+              {(controls.tools.choiceAllowed.length > 0 || controls.tools.allowNamed) ? (
+                <div className="chat-setting-field">
+                  <label htmlFor="chat-tool-choice">Tool choice</label>
+                  <select
+                    id="chat-tool-choice"
+                    value={settings.toolChoice}
+                    onChange={(event) => updateSettings({
+                      toolChoice: event.currentTarget.value,
+                      toolChoiceName: '',
+                    })}
+                  >
+                    <option value={TOOL_CHOICE_DEFAULT}>모델 기본값</option>
+                    {controls.tools.choiceAllowed.map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                    {controls.tools.allowNamed ? <option value={TOOL_CHOICE_NAMED}>특정 function</option> : null}
+                  </select>
+                </div>
+              ) : null}
+
+              {settings.toolChoice === TOOL_CHOICE_NAMED && controls.tools.allowNamed ? (
+                <div className="chat-setting-field">
+                  <label htmlFor="chat-tool-choice-name">Function 선택</label>
+                  <select
+                    id="chat-tool-choice-name"
+                    value={settings.toolChoiceName}
+                    onChange={(event) => updateSettings({ toolChoiceName: event.currentTarget.value })}
+                  >
+                    <option value="">선택하세요</option>
+                    {settings.toolDrafts
+                      .map((tool) => tool.name.trim())
+                      .filter((name, index, names) => name && names.indexOf(name) === index)
+                      .map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+              ) : null}
+
+              {controls.tools.parallelConst !== null ? (
+                <small>
+                  병렬 도구 호출은 현재 모델 정책에서 {controls.tools.parallelConst ? '허용' : '비활성'} 상태입니다.
+                </small>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
+
         {controls.responseFormat ? (
           <details className="chat-output-settings">
             <summary>응답 형식</summary>
@@ -551,7 +806,7 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
 
 export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, busy, send, stop, clear, setApiKey } = session;
+  const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear, setApiKey } = session;
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
@@ -573,6 +828,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   );
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
+  const pendingToolExchange = pendingToolCallExchange(exchanges);
 
   // 사용자가 위로 스크롤해 이전 응답을 읽는 중이면 새 token이 와도 끌어내리지 않는다.
   useEffect(() => {
@@ -673,7 +929,14 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
             ) : (
               <ol className="chat-log" aria-live="polite">
                 {exchanges.map((exchange) => (
-                  <ExchangeView key={exchange.id} exchange={exchange} grafanaUrl={grafanaUrl} />
+                  <ExchangeView
+                    key={exchange.id}
+                    exchange={exchange}
+                    grafanaUrl={grafanaUrl}
+                    pendingToolResult={pendingToolExchange?.id === exchange.id}
+                    busy={busy}
+                    onSendToolResults={(sourceExchangeId, results) => sendToolResults(model, sourceExchangeId, results)}
+                  />
                 ))}
               </ol>
             )}
@@ -690,12 +953,18 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 removable
                 onRemove={(id) => setAttachments((items) => items.filter((item) => item.id !== id))}
               />
+              {pendingToolExchange ? (
+                <p className="chat-notice">모델이 도구 결과를 기다리고 있습니다. 위 tool call에 결과를 입력한 뒤 계속하세요.</p>
+              ) : null}
               <textarea
                 id="chat-input"
                 aria-label="메시지"
                 rows={3}
                 value={draft}
-                placeholder="메시지 입력 · Enter 보내기 · Shift+Enter 줄바꿈"
+                disabled={pendingToolExchange !== null}
+                placeholder={pendingToolExchange
+                  ? '도구 결과를 먼저 입력하세요.'
+                  : '메시지 입력 · Enter 보내기 · Shift+Enter 줄바꿈'}
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
@@ -708,7 +977,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                       type="file"
                       multiple
                       accept={attachmentAccept(model)}
-                      disabled={busy || attachmentBusy}
+                      disabled={busy || attachmentBusy || pendingToolExchange !== null}
                       onChange={(event) => { void onAttachmentsSelected(event); }}
                     />
                   </div>
@@ -722,7 +991,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   <Button
                     type="submit"
                     variant="primary"
-                    isDisabled={attachmentBusy || (!draft.trim() && attachments.length === 0)}
+                    isDisabled={pendingToolExchange !== null || attachmentBusy || (!draft.trim() && attachments.length === 0)}
                   >
                     보내기
                   </Button>
@@ -749,6 +1018,9 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                       jsonSchemaName: 'response',
                       jsonSchemaText: '',
                       jsonSchemaStrict: null,
+                      toolDrafts: [],
+                      toolChoice: TOOL_CHOICE_DEFAULT,
+                      toolChoiceName: '',
                     });
                   }}
                   disabled={busy}

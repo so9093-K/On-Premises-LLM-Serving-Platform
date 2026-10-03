@@ -77,11 +77,20 @@ export type ChatUsage = {
   total_tokens: number;
 };
 
+export type ChatToolCallDelta = {
+  index: number;
+  id: string;
+  type: string;
+  name: string;
+  arguments: string;
+};
+
 export type ChatStreamUpdate =
   | {
       kind: 'chunk';
       content: string;
       reasoning: string;
+      toolCallDeltas: ChatToolCallDelta[];
       finishReason: string | null;
       usage: ChatUsage | null;
     }
@@ -97,6 +106,23 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function toolCallDeltasFrom(value: unknown): ChatToolCallDelta[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const call = record(item);
+    const fn = record(call?.function);
+    const index = call?.index;
+    if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) return [];
+    return [{
+      index,
+      id: text(call?.id),
+      type: text(call?.type),
+      name: text(fn?.name),
+      arguments: text(fn?.arguments),
+    }];
+  });
 }
 
 function usageFrom(value: unknown): ChatUsage | null {
@@ -146,6 +172,7 @@ export function interpretChatEvent(event: SseEvent): ChatStreamUpdate {
     content: text(delta?.content),
     // vLLM reasoning parser는 버전에 따라 reasoning 또는 reasoning_content를 쓴다.
     reasoning: text(delta?.reasoning) || text(delta?.reasoning_content),
+    toolCallDeltas: toolCallDeltasFrom(delta?.tool_calls),
     finishReason: typeof finishReason === 'string' && finishReason ? finishReason : null,
     usage: usageFrom(chunk.usage),
   };
