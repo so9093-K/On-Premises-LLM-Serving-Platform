@@ -87,6 +87,54 @@ def test_auxiliary_gpu_budget_must_match_registry(tmp_path):
         validator.validate_alignment(effective_compose=effective, boot_override=boot)
 
 
+@pytest.mark.parametrize("mutation", [
+    "missing", "read-only", "shared", "external", "wrong-root", "undeclared", "bind", "long-read-only",
+])
+def test_effective_compile_cache_rejects_nonpersistent_or_shared_artifacts(tmp_path, mutation):
+    _, boot, effective = boot_config(tmp_path)
+    service = effective["services"]["embedding-vllm"]
+    if mutation == "missing":
+        service["volumes"] = service["volumes"][1:]
+    elif mutation == "read-only":
+        service["volumes"][0] += ":ro"
+    elif mutation == "shared":
+        service["volumes"][0] = "main-vllm-cache:/root/.cache/vllm"
+    elif mutation == "external":
+        effective["volumes"]["embedding-vllm-cache"] = {"external": True}
+    elif mutation == "undeclared":
+        del effective["volumes"]["embedding-vllm-cache"]
+    elif mutation in {"bind", "long-read-only"}:
+        service["volumes"][0] = {
+            "type": "bind" if mutation == "bind" else "volume",
+            "source": "embedding-vllm-cache", "target": "/root/.cache/vllm",
+            "read_only": mutation == "long-read-only",
+        }
+    else:
+        service["environment"]["VLLM_CACHE_ROOT"] = "/tmp/cache"
+    with pytest.raises(SystemExit, match="compile cache|VLLM_CACHE_ROOT"):
+        validator.validate_alignment(effective_compose=effective, boot_override=boot)
+
+
+def test_source_compile_cache_rejects_global_volume_name(tmp_path):
+    document = validator.load_yaml(validator.COMPOSE_PATH)
+    document["volumes"]["main-vllm-cache"] = {"name": "shared-global-cache"}
+    path = tmp_path / "compose.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(SystemExit, match="compile cache volume must be Compose project-scoped"):
+        validator.validate_alignment(path)
+
+
+def test_effective_compile_cache_accepts_compose_normalized_mounts(tmp_path):
+    _, boot, effective = boot_config(tmp_path)
+    for service in effective["services"].values():
+        if "VLLM_CACHE_ROOT" not in service.get("environment", {}):
+            continue
+        source, target = service["volumes"][0].split(":")
+        service["volumes"][0] = {"type": "volume", "source": source, "target": target}
+        effective["volumes"][source] = {"name": f"test-project_{source}"}
+    validator.validate_alignment(effective_compose=effective, boot_override=boot)
+
+
 def test_boot_override_requires_effective_config(tmp_path):
     _, boot, _ = boot_config(tmp_path)
     with pytest.raises(SystemExit, match="requires effective Compose config"):

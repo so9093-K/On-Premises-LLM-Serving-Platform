@@ -311,6 +311,7 @@ class DockerMainModelBackend:
             }
         host_keys = (
             "Binds",
+            "Mounts",
             "NetworkMode",
             "RestartPolicy",
             "AutoRemove",

@@ -97,6 +97,44 @@ docker image inspect "$VLLM_IMAGE" \
 
 Unified 이미지의 기반 vLLM 이미지와 dependency 조합은 `configs/vllm_unified_build.yaml`에서 관리한다. 이미지 빌드 구조는 [7. 로컬 개발 및 빌드](../07_local_dev_build.md)를 참고한다.
 
+### 2.2 Managed Runtime의 compile cache
+
+`linux-nvidia-dynamic`의 각 vLLM Runtime은 `VLLM_CACHE_ROOT=/root/.cache/vllm`을
+전용 Compose named volume에 기록한다. 모델 weight를 보관하는 `HF_CACHE_DIR`와
+compile cache는 별개다. Main, generic embedding, Korean embedding, Prompt Runtime은
+서로 다른 volume을 사용하며 volume 이름은 Compose project에 귀속된다.
+
+일반 `make down`/`make up`, Runtime stop/start, Main profile replace/rollback은
+cache를 보존한다. Runtime Controller는 검사한 Main 컨테이너의 mount와 environment를
+재생성 요청에 이어 주며 profile 또는 API 호출자가 cache source를 선택하지 않는다.
+Static external vLLM의 cache와 native MLX cache는 해당 runtime lifecycle owner가 관리한다.
+이 문서의 standalone 예제는 managed Compose volume을 공유하지 않는다.
+
+Compile cache에는 실행 가능한 artifact가 있으므로 다른 project나 신뢰하지 않는
+Runtime과 volume을 공유하지 않는다. 모델 weight, 설치 dependency, profile identity의
+authority로 사용하지도 않는다. Cache의 호환성 판정과 재컴파일은 pinned vLLM이 소유한다.
+Volume을 유지한다고 모든 profile/image 변경에서 cache hit가 보장되지는 않는다.
+별도 purge가 필요한 경우 Runtime을 먼저 멈추고 Docker volume label의 Compose project와
+volume key를 확인한 뒤 해당 cache volume만 제거한다. `docker compose down -v`는 다른
+named volume까지 삭제하므로 cache 초기화 수단으로 사용하지 않는다.
+
+Persistence와 startup 성능은 별도로 검증한다. 동일 NVIDIA host, GPU, immutable image,
+model revision, resource variant, command에서 다음을 비교한다.
+
+1. 아직 사용하지 않은 전용 cache volume으로 최초 기동한다. Model weight는 미리 준비해
+   다운로드 시간을 분리하고 readiness까지의 시간, 첫 요청/첫 structured 요청 시간,
+   compile 로그, peak/steady VRAM을 기록한다.
+2. 동일 Compose project에서 `make down` 후 `make up`으로 컨테이너를 재생성한다.
+   inspect의 volume source가 동일한지 확인하고 같은 요청·측정 항목을 반복한다.
+3. Main profile switch 후 원래 profile로 복귀한다. Mount 유지와 Gateway canary,
+   validation/rollback을 확인하며 profile별 결과를 섞지 않는다.
+
+GPU 없이 가능한 mount 보존 검증은 CUDA cache hit나 startup 단축의 증거가 아니다.
+측정에는 source SHA, image digest, GPU/driver, model revision, profile/resource variant,
+cache cold/warm 여부와 반복별 원자료를 함께 남긴다.
+
+이 cache 계약은 [vLLM의 공식 Docker compile-cache 안내](https://docs.vllm.ai/en/v0.30.0/deployment/docker/#persist-the-compile-cache-across-containers)를 따른다.
+
 ---
 
 ## 3. 작은 모델 실행

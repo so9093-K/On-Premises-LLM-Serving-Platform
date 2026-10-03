@@ -116,6 +116,50 @@ def test_creation_template_preserves_private_network_without_host_binding():
     assert template["host_config"]["PortBindings"] == {}
 
 
+@pytest.mark.parametrize("mount_field", ["Binds", "Mounts"])
+def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, mount_field):
+    """Profile changes must not drop Compose's cache or accept a new mount source."""
+    import json
+
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+    mount = (
+        ["platform_main-vllm-cache:/root/.cache/vllm:rw"] if mount_field == "Binds"
+        else [{"Type": "volume", "Source": "platform_main-vllm-cache",
+               "Target": "/root/.cache/vllm", "ReadOnly": False}]
+    )
+    inspected = {
+        "Name": "/platform-main-llm-vllm-1",
+        "Config": {"Env": ["VLLM_CACHE_ROOT=/root/.cache/vllm"]},
+        "HostConfig": {mount_field: mount},
+    }
+    created = []
+    lookups = iter(["old", None])  # failed candidate absent; rollback uses saved template
+
+    async def container_id(_service):
+        return next(lookups)
+
+    async def inspect(_container_id):
+        return inspected
+
+    def respond(request):
+        if request.url.path == "/containers/create":
+            created.append(json.loads(request.content))
+            return httpx.Response(201, json={"Id": "new"})
+        return httpx.Response(204)
+
+    monkeypatch.setattr(backend, "_container_id", container_id)
+    monkeypatch.setattr(backend, "_inspect", inspect)
+    monkeypatch.setattr(backend, "_client", lambda: httpx.AsyncClient(
+        transport=httpx.MockTransport(respond), base_url="http://docker"))
+    for profile_id in ("gemma4-26b-a4b-fp8", "gemma4-12b-unified-fp8"):
+        asyncio.run(backend.replace(catalog, catalog.profiles[profile_id]))
+    for payload in created:
+        assert payload["HostConfig"][mount_field] == mount
+        assert payload["Env"] == inspected["Config"]["Env"]
+        assert payload["HostConfig"][mount_field] is not mount
+
+
 def test_prepare_uses_profile_identity_and_shared_cache_path(tmp_path, monkeypatch):
     calls = []
 
