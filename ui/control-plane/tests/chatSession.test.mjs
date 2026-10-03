@@ -66,7 +66,19 @@ const MAIN = {
     logprobs: { type: 'boolean', default: false, allow_stream: true },
     top_logprobs: { type: 'integer', min: 0, max: 10, requires: { logprobs: true } },
     tools: { type: 'array', min_items: 1, max_items: 64 },
-    response_format: { type: 'object', allowed_types: ['text', 'json_object', 'json_schema'] },
+    response_format: {
+      type: 'object',
+      allowed_types: ['text', 'json_object', 'json_schema'],
+      json_object: { require_json_instruction: true },
+      json_schema: {
+        max_schema_bytes: 512,
+        max_depth: 4,
+        max_total_properties: 8,
+        require_root_object: true,
+        require_additional_properties_false: true,
+        strict: { allowed: true, require_true: false },
+      },
+    },
   },
 };
 
@@ -354,6 +366,138 @@ test('attachment-only user turns are valid while empty turns are rejected', () =
     { type: 'image_url', image_url: { url: image.data } },
   ]);
   assert.match(buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '').error, /메시지나 첨부 파일/);
+});
+
+test('structured output follows advertised types and json-object instruction policy', () => {
+  const missing = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, responseFormat: 'json_object' },
+    [],
+    '평문으로 답해줘',
+  );
+  assert.match(missing.error, /JSON 지시문/);
+
+  const jsonObject = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, responseFormat: 'json_object' },
+    [],
+    'Return JSON with one field.',
+  );
+  assert.equal(jsonObject.error, null);
+  assert.deepEqual(jsonObject.body.response_format, { type: 'json_object' });
+
+  const text = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, responseFormat: 'text' },
+    [],
+    'hello',
+  );
+  assert.deepEqual(text.body.response_format, { type: 'text' });
+});
+
+test('json-schema output preflights public high-level limits and serializes OpenAI shape', () => {
+  const schema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: { answer: { type: 'string' } },
+    required: ['answer'],
+  };
+  const ok = buildChatRequest(
+    MAIN,
+    {
+      ...DEFAULT_CHAT_SETTINGS,
+      responseFormat: 'json_schema',
+      jsonSchemaName: 'answer_schema',
+      jsonSchemaText: JSON.stringify(schema),
+      jsonSchemaStrict: true,
+    },
+    [],
+    '답을 만들어줘',
+  );
+  assert.equal(ok.error, null);
+  assert.deepEqual(ok.body.response_format, {
+    type: 'json_schema',
+    json_schema: {
+      name: 'answer_schema',
+      strict: true,
+      schema,
+    },
+  });
+
+  assert.match(buildChatRequest(
+    MAIN,
+    {
+      ...DEFAULT_CHAT_SETTINGS,
+      responseFormat: 'json_schema',
+      jsonSchemaName: '',
+      jsonSchemaText: JSON.stringify(schema),
+    },
+    [],
+    'x',
+  ).error, /이름/);
+
+  assert.match(buildChatRequest(
+    MAIN,
+    {
+      ...DEFAULT_CHAT_SETTINGS,
+      responseFormat: 'json_schema',
+      jsonSchemaText: JSON.stringify({ type: 'array', items: { type: 'string' } }),
+    },
+    [],
+    'x',
+  ).error, /root type/);
+
+  assert.match(buildChatRequest(
+    MAIN,
+    {
+      ...DEFAULT_CHAT_SETTINGS,
+      responseFormat: 'json_schema',
+      jsonSchemaText: JSON.stringify({
+        type: 'object',
+        properties: { answer: { type: 'string' } },
+        required: ['answer'],
+      }),
+    },
+    [],
+    'x',
+  ).error, /additionalProperties:false/);
+
+  const defaultStrict = buildChatRequest(
+    MAIN,
+    {
+      ...DEFAULT_CHAT_SETTINGS,
+      responseFormat: 'json_schema',
+      jsonSchemaName: 'answer_schema',
+      jsonSchemaText: JSON.stringify(schema),
+    },
+    [],
+    'x',
+  );
+  assert.equal(defaultStrict.error, null);
+  assert.equal('strict' in defaultStrict.body.response_format.json_schema, false);
+});
+
+test('structured output ignores unknown future format names instead of reinterpreting them', () => {
+  const future = {
+    ...MAIN,
+    request_parameters: {
+      ...MAIN.request_parameters,
+      response_format: {
+        ...MAIN.request_parameters.response_format,
+        allowed_types: ['text', 'future_format'],
+      },
+    },
+  };
+  assert.deepEqual(chatControls(future).responseFormat.allowedTypes, ['text']);
+  assert.match(
+    buildChatRequest(
+      future,
+      { ...DEFAULT_CHAT_SETTINGS, responseFormat: 'future_format' },
+      [],
+      'x',
+    ).error,
+    /광고하지 않은 응답 형식/,
+  );
 });
 
 test('the request carries only advertised parameters and omits model defaults', () => {
