@@ -2,7 +2,8 @@
 
 2026-10-03, vLLM 0.30.0 기준 조사. 현재 managed Docker 계약과 external lifecycle의
 native 실행 가능성을 구분한다. 단발 실험의 원시 로그는 로컬 `reports/runtime/`에 두고,
-재현 조건·결과·한계는 이 문서와 PR에 기록한다(ADR-0042).
+재현 조건·결과·한계는 이 문서와 PR에 기록한다. ADR-0042의 방침대로 별도
+machine-readable qualification evidence나 성능 benchmark 체계는 만들지 않는다.
 
 ## Docker 기준선
 
@@ -58,7 +59,7 @@ artifact와 lifecycle을 연결할 수 있다.
 unpatched GPU A/B를 새로 수행했다는 의미는 아니다. #210의 실제 workload qualification과
 이번 stock config 실패/source audit를 함께 사용하며, 패치 제거를 승인하지 않는다.
 
-현재 image는 이미 pinned official image 위에 media/BnB/세 patch set을 올리는 제한된 overlay다.
+현재 image는 pinned official image 위에 media/BnB와 현재 제거를 승인할 근거가 없는 compatibility patch set을 올리는 제한된 overlay다.
 Docker inspect의 image size는 base 30,729,512,364 bytes, Unified 31,557,039,874 bytes
 (차이 827,527,510 bytes). 이는 Docker가 보고한 크기이며 전송 압축 크기나 실제 공유 disk 사용량은 아니다.
 "thin"이라는 이름만 바꾸면 유지해야 할 코드·dependencies가 줄어들지는 않는다.
@@ -163,13 +164,14 @@ client 재연결까지 소유해야 한다. native 단독 실행 성공을 manag
 
 ## 결정
 
-**Docker 유지.** 현재 pinned official image + 필수 overlay(media, BnB plugin, 세 patch set) 구조를 유지하고,
-managed native와 Sleep/Wake 기반 lifecycle은 채택하지 않는다.
+**Docker 유지.** 현재 pinned official image + 검증된 overlay(media, BnB plugin, compatibility patch set) 구조를 유지하고,
+managed native와 Sleep/Wake 기반 lifecycle은 채택하지 않는다. 이번 조사는 기존 patch의 완전한 unpatched GPU A/B가 아니므로
+overlay가 절대 최소라고 단정하지 않고, 현재 제거를 승인할 근거가 없다는 결론으로 제한한다.
 
 | 후보 | 판단 | 근거 |
 |---|---|---|
 | Docker 유지 | 채택 | 37/0 validation, digest 기반 provenance, internal network, container 단위 회수, compile cache로 warm 재시작 단축(#222) |
-| thin Docker | 이미 해당 | stock image는 media dependency와 Kanana head_dim에서 실패. 현 overlay가 최소 범위이며 이름 변경 외에 줄일 layer 없음 |
+| thin Docker | 별도 전환 안 함 | stock image는 media dependency와 Kanana head_dim에서 실패. 이번 조사에서는 기존 overlay 제거를 승인할 근거가 없어 현재 제한된 overlay를 유지 |
 | managed native | 기각 | Issue 판단 기준 중 private boundary 약화, provenance 계약 공백, custom supervisor 소유, image와 다른 dependency set 네 가지에 해당 |
 | Sleep/Wake | 보류 | 기능은 동작하지만 VRAM 일부 잔존, `/health` 의미 변화, dev endpoint 필요. 현 stop/start 계약 대체 불가 |
 
