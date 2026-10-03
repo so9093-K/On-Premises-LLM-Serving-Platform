@@ -11,6 +11,7 @@ import {
   createRequestContext,
   finishTurn,
   modelFeatureLabels,
+  numberControlRangeHint,
   startTurn,
   stopTurn,
   turnFacts,
@@ -26,9 +27,20 @@ const MAIN = {
   request_parameters: {
     temperature: { type: 'number', min: 0, max: 2 },
     max_tokens: { type: 'integer', min: 1, max: 4096, aliases: ['max_completion_tokens'] },
+    top_p: { type: 'number', min_exclusive: 0, max: 1 },
+    top_k: { type: 'integer', min: -1 },
+    min_p: { type: 'number', min: 0, max: 1 },
+    presence_penalty: { type: 'number', min: -2, max: 2 },
+    frequency_penalty: { type: 'number', min: -2, max: 2 },
+    repetition_penalty: { type: 'number', min_exclusive: 0, max: 2 },
+    stop: { type: 'string_or_string_array', max_items: 2 },
+    seed: { type: 'integer', min: 0 },
+    n: { type: 'integer', min: 1, max: 1 },
     stream: { type: 'boolean' },
     stream_options: { type: 'object' },
     reasoning: { type: 'boolean', default: false, mode: 'request_opt_in' },
+    logprobs: { type: 'boolean', default: false, allow_stream: true },
+    top_logprobs: { type: 'integer', min: 0, max: 10, requires: { logprobs: true } },
     tools: { type: 'array', min_items: 1, max_items: 64 },
     response_format: { type: 'object', allowed_types: ['text', 'json_object', 'json_schema'] },
   },
@@ -97,6 +109,106 @@ test('send-time request context snapshots model contract and actual parameters',
   });
 });
 
+test('numeric controls preserve inclusive and exclusive request boundaries', () => {
+  const controls = chatControls(MAIN);
+  assert.equal(numberControlRangeHint(controls.temperature), '0 이상 · 2 이하');
+  assert.equal(numberControlRangeHint(controls.topP), '0 초과 · 1 이하');
+  assert.equal(numberControlRangeHint(controls.repetitionPenalty), '0 초과 · 2 이하');
+
+  assert.match(
+    buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, topP: '0' }, [], 'x').error,
+    /0 초과/,
+  );
+  assert.equal(
+    buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, topP: '0.1' }, [], 'x').error,
+    null,
+  );
+  assert.match(
+    buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, repetitionPenalty: '0' }, [], 'x').error,
+    /0 초과/,
+  );
+});
+
+test('advanced scalar settings are serialized only when advertised and explicitly set', () => {
+  const settings = {
+    ...DEFAULT_CHAT_SETTINGS,
+    temperature: '0.6',
+    topP: '0.9',
+    topK: '40',
+    minP: '0.05',
+    presencePenalty: '0.2',
+    frequencyPenalty: '-0.1',
+    repetitionPenalty: '1.1',
+    stop: 'END\nDONE',
+    seed: '7',
+  };
+  const { body, error } = buildChatRequest(MAIN, settings, [], 'x');
+  assert.equal(error, null);
+  assert.equal(body.temperature, 0.6);
+  assert.equal(body.top_p, 0.9);
+  assert.equal(body.top_k, 40);
+  assert.equal(body.min_p, 0.05);
+  assert.equal(body.presence_penalty, 0.2);
+  assert.equal(body.frequency_penalty, -0.1);
+  assert.equal(body.repetition_penalty, 1.1);
+  assert.deepEqual(body.stop, ['END', 'DONE']);
+  assert.equal(body.seed, 7);
+
+  const tooManyStops = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, stop: 'A\nB\nC' },
+    [],
+    'x',
+  );
+  assert.match(tooManyStops.error, /최대 2개/);
+});
+
+test('streaming and logprobs dependencies follow the advertised contract', () => {
+  const nonStreaming = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, stream: false },
+    [],
+    'x',
+  );
+  assert.equal(nonStreaming.error, null);
+  assert.equal(nonStreaming.body.stream, false);
+  assert.equal('stream_options' in nonStreaming.body, false);
+
+  const missingRequirement = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, topLogprobs: '3' },
+    [],
+    'x',
+  );
+  assert.match(missingRequirement.error, /로그확률을 켜야/);
+
+  const enabled = buildChatRequest(
+    MAIN,
+    { ...DEFAULT_CHAT_SETTINGS, logprobs: true, topLogprobs: '3' },
+    [],
+    'x',
+  );
+  assert.equal(enabled.error, null);
+  assert.equal(enabled.body.logprobs, true);
+  assert.equal(enabled.body.top_logprobs, 3);
+
+  const noStreamLogprobs = {
+    ...MAIN,
+    request_parameters: {
+      ...MAIN.request_parameters,
+      logprobs: { type: 'boolean', default: false, allow_stream: false },
+    },
+  };
+  assert.match(
+    buildChatRequest(noStreamLogprobs, { ...DEFAULT_CHAT_SETTINGS, logprobs: true }, [], 'x').error,
+    /스트리밍 응답에서 로그확률/,
+  );
+});
+
+test('fixed response count is presented as policy instead of becoming a duplicate knob', () => {
+  assert.equal(chatControls(MAIN).fixedN, 1);
+});
+
 test('the request carries only advertised parameters and omits model defaults', () => {
   const { body, error } = buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '안녕');
   assert.equal(error, null);
@@ -119,9 +231,9 @@ test('explicit settings are validated against the advertised range before sendin
   assert.equal(ok.body.max_tokens, 256);
   assert.equal(ok.body.reasoning, true);
 
-  assert.match(buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, maxTokens: '5000' }, [], 'x').error, /1–4096/);
+  assert.match(buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, maxTokens: '5000' }, [], 'x').error, /1 이상 · 4096 이하/);
   assert.match(buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, maxTokens: '1.5' }, [], 'x').error, /정수/);
-  assert.match(buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, temperature: '3' }, [], 'x').error, /0–2/);
+  assert.match(buildChatRequest(MAIN, { ...DEFAULT_CHAT_SETTINGS, temperature: '3' }, [], 'x').error, /0 이상 · 2 이하/);
 });
 
 test('history keeps user and assistant turns alternating by dropping failed exchanges', () => {
@@ -136,7 +248,11 @@ test('history keeps user and assistant turns alternating by dropping failed exch
 });
 
 test('reasoning control reflects the model default', () => {
-  assert.deepEqual(chatControls(MAIN).reasoning, { defaultEnabled: false });
+  assert.deepEqual(chatControls(MAIN).reasoning, {
+    defaultEnabled: false,
+    constValue: null,
+    allowStream: null,
+  });
   assert.equal(chatControls({ ...MAIN, request_parameters: {} }).reasoning, null);
 });
 

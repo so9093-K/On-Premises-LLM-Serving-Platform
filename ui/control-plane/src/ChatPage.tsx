@@ -11,6 +11,7 @@ import {
   chatControls,
   inputModalityLabel,
   modelFeatureLabels,
+  numberControlRangeHint,
   turnFacts,
   turnNotice,
   type Exchange,
@@ -22,8 +23,80 @@ type ChatPageProps = {
   grafanaUrl: string | null;
 };
 
-function rangeHint(control: NumberControl): string {
-  return control.max === null ? `${control.min} 이상` : `${control.min}–${control.max}`;
+type NumericSettingKey =
+  | 'temperature'
+  | 'maxTokens'
+  | 'topP'
+  | 'topK'
+  | 'minP'
+  | 'presencePenalty'
+  | 'frequencyPenalty'
+  | 'repetitionPenalty'
+  | 'seed'
+  | 'topLogprobs';
+
+function NumericSetting({
+  id,
+  label,
+  control,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  control: NumberControl;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="chat-setting-field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="number"
+        inputMode={control.integer ? 'numeric' : 'decimal'}
+        step={control.integer ? 1 : 'any'}
+        min={control.minimum && !control.minimum.exclusive ? control.minimum.value : undefined}
+        max={control.maximum && !control.maximum.exclusive ? control.maximum.value : undefined}
+        placeholder="모델 기본값"
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      <small>비우면 모델 기본값 · 허용 {numberControlRangeHint(control)}</small>
+    </div>
+  );
+}
+
+function OptionalBooleanSetting({
+  id,
+  label,
+  value,
+  defaultEnabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: boolean | null;
+  defaultEnabled: boolean | null;
+  onChange: (value: boolean | null) => void;
+}) {
+  return (
+    <div className="chat-setting-field">
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={value === null ? 'default' : value ? 'true' : 'false'}
+        onChange={(event) => {
+          const selected = event.currentTarget.value;
+          onChange(selected === 'default' ? null : selected === 'true');
+        }}
+      >
+        <option value="default">모델 기본값{defaultEnabled === null ? '' : ` · ${defaultEnabled ? '켬' : '끔'}`}</option>
+        <option value="true">켬</option>
+        <option value="false">끔</option>
+      </select>
+    </div>
+  );
 }
 
 function ModelContext({ model }: { model: PublicModel }) {
@@ -101,7 +174,7 @@ function ExchangeView({ exchange, grafanaUrl }: { exchange: Exchange; grafanaUrl
         {turn.reasoning ? (
           <details className="chat-reasoning">
             <summary>
-              생각 과정 · {turn.reasoning.length.toLocaleString('ko-KR')}자
+              추론 출력 · {turn.reasoning.length.toLocaleString('ko-KR')}자
               {streaming && !turn.content ? ' (생성 중)' : ''}
             </summary>
             <div className="chat-text">{turn.reasoning}</div>
@@ -164,8 +237,24 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
   const { settings, updateSettings } = useChatSession();
   const controls = chatControls(model);
   const [open, setOpen] = useState(() => window.matchMedia?.('(min-width: 981px)').matches ?? true);
-  const reasoningDefault = controls.reasoning?.defaultEnabled ?? false;
-  const reasoningEnabled = settings.reasoning ?? reasoningDefault;
+  const logprobsDefault = controls.logprobs?.defaultEnabled ?? false;
+  const logprobsEnabled = settings.logprobs ?? logprobsDefault;
+
+  const advancedNumeric: Array<{
+    key: NumericSettingKey;
+    id: string;
+    label: string;
+    control: NumberControl | null;
+  }> = [
+    { key: 'temperature', id: 'chat-temperature', label: '온도', control: controls.temperature },
+    { key: 'topP', id: 'chat-top-p', label: 'Top P', control: controls.topP },
+    { key: 'topK', id: 'chat-top-k', label: 'Top K', control: controls.topK },
+    { key: 'minP', id: 'chat-min-p', label: 'Min P', control: controls.minP },
+    { key: 'presencePenalty', id: 'chat-presence-penalty', label: '존재 페널티', control: controls.presencePenalty },
+    { key: 'frequencyPenalty', id: 'chat-frequency-penalty', label: '빈도 페널티', control: controls.frequencyPenalty },
+    { key: 'repetitionPenalty', id: 'chat-repetition-penalty', label: '반복 페널티', control: controls.repetitionPenalty },
+    { key: 'seed', id: 'chat-seed', label: 'Seed', control: controls.seed },
+  ];
 
   return (
     <details className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -179,54 +268,112 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
           placeholder="비워 두면 보내지 않습니다."
           onChange={(event) => updateSettings({ systemPrompt: event.currentTarget.value })}
         />
-        {controls.temperature ? (
-          <>
-            <label htmlFor="chat-temperature">온도</label>
-            <input
-              id="chat-temperature"
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              min={controls.temperature.min}
-              max={controls.temperature.max ?? undefined}
-              placeholder="모델 기본값"
-              value={settings.temperature}
-              onChange={(event) => updateSettings({ temperature: event.currentTarget.value })}
-            />
-            <small>비우면 모델 기본값 · 허용 {rangeHint(controls.temperature)}</small>
-          </>
-        ) : null}
+
         {controls.maxTokens ? (
-          <>
-            <label htmlFor="chat-max-tokens">최대 출력 토큰</label>
-            <input
-              id="chat-max-tokens"
-              type="number"
-              inputMode="numeric"
-              step="1"
-              min={controls.maxTokens.min}
-              max={controls.maxTokens.max ?? undefined}
-              placeholder="모델 기본값"
-              value={settings.maxTokens}
-              onChange={(event) => updateSettings({ maxTokens: event.currentTarget.value })}
-            />
-            <small>비우면 모델 기본값 · 허용 {rangeHint(controls.maxTokens)}</small>
-          </>
+          <NumericSetting
+            id="chat-max-tokens"
+            label="최대 출력 토큰"
+            control={controls.maxTokens}
+            value={settings.maxTokens}
+            onChange={(value) => updateSettings({ maxTokens: value })}
+          />
         ) : null}
+
         {controls.reasoning ? (
+          <OptionalBooleanSetting
+            id="chat-reasoning"
+            label="추론 출력"
+            value={settings.reasoning}
+            defaultEnabled={controls.reasoning.defaultEnabled}
+            onChange={(value) => updateSettings({ reasoning: value })}
+          />
+        ) : null}
+
+        {controls.stream ? (
           <label className="chat-toggle">
             <input
               type="checkbox"
-              checked={reasoningEnabled}
-              onChange={(event) => updateSettings({ reasoning: event.currentTarget.checked })}
+              checked={controls.stream.constValue ?? settings.stream}
+              disabled={controls.stream.constValue !== null}
+              onChange={(event) => updateSettings({ stream: event.currentTarget.checked })}
             />
-            추론(생각 과정) 사용
-            <small>모델 기본값: {reasoningDefault ? '켬' : '끔'}</small>
+            스트리밍 응답
+            <small>
+              {controls.stream.constValue !== null
+                ? `현재 모델 정책에서 ${controls.stream.constValue ? '켬' : '끔'}으로 고정`
+                : '끄면 응답을 한 번에 받습니다.'}
+            </small>
           </label>
-        ) : null}
-        {!controls.stream ? (
+        ) : (
           <small>이 모델은 스트리밍을 광고하지 않아 응답을 한 번에 받습니다.</small>
-        ) : null}
+        )}
+
+        <details className="chat-advanced-settings">
+          <summary>고급 생성 설정</summary>
+          <div className="chat-advanced-settings-body">
+            {advancedNumeric.map((item) => item.control ? (
+              <NumericSetting
+                key={item.key}
+                id={item.id}
+                label={item.label}
+                control={item.control}
+                value={settings[item.key]}
+                onChange={(value) => updateSettings({ [item.key]: value })}
+              />
+            ) : null)}
+
+            {controls.stop ? (
+              <div className="chat-setting-field">
+                <label htmlFor="chat-stop">중지 문자열</label>
+                <textarea
+                  id="chat-stop"
+                  rows={3}
+                  value={settings.stop}
+                  placeholder="한 줄에 하나씩 입력 · 비우면 보내지 않음"
+                  onChange={(event) => updateSettings({ stop: event.currentTarget.value })}
+                />
+                <small>
+                  응답 생성을 멈출 문자열
+                  {controls.stop.maxItems === null ? '' : ` · 최대 ${controls.stop.maxItems}개`}
+                </small>
+              </div>
+            ) : null}
+
+            {controls.logprobs ? (
+              <OptionalBooleanSetting
+                id="chat-logprobs"
+                label="로그확률"
+                value={settings.logprobs}
+                defaultEnabled={controls.logprobs.defaultEnabled}
+                onChange={(value) => updateSettings({
+                  logprobs: value,
+                  ...(value === false ? { topLogprobs: '' } : {}),
+                })}
+              />
+            ) : null}
+
+            {controls.topLogprobs ? (
+              <fieldset className="chat-setting-group" disabled={!logprobsEnabled}>
+                <NumericSetting
+                  id="chat-top-logprobs"
+                  label="Top logprobs"
+                  control={controls.topLogprobs}
+                  value={settings.topLogprobs}
+                  onChange={(value) => updateSettings({ topLogprobs: value })}
+                />
+                {!logprobsEnabled ? <small>로그확률을 켜야 사용할 수 있습니다.</small> : null}
+              </fieldset>
+            ) : null}
+
+            {controls.logprobs && logprobsEnabled && settings.stream && controls.logprobs.allowStream === false ? (
+              <small className="form-error">현재 모델은 스트리밍 응답에서 로그확률을 지원하지 않습니다.</small>
+            ) : null}
+
+            {controls.fixedN !== null ? (
+              <small>응답 개수 <code>n</code>은 현재 모델 정책에서 {controls.fixedN}개로 고정됩니다.</small>
+            ) : null}
+          </div>
+        </details>
       </div>
     </details>
   );
@@ -369,7 +516,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   onChange={(event) => {
                     setSelectedId(event.currentTarget.value);
                     // 추론 기본값은 모델마다 다르다. 이전 모델에서 고른 값을 끌고 가지 않는다.
-                    session.updateSettings({ reasoning: null });
+                    session.updateSettings({ reasoning: null, logprobs: null, topLogprobs: '' });
                   }}
                   disabled={busy}
                 >
