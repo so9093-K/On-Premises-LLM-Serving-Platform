@@ -557,6 +557,61 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   toolChoiceName: '',
 };
 
+export function normalizeChatSettingsForModel(
+  settings: ChatSettings,
+  model: PublicModel,
+): ChatSettings {
+  const controls = chatControls(model);
+  const patch: Partial<ChatSettings> = {};
+
+  if (controls.reasoning === null && settings.reasoning !== null) {
+    patch.reasoning = null;
+  }
+  if (controls.logprobs === null && (settings.logprobs !== null || settings.topLogprobs !== '')) {
+    patch.logprobs = null;
+    patch.topLogprobs = '';
+  }
+
+  if (
+    settings.responseFormat !== 'default'
+    && (
+      controls.responseFormat === null
+      || !controls.responseFormat.allowedTypes.includes(settings.responseFormat)
+    )
+  ) {
+    patch.responseFormat = 'default';
+    patch.jsonSchemaName = 'response';
+    patch.jsonSchemaText = '';
+    patch.jsonSchemaStrict = null;
+  }
+
+  if (controls.tools === null) {
+    if (
+      settings.toolDrafts.length > 0
+      || settings.toolChoice !== TOOL_CHOICE_DEFAULT
+      || settings.toolChoiceName !== ''
+    ) {
+      patch.toolDrafts = [];
+      patch.toolChoice = TOOL_CHOICE_DEFAULT;
+      patch.toolChoiceName = '';
+    }
+  } else if (
+    settings.toolChoice !== TOOL_CHOICE_DEFAULT
+    && (
+      (settings.toolChoice === TOOL_CHOICE_NAMED && !controls.tools.allowNamed)
+      || (
+        settings.toolChoice !== TOOL_CHOICE_NAMED
+        && !controls.tools.choiceAllowed.includes(settings.toolChoice)
+      )
+    )
+  ) {
+    patch.toolChoice = TOOL_CHOICE_DEFAULT;
+    patch.toolChoiceName = '';
+  }
+
+  return Object.keys(patch).length === 0 ? settings : { ...settings, ...patch };
+}
+
 function boundViolated(value: number, bound: NumericBound, minimum: boolean): boolean {
   if (minimum) return bound.exclusive ? value <= bound.value : value < bound.value;
   return bound.exclusive ? value >= bound.value : value > bound.value;

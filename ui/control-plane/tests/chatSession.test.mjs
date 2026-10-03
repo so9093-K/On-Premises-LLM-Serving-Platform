@@ -16,6 +16,7 @@ import {
   createRequestContext,
   finishTurn,
   modelFeatureLabels,
+  normalizeChatSettingsForModel,
   numberControlRangeHint,
   pendingToolCallExchange,
   startTurn,
@@ -86,6 +87,64 @@ const MAIN = {
   },
 };
 
+const QWEN = {
+  ...MAIN,
+  capabilities: ['chat.completions', 'chat.completions.vision', 'responses'],
+  request_parameters: {
+    stream: { type: 'boolean' },
+    stream_options: { type: 'object' },
+    temperature: { type: 'number', min: 0, max: 2 },
+    max_tokens: { type: 'integer', min: 1, max: 13000 },
+    top_p: { type: 'number', min_exclusive: 0, max: 1 },
+    top_k: { type: 'integer', min: -1 },
+    min_p: { type: 'number', min: 0, max: 1 },
+    presence_penalty: { type: 'number', min: -2, max: 2 },
+    frequency_penalty: { type: 'number', min: -2, max: 2 },
+    repetition_penalty: { type: 'number', min_exclusive: 0, max: 2 },
+    stop: { type: 'string_or_string_array', max_items: 8 },
+    seed: { type: 'integer', min: 0 },
+    n: { type: 'integer', min: 1, max: 1 },
+    response_format: MAIN.request_parameters.response_format,
+    logprobs: { type: 'boolean', default: false, allow_stream: true },
+    top_logprobs: { type: 'integer', min: 0, max: 10, requires: { logprobs: true } },
+    logit_bias: { type: 'object', max_entries: 256, value_min: -100, value_max: 100 },
+  },
+};
+
+const METAL = {
+  ...MAIN,
+  backend: 'mlx-vlm',
+  capabilities: ['chat.completions', 'chat.completions.vision', 'chat.completions.tools', 'responses'],
+  input_modalities: ['text', 'image'],
+  request_limits: {
+    image: {
+      max_inputs: 8,
+      max_bytes: 25_000_000,
+      max_pixels: 12_845_056,
+      allowed_mime_types: ['image/jpeg', 'image/png'],
+      allowed_url_schemes: ['data'],
+    },
+  },
+  request_parameters: {
+    stream: { type: 'boolean' },
+    stream_options: { type: 'object' },
+    temperature: { type: 'number', min: 0, max: 2 },
+    max_tokens: { type: 'integer', min: 1, max: 8192 },
+    top_p: { type: 'number', min_exclusive: 0, max: 1 },
+    top_k: { type: 'integer', min: -1 },
+    min_p: { type: 'number', min: 0, max: 1 },
+    repetition_penalty: { type: 'number', min_exclusive: 0, max: 2 },
+    tools: { type: 'array', min_items: 1, max_items: 64 },
+    tool_choice: {
+      type: 'string_or_function_choice',
+      allowed: ['auto', 'none', 'required'],
+      allow_named: true,
+    },
+    parallel_tool_calls: { type: 'boolean', const: false },
+    reasoning: { type: 'boolean', default: false, mode: 'request_opt_in' },
+  },
+};
+
 function exchange(id, user, content, status = 'complete') {
   return {
     id,
@@ -120,6 +179,62 @@ test('model feature labels come from the public model contract', () => {
     input_modalities: ['text', 'audio'],
     request_parameters: { stream: { type: 'boolean' } },
   }), ['텍스트', '오디오']);
+});
+
+test('Gemma, Qwen and Metal UI projection follows only the public model contract', () => {
+  assert.deepEqual(modelFeatureLabels(MAIN), [
+    '텍스트', '이미지', '오디오', '비디오', '도구', '추론', '구조화 출력',
+  ]);
+  assert.deepEqual(modelFeatureLabels(QWEN), [
+    '텍스트', '이미지', '오디오', '비디오', '구조화 출력',
+  ]);
+  assert.deepEqual(modelFeatureLabels(METAL), [
+    '텍스트', '이미지', '도구', '추론',
+  ]);
+
+  const qwen = chatControls(QWEN);
+  assert.equal(qwen.tools, null);
+  assert.equal(qwen.reasoning, null);
+  assert.deepEqual(qwen.responseFormat.allowedTypes, ['text', 'json_object', 'json_schema']);
+
+  const metal = chatControls(METAL);
+  assert.equal(metal.responseFormat, null);
+  assert.equal(metal.presencePenalty, null);
+  assert.deepEqual(metal.tools.choiceAllowed, ['auto', 'none', 'required']);
+  assert.equal(metal.tools.allowNamed, true);
+  assert.equal(metal.tools.parallelConst, false);
+  assert.equal(attachmentAccept(METAL), 'image/jpeg,image/png');
+});
+
+test('capability refresh clears only dedicated settings no longer advertised', () => {
+  const weatherTool = {
+    id: 'weather',
+    name: 'get_weather',
+    description: '',
+    parametersText: '{}',
+    strict: null,
+  };
+  const gemmaSettings = {
+    ...DEFAULT_CHAT_SETTINGS,
+    reasoning: true,
+    logprobs: true,
+    responseFormat: 'json_schema',
+    jsonSchemaText: '{"type":"object"}',
+    toolDrafts: [weatherTool],
+    toolChoice: 'auto',
+  };
+
+  const qwenSettings = normalizeChatSettingsForModel(gemmaSettings, QWEN);
+  assert.equal(qwenSettings.reasoning, null);
+  assert.equal(qwenSettings.logprobs, true);
+  assert.equal(qwenSettings.responseFormat, 'json_schema');
+  assert.deepEqual(qwenSettings.toolDrafts, []);
+  assert.equal(qwenSettings.toolChoice, '__default__');
+
+  const metalSettings = normalizeChatSettingsForModel(qwenSettings, METAL);
+  assert.equal(metalSettings.responseFormat, 'default');
+  assert.equal(metalSettings.jsonSchemaText, '');
+  assert.equal(metalSettings.logprobs, null);
 });
 
 test('send-time request context snapshots model contract and actual parameters', () => {
