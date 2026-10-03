@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-0047
 
 ## Context
 
@@ -84,10 +84,12 @@ Gateway에는 `client_disconnect` 스트림 종료로 기록된다.
 
 ## Migration notes
 
-- 없음. 기존 API, 설정, 저장 상태를 바꾸지 않는다.
+- ADR-0047이 이 화면의 current scope와 capability projection 규칙을 소유한다.
+- 이 ADR의 공개 API client, 메모리 보관, same-origin, 진단 정보 원칙은 ADR-0047에 이어진다.
 
 ## Related
 
-- [ADR-0027](0027-control-plane-runtime-configuration-and-console-boundary.md): Console 경계와 관리자 키 보관 원칙. 이 ADR은 "Scalar를 다시 구현하지 않는다"의 범위를 범용 API reference로 한정한다.
-- [ADR-0040](0040-control-plane-korean-capability-ux.md): capability 기반 navigation과 한국어 vocabulary
+- [ADR-0027](0027-control-plane-runtime-configuration-and-console-boundary.md)
+- [ADR-0040](0040-control-plane-korean-capability-ux.md)
+- [ADR-0047](0047-control-plane-capability-aware-chat-playground.md)
 - [API Reference](../reference/api_reference.md)
