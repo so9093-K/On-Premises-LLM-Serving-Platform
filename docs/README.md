@@ -162,6 +162,12 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 - Gateway 경유 public surface와 Compose-internal raw runtime의 보안 경계
 - engine upgrade 전에 유지해야 할 regression invariant
 
+### [vLLM execution boundary 재평가](reference/vllm_execution_boundary.md)
+
+- vLLM 0.30.0 Docker 기준선, stock image·patch 필요 범위
+- supporting Runtime Sleep/Wake와 native Main Runtime spike 실측
+- Docker 유지 결정과 재평가 조건
+
 ### [부록](appendix.md)
 
 - 용어 요약
