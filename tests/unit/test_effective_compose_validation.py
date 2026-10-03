@@ -126,6 +126,7 @@ def test_source_compile_cache_rejects_global_volume_name(tmp_path):
 
 def test_effective_compile_cache_accepts_compose_normalized_mounts(tmp_path):
     _, boot, effective = boot_config(tmp_path)
+    effective["name"] = "test-project"
     for service in effective["services"].values():
         if "VLLM_CACHE_ROOT" not in service.get("environment", {}):
             continue
@@ -133,6 +134,23 @@ def test_effective_compile_cache_accepts_compose_normalized_mounts(tmp_path):
         service["volumes"][0] = {"type": "volume", "source": source, "target": target}
         effective["volumes"][source] = {"name": f"test-project_{source}"}
     validator.validate_alignment(effective_compose=effective, boot_override=boot)
+
+
+@pytest.mark.parametrize("mutation", ["global-name", "aliased-name", "missing-project"])
+def test_effective_compile_cache_rejects_overridden_volume_names(tmp_path, mutation):
+    _, boot, effective = boot_config(tmp_path)
+    effective["name"] = "test-project"
+    for source in effective["volumes"]:
+        effective["volumes"][source] = {"name": f"test-project_{source}"}
+    if mutation == "missing-project":
+        del effective["name"]
+    else:
+        effective["volumes"]["embedding-vllm-cache"]["name"] = (
+            "shared-global-cache" if mutation == "global-name"
+            else "test-project_main-vllm-cache"
+        )
+    with pytest.raises(SystemExit, match="compile cache volume"):
+        validator.validate_alignment(effective_compose=effective, boot_override=boot)
 
 
 def test_boot_override_requires_effective_config(tmp_path):

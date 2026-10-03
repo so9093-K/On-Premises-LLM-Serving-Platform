@@ -287,9 +287,17 @@ def validate_vllm_compile_cache(
         # separately to reject an operator-independent/global volume authority.
         if definition.get("external") or (not resolved_names and definition.get("name")):
             errors.append(f"{name}: compile cache volume must be Compose project-scoped")
-        if source in owners:
-            errors.append(f"{name}: compile cache volume is shared with {owners[source]}")
-        owners[source] = name
+        actual_name = definition.get("name") if resolved_names else None
+        if actual_name is not None:
+            project = compose.get("name")
+            if not project or actual_name != f"{project}_{source}":
+                errors.append(f"{name}: compile cache volume must resolve to its Compose project-scoped name")
+        # Distinct logical volume keys may alias the same Docker volume through
+        # an override's `name`. Compare the resolved identity, not just the key.
+        identity = actual_name or source
+        if identity in owners:
+            errors.append(f"{name}: compile cache volume is shared with {owners[identity]}")
+        owners[identity] = name
     return errors
 
 

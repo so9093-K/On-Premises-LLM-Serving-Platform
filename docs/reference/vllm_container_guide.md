@@ -103,6 +103,9 @@ Unified 이미지의 기반 vLLM 이미지와 dependency 조합은 `configs/vllm
 전용 Compose named volume에 기록한다. 모델 weight를 보관하는 `HF_CACHE_DIR`와
 compile cache는 별개다. Main, generic embedding, Korean embedding, Prompt Runtime은
 서로 다른 volume을 사용하며 volume 이름은 Compose project에 귀속된다.
+Compose override를 포함한 정규화 결과에서도 실제 Docker volume 이름이
+`<project>_<volume key>`인지 확인한다. 서로 다른 key에 같은 `name`을 지정하거나
+project 바깥의 이름을 지정하면 preflight가 거부한다.
 
 일반 `make down`/`make up`, Runtime stop/start, Main profile replace/rollback은
 cache를 보존한다. Runtime Controller는 검사한 Main 컨테이너의 mount와 environment를
@@ -132,6 +135,28 @@ model revision, resource variant, command에서 다음을 비교한다.
 GPU 없이 가능한 mount 보존 검증은 CUDA cache hit나 startup 단축의 증거가 아니다.
 측정에는 source SHA, image digest, GPU/driver, model revision, profile/resource variant,
 cache cold/warm 여부와 반복별 원자료를 함께 남긴다.
+
+측정 시 다음 조건을 명시한다.
+
+- 빈 compile cache와 빈 model/download/OS page cache는 서로 다르다. 모델 weight를
+  미리 준비한 측정은 compile cache의 최초 기동으로 기록하고, 다운로드나 host 전체의
+  cold startup 결과로 해석하지 않는다.
+- 첫 요청을 측정할 때는 같은 boot override를 사용해 Compose의
+  `up -d --no-deps main-llm-vllm`으로 Main만 먼저 띄운다. Gateway와 Runtime Controller의
+  자동 canary가 먼저 요청하면 그 뒤의 요청은 최초 요청이 아니다. Main의 host port를
+  추가하지 말고 격리된 Compose network에서 `/health`와 요청을 관측한다.
+- readiness는 Docker `State.StartedAt`부터 `/health` 200까지, lifecycle 전체 비용은
+  stop/create를 시작한 시점부터 별도로 측정한다. 일반 요청과 structured 요청은 같은
+  순서, prompt, token limit, temperature로 실행한다. Polling 간격도 기록한다.
+- cache가 남아 있다는 사실과 실제 재사용을 함께 확인한다. Container ID 변경,
+  inspect의 동일 volume source, cache 파일 해시, vLLM의 AOT load/compile 로그를
+  대조한다. Sentinel 파일 하나의 보존만으로 CUDA cache hit를 주장하지 않는다.
+- VRAM은 sampling 간격과 device 전체/Runtime process 중 어떤 값을 읽었는지
+  기록한다. 데스크톱이 사용하는 GPU에서는 전체 사용량 변화를 Runtime 절감량으로
+  해석하지 않는다. 종료 뒤 Runtime GPU process가 사라졌는지도 확인한다.
+- Main만의 시간 측정을 마친 뒤 전체 stack을 시작하고 기존 `make runtime-validate`로
+  Gateway 기능과 관측성을 확인한다. 자원 정책이 다른 profile을 허용하지 않는 host에서는
+  같은 profile의 replace/복구 결과와 실제 cross-profile switch 검증을 구분한다.
 
 이 cache 계약은 [vLLM의 공식 Docker compile-cache 안내](https://docs.vllm.ai/en/v0.30.0/deployment/docker/#persist-the-compile-cache-across-containers)를 따른다.
 
