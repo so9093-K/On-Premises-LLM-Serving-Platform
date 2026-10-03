@@ -7,6 +7,7 @@ import {
   attachmentAccept,
   attachmentContentPart,
   buildChatRequest,
+  buildToolResultRequest,
   chatCapableModels,
   chatControls,
   classifyAttachment,
@@ -16,6 +17,7 @@ import {
   finishTurn,
   modelFeatureLabels,
   numberControlRangeHint,
+  pendingToolCallExchange,
   startTurn,
   stopTurn,
   turnFacts,
@@ -66,6 +68,8 @@ const MAIN = {
     logprobs: { type: 'boolean', default: false, allow_stream: true },
     top_logprobs: { type: 'integer', min: 0, max: 10, requires: { logprobs: true } },
     tools: { type: 'array', min_items: 1, max_items: 64 },
+    tool_choice: { type: 'string_or_function_choice', allowed: ['auto', 'none'], allow_named: false },
+    parallel_tool_calls: { type: 'boolean', const: false },
     response_format: {
       type: 'object',
       allowed_types: ['text', 'json_object', 'json_schema'],
@@ -366,6 +370,255 @@ test('attachment-only user turns are valid while empty turns are rejected', () =
     { type: 'image_url', image_url: { url: image.data } },
   ]);
   assert.match(buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [], '').error, /메시지나 첨부 파일/);
+});
+
+test('tool definitions and tool choice serialize only from the public contract', () => {
+  const settings = {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolDrafts: [{
+      id: 'weather',
+      name: 'get_weather',
+      description: '도시 날씨',
+      parametersText: JSON.stringify({
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      }),
+      strict: null,
+    }],
+    toolChoice: 'auto',
+  };
+  const request = buildChatRequest(MAIN, settings, [], '서울 날씨');
+  assert.equal(request.error, null);
+  assert.deepEqual(request.body.tools, [{
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: '도시 날씨',
+      parameters: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      },
+    },
+  }]);
+  assert.equal(request.body.tool_choice, 'auto');
+  assert.equal('parallel_tool_calls' in request.body, false);
+
+  const namedModel = {
+    ...MAIN,
+    request_parameters: {
+      ...MAIN.request_parameters,
+      tool_choice: { type: 'string_or_function_choice', allowed: ['auto', 'none', 'required'], allow_named: true },
+    },
+  };
+  const named = buildChatRequest(namedModel, {
+    ...settings,
+    toolChoice: '__named__',
+    toolChoiceName: 'get_weather',
+  }, [], '서울 날씨');
+  assert.deepEqual(named.body.tool_choice, {
+    type: 'function',
+    function: { name: 'get_weather' },
+  });
+});
+
+test('tool request preflight follows advertised count and JSON shape', () => {
+  const oneToolModel = {
+    ...MAIN,
+    request_parameters: {
+      ...MAIN.request_parameters,
+      tools: { type: 'array', min_items: 1, max_items: 1 },
+    },
+  };
+  const draft = {
+    id: 'a',
+    name: 'a',
+    description: '',
+    parametersText: '{}',
+    strict: null,
+  };
+  assert.match(buildChatRequest(oneToolModel, {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolDrafts: [draft, { ...draft, id: 'b', name: 'b' }],
+  }, [], 'x').error, /최대 1개/);
+  assert.match(buildChatRequest(MAIN, {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolDrafts: [{ ...draft, parametersText: '{' }],
+  }, [], 'x').error, /유효한 JSON/);
+  assert.match(buildChatRequest(MAIN, {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolChoice: 'required',
+  }, [], 'x').error, /광고하지 않은 tool_choice/);
+
+  const twoToolMinimum = {
+    ...MAIN,
+    request_parameters: {
+      ...MAIN.request_parameters,
+      tools: { type: 'array', min_items: 2, max_items: 4 },
+    },
+  };
+  assert.match(buildChatRequest(twoToolMinimum, {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolDrafts: [draft],
+  }, [], 'x').error, /최소 2개/);
+});
+
+test('tool call result round trip keeps assistant call and role=tool messages', () => {
+  const call = {
+    id: 'call_weather',
+    type: 'function',
+    function: { name: 'get_weather', arguments: '{"city":"Seoul"}' },
+  };
+  const source = {
+    ...exchange(1, '서울 날씨', ''),
+    requestContext: createRequestContext(MAIN, { model: MAIN.id, messages: [] }),
+    assistant: {
+      ...startTurn(0),
+      status: 'complete',
+      finishReason: 'tool_calls',
+      toolCalls: [call],
+      finishedAt: 10,
+    },
+  };
+  const settings = {
+    ...DEFAULT_CHAT_SETTINGS,
+    toolDrafts: [{
+      id: 'weather',
+      name: 'get_weather',
+      description: '',
+      parametersText: '{}',
+      strict: null,
+    }],
+    toolChoice: 'auto',
+  };
+  const continuation = buildToolResultRequest(
+    MAIN,
+    settings,
+    [source],
+    1,
+    [{ toolCallId: 'call_weather', content: '{"temperature":18}' }],
+  );
+  assert.equal(continuation.error, null);
+  assert.deepEqual(continuation.body.messages, [
+    { role: 'user', content: '서울 날씨' },
+    { role: 'assistant', content: null, tool_calls: [call] },
+    { role: 'tool', tool_call_id: 'call_weather', content: '{"temperature":18}' },
+  ]);
+
+  const completedToolExchange = {
+    ...exchange(2, '', '서울은 18도입니다.'),
+    toolResults: [{ toolCallId: 'call_weather', content: '{"temperature":18}' }],
+  };
+  const next = buildChatRequest(MAIN, settings, [source, completedToolExchange], '고마워');
+  assert.deepEqual(next.body.messages.map((message) => message.role), [
+    'user', 'assistant', 'tool', 'assistant', 'user',
+  ]);
+});
+
+test('ordinary user messages are blocked until pending tool calls receive results', () => {
+  const call = {
+    id: 'call_weather',
+    type: 'function',
+    function: { name: 'get_weather', arguments: '{"city":"Seoul"}' },
+  };
+  const source = {
+    ...exchange(1, '서울 날씨', ''),
+    assistant: {
+      ...startTurn(0),
+      status: 'complete',
+      finishReason: 'tool_calls',
+      toolCalls: [call],
+      finishedAt: 10,
+    },
+  };
+  assert.equal(pendingToolCallExchange([source])?.id, 1);
+  assert.match(
+    buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [source], '다른 질문').error,
+    /tool call.*결과/,
+  );
+
+  const resolved = {
+    ...exchange(2, '', '서울은 18도입니다.'),
+    toolResults: [{ toolCallId: 'call_weather', content: '{"temperature":18}' }],
+  };
+  assert.equal(pendingToolCallExchange([source, resolved]), null);
+  assert.equal(buildChatRequest(MAIN, DEFAULT_CHAT_SETTINGS, [source, resolved], '고마워').error, null);
+});
+
+test('tool result continuation rejects incomplete or mismatched tool calls', () => {
+  const partial = {
+    ...exchange(1, '질문', ''),
+    assistant: {
+      ...startTurn(0),
+      status: 'stopped',
+      toolCalls: [{
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'lookup', arguments: '{' },
+      }],
+    },
+  };
+  assert.match(buildToolResultRequest(
+    MAIN,
+    DEFAULT_CHAT_SETTINGS,
+    [partial],
+    1,
+    [{ toolCallId: 'call_1', content: 'x' }],
+  ).error, /완료된 tool call/);
+});
+
+test('stream and non-stream tool calls become the same assistant turn state', () => {
+  let turn = startTurn(0);
+  turn = applyChatUpdate(turn, {
+    kind: 'chunk',
+    content: '',
+    reasoning: '',
+    toolCallDeltas: [{
+      index: 0,
+      id: 'call_1',
+      type: 'function',
+      name: 'lookup',
+      arguments: '{"q"',
+    }],
+    finishReason: null,
+    usage: null,
+  }, 10);
+  turn = applyChatUpdate(turn, {
+    kind: 'chunk',
+    content: '',
+    reasoning: '',
+    toolCallDeltas: [{
+      index: 0,
+      id: '',
+      type: '',
+      name: '',
+      arguments: ':"x"}',
+    }],
+    finishReason: 'tool_calls',
+    usage: null,
+  }, 20);
+  assert.equal(turn.firstTokenAt, 10);
+  assert.deepEqual(turn.toolCalls, [{
+    id: 'call_1',
+    type: 'function',
+    function: { name: 'lookup', arguments: '{"q":"x"}' },
+  }]);
+
+  const complete = completeFromResponse(startTurn(0), {
+    choices: [{
+      message: {
+        content: null,
+        tool_calls: [{
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'lookup', arguments: '{"q":"x"}' },
+        }],
+      },
+      finish_reason: 'tool_calls',
+    }],
+  }, 30);
+  assert.deepEqual(complete.toolCalls, turn.toolCalls);
 });
 
 test('structured output follows advertised types and json-object instruction policy', () => {

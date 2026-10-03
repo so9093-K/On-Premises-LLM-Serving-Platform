@@ -73,6 +73,37 @@ test('reasoning, finish reason and usage are read from the gateway contract fiel
   assert.deepEqual(updates[3].usage, { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 });
 });
 
+test('streaming tool calls preserve index and argument fragments', async () => {
+  const updates = await collect([
+    chunk({ tool_calls: [{
+      index: 0,
+      id: 'call_weather',
+      type: 'function',
+      function: { name: 'get_weather', arguments: '{"city"' },
+    }] }),
+    chunk({ tool_calls: [{
+      index: 0,
+      function: { arguments: ':"Seoul"}' },
+    }] }, { finish_reason: 'tool_calls' }),
+    'data: [DONE]\n\n',
+  ]);
+  assert.deepEqual(updates[0].toolCallDeltas, [{
+    index: 0,
+    id: 'call_weather',
+    type: 'function',
+    name: 'get_weather',
+    arguments: '{"city"',
+  }]);
+  assert.deepEqual(updates[1].toolCallDeltas, [{
+    index: 0,
+    id: '',
+    type: '',
+    name: '',
+    arguments: ':"Seoul"}',
+  }]);
+  assert.equal(updates[1].finishReason, 'tool_calls');
+});
+
 test('a gateway SSE error event surfaces code, message and request id', () => {
   const update = interpretChatEvent({
     event: 'error',

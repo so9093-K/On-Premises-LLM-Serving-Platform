@@ -14,6 +14,7 @@ import { readChatStream } from './chatStream';
 import {
   applyChatUpdate,
   buildChatRequest,
+  buildToolResultRequest,
   createRequestContext,
   completeFromResponse,
   DEFAULT_CHAT_SETTINGS,
@@ -24,6 +25,7 @@ import {
   type AssistantTurn,
   type ChatAttachment,
   type ChatSettings,
+  type ChatToolResult,
   type Exchange,
   type PublicModel,
 } from './chatSession';
@@ -40,6 +42,7 @@ type ChatSessionValue = {
   updateSettings: (patch: Partial<ChatSettings>) => void;
   busy: boolean;
   send: (model: PublicModel, text: string, attachments?: readonly ChatAttachment[]) => string | null;
+  sendToolResults: (model: PublicModel, sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
   stop: () => void;
   clear: () => void;
 };
@@ -79,16 +82,12 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     setExchanges([]);
   }, []);
 
-  const send = useCallback((
+  const executeRequest = useCallback((
+    key: string | null,
     model: PublicModel,
-    text: string,
-    attachments: readonly ChatAttachment[] = [],
-  ): string | null => {
-    if (abortRef.current !== null) return '이전 응답을 받는 중입니다. 중지한 뒤 다시 보내세요.';
-    const { apiKey: key, exchanges: history, settings: current } = latest.current;
-    const { body, error } = buildChatRequest(model, current, history, text, attachments);
-    if (error) return error;
-
+    body: Record<string, unknown>,
+    exchange: Pick<Exchange, 'user' | 'attachments' | 'toolResults'>,
+  ): void => {
     const id = ++nextIdRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -97,8 +96,9 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       ...items,
       {
         id,
-        user: text,
-        attachments: [...attachments],
+        user: exchange.user,
+        attachments: [...exchange.attachments],
+        ...(exchange.toolResults ? { toolResults: [...exchange.toolResults] } : {}),
         sentAtSeconds: Date.now() / 1000,
         requestContext: createRequestContext(model, body),
         assistant: startTurn(performance.now()),
@@ -148,8 +148,37 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
         setBusy(false);
       }
     })();
-    return null;
   }, []);
+
+  const send = useCallback((
+    model: PublicModel,
+    text: string,
+    attachments: readonly ChatAttachment[] = [],
+  ): string | null => {
+    if (abortRef.current !== null) return '이전 응답을 받는 중입니다. 중지한 뒤 다시 보내세요.';
+    const { apiKey: key, exchanges: history, settings: current } = latest.current;
+    const { body, error } = buildChatRequest(model, current, history, text, attachments);
+    if (error) return error;
+    executeRequest(key, model, body, { user: text, attachments: [...attachments] });
+    return null;
+  }, [executeRequest]);
+
+  const sendToolResults = useCallback((
+    model: PublicModel,
+    sourceExchangeId: number,
+    results: readonly ChatToolResult[],
+  ): string | null => {
+    if (abortRef.current !== null) return '이전 응답을 받는 중입니다. 중지한 뒤 다시 보내세요.';
+    const { apiKey: key, exchanges: history, settings: current } = latest.current;
+    const { body, error } = buildToolResultRequest(model, current, history, sourceExchangeId, results);
+    if (error) return error;
+    executeRequest(key, model, body, {
+      user: '',
+      attachments: [],
+      toolResults: [...results],
+    });
+    return null;
+  }, [executeRequest]);
 
   const value = useMemo(
     () => ({
@@ -161,10 +190,11 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       updateSettings,
       busy,
       send,
+      sendToolResults,
       stop,
       clear,
     }),
-    [apiKey, setApiKey, apiKeyRejected, exchanges, settings, updateSettings, busy, send, stop, clear],
+    [apiKey, setApiKey, apiKeyRejected, exchanges, settings, updateSettings, busy, send, sendToolResults, stop, clear],
   );
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>;
 }
