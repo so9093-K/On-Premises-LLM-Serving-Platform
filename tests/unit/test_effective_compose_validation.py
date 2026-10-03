@@ -32,6 +32,11 @@ def boot_config(tmp_path, *, utilization="0.76", locked=False):
     effective = validator.load_yaml(validator.COMPOSE_PATH)
     for service_name, projection in boot["services"].items():
         effective["services"][service_name].update(projection)
+    # docker compose config의 effective document는 project identity와 각 named
+    # volume의 실제 project-scoped name을 포함한다.
+    effective["name"] = "test-project"
+    for source in effective.get("volumes", {}):
+        effective["volumes"][source] = {"name": f"test-project_{source}"}
     return profile_id, boot, effective
 
 
