@@ -146,7 +146,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : { label: '정상', color: 'green' as const, description: '현재 즉시 조치가 필요한 항목은 없습니다.' };
+      : { label: '확인된 주의 항목 없음', color: 'green' as const, description: '조회된 운영 상태에 주의 항목이 없습니다. 실제 추론 응답은 Playground에서 확인할 수 있습니다.' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,
@@ -158,7 +158,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     <section className="overview-page">
       <div className="page-heading">
         <div>
-          <h1>개요</h1>
+          <h1>운영 개요</h1>
           <p>현재 서비스 상태, 실행 환경과 운영자가 할 수 있는 작업을 한눈에 확인합니다.</p>
         </div>
         <Button variant="secondary" onClick={refresh} isDisabled={refreshing}>
@@ -238,6 +238,47 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         ) : null}
       </div>
 
+      <Card className="overview-next-actions">
+        <CardTitle>빠른 작업</CardTitle>
+        <CardBody>
+          <p className="configuration-help">현재 상태 확인에서 실제 요청 테스트와 운영 작업으로 이동합니다. 운영 상태는 모델 응답을 보증하지 않습니다.</p>
+          <div className="overview-action-grid">
+            {bootstrap.deployment.features.includes('chat') ? (
+              <Link className="overview-action-tile" to="/chat">
+                <strong>모델 응답 테스트 →</strong>
+                <span>공개 API로 요청을 보내 응답과 지연 확인</span>
+              </Link>
+            ) : null}
+            {modelSwitchingEnabled ? (
+              <Link className="overview-action-tile" to="/main-model">
+                <strong>모델 상태·전환 →</strong>
+                <span>현재 모델과 전환 영향을 검토</span>
+              </Link>
+            ) : runtimeControlEnabled ? (
+              <Link className="overview-action-tile" to="/runtimes">
+                <strong>런타임 확인 →</strong>
+                <span>실행 상태와 GPU 예약 정책 확인</span>
+              </Link>
+            ) : (
+              <div className="overview-action-tile">
+                <strong>외부 관리 런타임</strong>
+                <span>모델 실행과 전환은 외부 구성요소에서 관리</span>
+              </div>
+            )}
+            <Link className="overview-action-tile" to="/operations">
+              <strong>최근 운영 작업 →</strong>
+              <span>전환·설정 변경과 진단 결과 확인</span>
+            </Link>
+            {bootstrap.links.docs ? (
+              <a className="overview-action-tile" href={bootstrap.links.docs} target="_blank" rel="noreferrer">
+                <strong>API 문서 ↗</strong>
+                <span>공개 API와 요청 형식 확인</span>
+              </a>
+            ) : null}
+          </div>
+        </CardBody>
+      </Card>
+      
       <Card className="traffic-card">
         <CardTitle>
           지금 서비스
@@ -260,7 +301,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             </div>
           )}
           <p className="traffic-footnote">
-            공개 API(/v1/*) 요청을 Gateway가 직접 집계한 값이며 Gateway가 재시작되면 다시 셉니다.
+            공개 API(/v1/*) 요청의 Gateway 프로세스 내 집계입니다. 재시작 시 초기화되며 GPU 엔진 측정값과는 다릅니다.
             {serviceDashboardUrl ? (
               <> <a className="overview-inline-action" href={serviceDashboardUrl} target="_blank" rel="noreferrer">Grafana에서 추이 보기 ↗</a></>
             ) : null}
@@ -357,8 +398,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <dt>중지됨</dt><dd>{runtimeStateCount(runtimes, 'stopped')}</dd>
                 <dt>정책상 제외</dt>
                 <dd>{unavailableTopology.length ? <Label color="orange">{unavailableTopology.length}</Label> : '없음'}</dd>
-                <dt>GPU 예약</dt><dd>{formatPercent(budget?.used)} / 상한 {formatPercent(budget?.ceiling)}</dd>
-                <dt>GPU 여유</dt><dd>{formatPercent(budget?.free)}</dd>
+                <dt>정책상 GPU 예약</dt><dd>{formatPercent(budget?.used)} / 상한 {formatPercent(budget?.ceiling)}</dd>
+                <dt>정책상 GPU 여유</dt><dd>{formatPercent(budget?.free)}</dd>
               </dl>
             )}
             {runtimeControlEnabled ? (

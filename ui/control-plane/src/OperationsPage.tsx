@@ -315,8 +315,8 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     <section className="runtime-page">
       <div className="page-heading">
         <div>
-          <h1>활동</h1>
-          <p>런타임, 메인 모델, 설정에서 발생한 최근 운영 작업을 시간순으로 확인합니다.</p>
+          <h1>운영 활동</h1>
+          <p>모델 전환·런타임 시작과 중지·설정 변경의 결과와 관련 진단을 확인합니다.</p>
         </div>
         <Button
           variant="secondary"
@@ -338,7 +338,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
       ) : null}
       {mainModelEnabled && mainModelQuery.isError ? (
         <Alert isInline variant="warning" title="메인 모델 활동을 불러오지 못했습니다.">
-          다른 source의 activity는 계속 표시합니다. {apiErrorMessage(mainModelQuery.error)}
+          다른 영역의 작업 기록은 계속 표시합니다. {apiErrorMessage(mainModelQuery.error)}
         </Alert>
       ) : null}
       {configurationQuery.isError ? (
@@ -348,10 +348,10 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
       ) : null}
 
       <Card>
-        <CardTitle>최근 활동</CardTitle>
+        <CardTitle>최근 운영 작업</CardTitle>
         <CardBody>
           <p className="configuration-help activity-intro">
-            각 영역이 기록한 최근 운영 작업을 시간순으로 모아 보여줍니다. 원본 작업 이력의 소유권은 각 런타임·메인 모델·설정 영역에 그대로 있습니다.
+            이 화면은 Control Plane이 수행한 운영 변경 기록입니다. 일반 API 추론 요청 로그와는 다르며, 원본 작업 기록은 각 런타임·모델·설정 영역이 소유합니다.
           </p>
 
           {activity.length > 0 ? (
@@ -404,7 +404,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
                       <span>{item.detail}</span>
                     </p>
                     <details className="activity-details">
-                      <summary>작업 상세 정보</summary>
+                      <summary>작업 식별자 및 기술 상세 보기</summary>
                       <dl className="facts compact-facts">
                         {item.metadata.map((entry) => (
                           <div className="activity-fact" key={entry.label}>

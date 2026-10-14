@@ -6,6 +6,8 @@
 
 ### Added
 
+- Control Plane Console의 탐색을 서비스·운영/진단·개발/테스트의 작업 영역으로 구분하고 개요에서 모델 응답 테스트·전환·활동·API 문서로 이어지는 경로를 제공한다. Runtime GPU 지표의 정책상 예약과 실측 의미를 명확히 구분하고, 모델 전환 영향·설정 Schema 그룹 탐색·운영 이력 설명·모바일 Chat의 대화 기준 자동 스크롤과 설정 바로가기를 개선한다. 기존 Server Capability, Plan/Apply 및 브라우저 메모리 보안 계약은 유지한다.
+
 - macOS Metal의 고정 Gemma 4 MLX/MTP 프로필에서 function tool 호출·결과 왕복과 `auto`/`none`/`required`/지정 함수 선택을 공개한다. Responses API의 `reasoning.effort=medium`으로 thinking을 명시적으로 켤 수 있으며, Chat과 Responses 모두 reasoning 기본값은 off다. Responses 요청이 reasoning을 생략해도 native 서버의 thinking 기본값을 따르지 않는다.
 
 - `GET /admin/serving-envelope`를 추가해 Main Model의 current profile/resource variant, Gateway resolved admission(`max_concurrency`, `queue_timeout_seconds`)과 backend별 capacity 관련 engine policy를 한 read-only projection으로 조회할 수 있게 했다. Dynamic target은 Runtime Controller active profile의 resolved vLLM policy를, static target은 선택된 external-runtime catalog 계약을 사용하며 capacity percentage·추천 concurrency·최대 사용자 수는 계산하지 않는다.

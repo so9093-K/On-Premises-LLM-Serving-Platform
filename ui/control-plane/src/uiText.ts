@@ -3,12 +3,12 @@ export type UiLocale = 'ko-KR' | 'en-US';
 export const DEFAULT_UI_LOCALE: UiLocale = 'ko-KR';
 
 const messages = {
-  'nav.overview': { 'ko-KR': '개요', 'en-US': 'Overview' },
-  'nav.runtimes': { 'ko-KR': '런타임', 'en-US': 'Runtimes' },
+  'nav.overview': { 'ko-KR': '운영 개요', 'en-US': 'Overview' },
+  'nav.runtimes': { 'ko-KR': '런타임과 GPU', 'en-US': 'Runtimes & GPU' },
   'nav.mainModel': { 'ko-KR': '메인 모델', 'en-US': 'Main Model' },
   'nav.configuration': { 'ko-KR': '설정', 'en-US': 'Configuration' },
-  'nav.activity': { 'ko-KR': '활동', 'en-US': 'Activity' },
-  'nav.chat': { 'ko-KR': '채팅 테스트', 'en-US': 'Chat Test' },
+  'nav.activity': { 'ko-KR': '운영 활동', 'en-US': 'Operations' },
+  'nav.chat': { 'ko-KR': 'Playground', 'en-US': 'Playground' },
   'common.loading': { 'ko-KR': 'Control Plane 정보를 불러오는 중입니다.', 'en-US': 'Loading Control Plane information.' },
   'common.refresh': { 'ko-KR': '새로고침', 'en-US': 'Refresh' },
   'common.refreshing': { 'ko-KR': '새로고침 중…', 'en-US': 'Refreshing…' },

@@ -22,3 +22,16 @@ test('mobile chat layout preserves DOM order instead of visually reordering the 
   assert.match(mobile, /\.chat-side\s*\{[\s\S]*?position:\s*static;/);
   assert.doesNotMatch(mobile, /order\s*:\s*-1/);
 });
+
+test('streaming follows the conversation end rather than the document end below mobile settings', () => {
+  assert.match(chatPage, /conversationEndRef\.current\?\.scrollIntoView/);
+  assert.match(chatPage, /ref=\{conversationEndRef\}/);
+  assert.doesNotMatch(chatPage, /window\.scrollTo\(\{ top: document\.documentElement\.scrollHeight/);
+  assert.match(chatPage, /Math\.abs\(end\.getBoundingClientRect\(\)\.top - window\.innerHeight\)/);
+});
+
+test('the mobile settings shortcut has a real target and a way back to the composer', () => {
+  assert.match(chatPage, /href="#chat-model-settings"/);
+  assert.match(chatPage, /id="chat-model-settings"/);
+  assert.match(chatPage, /href="#chat-input"/);
+});

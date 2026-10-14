@@ -355,7 +355,7 @@ function ExchangeView({
         )}
       </div>
       <div className="chat-message chat-message-assistant" aria-busy={streaming}>
-        <span className="chat-role">모델</span>
+        <span className="chat-role">모델 · {exchange.requestContext.modelId} · {exchange.requestContext.backend}</span>
         {turn.reasoning ? (
           <details className="chat-reasoning">
             <summary>
@@ -818,6 +818,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const [inputError, setInputError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const followRef = useRef(true);
+  const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   const modelsQuery = useQuery({
     queryKey: ['public-models', apiKey],
@@ -841,18 +842,18 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     if (normalized !== session.settings) session.updateSettings(normalized);
   }, [model, session.settings, session.updateSettings]);
 
-  // 사용자가 위로 스크롤해 이전 응답을 읽는 중이면 새 token이 와도 끌어내리지 않는다.
+  // 모바일에서는 설정 패널이 채팅 뒤에 있으므로 문서의 맨 끝이 아닌 대화 끝만 추적한다.
+  // 사용자가 과거 응답을 읽고 있으면 새 스트리밍 토큰이 스크롤 위치를 빼앗지 않는다.
   useEffect(() => {
     const onScroll = () => {
-      const root = document.documentElement;
-      followRef.current = root.scrollHeight - (window.scrollY + window.innerHeight) < 160;
+      const end = conversationEndRef.current;
+      if (end) followRef.current = Math.abs(end.getBoundingClientRect().top - window.innerHeight) < 160;
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  // 입력창은 화면 아래에 붙어 있다. 문서 끝까지 내려야 마지막 응답이 입력창에 가리지 않는다.
   useEffect(() => {
-    if (followRef.current) window.scrollTo({ top: document.documentElement.scrollHeight });
+    if (followRef.current) conversationEndRef.current?.scrollIntoView({ block: 'end' });
   }, [exchanges]);
 
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -903,13 +904,14 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     <section className="chat-page">
       <div className="page-heading">
         <div>
-          <h1>채팅 테스트</h1>
+          <h1>Playground · Chat</h1>
           <p>
             공개 API(<code>/v1/chat/completions</code>)를 이 화면에서 직접 호출합니다. 대화는 이 탭의
             메모리에만 있고 서버에 저장하지 않습니다.
           </p>
         </div>
         <div className="chat-heading-actions">
+          <a className="chat-settings-jump" href="#chat-model-settings">모델·요청 설정 ↓</a>
           {apiKey !== null ? <Button variant="secondary" onClick={() => setApiKey(null)}>API 키 지우기</Button> : null}
           {exchanges.length > 0 ? <Button variant="secondary" onClick={clear}>대화 지우기</Button> : null}
         </div>
@@ -1009,8 +1011,9 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 )}
               </div>
             </form>
+            <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
           </div>
-          <aside className="chat-side">
+          <aside className="chat-side" id="chat-model-settings" aria-label="모델과 요청 설정">
             {models.length > 1 ? (
               <div className="chat-model-select">
                 <label htmlFor="chat-model">모델</label>
@@ -1044,6 +1047,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
             )}
             <ModelContext model={model} />
             <ChatSettingsPanel model={model} />
+            <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
           </aside>
         </div>
       ) : null}

@@ -44,6 +44,12 @@ const SECTIONS: Section[] = [
   },
 ];
 
+const NAV_GROUPS = [
+  { label: '서비스', paths: ['/', '/main-model', '/runtimes'] },
+  { label: '운영 및 진단', paths: ['/operations', '/configuration'] },
+  { label: '개발 및 테스트', paths: ['/chat'] },
+];
+
 function LoadingScreen() {
   return (
     <main className="centered-state" aria-live="polite">
@@ -145,11 +151,19 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
       <div className="workspace">
         <aside className="sidebar" aria-label="Control Plane 탐색">
           <nav>
-            {sections.map((section) => (
-              <NavLink key={section.path} to={section.path} end={section.path === '/'}>
-                {section.label}
-              </NavLink>
-            ))}
+            {NAV_GROUPS.map((group) => {
+              const visible = sections.filter((section) => group.paths.includes(section.path));
+              return visible.length ? (
+                <div className="nav-group" key={group.label}>
+                  <span className="nav-group-label">{group.label}</span>
+                  {visible.map((section) => (
+                    <NavLink key={section.path} to={section.path} end={section.path === '/'}>
+                      {section.label}
+                    </NavLink>
+                  ))}
+                </div>
+              ) : null;
+            })}
           </nav>
           <div className="external-links">
             {externalLinks.map(([label, href]) => href ? (
