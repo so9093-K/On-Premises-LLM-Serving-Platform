@@ -427,7 +427,8 @@ def _phase2(*, boot_override: Path) -> int:
         else:
             print(
                 "[preflight] risk vLLM image config check failed; build/check a Kanana-compatible "
-                "RISK_VLLM_IMAGE or set SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK=1 only for non-runtime local checks",
+                "VLLM_IMAGE (shared unified runtime image); rebuild with make build-vllm-unified-image. "
+                "SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK=1 is only for non-runtime local checks.",
                 file=sys.stderr,
             )
             fail = True

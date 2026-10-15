@@ -1,11 +1,17 @@
 # Control Plane Chat Playground 설계
 
-이 문서는 Issue #211 / ADR-0047의 구현 명세다. 목표는 Console을 별도 serving authority로
-만들지 않고 현재 Gateway public model contract를 정확하게 보여 주는 것이다.
+> 이 문서는 Issue #211의 완료된 개발 단계와 당시 설계 근거를 보존하는 구현 이력입니다.
+> 현재 운영자 UX와 화면 이름은 [운영자 작업 중심 UX](control_plane_operator_ux.md)를,
+> 공개 모델 capability의 현재 소유권은 [ADR-0047](../adr/0047-control-plane-capability-aware-chat-playground.md)을 참고하세요.
+> 아래 wireframe과 Phase별 계획은 과거 설계안이며 최신 Console의 정확한 화면 구조가 아닙니다.
+
+이 문서는 Issue #211 / ADR-0047을 구현하던 시점의 설계·검토 기록이다.
+당시 목표는 Console을 별도 serving authority로 만들지 않고 Gateway 공개 모델 계약을
+표현하는 것이었다. 현재의 화면 사용 계약은 상단에 링크된 최신 문서가 소유한다.
 
 ## 종료선
 
-이번 사이클은 Phase C까지 완료하면 끝난다.
+당시 구현 계획은 Phase C까지 완료된 상태로 종료됐다. 다음 항목은 완료된 작업의 이력이다.
 
 1. Phase A: Scalar review, Chat IA/wireframe, capability mapping, ADR/PR plan
 2. Phase B: Scalar hardening, capability/request context, parameters, multimodal,

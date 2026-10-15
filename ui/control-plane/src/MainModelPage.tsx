@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import {
   fetchMainModel,
@@ -29,6 +30,7 @@ import { formatPercent, runtimeStateLabel, t } from './uiText';
 type MainModelPageProps = {
   token: string | null;
   onUnauthorized: () => void;
+  chatEnabled: boolean;
 };
 
 function compatibilityVariant(status: string): 'green' | 'orange' | 'red' | 'grey' {
@@ -134,7 +136,7 @@ function OperationProgress({ operation }: { operation: MainModelOperationRespons
   );
 }
 
-export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
+export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelPageProps) {
   const queryClient = useQueryClient();
   const [reviewProfileId, setReviewProfileId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -340,11 +342,11 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
 
       {reviewProfile ? (
         <Card className="review-card">
-          <CardTitle>프로필 전환 검토</CardTitle>
+          <CardTitle>모델 전환 전 영향 확인</CardTitle>
           <CardBody>
             <p className="configuration-help profile-comparison-intro">
-              전환 전에 현재 프로필과 후보 프로필의 운영 계약 차이를 확인합니다.
-              호환성, 검증 상태, 리소스 정책은 서로 다른 정보이며 이 비교만으로 GPU 지원 여부를 판정하지 않습니다.
+              모델 전환 중 메인 모델 요청이 일시 중단될 수 있습니다. 변경되는 입력 기능과 GPU 정책을 먼저 확인하세요.
+              실패 시 이전 모델로 복구를 시도하며 실제 결과는 전환 진행 상태에서 확인합니다. 호환성·검증·자원 정책은 서로 다른 정보입니다.
             </p>
 
             {active && switchImpact ? (
@@ -465,14 +467,19 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
 
       {operationId ? (
         <Card>
-          <CardTitle>전환 진행 상황</CardTitle>
+          <CardTitle>모델 전환 진행 상황</CardTitle>
           <CardBody>
             {operationQuery.isPending ? (
               <div className="inline-loading"><Spinner size="md" aria-label="메인 모델 전환 상태 불러오는 중" /> 전환 상태를 확인하는 중입니다.</div>
             ) : operationQuery.isError ? (
               <Alert isInline variant="danger" title="전환 상태를 불러오지 못했습니다.">{apiErrorMessage(operationQuery.error)}</Alert>
             ) : operationQuery.data ? (
-              <OperationProgress operation={operationQuery.data} />
+              <>
+                  <OperationProgress operation={operationQuery.data} />
+                  {chatEnabled && operationQuery.data.status === 'completed' ? (
+                    <p className="operation-follow-up"><Link to="/chat">Playground에서 새 모델 응답 확인 →</Link></p>
+                  ) : null}
+                </>
             ) : null}
           </CardBody>
         </Card>

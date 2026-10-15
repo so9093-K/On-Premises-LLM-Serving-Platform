@@ -7,6 +7,7 @@
   specs/schemas/model_list_response.schema.json
   specs/openapi.gateway.yaml
   docs/reference/openai_compatibility.md
+  docs/reference/api_reference.md (Tool Calling 생성 구간)
   specs/openapi.risk-signal-service.yaml
 
 생성 제외 대상:
@@ -46,6 +47,7 @@ from ai_model_serving.monitoring_projection import (  # noqa: E402
 )
 from scripts.openapi_assets import build_generated_openapi, render_static_openapi  # noqa: E402
 from scripts.openai_compatibility import render as render_openai_compatibility  # noqa: E402
+from scripts.tool_policy_reference import project_tool_policy_section  # noqa: E402
 
 _GENERATED_HEADER_YAML_WITH_MONITORING = (
     "# 자동 생성 파일입니다. 직접 수정하지 마세요.\n"
@@ -149,7 +151,14 @@ def get_artifacts(
 ) -> list[tuple[Path, str]]:
     """(파일 경로, expected 내용) 목록을 반환한다."""
     openapi_docs, _ = build_generated_openapi()
+    api_reference = root / "docs/reference/api_reference.md"
+    projected_reference = project_tool_policy_section(
+        api_reference.read_text(encoding="utf-8"),
+        load_yaml_mapping(root / "configs/main_model_profiles.yaml"),
+        macos_runtime,
+    )
     return [
+        (api_reference, projected_reference),
         (root / "ops/prometheus/prometheus.yml", render_prometheus_yml(registry, monitoring, services)),
         (
             root / "ops/prometheus/prometheus.macos-metal.yml",

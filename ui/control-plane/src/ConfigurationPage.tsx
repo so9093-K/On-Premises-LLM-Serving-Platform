@@ -23,7 +23,7 @@ import {
   configurationSetChange,
   parseConfigurationDraft,
 } from './configurationSafety';
-import { configurationLabel, riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
+import { configurationGroupLabel, configurationLabel, riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
 
 type ConfigurationPageProps = {
   token: string | null;
@@ -130,6 +130,7 @@ function riskColor(risk: string): 'grey' | 'blue' | 'orange' | 'red' {
 export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }: ConfigurationPageProps) {
   const queryClient = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState('all');
   const [draft, setDraft] = useState<ConfigurationDraft>('');
   const [review, setReview] = useState<ReviewedConfiguration | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -219,6 +220,10 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
     () => (schemaQuery.data?.items ?? []).filter((item) => item.control_surface === 'configuration'),
     [schemaQuery.data],
   );
+  const groups = [...new Set(schemaItems.map((item) => item.group))];
+  const visibleSchemaItems = groupFilter === 'all'
+    ? schemaItems
+    : schemaItems.filter((item) => item.group === groupFilter);
   const effectiveByKey = useMemo(() => new Map(
     (effectiveQuery.data?.data.items ?? []).map((item) => [item.key, item]),
   ), [effectiveQuery.data]);
@@ -312,13 +317,26 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
         </CardBody>
       </Card>
 
+      <div className="configuration-browse">
+        <label htmlFor="configuration-group">설정 영역</label>
+        <select id="configuration-group" value={groupFilter} onChange={(event) => setGroupFilter(event.currentTarget.value)}>
+          <option value="all">모든 영역 ({schemaItems.length})</option>
+          {groups.map((group) => (
+            <option value={group} key={group}>{configurationGroupLabel(group)} ({schemaItems.filter((item) => item.group === group).length})</option>
+          ))}
+        </select>
+        <p>항목은 서버 Configuration Schema의 그룹과 수정 가능 여부를 기준으로 표시합니다. 직접 편집할 수 없는 설정도 현재 적용값을 확인할 수 있습니다.</p>
+        {selectedMetadata !== null && !visibleSchemaItems.some((item) => item.key === selectedMetadata.key) ? (
+          <p role="status">다른 영역의 설정 <strong>{configurationLabel(selectedMetadata.key, selectedMetadata.label)}</strong>을 편집 중입니다. 현재 편집 내용을 검토하거나 취소할 수 있습니다.</p>
+        ) : null}
+      </div>
       <div className="table-scroll">
         <table className="runtime-table">
           <thead>
             <tr><th>설정</th><th>적용 값</th><th>출처</th><th>운영자 덮어쓰기</th><th>변경 위험</th><th>작업</th></tr>
           </thead>
           <tbody>
-            {schemaItems.map((metadata) => {
+            {visibleSchemaItems.map((metadata) => {
               const value = effectiveByKey.get(metadata.key) ?? null;
               const applicable = configurationItemApplies(metadata, deploymentFeatures);
               const editable = writeStatus.available && metadata.editable && applicable;
@@ -326,6 +344,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
                 <tr key={metadata.key}>
                   <td>
                     <strong>{configurationLabel(metadata.key, metadata.label)}</strong>
+                    <small className="configuration-item-meaning">{metadata.meaning}</small>
                     <small>{metadata.key}{metadata.unit ? ` · ${metadata.unit}` : ''}</small>
                   </td>
                   <td>{displayValue(metadata, value)}</td>

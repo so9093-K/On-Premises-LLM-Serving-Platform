@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   type PropsWithChildren,
@@ -16,9 +17,18 @@ interface AdminSessionValue {
 const AdminSessionContext = createContext<AdminSessionValue | null>(null);
 
 export function AdminSessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [token, setTokenState] = useState<string | null>(null);
-  const setToken = useCallback((value: string) => setTokenState(value), []);
-  const clearToken = useCallback(() => setTokenState(null), []);
+  // 관리자 신원이 바뀌면 이전 세션의 in-memory query 결과를 재사용하지 않는다.
+  // credential 자체는 query key나 storage에 보관하지 않는다.
+  const setToken = useCallback((value: string) => {
+    queryClient.clear();
+    setTokenState(value);
+  }, [queryClient]);
+  const clearToken = useCallback(() => {
+    queryClient.clear();
+    setTokenState(null);
+  }, [queryClient]);
   const value = useMemo(() => ({ token, setToken, clearToken }), [token, setToken, clearToken]);
   return <AdminSessionContext.Provider value={value}>{children}</AdminSessionContext.Provider>;
 }

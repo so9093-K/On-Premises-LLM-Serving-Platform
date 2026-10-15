@@ -1499,3 +1499,90 @@ input {
   color: var(--console-text);
   background: var(--console-selection);
 }
+
+/* Operator workflow UX: keep capability authority in existing page data sources. */
+.nav-group {
+  display: grid;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+}
+.nav-group-label {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--console-text-muted);
+}
+.overview-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+}
+.overview-action-tile {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  padding: 1rem;
+  min-width: 0;
+  color: var(--console-text);
+  border: 1px solid var(--console-border);
+  border-radius: 0.5rem;
+  background: var(--console-surface-raised);
+  text-decoration: none;
+}
+a.overview-action-tile:hover {
+  border-color: var(--console-focus);
+  background: var(--console-surface-hover);
+}
+.overview-action-tile strong { font-size: 0.9375rem; }
+.overview-action-tile span { color: var(--console-text-muted); font-size: 0.8125rem; }
+.configuration-browse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0;
+}
+.configuration-browse label { font-weight: 600; }
+.configuration-browse select {
+  min-width: 13rem;
+  max-width: 100%;
+  padding: 0.625rem 0.75rem;
+  color: var(--console-text);
+  background: var(--console-surface-raised);
+  border: 1px solid var(--console-border);
+  border-radius: 0.375rem;
+}
+.configuration-browse p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--console-text-muted);
+  font-size: 0.8125rem;
+}
+.configuration-item-meaning {
+  display: block;
+  max-width: 28rem;
+  color: var(--console-text-muted);
+  overflow-wrap: anywhere;
+}
+.operation-follow-up { margin-top: 1rem; }
+.operation-follow-up a,
+.chat-settings-jump,
+.chat-back-link { color: var(--console-focus); }
+.chat-settings-jump { font-size: 0.8125rem; }
+.chat-back-link { display: inline-block; padding: 0.5rem; }
+.chat-conversation-end { height: 1px; scroll-margin-bottom: 1.5rem; }
+.console-shell .configuration-browse select:focus-visible,
+.console-shell .overview-action-tile:focus-visible,
+.console-shell .chat-settings-jump:focus-visible,
+.console-shell .chat-back-link:focus-visible {
+  outline: 0.125rem solid var(--console-focus);
+  outline-offset: 0.125rem;
+}
+@media (max-width: 760px) {
+  .overview-action-grid { grid-template-columns: 1fr; }
+  .configuration-browse { align-items: stretch; flex-direction: column; }
+  .configuration-browse select { width: 100%; }
+  .chat-side { scroll-margin-top: 1rem; }
+}

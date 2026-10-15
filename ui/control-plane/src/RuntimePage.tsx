@@ -18,7 +18,7 @@ import {
   runtimePlanRequiresForceReview,
 } from './runtimeSafety';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
-import { formatFraction, formatPercent, runtimeStateLabel, t, yesNoLabel } from './uiText';
+import { formatFraction, formatPercent, gpuBudgetAccessibilityLabel, runtimeStateLabel, t, yesNoLabel } from './uiText';
 
 type DesiredState = 'active' | 'stopped';
 type RuntimeTopologyItem = NonNullable<RuntimeListResponse['topology']>[number];
@@ -191,8 +191,8 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
     <section className="runtime-page">
       <div className="page-heading">
         <div>
-          <h1>런타임</h1>
-          <p>현재 실행 상태와 GPU 여유를 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
+          <h1>런타임과 GPU</h1>
+          <p>실행 상태와 정책상 GPU 예약 예산을 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
         </div>
         <Button variant="secondary" onClick={() => runtimesQuery.refetch()} isDisabled={runtimesQuery.isFetching}>
           {runtimesQuery.isFetching ? t('common.refreshing') : t('common.refresh')}
@@ -201,17 +201,17 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
 
       {budget ? (
         <Card>
-          <CardTitle>GPU 메모리 예산</CardTitle>
+          <CardTitle>정책상 GPU 예약 예산</CardTitle>
           <CardBody>
             <div className="gpu-budget-summary">
-              <strong>{formatPercent(budget.used)} 사용</strong>
-              <span>운영 상한 {formatPercent(budget.ceiling)} · 여유 {formatPercent(budget.free)}</span>
+              <strong>{formatPercent(budget.used)} 예약</strong>
+              <span>예약 상한 {formatPercent(budget.ceiling)} · 예약 가능 여유 {formatPercent(budget.free)}</span>
             </div>
-            <div className="gpu-budget-track" aria-label={`GPU 사용 ${formatPercent(budget.used)}, 운영 상한 ${formatPercent(budget.ceiling)}`}>
+            <div className="gpu-budget-track" aria-label={gpuBudgetAccessibilityLabel(budget.used, budget.ceiling)}>
               <span className="gpu-budget-used" style={{ width: `${Math.min(100, Math.max(0, budget.used * 100))}%` }} />
               <span className="gpu-budget-ceiling" style={{ left: `${Math.min(100, Math.max(0, budget.ceiling * 100))}%` }} />
             </div>
-            <p className="configuration-help">상한은 동시에 실행할 수 있는 런타임 조합을 판단하는 운영 기준입니다.</p>
+            <p className="configuration-help">이 값은 동시에 실행 가능한 런타임 조합을 판단하는 정책상 예약 비율입니다. 실제 GPU 메모리 사용량은 별도의 관측 지표로 확인합니다.</p>
           </CardBody>
         </Card>
       ) : (
@@ -254,7 +254,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
               <th>런타임</th>
               <th>원하는 상태</th>
               <th>실제 상태</th>
-              <th>VRAM</th>
+              <th title="실측 GPU 메모리가 아닌 런타임의 자원 정책 비율입니다.">VRAM 정책 비율</th>
               <th>역할</th>
               <th>작업</th>
             </tr>
@@ -307,17 +307,17 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
           <CardBody>
             <div className="review-grid">
               <dl className="facts compact-facts">
-                <dt>현재 원하는 상태</dt><dd>{runtimeStateLabel(review.current_state)}</dd>
+                <dt>설정된 실행 상태</dt><dd>{runtimeStateLabel(review.current_state)}</dd>
                 <dt>변경 후 상태</dt><dd>{runtimeStateLabel(review.desired_state)}</dd>
                 <dt>현재 실제 상태</dt><dd>{runtimeStateLabel(selectedRuntime?.container_status ?? 'unavailable')}</dd>
-                <dt>실제 변경 발생</dt><dd>{yesNoLabel(!review.no_op)}</dd>
+                <dt>상태 변경 여부</dt><dd>{yesNoLabel(!review.no_op)}</dd>
                 <dt>적용 가능</dt><dd>{yesNoLabel(review.admissible)}</dd>
                 <dt>자동 중지 허용</dt><dd>{yesNoLabel(review.force)}</dd>
                 <dt>자동 중지 필요</dt><dd>{yesNoLabel(review.requires_force)}</dd>
               </dl>
               <dl className="facts compact-facts">
-                <dt>GPU 사용 전</dt><dd>{formatPercent(review.budget.before.used)} / 상한 {formatPercent(review.budget.before.ceiling)}</dd>
-                <dt>GPU 사용 후</dt><dd>{formatPercent(review.budget.after.used)} / 상한 {formatPercent(review.budget.after.ceiling)}</dd>
+                <dt>GPU 정책 예약 전</dt><dd>{formatPercent(review.budget.before.used)} / 상한 {formatPercent(review.budget.before.ceiling)}</dd>
+                <dt>GPU 정책 예약 후</dt><dd>{formatPercent(review.budget.after.used)} / 상한 {formatPercent(review.budget.after.ceiling)}</dd>
                 <dt>시작 대상</dt><dd>{review.start.length ? review.start.map(runtimeDisplayName).join(', ') : '—'}</dd>
                 <dt>중지 대상</dt><dd>{review.stop.length ? review.stop.map(runtimeDisplayName).join(', ') : '—'}</dd>
                 <dt>선행 조건</dt><dd>{review.prerequisites.length ? review.prerequisites.join(', ') : '—'}</dd>
@@ -366,7 +366,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
 
       {operationId !== null ? (
         <Card>
-          <CardTitle>적용 결과</CardTitle>
+          <CardTitle>런타임 작업 결과</CardTitle>
           <CardBody>
             {operationQuery.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="런타임 적용 결과 불러오는 중" /> 적용 결과를 불러오는 중입니다.</div> : null}
             {operationQuery.isError ? <Alert isInline variant="danger" title="적용 결과를 불러오지 못했습니다.">{errorMessage(operationQuery.error)}</Alert> : null}

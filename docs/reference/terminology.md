@@ -45,8 +45,8 @@
 | **Compatibility** | Main Model Profile이 현재 deployment/runtime 조합에서 기술적으로 가능한지 나타내는 축 | `compatibility.status` |
 | **Implementation Status** | Deployment Target 자체가 실행 가능한 구현 상태인지 나타내는 축 | `implementation_status` |
 | **Qualification** | 특정 Main Model 또는 Deployment Target을 maintainer가 실제 장비에서 검증했는지 나타내는 축 | `qualification.status`, `qualification_status` |
-| **Activity** | 최근 runtime/model/configuration 변경 기록을 모아 보는 Console 화면 | API object는 `operation` 유지 |
-| **채팅 테스트** | 공개 Chat Completions API를 그대로 호출해 모델 응답을 확인하는 Console 화면 | `/admin/console/chat`, ADR-0041 |
+| **운영 활동(Activity)** | 최근 runtime/model/configuration 변경 기록을 모아 보는 Console 화면 | API object는 `operation` 유지 |
+| **Playground · Chat** | 공개 Chat Completions API로 capability-aware 모델 동작을 확인하는 Console 화면 | `/admin/console/chat`, ADR-0047; ADR-0041은 대체된 과거 결정 |
 | **Verification Details** | apply/switch 후 실제 상태가 기대 상태와 일치했는지 확인한 정보 | 기존 UI 문구 operation evidence |
 
 ## 사용자-facing에서 피할 표현
@@ -60,6 +60,24 @@
 | **Deploy Runtime Profile** | deployment 전체 profile처럼 보임 | Runtime Startup Profile |
 | **operation evidence** | 내부 영속성 구현 용어에 가까움 | Verification Details / Activity |
 | **force** (단독 버튼) | 실제 영향이 드러나지 않음 | 필요한 runtime 자동 중지 허용 |
+
+## 레거시 이름과 활성 호환성 식별자 구분
+
+이 표의 이름은 모두 삭제 후보를 뜻하지 않는다. 변경 기준과 현재 소유권은
+[ADR-0030](../adr/0030-target-architecture-state-and-artifact-boundary.md),
+[ADR-0046](../adr/0046-source-transport-is-not-platform-authority.md),
+[설정 기준](../05_configuration.md)을 따른다.
+
+| 예전 표기 또는 구현 식별자 | 현재 소유권과 처리 |
+|---|---|
+| `admin-sidecar` / `admin_sidecar` | 과거 아키텍처 설명에서만 사용한다. 현재 운영자용 명칭은 **Runtime Controller**이고 활성 service는 `runtime-controller`다. |
+| `MAIN_LLM_*` / `main_llm` / `main_llm_vllm` | `MAIN_MODEL_*`은 operator-facing 설정 namespace다. `main_llm` 모델 서비스 key와 `main_llm_vllm` 식별자는 실제 Registry·호환 소비자가 있으므로 문자열 일괄 치환 대상이 아니다. Runtime validator의 `--main-llm-base`도 현재 지원되는 CLI 옵션이다. |
+| `risk_prompt` / `risk-prompt` | 내부 Runtime은 `prompt_injection_detector` / `prompt-injection-detector-runtime`로 구분하지만 `risk-prompt` 공개 모델 alias와 이전 state의 migration 입력은 의도적으로 유지한다. |
+| `RISK_VLLM_IMAGE` / `EMBEDDING_KO_VLLM_IMAGE` | 활성 persistent image 설정이 아니다. 공유 Runtime은 `VLLM_IMAGE`를 사용하고 `env_contract.yaml:removed_keys`는 예전 호스트 `.env` 정리 목적이다. |
+| 과거 모델 VRAM·vLLM 측정 주석 | **작성 당시 특정 장비와 모델 조합의 검증 이력**이다. 현재 활성 Runtime 상태와 엔진 기능은 실제 관측·활성 Profile·`GET /v1/models`가 소유한다. |
+
+현재 공개 API·운영 오류 안내·CLI help에는 오래된 이름을 추천 설정처럼 사용하지 않는다.
+이전 설치 상태를 실제로 변환하는 migration 코드와 재현 가능한 이력은 무조건 삭제하지 않는다.
 
 ### Process inputs
 
