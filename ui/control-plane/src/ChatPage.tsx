@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
+import { conversationEndNearViewport } from './chatScroll';
 
 import { fetchPublicModels } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
@@ -847,7 +848,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   useEffect(() => {
     const onScroll = () => {
       const end = conversationEndRef.current;
-      if (end) followRef.current = Math.abs(end.getBoundingClientRect().top - window.innerHeight) < 160;
+      if (end) followRef.current = conversationEndNearViewport(end.getBoundingClientRect().top, window.innerHeight);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);

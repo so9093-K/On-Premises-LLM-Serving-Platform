@@ -9,6 +9,9 @@ const messages = {
   'nav.configuration': { 'ko-KR': '설정', 'en-US': 'Configuration' },
   'nav.activity': { 'ko-KR': '운영 활동', 'en-US': 'Operations' },
   'nav.chat': { 'ko-KR': 'Playground', 'en-US': 'Playground' },
+  'navGroup.service': { 'ko-KR': '서비스', 'en-US': 'Serving' },
+  'navGroup.operations': { 'ko-KR': '운영 및 진단', 'en-US': 'Operations & Diagnostics' },
+  'navGroup.development': { 'ko-KR': '개발 및 테스트', 'en-US': 'Development & Testing' },
   'common.loading': { 'ko-KR': 'Control Plane 정보를 불러오는 중입니다.', 'en-US': 'Loading Control Plane information.' },
   'common.refresh': { 'ko-KR': '새로고침', 'en-US': 'Refresh' },
   'common.refreshing': { 'ko-KR': '새로고침 중…', 'en-US': 'Refreshing…' },
@@ -140,6 +143,20 @@ const CONFIGURATION_LABELS: Record<string, string> = {
   'streaming.max_chunks': '스트리밍 최대 chunk 수',
   'streaming.max_bytes': '스트리밍 최대 크기',
 };
+
+// 서버 Configuration Schema의 group 식별자는 그대로 두고 사용자 표시명만 여기서 관리한다.
+const CONFIGURATION_GROUP_LABELS: Record<string, string> = {
+  retrieval: '검색·재정렬',
+  streaming: '스트리밍 한도',
+};
+
+export function configurationGroupLabel(group: string): string {
+  return CONFIGURATION_GROUP_LABELS[group] ?? group;
+}
+
+export function gpuBudgetAccessibilityLabel(used: number, ceiling: number): string {
+  return `정책상 GPU 예약 ${formatPercent(used)}, 예약 상한 ${formatPercent(ceiling)}`;
+}
 
 export function configurationLabel(key: string, fallback: string): string {
   return CONFIGURATION_LABELS[key] ?? fallback;

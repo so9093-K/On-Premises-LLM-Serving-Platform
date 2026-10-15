@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const chatPage = readFileSync(new URL('../src/ChatPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+import { CHAT_FOLLOW_DISTANCE_PX, conversationEndNearViewport } from '../src/chatScroll.ts';
 
 test('tool result input captures event value before the deferred state updater runs', () => {
   assert.doesNotMatch(
@@ -27,11 +28,20 @@ test('streaming follows the conversation end rather than the document end below 
   assert.match(chatPage, /conversationEndRef\.current\?\.scrollIntoView/);
   assert.match(chatPage, /ref=\{conversationEndRef\}/);
   assert.doesNotMatch(chatPage, /window\.scrollTo\(\{ top: document\.documentElement\.scrollHeight/);
-  assert.match(chatPage, /Math\.abs\(end\.getBoundingClientRect\(\)\.top - window\.innerHeight\)/);
+  assert.match(chatPage, /conversationEndNearViewport\(end\.getBoundingClientRect\(\)\.top, window\.innerHeight\)/);
 });
 
 test('the mobile settings shortcut has a real target and a way back to the composer', () => {
   assert.match(chatPage, /href="#chat-model-settings"/);
   assert.match(chatPage, /id="chat-model-settings"/);
   assert.match(chatPage, /href="#chat-input"/);
+});
+
+test('conversation follow threshold has observable viewport boundary behavior', () => {
+  assert.equal(CHAT_FOLLOW_DISTANCE_PX, 160);
+  assert.equal(conversationEndNearViewport(840, 844), true);
+  assert.equal(conversationEndNearViewport(1003, 844), true);
+  assert.equal(conversationEndNearViewport(1004, 844), false);
+  assert.equal(conversationEndNearViewport(500, 844), false);
+  assert.equal(conversationEndNearViewport(Number.NaN, 844), false);
 });

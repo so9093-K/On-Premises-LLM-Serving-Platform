@@ -18,7 +18,7 @@ import {
   runtimePlanRequiresForceReview,
 } from './runtimeSafety';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
-import { formatFraction, formatPercent, runtimeStateLabel, t, yesNoLabel } from './uiText';
+import { formatFraction, formatPercent, gpuBudgetAccessibilityLabel, runtimeStateLabel, t, yesNoLabel } from './uiText';
 
 type DesiredState = 'active' | 'stopped';
 type RuntimeTopologyItem = NonNullable<RuntimeListResponse['topology']>[number];
@@ -192,7 +192,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
       <div className="page-heading">
         <div>
           <h1>런타임과 GPU</h1>
-          <p>현재 실행 상태와 GPU 여유를 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
+          <p>실행 상태와 정책상 GPU 예약 예산을 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
         </div>
         <Button variant="secondary" onClick={() => runtimesQuery.refetch()} isDisabled={runtimesQuery.isFetching}>
           {runtimesQuery.isFetching ? t('common.refreshing') : t('common.refresh')}
@@ -207,7 +207,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
               <strong>{formatPercent(budget.used)} 예약</strong>
               <span>예약 상한 {formatPercent(budget.ceiling)} · 예약 가능 여유 {formatPercent(budget.free)}</span>
             </div>
-            <div className="gpu-budget-track" aria-label={`GPU 사용 ${formatPercent(budget.used)}, 운영 상한 ${formatPercent(budget.ceiling)}`}>
+            <div className="gpu-budget-track" aria-label={gpuBudgetAccessibilityLabel(budget.used, budget.ceiling)}>
               <span className="gpu-budget-used" style={{ width: `${Math.min(100, Math.max(0, budget.used * 100))}%` }} />
               <span className="gpu-budget-ceiling" style={{ left: `${Math.min(100, Math.max(0, budget.ceiling * 100))}%` }} />
             </div>

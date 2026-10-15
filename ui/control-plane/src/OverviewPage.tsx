@@ -254,17 +254,19 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <strong>모델 상태·전환 →</strong>
                 <span>현재 모델과 전환 영향을 검토</span>
               </Link>
-            ) : runtimeControlEnabled ? (
+            ) : null}
+            {runtimeControlEnabled ? (
               <Link className="overview-action-tile" to="/runtimes">
                 <strong>런타임 확인 →</strong>
                 <span>실행 상태와 GPU 예약 정책 확인</span>
               </Link>
-            ) : (
+            ) : null}
+            {!modelSwitchingEnabled && !runtimeControlEnabled ? (
               <div className="overview-action-tile">
                 <strong>외부 관리 런타임</strong>
                 <span>모델 실행과 전환은 외부 구성요소에서 관리</span>
               </div>
-            )}
+            ) : null}
             <Link className="overview-action-tile" to="/operations">
               <strong>최근 운영 작업 →</strong>
               <span>전환·설정 변경과 진단 결과 확인</span>

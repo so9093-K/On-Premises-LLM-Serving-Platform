@@ -23,18 +23,7 @@ import {
   configurationSetChange,
   parseConfigurationDraft,
 } from './configurationSafety';
-import { configurationLabel, riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
-
-function configurationGroupLabel(group: string): string {
-  const labels: Record<string, string> = {
-    deployment: '배포 환경',
-    access: 'API·접근 제어',
-    runtime: '모델 연결',
-    operational: '요청·검색 처리',
-    streaming: '스트리밍 한도',
-  };
-  return labels[group] ?? group;
-}
+import { configurationGroupLabel, configurationLabel, riskLabel, sourceLabel, t, yesNoLabel } from './uiText';
 
 type ConfigurationPageProps = {
   token: string | null;
@@ -337,6 +326,9 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
           ))}
         </select>
         <p>항목은 서버 Configuration Schema의 그룹과 수정 가능 여부를 기준으로 표시합니다. 직접 편집할 수 없는 설정도 현재 적용값을 확인할 수 있습니다.</p>
+        {selectedMetadata !== null && !visibleSchemaItems.some((item) => item.key === selectedMetadata.key) ? (
+          <p role="status">다른 영역의 설정 <strong>{configurationLabel(selectedMetadata.key, selectedMetadata.label)}</strong>을 편집 중입니다. 현재 편집 내용을 검토하거나 취소할 수 있습니다.</p>
+        ) : null}
       </div>
       <div className="table-scroll">
         <table className="runtime-table">

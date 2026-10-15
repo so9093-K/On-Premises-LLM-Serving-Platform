@@ -2,35 +2,40 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-function source(file) {
-  return readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
-}
+import { NAVIGATION_GROUPS, NAVIGATION_SECTIONS, visibleNavigationSections } from '../src/navigation.ts';
+import { configurationGroupLabel, gpuBudgetAccessibilityLabel, t } from '../src/uiText.ts';
 
-test('operator navigation keeps group labels separate from server-authorized actions', () => {
-  const app = source('App.tsx');
-  assert.match(app, /const sections = SECTIONS\.filter\(\(section\) => section\.enabled\(bootstrap\)\)/);
-  assert.match(app, /const visible = sections\.filter\(\(section\) => group\.paths\.includes\(section\.path\)\)/);
-  assert.match(app, /NAV_GROUPS\.map/);
+const paths = (features) => visibleNavigationSections(features).map((section) => section.path);
+
+test('target features determine visible menu and directly accessible routes', () => {
+  assert.deepEqual(paths([]), ['/', '/operations', '/configuration']);
+  assert.deepEqual(paths(['chat']), ['/', '/operations', '/configuration', '/chat']);
+  assert.deepEqual(
+    paths(['model_switching', 'runtime_control', 'chat']),
+    ['/', '/main-model', '/runtimes', '/operations', '/configuration', '/chat'],
+  );
+  assert.equal(new Set(NAVIGATION_SECTIONS.map((section) => section.path)).size, NAVIGATION_SECTIONS.length);
+  for (const section of NAVIGATION_SECTIONS) {
+    assert.ok(NAVIGATION_GROUPS.includes(section.group));
+    assert.ok(t(section.labelKey));
+    assert.ok(t(`navGroup.${section.group}`));
+  }
 });
 
-test('overview quick actions only advertise chat and model controls under active target features', () => {
-  const overview = source('OverviewPage.tsx');
-  assert.match(overview, /bootstrap\.deployment\.features\.includes\('chat'\) \? \(/);
-  assert.match(overview, /modelSwitchingEnabled \? \(/);
-  assert.match(overview, /외부 관리 런타임/);
-  assert.match(overview, /실제 추론 응답은 Playground에서 확인/);
+test('operator-facing configuration group labels cover server-owned writable groups', () => {
+  const yaml = readFileSync(new URL('../../../configs/configuration_schema.yaml', import.meta.url), 'utf8');
+  const writableEntries = yaml.split(/(?=^  - key: )/m)
+    .filter((entry) => /^    control_surface: configuration$/m.test(entry));
+  const groups = new Set(writableEntries.map((entry) => entry.match(/^    group: (.+)$/m)?.[1]));
+  assert.deepEqual([...groups].sort(), ['retrieval', 'streaming']);
+  for (const group of groups) {
+    assert.ok(group);
+    assert.notEqual(configurationGroupLabel(group), group);
+  }
+  assert.equal(configurationGroupLabel('future_group'), 'future_group');
 });
 
-test('GPU admission reservations are not presented as measured VRAM utilization', () => {
-  const runtime = source('RuntimePage.tsx');
-  assert.match(runtime, /정책상 GPU 예약 예산/);
-  assert.match(runtime, /실제 GPU 메모리 사용량은 별도의 관측 지표로 확인/);
-  assert.match(runtime, /VRAM 정책 비율/);
-});
-
-test('configuration filter consumes the schema group rather than key prefix guesses', () => {
-  const config = source('ConfigurationPage.tsx');
-  assert.match(config, /new Set\(schemaItems\.map\(\(item\) => item\.group\)\)/);
-  assert.match(config, /schemaItems\.filter\(\(item\) => item\.group === groupFilter\)/);
-  assert.match(config, /configurationItemApplies\(metadata, deploymentFeatures\)/);
+test('GPU admission is labeled as policy reservation rather than observed VRAM', () => {
+  assert.equal(gpuBudgetAccessibilityLabel(0.76, 0.9), '정책상 GPU 예약 76%, 예약 상한 90%');
+  assert.doesNotMatch(gpuBudgetAccessibilityLabel(0.76, 0.9), /GPU 사용/);
 });

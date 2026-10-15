@@ -13,42 +13,10 @@ import { OperationsPage } from './OperationsPage';
 import { OverviewPage } from './OverviewPage';
 import { PageErrorBoundary } from './PageErrorBoundary';
 import { RuntimePage } from './RuntimePage';
+import { NAVIGATION_GROUPS, visibleNavigationSections, type NavigationPath } from './navigation';
 import { deploymentTargetLabel, t } from './uiText';
 
 const SUPPORTED_BOOTSTRAP_VERSION = 4;
-
-type Section = {
-  path: string;
-  label: string;
-  enabled: (bootstrap: BootstrapResponse) => boolean;
-};
-
-const SECTIONS: Section[] = [
-  { path: '/', label: t('nav.overview'), enabled: () => true },
-  {
-    path: '/runtimes',
-    label: t('nav.runtimes'),
-    enabled: (bootstrap) => bootstrap.deployment.features.includes('runtime_control'),
-  },
-  {
-    path: '/main-model',
-    label: t('nav.mainModel'),
-    enabled: (bootstrap) => bootstrap.deployment.features.includes('model_switching'),
-  },
-  { path: '/configuration', label: t('nav.configuration'), enabled: () => true },
-  { path: '/operations', label: t('nav.activity'), enabled: () => true },
-  {
-    path: '/chat',
-    label: t('nav.chat'),
-    enabled: (bootstrap) => bootstrap.deployment.features.includes('chat'),
-  },
-];
-
-const NAV_GROUPS = [
-  { label: '서비스', paths: ['/', '/main-model', '/runtimes'] },
-  { label: '운영 및 진단', paths: ['/operations', '/configuration'] },
-  { label: '개발 및 테스트', paths: ['/chat'] },
-];
 
 function LoadingScreen() {
   return (
@@ -131,7 +99,15 @@ function AuthGate() {
 function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
   const { token, clearToken } = useAdminSession();
   const location = useLocation();
-  const sections = SECTIONS.filter((section) => section.enabled(bootstrap));
+  const sections = visibleNavigationSections(bootstrap.deployment.features);
+  const pages: Record<NavigationPath, ReactNode> = {
+    '/': <OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />,
+    '/main-model': <MainModelPage token={token} onUnauthorized={clearToken} chatEnabled={bootstrap.deployment.features.includes('chat')} />,
+    '/runtimes': <RuntimePage token={token} onUnauthorized={clearToken} />,
+    '/operations': <OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />,
+    '/configuration': <ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />,
+    '/chat': <ChatPage grafanaUrl={bootstrap.links.grafana} />,
+  };
   const externalLinks = [
     [t('link.apiDocs'), bootstrap.links.docs],
     ['Grafana', bootstrap.links.grafana],
@@ -151,14 +127,14 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
       <div className="workspace">
         <aside className="sidebar" aria-label="Control Plane 탐색">
           <nav>
-            {NAV_GROUPS.map((group) => {
-              const visible = sections.filter((section) => group.paths.includes(section.path));
-              return visible.length ? (
-                <div className="nav-group" key={group.label}>
-                  <span className="nav-group-label">{group.label}</span>
-                  {visible.map((section) => (
+            {NAVIGATION_GROUPS.map((group) => {
+              const items = sections.filter((section) => section.group === group);
+              return items.length ? (
+                <div className="nav-group" key={group}>
+                  <span className="nav-group-label">{t(`navGroup.${group}`)}</span>
+                  {items.map((section) => (
                     <NavLink key={section.path} to={section.path} end={section.path === '/'}>
-                      {section.label}
+                      {t(section.labelKey)}
                     </NavLink>
                   ))}
                 </div>
@@ -174,14 +150,9 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
         <main className="content">
           <PageErrorBoundary resetKey={location.pathname}>
             <Routes>
-              <Route path="/" element={<OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />} />
-              <Route path="/runtimes" element={<RuntimePage token={token} onUnauthorized={clearToken} />} />
-              <Route path="/main-model" element={<MainModelPage token={token} onUnauthorized={clearToken} />} />
-              <Route path="/configuration" element={<ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />} />
-              <Route path="/operations" element={<OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />} />
-              {bootstrap.deployment.features.includes('chat') ? (
-                <Route path="/chat" element={<ChatPage grafanaUrl={bootstrap.links.grafana} />} />
-              ) : null}
+              {sections.map((section) => (
+                <Route key={section.path} path={section.path} element={pages[section.path]} />
+              ))}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </PageErrorBoundary>

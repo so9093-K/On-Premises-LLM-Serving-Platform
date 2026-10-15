@@ -4,7 +4,8 @@
 이 문서는 [ADR-0027](../adr/0027-control-plane-runtime-configuration-and-console-boundary.md),
 [ADR-0040](../adr/0040-control-plane-korean-capability-ux.md),
 [ADR-0047](../adr/0047-control-plane-capability-aware-chat-playground.md)을 따르는 화면 사용 계약이다.
-메뉴를 숨겼다고 Runtime/Model authority가 바뀌지는 않는다.
+Navigation 메뉴와 실제 Route는 같은 feature-aware 정의를 사용하므로, 미지원 target에서 경로를 직접 입력해도 관리 화면이 열리지 않는다.
+메뉴를 숨겼다고 Runtime/Model authority가 바뀌지는 않으며 권한 검증은 서버의 책임이다.
 
 ## 화면과 작업의 연결
 
@@ -41,7 +42,7 @@ Start/Stop은 직접 실행이 아니라 Plan/Apply 결과를 따르며, 다른 
 
 ### Configuration 탐색
 
-서버 Configuration Schema의 `group`과 `meaning`을 그대로 소비해 탐색한다.
+서버 Configuration Schema의 `group`과 `meaning`을 그대로 소비해 탐색한다. 현재 편집 가능한 그룹 `retrieval`, `streaming`의 사용자용 이름은 `uiText.ts`에만 둔다.
 UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `editable`, `control_surface`, `applicability`가 실제 편집 가능 여부를 결정한다.
 기존 revision 검증, stale plan 거부 및 이전 상태 복원 계약은 그대로 유지한다.
 
@@ -62,4 +63,5 @@ UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `
 - 1440×900과 390×844 Chromium에서 Navigation, Chat + Tool result, 긴 응답, 설정과 Runtime 표를 확인한다.
 - Mobile Chat에서 Streaming 중 수동 위쪽 스크롤을 방해하지 않고, settings 접근 및 입력창 복귀가 가능하다.
 - Keyboard Tab/Enter/Focus handoff, screen reader 상태, 포커스 가시성, 색상 대비, Reduced Motion, 예외 상태를 검사한다.
+- 관리자 자격 증명 전환 시 기존 in-memory Query cache를 제거해 이전 세션의 조회 결과를 재사용하지 않는다.
 - 코드/계약 검증은 `make console-check`와 `make check`가 소유하며, 실제 GPU Runtime 품질을 이 UX 검증으로 대신하지 않는다.

@@ -30,6 +30,7 @@ import { formatPercent, runtimeStateLabel, t } from './uiText';
 type MainModelPageProps = {
   token: string | null;
   onUnauthorized: () => void;
+  chatEnabled: boolean;
 };
 
 function compatibilityVariant(status: string): 'green' | 'orange' | 'red' | 'grey' {
@@ -135,7 +136,7 @@ function OperationProgress({ operation }: { operation: MainModelOperationRespons
   );
 }
 
-export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
+export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelPageProps) {
   const queryClient = useQueryClient();
   const [reviewProfileId, setReviewProfileId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -475,7 +476,7 @@ export function MainModelPage({ token, onUnauthorized }: MainModelPageProps) {
             ) : operationQuery.data ? (
               <>
                   <OperationProgress operation={operationQuery.data} />
-                  {operationQuery.data.status === 'completed' ? (
+                  {chatEnabled && operationQuery.data.status === 'completed' ? (
                     <p className="operation-follow-up"><Link to="/chat">Playground에서 새 모델 응답 확인 →</Link></p>
                   ) : null}
                 </>
