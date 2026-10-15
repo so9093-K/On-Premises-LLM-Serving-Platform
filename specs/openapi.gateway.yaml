@@ -4503,7 +4503,7 @@ paths:
                       image_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
                       runtime_engine:
                         name: vllm
-                        version: 0.25.1
+                        version: 0.30.0
                       observed_at: 1782086258.2
                 stopped:
                   summary: 정지됨 (VRAM 회수, gate closed)
@@ -4541,7 +4541,7 @@ paths:
                       image_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
                       runtime_engine:
                         name: vllm
-                        version: 0.25.1
+                        version: 0.30.0
                       observed_at: 1782086258.2
                 switch_in_progress:
                   summary: 전환 중 (gate closed, 작업 진행)
@@ -4586,7 +4586,7 @@ paths:
                       image_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
                       runtime_engine:
                         name: vllm
-                        version: 0.25.1
+                        version: 0.30.0
                       observed_at: 1782086258.2
         '503':
           description: 'Runtime Controller 연결 또는 상태 파일 오류

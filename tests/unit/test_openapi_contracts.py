@@ -198,3 +198,23 @@ def test_gateway_and_risk_signal_service_share_public_risk_route_namespace() -> 
 
     assert gateway_risk_paths
     assert gateway_risk_paths == service_risk_paths
+
+
+def test_main_model_openapi_engine_example_uses_build_authority():
+    from ai_model_serving.api.routers.gateway_main_model_control import _MAIN_MODEL_STATUS_EXAMPLE
+    from ai_model_serving.api_examples import main_model_runtime_engine_example
+    from ai_model_serving.configuration import load_yaml_mapping
+    from ai_model_serving.project_paths import resolve_project_root
+
+    root = resolve_project_root()
+    pin = str(load_yaml_mapping(root / "configs/vllm_unified_build.yaml")["compatibility_pins"]["vllm"])
+    expected = {"name": "vllm", "version": pin}
+    assert main_model_runtime_engine_example() == expected
+    assert _MAIN_MODEL_STATUS_EXAMPLE["observed_runtime"]["runtime_engine"] == expected
+
+    import yaml
+    document = yaml.safe_load((root / "specs/openapi.gateway.yaml").read_text(encoding="utf-8"))
+    operation = document["paths"]["/admin/main-model"]["get"]
+    examples = operation["responses"]["200"]["content"]["application/json"]["examples"]
+    for name in ("active", "stopped", "switch_in_progress"):
+        assert examples[name]["value"]["observed_runtime"]["runtime_engine"] == expected, name
