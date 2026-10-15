@@ -10,13 +10,29 @@ Run, serve, and operate AI models on your infrastructure.
 
 Linux/NVIDIA · Apple Silicon · Self-hosted — [환경별 지원 기능](#deployment-targets)
 
+[빠른 시작](#quick-start) · [API 문서](docs/reference/api_reference.md) · [모델 운영](docs/06_model_operations.md) · [전체 문서](docs/README.md)
+
+## 01. 시스템 구성
+
+![Gateway와 모델 Runtime, 운영·관측 서비스의 관계를 보여 주는 시스템 구성도](assets/ai_model_serving_system_architecture.png)
+
+*Gateway · Model Runtime · Runtime Controller · Observability*
+
+외부 애플리케이션은 **Gateway**의 공통 API를 호출하고, **Model Runtime**이 추론을 수행합니다.
+**Control Plane**은 Gateway가 제공하는 운영 UI입니다. Linux managed target의 Runtime Controller가
+모델 lifecycle과 GPU admission을 담당하며, static target의 Main lifecycle은 외부에서 관리합니다.
+
+Linux/NVIDIA는 vLLM, Apple Silicon은 MLX-VLM을 사용합니다.
+Chat Completions / Responses를 공통 진입점으로 제공하고, managed target은 Embedding·한국어 Retrieval·
+Prompt Injection 탐지까지 지원합니다. PII·Secret 탐지는 static target에서도 제공합니다.
+
+[시스템 구성](docs/03_system_components.md) · [설정과 Source of Truth](docs/05_configuration.md) · [OpenAI 호환 범위](docs/reference/openai_compatibility.md)
+
+## 02. Control Plane
+
 ![모델·런타임 상태와 최근 요청을 보여주는 Control Plane 운영 개요](assets/screenshots/showcase/overview.png)
 
 *Linux/NVIDIA · Control Plane 운영 개요*
-
-[빠른 시작](#quick-start) · [API 문서](docs/reference/api_reference.md) · [모델 운영](docs/06_model_operations.md) · [전체 문서](docs/README.md)
-
-## 01. 주요 기능
 
 ### 서비스 운영
 
@@ -44,7 +60,7 @@ Linux/NVIDIA · Apple Silicon · Self-hosted — [환경별 지원 기능](#depl
 
 [모델 전환과 복구](docs/06_model_operations.md) · [설정](assets/screenshots/showcase/configuration.png) · [운영 활동](assets/screenshots/showcase/operations.png)
 
-## 02. 기능 데모
+## 03. 기능 데모
 
 **이미지 분석 · 그래프의 최대·최소 요청 수**
 
@@ -61,23 +77,19 @@ Linux/NVIDIA · Apple Silicon · Self-hosted — [환경별 지원 기능](#depl
 
 [데모 입력·응답 및 촬영 정보](docs/reference/feature_demos.md) · [운영 화면 촬영 정보](assets/screenshots/showcase/README.md)
 
-## 03. 시스템 구성
+## 04. Scalar API Reference
 
-외부 애플리케이션은 **Gateway**의 공통 API를 호출하고, **Model Runtime**이 추론을 수행합니다.
-**Control Plane**은 Gateway가 제공하는 운영 UI입니다. Linux managed target의 Runtime Controller가
-모델 lifecycle과 GPU admission을 담당하며, static target의 Main lifecycle은 외부에서 관리합니다.
+**API 탐색 · 요청 Schema · cURL 예제 · Test Request**
 
-![Gateway와 모델 Runtime, 운영·관측 서비스의 관계를 보여 주는 시스템 구성도](assets/ai_model_serving_system_architecture.png)
+![Scalar API Reference에서 API 목록, 요청 Schema, cURL 예제와 테스트 요청을 보여주는 기존 화면](assets/screenshots/scalar_api_reference.jpg)
 
-Linux/NVIDIA는 vLLM, Apple Silicon은 MLX-VLM을 사용합니다.
-Chat Completions / Responses를 공통 진입점으로 제공하고, managed target은 Embedding·한국어 Retrieval·
-Prompt Injection 탐지까지 지원합니다. PII·Secret 탐지는 static target에서도 제공합니다.
+*Scalar API Reference · 기존 화면 예시*
 
-[시스템 구성](docs/03_system_components.md) · [설정과 Source of Truth](docs/05_configuration.md) · [OpenAI 호환 범위](docs/reference/openai_compatibility.md)
+[최신 API 문서](docs/reference/api_reference.md) · [문서 화면 안내](docs/reference/api_docs_reference.md) · [OpenAPI 계약](specs/openapi.gateway.yaml)
 
 <a id="quick-start"></a>
 
-## 04. 빠른 시작
+## 05. 빠른 시작
 
 **사전 준비:** [실행 환경](docs/04_runtime_modes.md) · GPU 메모리 · 모델 접근 권한
 
@@ -132,7 +144,7 @@ make down
 
 <a id="deployment-targets"></a>
 
-## 05. 배포 환경과 지원 기능
+## 06. 배포 환경과 지원 기능
 
 | Target | Main runtime / lifecycle | 제공 기능 | Console의 모델·Runtime 제어 |
 |---|---|---|---|
@@ -145,7 +157,7 @@ make down
 
 [Target 선언](configs/deployment_targets.yaml) · [모델과 resource variant](docs/06_model_operations.md) · [보안 노출 경계](docs/reference/vllm_security_posture.md)
 
-## 06. 문서 및 개발
+## 07. 문서 및 개발
 
 | 목적 | 문서 |
 |---|---|
