@@ -510,9 +510,16 @@ streaming timeout은 Gateway admission queue, vLLM read timeout, reverse proxy i
 }
 ```
 
-Tool calling은 활성 profile이 `/v1/models`에 `tools`를 공개할 때만 사용할 수 있다. 현재 Linux/CUDA Gemma profile의 제한은 `max_tools=64`이며 macOS/MLX profile은 qualification되지 않은 tool 기능을 공개하지 않는다.
+<!-- BEGIN GENERATED TOOL_POLICY -->
+다음 표는 **저장소 기본 프로필**의 Tool Calling 예시입니다. 실제 요청 가능 범위는 활성 모델의 `GET /v1/models` 중 `request_parameters.tool_choice`와 `tools`를 확인하세요. 지원하지 않는 선택 방식은 Gateway가 검증 오류로 거부합니다.
 
-Tool 호출을 선택한 응답은 `message.tool_calls`를 포함할 수 있다. 현재 Linux/CUDA Gemma profile은 vLLM 0.25.1 Gemma4 parser의 forced-choice 실측 실패 때문에 `tool_choice=required`와 named function choice를 공개하지 않으며, 보내면 `422 VALIDATION_ERROR`다. `auto`와 `none`은 허용하고, `parallel_tool_calls=false`에서는 한 번에 하나의 호출만 허용한다. 정확한 현재 값은 `/v1/models[].request_parameters.tool_choice`를 따른다.
+| 대상 (기본 프로필) | Tool Calling | 허용 tool_choice | 병렬 Tool Calling |
+|---|---|---|---|
+| Linux/CUDA (`gemma4-12b-unified-fp8`) | 지원 | `auto`, `none` | 미지원 |
+| macOS/MLX (`gemma4-26b-a4b-qat-4bit-mlx`) | 지원 | `auto`, `none`, `required`, named function | 미지원 |
+
+요청에 `tool_choice=required` 또는 named function choice를 쓸 수 있는지는 **엔진 전체 버전**이 아니라 **해당 활성 프로필의 공개 정책**에 따라 결정합니다.
+<!-- END GENERATED TOOL_POLICY -->
 
 ```json
 {

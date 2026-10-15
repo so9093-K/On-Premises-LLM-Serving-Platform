@@ -12,6 +12,7 @@ from .model_config import (
     validate_risk_detector_generation_budget,
 )
 from .runtime_topology import validate_runtime_prerequisite_projection
+from .operator_docs import validate_operator_documentation, validate_removed_env_key_guidance
 from .schemas import (
     validate_common_error_codes,
     validate_openapi_refs,
@@ -39,6 +40,8 @@ CHECKS = [
     validate_repository_image_refs,
     validate_vllm_unified_build_inputs,
     validate_vllm_security_posture_review,
+    validate_removed_env_key_guidance,
+    validate_operator_documentation,
     validate_version_alignment,
     validate_python_compatibility,
     validate_openapi_refs,
