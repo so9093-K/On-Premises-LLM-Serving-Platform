@@ -106,7 +106,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
     '/runtimes': <RuntimePage token={token} onUnauthorized={clearToken} />,
     '/operations': <OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />,
     '/configuration': <ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />,
-    '/chat': <ChatPage grafanaUrl={bootstrap.links.grafana} />,
+    '/chat': <ChatPage grafanaUrl={bootstrap.links.grafana} docsUrl={bootstrap.links.docs} />,
   };
   const externalLinks = [
     [t('link.apiDocs'), bootstrap.links.docs],

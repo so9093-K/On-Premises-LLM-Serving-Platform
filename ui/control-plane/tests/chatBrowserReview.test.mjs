@@ -45,3 +45,49 @@ test('conversation follow threshold has observable viewport boundary behavior', 
   assert.equal(conversationEndNearViewport(500, 844), false);
   assert.equal(conversationEndNearViewport(Number.NaN, 844), false);
 });
+
+test('Playground presents model capabilities before the example gallery', () => {
+  const modelBar = chatPage.indexOf('className="chat-model-bar"');
+  const gallery = chatPage.indexOf('<PlaygroundExampleGallery');
+  const composer = chatPage.indexOf('className="chat-composer"');
+  assert.ok(modelBar >= 0 && modelBar < gallery && gallery < composer);
+  assert.match(chatPage, /<ModelContext model=\{model\} showIdentity=\{models\.length === 1\}/);
+  assert.match(chatPage, /<label htmlFor="chat-model">현재 모델<\/label>/);
+  assert.match(styles, /\.chat-model-bar\s*\{/);
+});
+
+test('Playground model switch displays the active model and prevents ambiguous requests', () => {
+  assert.match(chatPage, /value=\{model\.id\}/);
+  assert.match(chatPage, /planModelSwitch\(nextModel, session\.settings, exchanges, attachments, draft\)/);
+  assert.match(chatPage, /role="group" aria-label="모델 변경 확인"/);
+  assert.match(chatPage, /\{model\.id\} → \{pendingModel\.id\}/);
+  assert.match(chatPage, /if \(attachmentBusy \|\| exampleLoading \|\| pendingModelId !== null\) return/);
+  assert.match(chatPage, /pendingModelId !== null \|\| \(!draft\.trim\(\)/);
+  assert.match(chatPage, /if \(busy \|\| attachmentBusy \|\| exampleLoading \|\| pendingToolExchange\) return/);
+  assert.match(chatPage, /plan\.conversationError && !resetConversation/);
+  assert.match(chatPage, /commitModelChange\(pendingModel\.id, true\)/);
+});
+
+test('example application is a dismissible origin note, not an assertion of unchanged content', () => {
+  assert.match(chatPage, /className="chat-applied-example" role="status"/);
+  assert.match(chatPage, /setAppliedExampleId\(example\.id\)/);
+  assert.match(chatPage, /예제에서 시작/);
+  assert.match(chatPage, /aria-label="예제 적용 표시 닫기"/);
+  assert.match(chatPage, /if \(error === null\) \{[\s\S]{0,140}setAppliedExampleId\(null\)/);
+});
+
+test('API docs follow the Bootstrap source of truth and hide if unavailable', () => {
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  assert.match(app, /docsUrl=\{bootstrap\.links\.docs\}/);
+  assert.match(chatPage, /docsUrl && turn\.status === 'complete'/);
+  assert.match(chatPage, /href=\{docsUrl\} target="_blank" rel="noreferrer"/);
+  assert.doesNotMatch(chatPage, /href="\/docs"/);
+});
+
+test('example previews expose advanced source only on demand', () => {
+  const gallery = readFileSync(new URL('../src/PlaygroundExampleGallery.tsx', import.meta.url), 'utf8');
+  assert.match(gallery, /<details className="playground-example-technical">/);
+  assert.match(gallery, /aria-pressed=\{selectedId === example\.id\}/);
+  assert.match(gallery, /className="playground-example-check" aria-hidden="true"/);
+  assert.doesNotMatch(gallery, /기존 고급 생성 설정과 완료된 대화는 유지됩니다/);
+});

@@ -8,7 +8,7 @@ import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { useChatSession } from './ChatSessionContext';
 import { PlaygroundExampleGallery } from './PlaygroundExampleGallery';
-import { exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, type PlaygroundExample } from './playgroundExamples';
+import { exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
 import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
 import {
@@ -24,6 +24,7 @@ import {
   normalizeChatSettingsForModel,
   numberControlRangeHint,
   pendingToolCallExchange,
+  planModelSwitch,
   TOOL_CHOICE_DEFAULT,
   TOOL_CHOICE_NAMED,
   validateChatAttachments,
@@ -39,6 +40,7 @@ import {
 
 type ChatPageProps = {
   grafanaUrl: string | null;
+  docsUrl: string | null;
 };
 
 type NumericSettingKey =
@@ -198,15 +200,12 @@ function AttachmentList({
   );
 }
 
-function ModelContext({ model }: { model: PublicModel }) {
+function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentity: boolean }) {
   const features = modelFeatureLabels(model);
   return (
     <div className="chat-model-context">
-      <span className="chat-model-context-label">현재 모델 계약</span>
-      <div className="chat-model-identity">
-        <strong>{model.id}</strong>
-        <code>{model.backend}</code>
-      </div>
+      {showIdentity ? <strong>{model.id}</strong> : null}
+      <code>{model.backend}</code>
       {features.length > 0 ? (
         <div className="chat-feature-list" aria-label="지원 기능">
           {features.map((feature) => <span className="chat-feature" key={feature}>{feature}</span>)}
@@ -323,12 +322,14 @@ function ToolResultForm({
 function ExchangeView({
   exchange,
   grafanaUrl,
+  docsUrl,
   pendingToolResult,
   busy,
   onSendToolResults,
 }: {
   exchange: Exchange;
   grafanaUrl: string | null;
+  docsUrl: string | null;
   pendingToolResult: boolean;
   busy: boolean;
   onSendToolResults: (sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
@@ -428,8 +429,9 @@ function ExchangeView({
             ) : null}
           </dl>
         ) : null}
-        <details className="chat-request-context">
-          <summary>요청 정보</summary>
+        <div className="chat-result-links">
+          <details className="chat-request-context">
+            <summary>요청 정보</summary>
           <dl className="facts compact-facts">
             <dt>모델</dt><dd>{exchange.requestContext.modelId}</dd>
             <dt>Backend</dt><dd><code>{exchange.requestContext.backend}</code></dd>
@@ -443,8 +445,12 @@ function ExchangeView({
             <dd>{exchange.requestContext.capabilities.join(', ') || '—'}</dd>
             <dt>파라미터</dt>
             <dd><code>{JSON.stringify(exchange.requestContext.parameters)}</code></dd>
-          </dl>
-        </details>
+            </dl>
+          </details>
+          {docsUrl && turn.status === 'complete' ? (
+            <a href={docsUrl} target="_blank" rel="noreferrer">API 문서 ↗</a>
+          ) : null}
+        </div>
       </div>
     </li>
   );
@@ -816,7 +822,7 @@ function ChatSettingsPanel({ model }: { model: PublicModel }) {
   );
 }
 
-export function ChatPage({ grafanaUrl }: ChatPageProps) {
+export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
   const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear, setApiKey } = session;
   const [draft, setDraft] = useState('');
@@ -826,6 +832,8 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showExamples, setShowExamples] = useState(() => exchanges.length === 0);
   const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
+  const [appliedExampleId, setAppliedExampleId] = useState<string | null>(null);
+  const [pendingModelId, setPendingModelId] = useState<string | null>(null);
   const [confirmExampleReplace, setConfirmExampleReplace] = useState(false);
   const [exampleError, setExampleError] = useState<string | null>(null);
   const [exampleLoading, setExampleLoading] = useState(false);
@@ -850,6 +858,16 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
+  const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
+  const pendingSwitchPlan = pendingModel
+    ? planModelSwitch(pendingModel, session.settings, exchanges, attachments, draft)
+    : null;
+
+  useEffect(() => {
+    if (pendingModelId !== null && !models.some((item) => item.id === pendingModelId)) {
+      setPendingModelId(null);
+    }
+  }, [pendingModelId, models]);
   const exampleSnapshotRef = useRef({ model, settings: session.settings, exchanges });
   exampleSnapshotRef.current = { model, settings: session.settings, exchanges };
 
@@ -895,6 +913,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   }, [exchanges]);
 
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
+    if (pendingModelId !== null) return;
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
     if (model === null || files.length === 0 || exampleLoading) return;
@@ -931,7 +950,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   }
 
   async function applyExample(example: PlaygroundExample) {
-    if (model === null || busy || attachmentBusy || exampleLoading || pendingToolExchange) return;
+    if (model === null || busy || attachmentBusy || exampleLoading || pendingToolExchange || pendingModelId !== null) return;
     const support = exampleAvailability(example, model, chatControls(model), validateExampleRequest);
     if (!support.available) {
       setExampleError(support.reason);
@@ -991,6 +1010,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
       session.updateSettings(patch);
       setDraft(example.prompt);
       setAttachments(sampleAttachments);
+      setAppliedExampleId(example.id);
       setInputError(null);
       setConfirmExampleReplace(false);
       setShowExamples(false);
@@ -1005,7 +1025,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   }
 
   function submit() {
-    if (attachmentBusy || exampleLoading) return;
+    if (attachmentBusy || exampleLoading || pendingModelId !== null) return;
     const text = draft.trim();
     if ((!text && attachments.length === 0) || model === null) return;
     const error = send(model, text, attachments);
@@ -1013,8 +1033,55 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     if (error === null) {
       setDraft('');
       setAttachments([]);
+      setAppliedExampleId(null);
       followRef.current = true;
       setShowExamples(false);
+    }
+  }
+
+  function commitModelChange(nextId: string, resetConversation = false) {
+    if (busy || attachmentBusy || exampleLoading || pendingToolExchange) return;
+    const nextModel = models.find((item) => item.id === nextId);
+    if (!nextModel) {
+      setPendingModelId(null);
+      return;
+    }
+    // Recompute on confirmation: current settings/history can change while pending.
+    const plan = planModelSwitch(nextModel, session.settings, exchanges, attachments, draft);
+    if (plan.conversationError && !resetConversation) {
+      setPendingModelId(nextId);
+      return;
+    }
+    cancelExamplePreparation();
+    if (resetConversation) {
+      clear();
+      setShowExamples(true);
+    }
+    setSelectedId(nextId);
+    setAttachments([]);
+    setAppliedExampleId(null);
+    setSelectedExampleId(null);
+    setExampleError(null);
+    setInputError(null);
+    setPendingModelId(null);
+    if (Object.keys(plan.settingsPatch).length > 0) {
+      session.updateSettings(plan.settingsPatch);
+    }
+  }
+
+  function requestModelChange(nextId: string) {
+    if (model?.id === nextId) {
+      setPendingModelId(null);
+      return;
+    }
+    if (busy || exampleLoading || attachmentBusy || pendingToolExchange) return;
+    const nextModel = models.find((item) => item.id === nextId);
+    if (!nextModel) return;
+    const plan = planModelSwitch(nextModel, session.settings, exchanges, attachments, draft);
+    if (plan.requiresConfirmation || plan.conversationError) {
+      setPendingModelId(nextId);
+    } else {
+      commitModelChange(nextId);
     }
   }
 
@@ -1029,11 +1096,8 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     <section className="chat-page">
       <div className="page-heading">
         <div>
-          <h1>Playground · Chat</h1>
-          <p>
-            공개 API(<code>/v1/chat/completions</code>)를 이 화면에서 직접 호출합니다. 대화는 이 탭의
-            메모리에만 있고 서버에 저장하지 않습니다.
-          </p>
+          <h1>Playground</h1>
+          <p>Chat Completions · 대화는 현재 탭에만 유지됩니다.</p>
         </div>
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
@@ -1041,11 +1105,13 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
             setShowExamples((current) => !current);
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
-          <a className="chat-settings-jump" href="#chat-model-settings">모델·요청 설정 ↓</a>
+          <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
           {apiKey !== null ? <Button variant="secondary" onClick={() => setApiKey(null)}>API 키 지우기</Button> : null}
           {exchanges.length > 0 ? <Button variant="secondary" onClick={() => {
             cancelExamplePreparation();
             clear();
+            setAppliedExampleId(null);
+            setPendingModelId(null);
             setShowExamples(true);
           }}>대화 지우기</Button> : null}
         </div>
@@ -1066,8 +1132,43 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
       ) : null}
 
       {model !== null ? (
-        <div className="chat-layout">
-          <div className="chat-main">
+        <>
+          <div className="chat-model-bar">
+            <div className="chat-model-selection">
+              {models.length > 1 ? (
+                <>
+                  <label htmlFor="chat-model">현재 모델</label>
+                  <select
+                    id="chat-model"
+                    value={model.id}
+                    onChange={(event) => requestModelChange(event.currentTarget.value)}
+                    disabled={busy || exampleLoading || attachmentBusy || pendingToolExchange !== null}
+                  >
+                    {models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
+                  </select>
+                </>
+              ) : <span className="chat-model-selection-label">현재 모델</span>}
+            </div>
+            <ModelContext model={model} showIdentity={models.length === 1} />
+            {pendingModel && pendingSwitchPlan ? (
+              <div className="chat-model-change-confirm" role="group" aria-label="모델 변경 확인">
+                <strong>{model.id} → {pendingModel.id}</strong>
+                <span role="status">
+                  {pendingSwitchPlan.conversationError
+                    ? '대상 모델에서 기존 대화를 이어갈 수 없습니다. 대화를 지운 뒤 변경하세요.'
+                    : `${exchanges.length ? '기존 대화 유지 · ' : ''}${attachments.length ? '첨부 파일 제거 · ' : ''}${pendingSwitchPlan.affectedSettings.length ? '일부 요청 설정 조정' : '요청 설정 유지'}`}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => setPendingModelId(null)}>취소</Button>
+                {pendingSwitchPlan.conversationError ? (
+                  <Button size="sm" variant="danger" isDisabled={busy || attachmentBusy || exampleLoading} onClick={() => commitModelChange(pendingModel.id, true)}>대화 지우고 변경</Button>
+                ) : (
+                  <Button size="sm" isDisabled={busy || attachmentBusy || exampleLoading} onClick={() => commitModelChange(pendingModel.id)}>모델 변경</Button>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <div className="chat-layout">
+            <div className="chat-main">
             {showExamples ? (
               <PlaygroundExampleGallery
                 model={model}
@@ -1075,7 +1176,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 selectedId={selectedExampleId}
                 sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl }}
                 validateRequest={validateExampleRequest}
-                busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null}
+                busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                 hasConversation={exchanges.length > 0}
                 confirmReplace={confirmExampleReplace}
                 error={exampleError}
@@ -1088,18 +1189,14 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 onCancelReplace={() => setConfirmExampleReplace(false)}
               />
             ) : null}
-            {exchanges.length === 0 && !showExamples ? (
-              <p className="chat-empty">
-                메시지를 보내면 <strong>{model.id}</strong>의 응답과 함께 첫 토큰 시간, 토큰 수,
-                request_id가 표시됩니다.
-              </p>
-            ) : exchanges.length > 0 ? (
+            {exchanges.length > 0 ? (
               <ol className="chat-log" aria-live="polite" aria-atomic="false" aria-relevant="additions text">
                 {exchanges.map((exchange) => (
                   <ExchangeView
                     key={exchange.id}
                     exchange={exchange}
                     grafanaUrl={grafanaUrl}
+                    docsUrl={docsUrl}
                     pendingToolResult={pendingToolExchange?.id === exchange.id}
                     busy={busy}
                     onSendToolResults={(sourceExchangeId, results) => sendToolResults(model, sourceExchangeId, results)}
@@ -1115,6 +1212,16 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 else submit();
               }}
             >
+              {appliedExampleId ? (
+                <div className="chat-applied-example" role="status">
+                  <span aria-hidden="true">✓</span>
+                  <span>
+                    {PLAYGROUND_EXAMPLES.find((item) => item.id === appliedExampleId)?.title} 예제에서 시작
+                    {attachments.length ? ` · 이미지 ${attachments.length}개` : ''}
+                  </span>
+                  <button type="button" onClick={() => setAppliedExampleId(null)} aria-label="예제 적용 표시 닫기">×</button>
+                </div>
+              ) : null}
               <AttachmentList
                 attachments={attachments}
                 removable
@@ -1129,7 +1236,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 rows={3}
                 value={draft}
                 ref={composerRef}
-                disabled={pendingToolExchange !== null || attachmentBusy || exampleLoading}
+                disabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || pendingModelId !== null}
                 placeholder={pendingToolExchange
                   ? '도구 결과를 먼저 입력하세요.'
                   : '메시지 입력 · Enter 보내기 · Shift+Enter 줄바꿈'}
@@ -1145,7 +1252,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                       type="file"
                       multiple
                       accept={attachmentAccept(model)}
-                      disabled={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null}
+                      disabled={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                       onChange={(event) => { void onAttachmentsSelected(event); }}
                     />
                   </div>
@@ -1161,7 +1268,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   <Button
                     type="submit"
                     variant="primary"
-                    isDisabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || (!draft.trim() && attachments.length === 0)}
+                    isDisabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || pendingModelId !== null || (!draft.trim() && attachments.length === 0)}
                   >
                     보내기
                   </Button>
@@ -1170,47 +1277,12 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
             </form>
             <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
           </div>
-          <aside className="chat-side" id="chat-model-settings" aria-label="모델과 요청 설정">
-            {models.length > 1 ? (
-              <div className="chat-model-select">
-                <label htmlFor="chat-model">모델</label>
-                <select
-                  id="chat-model"
-                  value={model.id}
-                  onChange={(event) => {
-                    cancelExamplePreparation();
-                    setSelectedId(event.currentTarget.value);
-                    setAttachments([]);
-                    setSelectedExampleId(null);
-                    setConfirmExampleReplace(false);
-                    setExampleError(null);
-                    // 추론 기본값은 모델마다 다르다. 이전 모델에서 고른 값을 끌고 가지 않는다.
-                    session.updateSettings({
-                      reasoning: null,
-                      logprobs: null,
-                      topLogprobs: '',
-                      responseFormat: 'default',
-                      jsonSchemaName: 'response',
-                      jsonSchemaText: '',
-                      jsonSchemaStrict: null,
-                      toolDrafts: [],
-                      toolChoice: TOOL_CHOICE_DEFAULT,
-                      toolChoiceName: '',
-                    });
-                  }}
-                  disabled={busy}
-                >
-                  {models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
-                </select>
-              </div>
-            ) : (
-              <p className="chat-model-name">모델 <strong>{model.id}</strong></p>
-            )}
-            <ModelContext model={model} />
-            <ChatSettingsPanel model={model} />
-            <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
-          </aside>
-        </div>
+            <aside className="chat-side" id="chat-model-settings" aria-label="요청 설정">
+              <ChatSettingsPanel model={model} />
+              <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
+            </aside>
+          </div>
+        </>
       ) : null}
     </section>
   );
