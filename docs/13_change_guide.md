@@ -553,6 +553,9 @@ make runtime-validate
 ### 변경 완료 전 최소 확인
 
 - 공개 API 계약을 바꿨다면 Router/contract와 함께 schema, checked-in OpenAPI, API Reference를 갱신한다.
+- 기본 프로필의 `tool_calling` 정책을 변경했다면 `make render-runtime-assets`로 API Reference 생성 구간을 갱신한다. 실제 호출 권한은 항상 `GET /v1/models`를 기준으로 확인한다.
+- vLLM 통합 이미지 pin을 변경하면 Main Model OpenAPI 예시 엔진 버전과 보안 검토 계약도 함께 확인한다. `make validate`는 예시·생성 문서 정합성과 review boundary를 검사한다.
+- 제거된 persistent env 키를 Preflight 오류 안내에 다시 권장하지 않는다. `configs/env_contract.yaml:removed_keys`는 이행용 입력이며 활성 설정이 아니다.
 - Source of Truth 설정이 생성기 입력이라면 생성 artifact를 갱신하고 `make validate`로 drift를 확인한다. 그렇지 않다면 해당 설정의 consumer와 영향 범위만 확인한다.
 - 일반 application 변경은 `make validate`, `make test`와 영향 범위의 app-only 또는 full-stack 확인을 한다.
 - vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make runtime-validate`까지 연결한다.
