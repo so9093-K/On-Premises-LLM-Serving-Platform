@@ -612,6 +612,87 @@ export function normalizeChatSettingsForModel(
   return Object.keys(patch).length === 0 ? settings : { ...settings, ...patch };
 }
 
+/**
+ * A model switch is a presentation choice, not a new serving policy.
+ * Derive affected settings and history compatibility from the public model
+ * contract and the same validation helpers used by Chat request serialization.
+ */
+export type ModelSwitchPlan = {
+  settingsPatch: Partial<ChatSettings>;
+  affectedSettings: (keyof ChatSettings)[];
+  conversationError: string | null;
+  requiresConfirmation: boolean;
+};
+
+const MODEL_SWITCH_RESET_FIELDS = [
+  'reasoning', 'logprobs', 'topLogprobs', 'responseFormat', 'jsonSchemaName',
+  'jsonSchemaText', 'jsonSchemaStrict', 'toolDrafts', 'toolChoice', 'toolChoiceName',
+] as const satisfies readonly (keyof ChatSettings)[];
+
+const MODEL_SWITCH_NUMERIC_FIELDS = [
+  ['temperature', 'temperature', '온도'],
+  ['maxTokens', 'maxTokens', '최대 출력 토큰'],
+  ['topP', 'topP', 'Top P'],
+  ['topK', 'topK', 'Top K'],
+  ['minP', 'minP', 'Min P'],
+  ['presencePenalty', 'presencePenalty', '존재 페널티'],
+  ['frequencyPenalty', 'frequencyPenalty', '빈도 페널티'],
+  ['repetitionPenalty', 'repetitionPenalty', '반복 페널티'],
+  ['seed', 'seed', 'Seed'],
+] as const satisfies readonly (readonly [keyof ChatSettings, keyof ChatControls, string])[];
+
+export function planModelSwitch(
+  target: PublicModel,
+  settings: ChatSettings,
+  exchanges: readonly Exchange[],
+  attachments: readonly ChatAttachment[],
+  draft: string,
+): ModelSwitchPlan {
+  const controls = chatControls(target);
+  const updated: ChatSettings = { ...settings };
+  for (const key of MODEL_SWITCH_RESET_FIELDS) {
+    // Model-specific tools / response format / diagnostics do not leak across
+    // model identities, even where the destination advertises similar features.
+    (updated as unknown as Record<string, unknown>)[key] = DEFAULT_CHAT_SETTINGS[key];
+  }
+  const normalized = normalizeChatSettingsForModel(updated, target);
+  for (const [key, controlKey, label] of MODEL_SWITCH_NUMERIC_FIELDS) {
+    const control = controls[controlKey] as NumberControl | null;
+    const current = settings[key] as string;
+    if (current && (!control || parseControlValue(current, control, label).error)) {
+      (normalized as unknown as Record<string, unknown>)[key] = '';
+    }
+  }
+  if (settings.stop && (!controls.stop || parseStopValue(settings.stop, controls.stop).error)) {
+    normalized.stop = '';
+  }
+  const keys = Object.keys(settings) as (keyof ChatSettings)[];
+  const affectedSettings = keys.filter((key) => (
+    JSON.stringify(settings[key]) !== JSON.stringify(normalized[key])
+  ));
+  const settingsPatch = Object.fromEntries(
+    affectedSettings.map((key) => [key, normalized[key]]),
+  ) as Partial<ChatSettings>;
+
+  const historyAttachmentsError = validateChatAttachments(target, conversationAttachments(exchanges));
+  const hasToolHistory = exchanges.some((exchange) => (
+    exchangeIncludedInHistory(exchange)
+    && (exchange.assistant.toolCalls.length > 0 || (exchange.toolResults?.length ?? 0) > 0)
+  ));
+  const conversationError = historyAttachmentsError
+    || (hasToolHistory && controls.tools === null
+      ? '기존 대화에 도구 호출 이력이 있어 대상 모델에서 이어갈 수 없습니다.'
+      : null);
+
+  return {
+    settingsPatch,
+    affectedSettings,
+    conversationError,
+    requiresConfirmation: exchanges.length > 0 || attachments.length > 0
+      || draft.trim().length > 0 || affectedSettings.length > 0,
+  };
+}
+
 function boundViolated(value: number, bound: NumericBound, minimum: boolean): boolean {
   if (minimum) return bound.exclusive ? value <= bound.value : value < bound.value;
   return bound.exclusive ? value >= bound.value : value > bound.value;

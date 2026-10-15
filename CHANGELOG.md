@@ -71,6 +71,8 @@
 
 ### Changed
 
+- Playground에서 모델 선택과 Capability를 예제 앞에 배치하고 예제 카드·입력 미리보기·고급 설정을 간결하게 재구성한다. 예제 적용 상태는 입력창 근처에서 확인하며 모델 변경 시 기존 대화·첨부·요청 설정 영향을 명시적으로 검토하고 새 모델과 호환되지 않는 첨부·Tool Calling 이력은 명시적인 대화 초기화 없이 이관하지 않으며 대상 모델의 숫자 제한에 맞지 않는 설정은 확인 후 초기화한다. 완료된 응답에서 Bootstrap에 선언된 API 문서가 활성화된 경우에만 이동할 수 있다.
+
 - Linux NVIDIA managed vLLM Runtime의 compile cache를 런타임별·Compose project별 named volume에 보관한다. 일반 down/up과 Main profile replace/rollback 후에도 cache가 유지되며 Hugging Face 모델 cache와 별도로 관리된다. 기존 `.env` 변경은 필요 없고 다음 컨테이너 재생성부터 적용된다. CUDA cache hit와 startup 개선 여부는 동일 GPU/profile 실측으로 판단한다.
 
 - Static projection drift 검증의 소유권을 canonical validator로 수렴했다. non-main vLLM Compose service는 shared `VLLM_IMAGE` authority를 사용해야 하며 `validate_vllm_compose.py`가 직접 검사한다. 모든 Deployment Target의 Gateway는 canonical `PLATFORM_STATE_DIR`를 선언하고 해당 경로를 writable persistent volume으로 mount해야 하며 deployment target governance가 이를 검사한다. 두 계약을 별도 YAML-copy pytest로 반복하지 않고 synthetic mutation test로 validator의 fail-closed 동작을 검증한다.

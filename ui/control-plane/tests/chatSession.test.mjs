@@ -19,6 +19,7 @@ import {
   normalizeChatSettingsForModel,
   numberControlRangeHint,
   pendingToolCallExchange,
+  planModelSwitch,
   startTurn,
   stopTurn,
   turnFacts,
@@ -963,4 +964,100 @@ test('a non-streaming response reports total time without inventing a first-toke
   }, 900);
   assert.equal(turn.content, '한 번에 온 답');
   assert.deepEqual(turnFacts(turn).map((fact) => fact.label), ['전체', '토큰']);
+});
+
+test('model switch derives setting changes from destination public request limits', () => {
+  const target = {
+    ...MAIN,
+    id: 'strict-text',
+    input_modalities: ['text'],
+    request_parameters: {
+      stream: { type: 'boolean' },
+      temperature: { type: 'number', min: 0, max: 0.5 },
+      max_tokens: { type: 'integer', min: 1, max: 32 },
+    },
+  };
+  const current = {
+    ...DEFAULT_CHAT_SETTINGS,
+    temperature: '0.9',
+    maxTokens: '24',
+    topP: '0.2',
+    responseFormat: 'json_schema',
+    jsonSchemaText: '{"type":"object"}',
+    systemPrompt: 'preserve this user-authored system prompt',
+  };
+  const plan = planModelSwitch(target, current, [], [], '');
+  assert.equal(plan.requiresConfirmation, true);
+  assert.equal(plan.conversationError, null);
+  assert.equal(plan.settingsPatch.temperature, '');
+  assert.equal(plan.settingsPatch.topP, '');
+  assert.equal(plan.settingsPatch.responseFormat, 'default');
+  assert.equal(plan.settingsPatch.jsonSchemaText, '');
+  assert.equal(plan.settingsPatch.maxTokens, undefined);
+  assert.equal(plan.settingsPatch.systemPrompt, undefined);
+  const checked = buildChatRequest(target, { ...current, ...plan.settingsPatch }, [], 'hello');
+  assert.equal(checked.error, null);
+  assert.equal(checked.body.model, 'strict-text');
+  assert.equal(checked.body.max_tokens, 24);
+  assert.equal(checked.body.temperature, undefined);
+});
+
+test('model switch retains compatible scalar controls and asks before losing attachments or draft', () => {
+  const clean = planModelSwitch(MAIN, DEFAULT_CHAT_SETTINGS, [], [], '');
+  assert.equal(clean.requiresConfirmation, false);
+  assert.deepEqual(clean.affectedSettings, []);
+  const draft = planModelSwitch(MAIN, DEFAULT_CHAT_SETTINGS, [], [], 'unsent text');
+  assert.equal(draft.requiresConfirmation, true);
+  const attachment = {
+    id: 'img-1', name: 'graph.png', modality: 'image', mimeType: 'image/png',
+    sizeBytes: 4, width: 2, height: 2, data: 'data:image/png;base64,AAAA',
+  };
+  const pending = planModelSwitch(MAIN, DEFAULT_CHAT_SETTINGS, [], [attachment], '');
+  assert.equal(pending.requiresConfirmation, true);
+  assert.equal(pending.conversationError, null);
+  const compatible = planModelSwitch(MAIN, { ...DEFAULT_CHAT_SETTINGS, temperature: '0.2' }, [], [], '');
+  assert.equal(compatible.requiresConfirmation, false);
+  assert.equal(compatible.settingsPatch.temperature, undefined);
+});
+
+test('model switch disallows continuation when existing multimodal history is incompatible', () => {
+  const textOnly = { ...MAIN, id: 'text-only', input_modalities: ['text'], request_limits: {} };
+  const imageHistory = [{
+    ...exchange(1, '분석', '그래프입니다.'),
+    attachments: [{
+      id: 'img-1', name: 'graph.png', modality: 'image', mimeType: 'image/png',
+      sizeBytes: 4, width: 2, height: 2, data: 'data:image/png;base64,AAAA',
+    }],
+  }];
+  const plan = planModelSwitch(textOnly, DEFAULT_CHAT_SETTINGS, imageHistory, [], '');
+  assert.equal(plan.requiresConfirmation, true);
+  assert.match(plan.conversationError, /이미지/);
+  assert.equal(planModelSwitch(MAIN, DEFAULT_CHAT_SETTINGS, imageHistory, [], '').conversationError, null);
+});
+
+test('model switch cannot continue tool calling history in a tool-incompatible model', () => {
+  const toolCall = {
+    id: 'call_123', type: 'function',
+    function: { name: 'lookup', arguments: '{}' },
+  };
+  const toolExchange = {
+    ...exchange(1, '찾아줘', ''),
+    assistant: {
+      ...startTurn(0), status: 'complete', finishReason: 'tool_calls',
+      toolCalls: [toolCall],
+    },
+  };
+  const toolReply = { ...exchange(2, '', '완료'), toolResults: [{ toolCallId: 'call_123', content: '{}' }] };
+  const noTools = {
+    ...MAIN, id: 'without-tools',
+    request_parameters: { stream: { type: 'boolean' } },
+  };
+  assert.match(
+    planModelSwitch(noTools, DEFAULT_CHAT_SETTINGS, [toolExchange, toolReply], [], '').conversationError,
+    /도구 호출/,
+  );
+  assert.equal(
+    planModelSwitch(MAIN, DEFAULT_CHAT_SETTINGS, [toolExchange, toolReply], [], '').conversationError,
+    null,
+  );
 });
