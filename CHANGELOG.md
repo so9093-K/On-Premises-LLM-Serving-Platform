@@ -6,6 +6,8 @@
 
 ### Added
 
+- README를 실제 Control Plane 화면과 사용 흐름 중심으로 구성하고, 이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행 GIF와 입력·응답·촬영 조건을 제공한다. 설치·API·Deployment Target별 지원 범위는 상세 문서로 연결한다.
+
 - API 문서의 기본 Linux/macOS Tool Calling 표를 활성 default profile 정책에서 생성·검증하고, Main Model OpenAPI의 vLLM 엔진 예시는 통합 이미지 빌드 pin을 사용한다. Preflight에서 제거된 독립 Risk 이미지 변수를 다시 설정하라고 안내하지 않도록 바로잡고 이전 모델 검증과 Superseded ADR 문서를 현재 계약과 구분한다. 제거된 환경변수의 운영 안내 재도입은 Governance 검사로 차단한다.
 
 - Control Plane Console의 탐색을 서비스·운영/진단·개발/테스트의 작업 영역으로 구분하고 개요에서 모델 응답 테스트·전환·활동·API 문서로 이어지는 경로를 제공한다. Runtime GPU 지표의 정책상 예약과 실측 의미를 명확히 구분하고, 모델 전환 영향·설정 Schema 그룹 탐색·운영 이력 설명·모바일 Chat의 대화 기준 자동 스크롤과 설정 바로가기를 개선한다. 메뉴와 라우트의 사용 가능 여부를 단일 Capability 정의로 관리하고, Configuration 분류는 실제 서버 Schema 그룹에 맞추며 관리자 인증 변경 시 Query Cache를 초기화한다. 기존 Server Capability, Plan/Apply 및 브라우저 메모리 보안 계약은 유지한다.
