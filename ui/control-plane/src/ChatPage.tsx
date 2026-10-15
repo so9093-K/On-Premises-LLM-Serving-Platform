@@ -7,9 +7,15 @@ import { fetchPublicModels } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { useChatSession } from './ChatSessionContext';
+import { PlaygroundExampleGallery } from './PlaygroundExampleGallery';
+import { exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, type PlaygroundExample } from './playgroundExamples';
+import chartSampleUrl from './playgroundAssets/sample-chart.png';
+import orderSampleUrl from './playgroundAssets/sample-order.png';
 import {
   attachmentAccept,
+  buildChatRequest,
   chatCapableModels,
+  DEFAULT_CHAT_SETTINGS,
   chatControls,
   classifyAttachment,
   conversationAttachments,
@@ -818,6 +824,14 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showExamples, setShowExamples] = useState(() => exchanges.length === 0);
+  const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
+  const [confirmExampleReplace, setConfirmExampleReplace] = useState(false);
+  const [exampleError, setExampleError] = useState<string | null>(null);
+  const [exampleLoading, setExampleLoading] = useState(false);
+  const [focusComposerAfterExample, setFocusComposerAfterExample] = useState(false);
+  const applySequenceRef = useRef(0);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const followRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -836,6 +850,29 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
+  const exampleSnapshotRef = useRef({ model, settings: session.settings, exchanges });
+  exampleSnapshotRef.current = { model, settings: session.settings, exchanges };
+
+  function cancelExamplePreparation() {
+    applySequenceRef.current += 1;
+    setExampleLoading(false);
+    setConfirmExampleReplace(false);
+  }
+
+  // Revalidate after any runtime capability, configuration or conversation change.
+  // In-flight sample reads must never overwrite newer settings or conversation state.
+  useEffect(() => {
+    cancelExamplePreparation();
+    setExampleError(null);
+  }, [model, session.settings, exchanges]);
+
+  // A disabled textarea cannot receive focus. Focus after React has committed
+  // the state change that makes the input editable again.
+  useEffect(() => {
+    if (!focusComposerAfterExample || exampleLoading || attachmentBusy || pendingToolExchange) return;
+    composerRef.current?.focus();
+    setFocusComposerAfterExample(false);
+  }, [focusComposerAfterExample, exampleLoading, attachmentBusy, pendingToolExchange]);
 
   useEffect(() => {
     if (model === null) return;
@@ -860,7 +897,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
-    if (model === null || files.length === 0) return;
+    if (model === null || files.length === 0 || exampleLoading) return;
     setAttachmentBusy(true);
     setInputError(null);
     try {
@@ -882,7 +919,93 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
     }
   }
 
+  function validateExampleRequest(example: PlaygroundExample): string | null {
+    if (model === null) return '현재 모델을 선택할 수 없습니다.';
+    const patch = exampleSettingsPatch(example, DEFAULT_CHAT_SETTINGS);
+    return buildChatRequest(
+      model,
+      { ...DEFAULT_CHAT_SETTINGS, ...patch },
+      [],
+      example.prompt,
+    ).error;
+  }
+
+  async function applyExample(example: PlaygroundExample) {
+    if (model === null || busy || attachmentBusy || exampleLoading || pendingToolExchange) return;
+    const support = exampleAvailability(example, model, chatControls(model), validateExampleRequest);
+    if (!support.available) {
+      setExampleError(support.reason);
+      return;
+    }
+    if (exchanges.length > 0 && exampleRequiresFreshConversation(example)) {
+      setExampleError('기존 대화를 지운 다음 이 예제를 적용하세요. 완료된 대화는 자동으로 삭제하지 않습니다.');
+      return;
+    }
+    const patch = exampleSettingsPatch(example, DEFAULT_CHAT_SETTINGS);
+    if (!confirmExampleReplace && (draft.trim() || attachments.length > 0
+      || exampleSettingsConflict(session.settings, patch))) {
+      setConfirmExampleReplace(true);
+      return;
+    }
+
+    const sequence = ++applySequenceRef.current;
+    const initialContext = exampleSnapshotRef.current;
+    const contextUnchanged = () => (
+      sequence === applySequenceRef.current
+      && exampleSnapshotRef.current.model === initialContext.model
+      && exampleSnapshotRef.current.settings === initialContext.settings
+      && exampleSnapshotRef.current.exchanges === initialContext.exchanges
+    );
+    setExampleLoading(true);
+    setExampleError(null);
+    try {
+      const sampleAttachments: ChatAttachment[] = [];
+      if (example.sample) {
+        const assetUrl = example.sample === 'chart' ? chartSampleUrl : orderSampleUrl;
+        const filename = example.sample === 'chart' ? 'sample-chart.png' : 'sample-order.png';
+        const response = await fetch(assetUrl, { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('예제 이미지 파일을 가져오지 못했습니다.');
+        const blob = await response.blob();
+        if (!contextUnchanged()) return;
+        const file = new File([blob], filename, { type: 'image/png' });
+        const result = await chatAttachmentFromFile(file, model, conversationAttachments(exchanges));
+        if (!contextUnchanged()) return;
+        if (result.error) throw new Error(result.error);
+        if (result.attachment) {
+          // The existing attachment validator also checks max_pixels when dimensions
+          // are available. Do not skip that limit for bundled example images.
+          const bitmap = await createImageBitmap(file);
+          const candidate = { ...result.attachment, width: bitmap.width, height: bitmap.height };
+          bitmap.close();
+          if (!contextUnchanged()) return;
+          const imageError = validateChatAttachments(model, [...conversationAttachments(exchanges), candidate]);
+          if (imageError) throw new Error(imageError);
+          sampleAttachments.push(candidate);
+        }
+      }
+      if (!contextUnchanged()) return;
+      const plannedSettings = { ...session.settings, ...patch };
+      const validation = buildChatRequest(model, plannedSettings, exchanges, example.prompt, sampleAttachments);
+      if (validation.error) throw new Error(validation.error);
+      if (!contextUnchanged()) return;
+      session.updateSettings(patch);
+      setDraft(example.prompt);
+      setAttachments(sampleAttachments);
+      setInputError(null);
+      setConfirmExampleReplace(false);
+      setShowExamples(false);
+      setFocusComposerAfterExample(true);
+    } catch (reason) {
+      if (contextUnchanged()) {
+        setExampleError(reason instanceof Error ? reason.message : '예제를 적용하지 못했습니다.');
+      }
+    } finally {
+      if (sequence === applySequenceRef.current) setExampleLoading(false);
+    }
+  }
+
   function submit() {
+    if (attachmentBusy || exampleLoading) return;
     const text = draft.trim();
     if ((!text && attachments.length === 0) || model === null) return;
     const error = send(model, text, attachments);
@@ -891,6 +1014,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
       setDraft('');
       setAttachments([]);
       followRef.current = true;
+      setShowExamples(false);
     }
   }
 
@@ -912,9 +1036,18 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
           </p>
         </div>
         <div className="chat-heading-actions">
+          <Button type="button" variant="secondary" onClick={() => {
+            cancelExamplePreparation();
+            setShowExamples((current) => !current);
+            setExampleError(null);
+          }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">모델·요청 설정 ↓</a>
           {apiKey !== null ? <Button variant="secondary" onClick={() => setApiKey(null)}>API 키 지우기</Button> : null}
-          {exchanges.length > 0 ? <Button variant="secondary" onClick={clear}>대화 지우기</Button> : null}
+          {exchanges.length > 0 ? <Button variant="secondary" onClick={() => {
+            cancelExamplePreparation();
+            clear();
+            setShowExamples(true);
+          }}>대화 지우기</Button> : null}
         </div>
       </div>
 
@@ -935,12 +1068,32 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
       {model !== null ? (
         <div className="chat-layout">
           <div className="chat-main">
-            {exchanges.length === 0 ? (
+            {showExamples ? (
+              <PlaygroundExampleGallery
+                model={model}
+                controls={chatControls(model)}
+                selectedId={selectedExampleId}
+                sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl }}
+                validateRequest={validateExampleRequest}
+                busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null}
+                hasConversation={exchanges.length > 0}
+                confirmReplace={confirmExampleReplace}
+                error={exampleError}
+                onSelect={(id) => {
+                  cancelExamplePreparation();
+                  setSelectedExampleId(id);
+                  setExampleError(null);
+                }}
+                onApply={(example) => { void applyExample(example); }}
+                onCancelReplace={() => setConfirmExampleReplace(false)}
+              />
+            ) : null}
+            {exchanges.length === 0 && !showExamples ? (
               <p className="chat-empty">
                 메시지를 보내면 <strong>{model.id}</strong>의 응답과 함께 첫 토큰 시간, 토큰 수,
                 request_id가 표시됩니다.
               </p>
-            ) : (
+            ) : exchanges.length > 0 ? (
               <ol className="chat-log" aria-live="polite" aria-atomic="false" aria-relevant="additions text">
                 {exchanges.map((exchange) => (
                   <ExchangeView
@@ -953,7 +1106,7 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   />
                 ))}
               </ol>
-            )}
+            ) : null}
             <form
               className="chat-composer"
               onSubmit={(event) => {
@@ -975,7 +1128,8 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                 aria-label="메시지"
                 rows={3}
                 value={draft}
-                disabled={pendingToolExchange !== null}
+                ref={composerRef}
+                disabled={pendingToolExchange !== null || attachmentBusy || exampleLoading}
                 placeholder={pendingToolExchange
                   ? '도구 결과를 먼저 입력하세요.'
                   : '메시지 입력 · Enter 보내기 · Shift+Enter 줄바꿈'}
@@ -991,21 +1145,23 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                       type="file"
                       multiple
                       accept={attachmentAccept(model)}
-                      disabled={busy || attachmentBusy || pendingToolExchange !== null}
+                      disabled={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null}
                       onChange={(event) => { void onAttachmentsSelected(event); }}
                     />
                   </div>
                 ) : <small>현재 모델은 파일 입력을 광고하지 않습니다.</small>}
               </div>
               <div className="chat-composer-actions">
-                {inputError ? <p className="form-error" role="alert">{inputError}</p> : attachmentBusy ? <span>첨부 파일 읽는 중…</span> : <span />}
+                {inputError ? <p className="form-error" role="alert">{inputError}</p>
+                  : exampleLoading ? <span>예제 이미지 준비 중…</span>
+                    : attachmentBusy ? <span>첨부 파일 읽는 중…</span> : <span />}
                 {busy ? (
                   <Button type="submit" variant="danger">중지</Button>
                 ) : (
                   <Button
                     type="submit"
                     variant="primary"
-                    isDisabled={pendingToolExchange !== null || attachmentBusy || (!draft.trim() && attachments.length === 0)}
+                    isDisabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || (!draft.trim() && attachments.length === 0)}
                   >
                     보내기
                   </Button>
@@ -1022,8 +1178,12 @@ export function ChatPage({ grafanaUrl }: ChatPageProps) {
                   id="chat-model"
                   value={model.id}
                   onChange={(event) => {
+                    cancelExamplePreparation();
                     setSelectedId(event.currentTarget.value);
                     setAttachments([]);
+                    setSelectedExampleId(null);
+                    setConfirmExampleReplace(false);
+                    setExampleError(null);
                     // 추론 기본값은 모델마다 다르다. 이전 모델에서 고른 값을 끌고 가지 않는다.
                     session.updateSettings({
                       reasoning: null,
