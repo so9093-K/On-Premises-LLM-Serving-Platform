@@ -47,6 +47,16 @@ def default_main_model_profile_id() -> str:
     return str(_main_model_profiles()["default_profile"])
 
 
+@functools.cache
+def main_model_runtime_engine_example() -> dict[str, str]:
+    """OpenAPI example is a *reference* engine, not the observed live runtime.
+
+    The unified-image build pin owns the version advertised in example payloads.
+    """
+    build = load_yaml_mapping(resolve_project_root() / "configs" / "vllm_unified_build.yaml")
+    return {"name": "vllm", "version": str(build["compatibility_pins"]["vllm"])}
+
+
 def alternate_main_model_profile_id() -> str:
     """default가 아닌 첫 프로필. 전환 예시가 두 번째 후보를 필요로 한다."""
     default = default_main_model_profile_id()

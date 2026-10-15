@@ -2,7 +2,11 @@
 
 ## Status
 
-Superseded by ADR-0047
+Superseded by [ADR-0047](./0047-control-plane-capability-aware-chat-playground.md).
+
+이 문서는 Console이 공개 API를 사용하는 테스트 화면으로 출발한 **역사적 설계 배경**을 보존한다.
+현재 사용자에게 제공하는 capability-aware Playground 기능·UI 계약은 ADR-0047과
+[운영자 작업 중심 UX](../reference/control_plane_operator_ux.md)를 따른다.
 
 ## Context
 

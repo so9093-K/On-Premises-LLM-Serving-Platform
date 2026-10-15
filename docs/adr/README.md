@@ -12,7 +12,7 @@
 |---|---|
 | `Proposed` | 검토 중. 아직 확정되지 않음 |
 | `Accepted` | 채택됨. 현재 플랫폼 운영 기준 |
-| `Superseded by ADR-XXXX` | 다른 ADR로 일부 대체됨. 전부 대체되면 파일을 삭제하고 원문은 git history로 본다 |
+| `Superseded by ADR-XXXX` | 후속 ADR이 현재 결정 권한을 소유함. 완전히 대체되어 더 이상 참조가 필요 없는 파일은 git history로 보존하며, 전환 사유·계승 범위를 직접 설명할 가치가 있는 이력은 상태와 후속 링크를 명시하여 유지할 수 있음 |
 | `Deprecated` | 더 이상 권장하지 않지만 제거하지 않음 |
 | `Rejected` | 검토 후 채택하지 않기로 결정 |
 
