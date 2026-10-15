@@ -280,7 +280,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       <div className="page-heading">
         <div>
           <h1>설정</h1>
-          <p>현재 적용값과 출처를 확인하고, 운영자 설정의 변경 영향을 검토한 뒤 적용합니다.</p>
+          <p>적용값 · 출처 · 변경 검토</p>
         </div>
         <Button variant="secondary" onClick={() => void refresh()} isDisabled={schemaQuery.isFetching || effectiveQuery.isFetching || pageActionLocked}>
           {schemaQuery.isFetching || effectiveQuery.isFetching ? t('common.refreshing') : t('common.refresh')}
@@ -325,9 +325,9 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
             <option value={group} key={group}>{configurationGroupLabel(group)} ({schemaItems.filter((item) => item.group === group).length})</option>
           ))}
         </select>
-        <p>항목은 서버 Configuration Schema의 그룹과 수정 가능 여부를 기준으로 표시합니다. 직접 편집할 수 없는 설정도 현재 적용값을 확인할 수 있습니다.</p>
+        <p>설정 그룹 · 적용값 · 수정 가능 여부</p>
         {selectedMetadata !== null && !visibleSchemaItems.some((item) => item.key === selectedMetadata.key) ? (
-          <p role="status">다른 영역의 설정 <strong>{configurationLabel(selectedMetadata.key, selectedMetadata.label)}</strong>을 편집 중입니다. 현재 편집 내용을 검토하거나 취소할 수 있습니다.</p>
+          <p role="status">편집 중: <strong>{configurationLabel(selectedMetadata.key, selectedMetadata.label)}</strong> (다른 설정 그룹)</p>
         ) : null}
       </div>
       <div className="table-scroll">

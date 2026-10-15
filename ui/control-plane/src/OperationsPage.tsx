@@ -316,7 +316,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
       <div className="page-heading">
         <div>
           <h1>운영 활동</h1>
-          <p>모델 전환·런타임 시작과 중지·설정 변경의 결과와 관련 진단을 확인합니다.</p>
+          <p>모델 전환 · 런타임 시작·중지 · 설정 변경</p>
         </div>
         <Button
           variant="secondary"
@@ -351,7 +351,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
         <CardTitle>최근 운영 작업</CardTitle>
         <CardBody>
           <p className="configuration-help activity-intro">
-            이 화면은 Control Plane이 수행한 운영 변경 기록입니다. 일반 API 추론 요청 로그와는 다르며, 원본 작업 기록은 각 런타임·모델·설정 영역이 소유합니다.
+            운영 변경 이력 · 추론 요청 로그와 구분
           </p>
 
           {activity.length > 0 ? (
