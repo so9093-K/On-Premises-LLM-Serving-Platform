@@ -1,5 +1,7 @@
 # 모델·API 데모
 
+Control Plane Playground에서 예제 입력을 직접 구성하려면 [예제로 시작하기](control_plane_playground_examples.md)를 참고하세요. 아래 GIF는 특정 촬영 조건에서 실행된 결과이며 예제 적용 기능과는 별도로 기록한 시연 자료입니다.
+
 공개용 입력으로 실행한 모델·API 응답 사례. 이미지를 선택하면 GIF가 재생됩니다.
 
 | 기능 | 실행 경로 | 확인한 결과 |

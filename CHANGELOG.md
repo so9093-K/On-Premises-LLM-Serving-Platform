@@ -6,6 +6,8 @@
 
 ### Added
 
+- Control Plane Playground에 Capability-aware 예제 갤러리를 제공한다. 현재 모델의 공개 기능 계약에 따라 한국어 요약·그래프 분석·주문서 정보 추출·역할 지정·JSON 정보 추출의 가용성을 설명하며, 공개 샘플 이미지와 입력을 검증한 뒤 명시적 사용자 행동으로만 적용한다. 예제 선택 자체는 inference를 실행하지 않으며 기존 Chat/Gateway/보안 계약을 유지한다.
+
 - README를 실제 Control Plane 화면과 사용 흐름 중심으로 구성하고, 이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행 GIF와 입력·응답·촬영 조건을 제공한다. 설치·API·Deployment Target별 지원 범위는 상세 문서로 연결한다.
 
 - API 문서의 기본 Linux/macOS Tool Calling 표를 활성 default profile 정책에서 생성·검증하고, Main Model OpenAPI의 vLLM 엔진 예시는 통합 이미지 빌드 pin을 사용한다. Preflight에서 제거된 독립 Risk 이미지 변수를 다시 설정하라고 안내하지 않도록 바로잡고 이전 모델 검증과 Superseded ADR 문서를 현재 계약과 구분한다. 제거된 환경변수의 운영 안내 재도입은 Governance 검사로 차단한다.
