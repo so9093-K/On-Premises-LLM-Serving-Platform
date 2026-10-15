@@ -6,8 +6,6 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 
 Control Plane의 실제 화면별 운영 흐름과 UX 기준은 [운영자 작업 중심 UX](reference/control_plane_operator_ux.md)를 참고합니다.
 
-README의 화면·영상 제작 계획은 [README 제작 명세](roadmap/readme_showcase.md)에 정리합니다.
-
 이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행은 [GIF 데모](reference/feature_demos.md)에서 볼 수 있습니다.
 
 ## 목차

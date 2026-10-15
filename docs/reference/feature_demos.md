@@ -1,7 +1,6 @@
-# 실제 모델·API GIF 데모
+# 모델·API 데모
 
-공개용 예시 입력을 실제 Runtime에 전달한 짧은 실행 기록이다. 아래 정지 이미지를 클릭하면 GIF를 볼 수 있다.
-README에는 이미지 분석 GIF 하나를 배치하고, 나머지 기능은 이 문서에서 선택해 재생한다.
+공개용 입력으로 실행한 모델·API 응답 사례. 이미지를 선택하면 GIF가 재생됩니다.
 
 | 기능 | 실행 경로 | 확인한 결과 |
 |---|---|---|
@@ -18,13 +17,11 @@ README에는 이미지 분석 GIF 하나를 배치하고, 나머지 기능은 �
 
 [GIF 재생](../../assets/demos/image-analysis.gif) · [입력 그래프](../../assets/demos/inputs/sample-chart.png)
 
-입력 이미지는 월~목 API 요청 수를 그린 **촬영용 예시 그래프**다. 실제 운영 지표가 아니다.
-GIF의 첫 장면에서 입력 이미지를 보여주고, 이어 실제 Playground 요청 과정을 재생한다.
+**입력:** 가상 요청 수 그래프(월~목). 실제 운영 지표가 아닙니다.
 
 > 이 막대그래프에서 요청이 가장 많은 요일과 건수, 가장 적은 요일과 건수를 한국어 두 문장으로 알려주세요.
 
-실제 응답은 목요일 240건, 수요일 90건이었다. 두 값 모두 입력 그래프와 일치했다.
-이미지 내용·크기·모델에 따른 일반적인 정확도를 이 예시로 보증하지 않는다.
+**결과:** 최대 목요일 240건 · 최소 수요일 90건.
 
 <a id="ocr"></a>
 
@@ -46,8 +43,7 @@ Unit price: USD 8.00
 Total: USD 24.00
 ```
 
-전 항목이 입력 문서와 일치했다. 개인정보가 없는 가상 문서이며, 전용 OCR API가 아닌
-멀티모달 모델의 이미지 기반 텍스트 읽기 예시다. 문서 좌표 추출이나 복잡한 표·스캔 품질은 검증 범위에 포함하지 않는다.
+**입력:** 가상 주문서 · **경로:** 멀티모달 모델의 이미지 입력(전용 OCR API 아님).
 
 <a id="system-prompt"></a>
 
@@ -76,10 +72,9 @@ Playground의 시스템 프롬프트:
 
 > 저는 비밀번호 재설정, VPN 접속, 업무용 PC 문제에 대해서만 안내해 드릴 수 있습니다.
 
-이 실행에서는 시스템 프롬프트를 출력하거나 여행 일정으로 역할을 바꾸지 않았다.
-**모델 응답 예시**이며 Prompt Injection Detector의 판정 또는 모든 공격에 대한 차단 보증은 아니다.
-현재 `rtx4090-24gb` 정책에서는 별도 prompt detector가 제외된다. 탐지기 API와 적용 조건은
-[API Reference](api_reference.md)와 [Runtime topology](../../configs/runtime_topology.yaml)를 따른다.
+**결과:** IT 지원 역할 유지 · **범위:** 모델 응답 사례, Prompt Injection Detector 테스트 아님.
+
+탐지기 지원 여부: [배포 정책](../../configs/runtime_topology.yaml) · [API Reference](api_reference.md)
 
 <a id="embedding"></a>
 
@@ -89,9 +84,7 @@ Playground의 시스템 프롬프트:
 
 [GIF 재생](../../assets/demos/embedding.gif)
 
-이 장면은 **촬영용 API 실행 뷰어**이며 제품 Control Plane의 화면이 아니다.
-뷰어는 실제 Gateway에 요청하고 실제 응답을 표시한다. 인증은 촬영용 서버에서 처리하므로 키가 화면에 나타나지 않는다.
-첫 단계에서는 벡터 수·차원과 첫 벡터의 앞 8개 값만 표시하고, 두 번째 단계에서는 실제 Retrieval 응답을 표시한다.
+**화면:** 데모용 API 뷰어(Control Plane 외부) · **경로:** 실제 Gateway Embeddings/Retrieval API
 
 `POST /v1/embeddings`:
 
@@ -106,8 +99,9 @@ Playground의 시스템 프롬프트:
 }
 ```
 
-실제 응답은 입력 3개에 대한 1024차원 벡터 3개였다.
-이어서 `POST /v1/retrieval/rerank`를 호출했다.
+**결과:** 입력 3개 · 1024차원 벡터 3개
+
+이어서 `POST /v1/retrieval/rerank` 호출:
 
 ```json
 {
@@ -122,9 +116,9 @@ Playground의 시스템 프롬프트:
 }
 ```
 
-실제 결과는 `CUDA out of memory…`(0.519372…), `KV cache…`(0.295382…) 순서였다.
-score는 모델·입력에 따른 cosine similarity이며 정답 확률이 아니다. 이 API는 전달한 문장들을
-embedding해 정렬하며, 별도의 벡터 DB 저장·검색이나 reranker 모델 호출을 시연하지 않는다.
+**정렬 결과:** `CUDA out of memory…`(0.519372…) → `KV cache…`(0.295382…).
+
+점수는 cosine similarity(정답 확률 아님). 별도 벡터 DB나 Reranker 모델 실행은 포함되지 않습니다.
 
 ## 촬영·편집 조건
 
@@ -146,9 +140,9 @@ embedding해 정렬하며, 별도의 벡터 DB 저장·검색이나 reranker 모
 - GIF는 약 4 fps의 실제 화면 표본을 사용한다. 촬영 시각 간격을 유지하고 배속하지 않았다.
   이미지 분석·OCR 앞에는 입력 이미지를 3초간 보여주는 소개 장면을 추가했다.
 - GIF palette 변환 외에 응답·수치·상태를 수정하지 않았다. 각 데모는 한 번의 실행이며 성능 benchmark가 아니다.
-- 정지 이미지는 같은 실행의 마지막 화면이다. 원시 화면 표본·응답은 로컬 ignored `reports/runtime/readme-demos/`에 있다.
+- 정지 이미지: 동일 실행의 마지막 화면.
 - 인증 화면, API/Admin key, 내부 주소와 민감 로그를 공개 자산에서 제외했다.
-- 촬영용 Gateway·저장소·API 뷰어를 종료했고, 촬영을 위해 시작한 두 embedding Runtime은 중지했다.
+- 촬영 후 데모용 Gateway·저장소·API 뷰어·Embedding Runtime 종료.
 
 실제 지원 기능은 [Deployment Target](../../configs/deployment_targets.yaml), 모델별 기능은
 `/v1/models`와 [모델 운영](../06_model_operations.md)에서 확인한다.

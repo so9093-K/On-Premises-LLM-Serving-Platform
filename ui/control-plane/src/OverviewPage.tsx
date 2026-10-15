@@ -146,7 +146,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : { label: '확인된 주의 항목 없음', color: 'green' as const, description: '조회된 운영 상태에 주의 항목이 없습니다. 실제 추론 응답은 Playground에서 확인할 수 있습니다.' };
+      : { label: '조회된 주의 항목 없음', color: 'green' as const, description: '조회된 서비스·운영 상태의 주의 항목 없음' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,
@@ -159,7 +159,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
       <div className="page-heading">
         <div>
           <h1>운영 개요</h1>
-          <p>현재 서비스 상태, 실행 환경과 운영자가 할 수 있는 작업을 한눈에 확인합니다.</p>
+          <p>모델 · 런타임 · 최근 요청</p>
         </div>
         <Button variant="secondary" onClick={refresh} isDisabled={refreshing}>
           {refreshing ? t('common.refreshing') : t('common.refresh')}
@@ -241,7 +241,6 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
       <Card className="overview-next-actions">
         <CardTitle>빠른 작업</CardTitle>
         <CardBody>
-          <p className="configuration-help">현재 상태 확인에서 실제 요청 테스트와 운영 작업으로 이동합니다. 운영 상태는 모델 응답을 보증하지 않습니다.</p>
           <div className="overview-action-grid">
             {bootstrap.deployment.features.includes('chat') ? (
               <Link className="overview-action-tile" to="/chat">
@@ -303,7 +302,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             </div>
           )}
           <p className="traffic-footnote">
-            공개 API(/v1/*) 요청의 Gateway 프로세스 내 집계입니다. 재시작 시 초기화되며 GPU 엔진 측정값과는 다릅니다.
+            Gateway API 요청 집계 · 재시작 시 초기화
             {serviceDashboardUrl ? (
               <> <a className="overview-inline-action" href={serviceDashboardUrl} target="_blank" rel="noreferrer">Grafana에서 추이 보기 ↗</a></>
             ) : null}
@@ -313,12 +312,11 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
 
       {hasPolicyNotice ? (
         <Card className="overview-policy-card">
-          <CardTitle>운영 참고</CardTitle>
+          <CardTitle>실행 환경 안내</CardTitle>
           <CardBody className="overview-policy-list">
             {bootstrap.deployment.lifecycle_owner === 'external' ? (
               <p>
-                이 실행 환경의 메인 런타임 lifecycle은 외부 또는 네이티브 구성요소가 관리합니다.
-                Control Plane은 서버가 선언한 지원 기능만 표시하며, 숨겨진 메뉴는 오류나 권한 부족을 뜻하지 않습니다.
+                메인 모델 실행·전환은 외부 또는 네이티브 런타임에서 관리됩니다.
               </p>
             ) : null}
             {informationalSignals.map((signal) => (
@@ -326,14 +324,13 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             ))}
             {unavailableTopology.length ? (
               <p>
-                {unavailableTopology.length}개 런타임은 현재 리소스 정책상 동시에 실행하지 않도록 제외되어 있습니다.
-                GPU 지원 여부나 장애 판정이 아닙니다.{' '}
+                동시 실행 제한: {unavailableTopology.length}개 런타임 · 현재 리소스 정책{' '}
                 <Link className="overview-inline-action" to="/runtimes">런타임에서 이유 확인 →</Link>
               </p>
             ) : null}
             {!bootstrap.configuration.write_available ? (
               <p>
-                현재 실행 환경에서는 설정 변경을 사용할 수 없습니다. 상태 조회 자체의 오류를 뜻하지 않습니다.{' '}
+                설정 변경 미지원 · 현재 실행 환경{' '}
                 <Link className="overview-inline-action" to="/configuration">설정에서 확인 →</Link>
               </p>
             ) : null}

@@ -192,7 +192,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
       <div className="page-heading">
         <div>
           <h1>런타임과 GPU</h1>
-          <p>실행 상태와 정책상 GPU 예약 예산을 확인하고, 필요한 런타임만 시작하거나 중지합니다.</p>
+          <p>실행 상태 · GPU 예약 예산 · 시작·중지</p>
         </div>
         <Button variant="secondary" onClick={() => runtimesQuery.refetch()} isDisabled={runtimesQuery.isFetching}>
           {runtimesQuery.isFetching ? t('common.refreshing') : t('common.refresh')}
@@ -211,7 +211,7 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
               <span className="gpu-budget-used" style={{ width: `${Math.min(100, Math.max(0, budget.used * 100))}%` }} />
               <span className="gpu-budget-ceiling" style={{ left: `${Math.min(100, Math.max(0, budget.ceiling * 100))}%` }} />
             </div>
-            <p className="configuration-help">이 값은 동시에 실행 가능한 런타임 조합을 판단하는 정책상 예약 비율입니다. 실제 GPU 메모리 사용량은 별도의 관측 지표로 확인합니다.</p>
+            <p className="configuration-help">동시 실행 판단용 정책 비율 · 실측 GPU 사용량은 관측 지표에서 확인</p>
           </CardBody>
         </Card>
       ) : (

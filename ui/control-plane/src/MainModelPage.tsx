@@ -242,7 +242,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       <div className="page-heading">
         <div>
           <h1>메인 모델</h1>
-          <p>현재 모델과 전환 가능한 프로필을 비교하고, 실제 전환 진행 상태까지 확인합니다.</p>
+          <p>현재 모델 · 전환 후보 · 진행 상태</p>
         </div>
         <Button
           variant="secondary"
@@ -269,7 +269,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       {actionError ? <Alert isInline variant="danger" title="메인 모델 전환 요청에 실패했습니다.">{actionError}</Alert> : null}
 
       <details className="context-note">
-        <summary>호환성과 검증 상태 안내</summary>
+        <summary>호환성 · 검증 · GPU 리소스</summary>
         <p>
           GPU 실행 가능성과 프로필 검증 상태는 서로 다른 정보입니다. 직접 검증하지 않았다는 이유만으로
           GPU가 지원되지 않는 것으로 판단하지 않으며, 호환성·GPU 리소스 판단·런타임 검증을 함께 사용합니다.
@@ -345,8 +345,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
           <CardTitle>모델 전환 전 영향 확인</CardTitle>
           <CardBody>
             <p className="configuration-help profile-comparison-intro">
-              모델 전환 중 메인 모델 요청이 일시 중단될 수 있습니다. 변경되는 입력 기능과 GPU 정책을 먼저 확인하세요.
-              실패 시 이전 모델로 복구를 시도하며 실제 결과는 전환 진행 상태에서 확인합니다. 호환성·검증·자원 정책은 서로 다른 정보입니다.
+              전환 중 요청이 일시 중단될 수 있습니다. 실패 시 이전 모델로 복구를 시도합니다.
             </p>
 
             {active && switchImpact ? (
@@ -396,7 +395,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                           : <Label color="blue">변경됨</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>VRAM</strong></td>
+                        <td><strong>GPU 정책 비율</strong></td>
                         <td>{formatPercent(active.vram_fraction)}</td>
                         <td>{formatPercent(reviewProfile.vram_fraction)}</td>
                         <td>{vramImpactLabel(switchImpact.vramFractionDelta)}</td>
@@ -419,7 +418,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                   {switchImpact.resourcePolicyChanged ? (
                     <Alert isInline variant="info" title="적용 리소스 정책이 달라집니다.">
                       {mainModelResourcePolicyLabel(active)} → {mainModelResourcePolicyLabel(reviewProfile)}.
-                      이 차이는 GPU 제품의 지원 여부가 아니라 선택한 런타임 리소스 정책의 차이입니다.
+                      선택한 프로필의 리소스 정책 차이입니다.
                     </Alert>
                   ) : null}
                 </div>
