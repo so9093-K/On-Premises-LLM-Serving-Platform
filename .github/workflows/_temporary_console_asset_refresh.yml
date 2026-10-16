@@ -1,0 +1,38 @@
+# One-shot maintenance workflow for PR #234; removes itself in its build commit.
+name: PR234 Console Asset Refresh
+on:
+  push:
+    branches: [refactor/resource-scoped-serving-lifecycle]
+    paths:
+      - .github/workflows/_temporary_console_asset_refresh.yml
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.repository == 'so9093-K/On-Premises-LLM-Serving-Platform'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.20.0'
+      - name: Install pinned toolchain and build checked-in Console
+        run: |
+          npm install --global npm@11.19.0
+          npm --prefix ui/control-plane ci
+          npm --prefix ui/control-plane run build
+      - name: Commit generated assets and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A src/ai_model_serving/static/control-plane
+          git add -A ui/control-plane/src/generated/openapi.ts
+          git rm .github/workflows/_temporary_console_asset_refresh.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'chore(console): refresh deterministic assets after operator UX update'
+          git push origin HEAD:refactor/resource-scoped-serving-lifecycle
