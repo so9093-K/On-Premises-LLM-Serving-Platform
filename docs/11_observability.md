@@ -147,7 +147,7 @@ full-stack Grafana의 Home은 **서비스 개요** Dashboard다. "지금 서비�
 
 | 영역 | 패널 | 판정 방식 |
 |---|---|---|
-| 지금 상태 | 메인 모델 요청(허용·차단), 요청 처리량, 서버 오류율, 응답 시간 p95, 첫 응답 p95(스트리밍), GPU 메모리 여유 | 서버 오류율은 0%가 아니면 주황, GPU 메모리 여유는 `configs/gpu_budgets.yaml`의 운영 상한(0.93)을 넘으면 주황이다. 정해진 지연 목표가 없으므로 지연은 색으로 판정하지 않는다. |
+| 지금 상태 | 메인 모델 요청 gate(허용·차단), 요청 처리량, 서버 오류율, 응답 시간 p95, 첫 응답 p95(스트리밍), GPU 메모리 여유 | 서버 오류율은 0%가 아니면 주황, GPU 메모리 여유는 `configs/gpu_budgets.yaml`의 운영 상한(0.93)을 넘으면 주황이다. 정해진 지연 목표가 없으므로 지연은 색으로 판정하지 않는다. |
 | 추이 | 요청 결과(2xx·4xx·5xx), 지연(p50·p95·첫 SSE chunk), Gateway admission(inflight·waiting·limit·queue wait p95), vLLM scheduler(running·waiting), 메인 모델 vLLM 지연(TTFT·ITL·E2E), 토큰 처리량, KV 캐시 사용률 | Gateway backpressure와 engine scheduler 상태를 같은 시간축에 두되 서로 다른 queue로 해석한다. |
 | 원인 | Upstream 오류(코드별), 요청 거부(사유별), 비정상 스트림 종료 | 값이 하나뿐이어도 어떤 코드인지 보이도록 표로 보여 준다. 없으면 `없음`이다. |
 
@@ -242,8 +242,8 @@ Request Log Explorer는 다음 영역으로 구성된다.
 - **API Errors**: HTTP 4xx/5xx 요청
 - **Readiness Failures**: `/ready`에서 확인된 dependency 상태
 - **Non-JSON Runtime Errors**: vLLM·MLX 등 Runtime의 오류 로그
-- **Raw Runtime Log**: Runtime 원본 로그(full-stack은 컨테이너 stdout, Metal은 native MLX stdout)
-- **Engine Crash / Traceback**: Runtime crash와 traceback 검색
+- **Raw Runtime Log**: Docker 모델 Runtime 로그는 `configs/services.yaml`의 `model_runtime` 서비스 레이블로 필터링하고, native MLX 로그는 별도 `job=native` 경로로 조회한다. Grafana 등 운영 도구 컨테이너는 제외한다. `tests/unit/test_grafana_runtime_log_queries.py`가 Registry·Dashboard의 드리프트를 검사한다
+- **Engine Crash / Traceback**: 대상 Runtime 로그에서 traceback·예외 문자열 검색. 키워드 일치가 실제 크래시를 확정하지는 않음
 
 Request ID 또는 Error Code로 대상을 좁힌 뒤 관련 서비스와 Runtime 로그를 함께 확인할 수 있다.
 
@@ -275,7 +275,7 @@ Grafana Dashboard는 운영 목적에 따라 구분된다.
 | Dashboard | 주요 용도 |
 |---|---|
 | **서비스 개요** | 메인 모델 요청 허용 여부, 요청량·오류율·지연, vLLM 부하, 오류·거부 원인 |
-| **GPU 용량과 OOM 위험** | GPU 용량, OOM/재시작, Queue, KV Cache, Token 처리량, 컨테이너 자원 확인 |
+| **GPU 용량과 OOM 위험** | GPU 실측 용량, OOM/재시작, Queue, KV Cache, Token 처리량, 컨테이너 자원 확인. Control Plane의 정책상 예약과 다름 |
 | **오늘 사용량** | GPU 사용률, 모델별 요청량, 요청 거부, upstream 오류, Token 처리량 확인 |
 | **요청 로그** | 요청 로그, API 오류, Readiness 실패, Runtime 로그 검색 |
 | **메인 런타임 상태 (Apple Silicon)** | MLX runtime의 수집 상태, model load, active/queue, 실패, 처리량과 요청 peak memory 확인 |

@@ -18,6 +18,7 @@ import {
   runtimePlanRequiresForceReview,
 } from './runtimeSafety';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import { gpuCapacityDashboardUrl } from './activityDiagnostics';
 import { formatFraction, formatPercent, gpuBudgetAccessibilityLabel, runtimeStateLabel, t, yesNoLabel } from './uiText';
 
 type DesiredState = 'active' | 'stopped';
@@ -47,6 +48,7 @@ function topologyReason(item: RuntimeTopologyItem): string {
 type RuntimePageProps = {
   token: string | null;
   onUnauthorized: () => void;
+  grafanaUrl: string | null;
 };
 
 function errorMessage(error: unknown): string {
@@ -84,7 +86,8 @@ function verificationSummary(operation: RuntimeOperationResponse): string {
   return '상태 수렴 여부가 기록되지 않았습니다.';
 }
 
-export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
+export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePageProps) {
+  const gpuDashboardUrl = gpuCapacityDashboardUrl(grafanaUrl);
   const queryClient = useQueryClient();
   const [review, setReview] = useState<RuntimePlanResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -211,7 +214,10 @@ export function RuntimePage({ token, onUnauthorized }: RuntimePageProps) {
               <span className="gpu-budget-used" style={{ width: `${Math.min(100, Math.max(0, budget.used * 100))}%` }} />
               <span className="gpu-budget-ceiling" style={{ left: `${Math.min(100, Math.max(0, budget.ceiling * 100))}%` }} />
             </div>
-            <p className="configuration-help">동시 실행 판단용 정책 비율 · 실측 GPU 사용량은 관측 지표에서 확인</p>
+            <p className="configuration-help">
+              동시 실행 판단용 정책 비율 · 실측 GPU 사용량과 다름
+              {gpuDashboardUrl ? <>{' · '}<a href={gpuDashboardUrl} target="_blank" rel="noreferrer">실측 GPU·대기열 추이 ↗</a></> : null}
+            </p>
           </CardBody>
         </Card>
       ) : (

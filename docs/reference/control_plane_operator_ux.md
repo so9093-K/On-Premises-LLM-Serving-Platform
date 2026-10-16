@@ -11,7 +11,7 @@ Navigation 메뉴와 실제 Route는 같은 feature-aware 정의를 사용하므
 
 | 사용자가 하고 싶은 일 | 시작점 | 확인할 결과 | 실제 authority |
 | --- | --- | --- | --- |
-| 현재 서비스 확인 | 운영 개요 | Main Model 및 Runtime의 조회 상태, 최근 Gateway 요청 집계 | Bootstrap / Runtime / Main Model / Traffic |
+| 현재 서비스 확인 | 운영 개요 | Main Model·Runtime의 조회 상태와 최근 Gateway 요청·오류·지연을 먼저 확인 | Bootstrap / Runtime / Main Model / Traffic |
 | 실제 모델 응답 검증 | 빠른 작업 → Playground | 공개 API 응답, request ID, 지연 및 요청 당시 설정 | `/v1/models` 및 `/v1/chat/completions` |
 | 모델 변경 | 메인 모델 | 기능·자원 영향 검토 → 전환 진행 → 성공/복구/실패 | Main Model Control |
 | 런타임 시작·중지 | 런타임과 GPU | 정책상 예약 및 변경 영향 Plan → Apply → Verification | Runtime Controller |
@@ -21,18 +21,20 @@ Navigation 메뉴와 실제 Route는 같은 feature-aware 정의를 사용하므
 
 ### 서비스 상태와 실제 모델 응답
 
-- 개요의 "확인된 주의 항목 없음"은 **조회된 정보에서** 주의 항목을 찾지 못했다는 의미다. 추론 Canary 성공이나 무장애 보증이 아니다.
-- 최근 서비스 지표는 Gateway 프로세스 내 API 요청 집계다. Process restart 뒤 초기화되며, GPU의 실측 값과 구분한다.
-- 정책상 GPU 예약은 `gpu_budgets`와 활성 Runtime 설정을 이용한 Admission의 **추정·예약 비율**이다. DCGM이 관측한 VRAM 메모리 점유량이 아니다.
+- 개요의 "조회된 주의 항목 없음"은 모델·Runtime·최근 트래픽 조회가 끝나고 **조회된 정보에서** 주의 항목을 찾지 못했다는 중립 상태다. 트래픽 조회 실패는 모델 장애로 단정하지 않고 요청 지표 확인 필요로 표시한다. 추론 Canary 성공이나 무장애 보증이 아니다.
+- 최근 서비스 지표는 빠른 작업보다 먼저 표시되며, Gateway 프로세스 내 API 요청 집계다. Process restart 뒤 초기화되며, GPU의 실측 값과 구분한다.
+- 정책상 GPU 예약은 `gpu_budgets`와 활성 Runtime 설정을 이용한 Admission의 **추정·예약 비율**이다. DCGM이 관측한 VRAM 메모리 점유량이 아니다. Runtime 화면은 이용 가능한 경우 Grafana GPU 실측 대시보드로 이동하게 한다.
 - `compatible`, `qualified`, `gate open`, `healthy`는 다른 상태이므로 하나의 정상 판정으로 결합하지 않는다.
 
 ### 모델 변경 결과
 
-1. 현재 활성 프로필과 전환 후보를 비교한다.
+1. 서비스 일시 중단 가능성·지원 입력·리소스 정책 차이(리소스 variant 또는 GPU 예약 비율 변화)를 먼저 확인하고, 현재 활성 프로필과 전환 후보의 상세 항목을 비교한다.
 2. 기능 감소, 리소스 정책, 검증 여부 및 중단 가능성을 확인한다.
 3. 기존 Main Model mutation으로 전환을 요청한다.
 4. 작업의 실제 단계와 완료/실패/복구 여부를 서버 결과로 표시한다.
 5. 성공했을 때 Playground에서 **별도의 공개 API 요청**으로 새 응답을 확인할 수 있다.
+
+설정 적용 결과는 수정·검토 직후 포커스를 받고, 서버가 계획한 변경 전후 값과 적용 검증 상태를 먼저 표시한다. 민감 값은 숨긴다. 복원 또는 다른 변경으로 적용 revision보다 최신 설정을 확인하면 이전 Apply 결과를 숨긴다. 이전 변경 이력은 그다음에 두고 revision·plan digest는 상세에서 확인한다.
 
 ### Runtime 작업
 

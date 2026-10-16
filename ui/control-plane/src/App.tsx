@@ -103,7 +103,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
   const pages: Record<NavigationPath, ReactNode> = {
     '/': <OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />,
     '/main-model': <MainModelPage token={token} onUnauthorized={clearToken} chatEnabled={bootstrap.deployment.features.includes('chat')} />,
-    '/runtimes': <RuntimePage token={token} onUnauthorized={clearToken} />,
+    '/runtimes': <RuntimePage token={token} onUnauthorized={clearToken} grafanaUrl={bootstrap.links.grafana} />,
     '/operations': <OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />,
     '/configuration': <ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />,
     '/chat': <ChatPage grafanaUrl={bootstrap.links.grafana} docsUrl={bootstrap.links.docs} />,

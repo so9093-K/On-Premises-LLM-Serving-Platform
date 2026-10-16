@@ -116,6 +116,14 @@ test('profile impact compares operator-visible switch differences without inferr
   });
 });
 
+test('GPU reservation ratio changes are a resource policy impact even without a variant switch', () => {
+  const current = profile('compatible', 'verified', { vram_fraction: 0.65 });
+  const target = profile('compatible', 'verified', { vram_fraction: 0.76 });
+  const impact = mainModelProfileImpact(current, target);
+  assert.equal(impact.resourcePolicyChanged, true);
+  assert.ok(impact.vramFractionDelta > 0.1);
+});
+
 test('profile impact reports an unchanged operator contract when visible fields match', () => {
   const current = profile();
   const target = profile();

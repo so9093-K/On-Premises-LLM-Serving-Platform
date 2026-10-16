@@ -129,11 +129,13 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const checking = (
     (runtimeControlEnabled && runtimesQuery.isPending)
     || (modelSwitchingEnabled && mainModelQuery.isPending)
+    || trafficQuery.isPending
   );
   const hasAttention = (
     runtimesQuery.isError
     || mainModelQuery.isError
     || attentionSignals.length > 0
+    || trafficQuery.isError
   );
   const hasPolicyNotice = (
     informationalSignals.length > 0
@@ -146,7 +148,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : { label: '조회된 주의 항목 없음', color: 'green' as const, description: '조회된 서비스·운영 상태의 주의 항목 없음' };
+      : { label: '조회된 주의 항목 없음', color: 'grey' as const, description: '' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,
@@ -172,7 +174,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <CardBody>
             <div className="overview-status-heading">
               <Label color={operatorStatus.color}>{operatorStatus.label}</Label>
-              <strong>{operatorStatus.description}</strong>
+              {operatorStatus.description ? <strong>{operatorStatus.description}</strong> : null}
             </div>
             <dl className="facts overview-status-facts">
               <dt>메인 모델</dt>
@@ -200,6 +202,16 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             <CardTitle>확인 필요</CardTitle>
             <CardBody>
               <div className="overview-signal-list">
+                {trafficQuery.isError ? (
+                  <div className="overview-signal">
+                    <Label color="orange">요청 지표</Label>
+                    <div>
+                      <strong>최근 요청 지표를 조회하지 못했습니다.</strong>
+                      <small>{apiErrorMessage(trafficQuery.error)}</small>
+                      {serviceDashboardUrl ? <a className="overview-inline-action" href={serviceDashboardUrl} target="_blank" rel="noreferrer">Grafana에서 확인 ↗</a> : null}
+                    </div>
+                  </div>
+                ) : null}
                 {runtimesQuery.isError ? (
                   <div className="overview-signal">
                     <Label color="orange">런타임</Label>
@@ -238,48 +250,6 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         ) : null}
       </div>
 
-      <Card className="overview-next-actions">
-        <CardTitle>빠른 작업</CardTitle>
-        <CardBody>
-          <div className="overview-action-grid">
-            {bootstrap.deployment.features.includes('chat') ? (
-              <Link className="overview-action-tile" to="/chat">
-                <strong>모델 응답 테스트 →</strong>
-                <span>공개 API로 요청을 보내 응답과 지연 확인</span>
-              </Link>
-            ) : null}
-            {modelSwitchingEnabled ? (
-              <Link className="overview-action-tile" to="/main-model">
-                <strong>모델 상태·전환 →</strong>
-                <span>현재 모델과 전환 영향을 검토</span>
-              </Link>
-            ) : null}
-            {runtimeControlEnabled ? (
-              <Link className="overview-action-tile" to="/runtimes">
-                <strong>런타임 확인 →</strong>
-                <span>실행 상태와 GPU 예약 정책 확인</span>
-              </Link>
-            ) : null}
-            {!modelSwitchingEnabled && !runtimeControlEnabled ? (
-              <div className="overview-action-tile">
-                <strong>외부 관리 런타임</strong>
-                <span>모델 실행과 전환은 외부 구성요소에서 관리</span>
-              </div>
-            ) : null}
-            <Link className="overview-action-tile" to="/operations">
-              <strong>최근 운영 작업 →</strong>
-              <span>전환·설정 변경과 진단 결과 확인</span>
-            </Link>
-            {bootstrap.links.docs ? (
-              <a className="overview-action-tile" href={bootstrap.links.docs} target="_blank" rel="noreferrer">
-                <strong>API 문서 ↗</strong>
-                <span>공개 API와 요청 형식 확인</span>
-              </a>
-            ) : null}
-          </div>
-        </CardBody>
-      </Card>
-      
       <Card className="traffic-card">
         <CardTitle>
           지금 서비스
@@ -307,6 +277,37 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <> <a className="overview-inline-action" href={serviceDashboardUrl} target="_blank" rel="noreferrer">Grafana에서 추이 보기 ↗</a></>
             ) : null}
           </p>
+        </CardBody>
+      </Card>
+
+      <Card className="overview-next-actions">
+        <CardTitle>빠른 작업</CardTitle>
+        <CardBody>
+          <div className="overview-action-grid">
+            {bootstrap.deployment.features.includes('chat') ? (
+              <Link className="overview-action-tile" to="/chat">
+                <strong>모델 응답 테스트 →</strong>
+              </Link>
+            ) : null}
+            {modelSwitchingEnabled ? (
+              <Link className="overview-action-tile" to="/main-model">
+                <strong>모델 상태·전환 →</strong>
+              </Link>
+            ) : null}
+            {runtimeControlEnabled ? (
+              <Link className="overview-action-tile" to="/runtimes">
+                <strong>런타임 확인 →</strong>
+              </Link>
+            ) : null}
+            <Link className="overview-action-tile" to="/operations">
+              <strong>최근 운영 작업 →</strong>
+            </Link>
+            {bootstrap.links.docs ? (
+              <a className="overview-action-tile" href={bootstrap.links.docs} target="_blank" rel="noreferrer">
+                <strong>API 문서 ↗</strong>
+              </a>
+            ) : null}
+          </div>
         </CardBody>
       </Card>
 

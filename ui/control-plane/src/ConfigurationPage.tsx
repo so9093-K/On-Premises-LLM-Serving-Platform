@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import {
   ApiError,
@@ -135,6 +136,8 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
   const [review, setReview] = useState<ReviewedConfiguration | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastApply, setLastApply] = useState<ConfigurationApplyResponse | null>(null);
+  const [appliedChanges, setAppliedChanges] = useState<ConfigurationPlanResponse['changes']>([]);
+  const applyResultRef = useRef<HTMLDivElement>(null);
   const [rollbackActive, setRollbackActive] = useState(false);
   const authClass = token === null ? 'anonymous' : 'authenticated';
 
@@ -170,6 +173,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
     onMutate: () => {
       setActionError(null);
       setLastApply(null);
+      setAppliedChanges([]);
       setReview(null);
     },
     onSuccess: (plan, intent) => {
@@ -196,8 +200,9 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
     ),
     retry: false,
     onMutate: () => setActionError(null),
-    onSuccess: async (result) => {
+    onSuccess: async (result, reviewed) => {
       setLastApply(result);
+      setAppliedChanges(reviewed.plan.changes);
       setReview(null);
       setSelectedKey(null);
       await queryClient.invalidateQueries({ queryKey: ['configuration'] });
@@ -215,6 +220,21 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       await queryClient.invalidateQueries({ queryKey: ['configuration'] });
     },
   });
+
+  useEffect(() => {
+    if (lastApply) applyResultRef.current?.focus();
+  }, [lastApply]);
+
+  // A verified Apply is historical evidence, not the current state after a
+  // later rollback or another operator's revision. Invalidate stale outcomes
+  // whenever the canonical effective read has advanced.
+  const effectiveRevision = effectiveQuery.data?.data.revision;
+  useEffect(() => {
+    if (lastApply && effectiveRevision !== undefined && effectiveRevision > lastApply.revision) {
+      setLastApply(null);
+      setAppliedChanges([]);
+    }
+  }, [effectiveRevision, lastApply]);
 
   const schemaItems = useMemo(
     () => (schemaQuery.data?.items ?? []).filter((item) => item.control_surface === 'configuration'),
@@ -325,12 +345,11 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
             <option value={group} key={group}>{configurationGroupLabel(group)} ({schemaItems.filter((item) => item.group === group).length})</option>
           ))}
         </select>
-        <p>설정 그룹 · 적용값 · 수정 가능 여부</p>
         {selectedMetadata !== null && !visibleSchemaItems.some((item) => item.key === selectedMetadata.key) ? (
           <p role="status">편집 중: <strong>{configurationLabel(selectedMetadata.key, selectedMetadata.label)}</strong> (다른 설정 그룹)</p>
         ) : null}
       </div>
-      <div className="table-scroll">
+      <div className="table-scroll configuration-table-scroll">
         <table className="runtime-table">
           <thead>
             <tr><th>설정</th><th>적용 값</th><th>출처</th><th>운영자 덮어쓰기</th><th>변경 위험</th><th>작업</th></tr>
@@ -382,13 +401,18 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
           <CardTitle>설정 편집 · {configurationLabel(selectedMetadata.key, selectedMetadata.label)}</CardTitle>
           <CardBody>
             <dl className="facts compact-facts">
-              <dt>키</dt><dd><code>{selectedMetadata.key}</code></dd>
               <dt>현재 적용 값</dt><dd>{displayValue(selectedMetadata, selectedEffective)}</dd>
               <dt>출처</dt><dd>{sourceLabel(selectedEffective.effective_source)}</dd>
               <dt>운영자 덮어쓰기</dt><dd>{displayOperatorValue(selectedMetadata, selectedEffective)}</dd>
-              <dt>적용 방식</dt><dd>{selectedMetadata.apply_mode}</dd>
-              <dt>변경 위험</dt><dd>{riskLabel(selectedMetadata.risk)}</dd>
             </dl>
+            <details className="operator-details">
+              <summary>설정 기술 상세</summary>
+              <dl className="facts compact-facts">
+                <dt>키</dt><dd><code>{selectedMetadata.key}</code></dd>
+                <dt>적용 방식</dt><dd>{selectedMetadata.apply_mode}</dd>
+                <dt>변경 위험</dt><dd>{riskLabel(selectedMetadata.risk)}</dd>
+              </dl>
+            </details>
             <p className="configuration-help">{selectedMetadata.help}</p>
             <div className="configuration-editor">
               <label htmlFor="configuration-value">새 운영자 값</label>
@@ -449,12 +473,15 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
         <Card className="review-card">
           <CardTitle>설정 변경 검토</CardTitle>
           <CardBody>
-            <dl className="facts compact-facts">
-              <dt>기준 revision</dt><dd>{review.plan.base_revision}</dd>
-              <dt>적용 후 revision</dt><dd>{review.plan.candidate_revision}</dd>
-              <dt>실제 변경 발생</dt><dd>{yesNoLabel(review.plan.would_change)}</dd>
-              <dt>계획 digest</dt><dd><code>{review.plan.plan_digest}</code></dd>
-            </dl>
+            <details className="operator-details">
+              <summary>계획 기술 상세</summary>
+              <dl className="facts compact-facts">
+                <dt>기준 revision</dt><dd>{review.plan.base_revision}</dd>
+                <dt>적용 후 revision</dt><dd>{review.plan.candidate_revision}</dd>
+                <dt>실제 변경 발생</dt><dd>{yesNoLabel(review.plan.would_change)}</dd>
+                <dt>계획 digest</dt><dd><code>{review.plan.plan_digest}</code></dd>
+              </dl>
+            </details>
             <div className="table-scroll configuration-review-table">
               <table className="runtime-table">
                 <thead><tr><th>키</th><th>작업</th><th>변경 전</th><th>변경 후</th><th>변경 후 출처</th><th>변경 위험</th></tr></thead>
@@ -490,6 +517,50 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
         </Card>
       ) : null}
 
+      {lastApply ? (
+        <div ref={applyResultRef} tabIndex={-1} role="region" aria-labelledby="configuration-result-title" className="configuration-result-focus">
+          <Card>
+            <CardTitle><span id="configuration-result-title">설정 적용 결과</span></CardTitle>
+            <CardBody>
+              <div className="configuration-result-status" role="status">
+                <Label color={lastApply.status === 'verified' && lastApply.verification.synchronized ? 'green' : 'orange'}>{applyStatusLabel(lastApply.status)}</Label>
+                <span>{lastApply.verification.synchronized ? '설정 동기화 확인' : '설정 동기화 확인 필요'}</span>
+              </div>
+              {lastApply.changed && appliedChanges.length > 0 ? (
+                <div className="configuration-result-changes" aria-label="확인된 설정 변경 내역">
+                  {appliedChanges.map((change) => {
+                    const metadata = schemaItems.find((item) => item.key === change.key);
+                    const safeValue = (value: unknown) => metadata?.sensitive ? '값 숨김' : metadata ? formatConfigurationValue(metadata, value) : '—';
+                    return (
+                      <div className="configuration-result-change" key={change.key}>
+                        <strong>{metadata ? configurationLabel(change.key, metadata.label) : change.key}</strong>
+                        <div className="configuration-result-diff">
+                          <span><small>변경 전</small>{safeValue(change.effective_before)}</span>
+                          <span aria-hidden="true">→</span>
+                          <span><small>변경 후</small>{safeValue(change.effective_after)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <details className="operator-details">
+                <summary>검증 기술 상세</summary>
+                <dl className="facts compact-facts">
+                  <dt>작업 ID</dt><dd><code>{lastApply.operation_id}</code></dd>
+                  <dt>변경됨</dt><dd>{yesNoLabel(lastApply.changed)}</dd>
+                  <dt>revision</dt><dd>{lastApply.revision}</dd>
+                  <dt>저장소 revision</dt><dd>{lastApply.verification.store_revision ?? '—'}</dd>
+                  <dt>Resolver revision</dt><dd>{lastApply.verification.resolver_revision}</dd>
+                  <dt>런타임 revision</dt><dd>{lastApply.verification.runtime_revision}</dd>
+                </dl>
+              </details>
+              <p className="operation-follow-up"><Link to="/operations">운영 활동에서 결과 확인 →</Link></p>
+            </CardBody>
+          </Card>
+        </div>
+      ) : null}
+
       <ConfigurationHistoryPanel
         token={token}
         onUnauthorized={onUnauthorized}
@@ -500,23 +571,6 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
         onReviewActiveChange={setRollbackActive}
       />
 
-      {lastApply ? (
-        <Card>
-          <CardTitle>적용 결과</CardTitle>
-          <CardBody>
-            <dl className="facts operation-facts">
-              <dt>작업 ID</dt><dd><code>{lastApply.operation_id}</code></dd>
-              <dt>상태</dt><dd>{applyStatusLabel(lastApply.status)}</dd>
-              <dt>변경됨</dt><dd>{yesNoLabel(lastApply.changed)}</dd>
-              <dt>revision</dt><dd>{lastApply.revision}</dd>
-              <dt>저장소 revision</dt><dd>{lastApply.verification.store_revision ?? '—'}</dd>
-              <dt>Resolver revision</dt><dd>{lastApply.verification.resolver_revision}</dd>
-              <dt>런타임 revision</dt><dd>{lastApply.verification.runtime_revision}</dd>
-              <dt>동기화</dt><dd>{yesNoLabel(lastApply.verification.synchronized)}</dd>
-            </dl>
-          </CardBody>
-        </Card>
-      ) : null}
     </section>
   );
 }

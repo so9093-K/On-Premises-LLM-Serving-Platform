@@ -133,7 +133,7 @@ function mainModelActivity(
   const failure = mainModelFailure(operation);
   const detail = failure
     ?? (operation.recovered_after_restart
-      ? 'process restart 뒤 runtime 재관측으로 terminal 상태를 복구했습니다.'
+      ? '재시작 뒤 런타임 재관측으로 최종 상태를 복구했습니다.'
       : `현재 단계: ${operation.stage}`);
 
   return {
@@ -182,7 +182,7 @@ function configurationActivity(operation: ConfigurationHistoryItem, grafanaUrl: 
     ],
     diagnostics: (() => {
       const href = requestLogDiagnosticsUrl(grafanaUrl, operation.request_id, operation.updated_at);
-      return href ? [{ label: 'Request logs', href }] : [];
+      return href ? [{ label: '요청 로그', href }] : [];
     })(),
   };
 }

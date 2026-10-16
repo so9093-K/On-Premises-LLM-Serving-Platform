@@ -344,8 +344,24 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         <Card className="review-card">
           <CardTitle>모델 전환 전 영향 확인</CardTitle>
           <CardBody>
+            {active && switchImpact ? (
+              <div className="profile-impact-summary" role="group" aria-label="전환 핵심 영향">
+                <div className="profile-impact-summary-item">
+                  <span>요청 처리</span>
+                  <strong>전환 중 일시 중단 가능</strong>
+                </div>
+                <div className="profile-impact-summary-item" data-tone={switchImpact.removedInputs.length ? 'warning' : 'neutral'}>
+                  <span>지원 입력</span>
+                  <strong>{inputImpactLabel(switchImpact.addedInputs, switchImpact.removedInputs)}</strong>
+                </div>
+                <div className="profile-impact-summary-item" data-tone={switchImpact.resourcePolicyChanged ? 'info' : 'neutral'}>
+                  <span>리소스 정책</span>
+                  <strong>{switchImpact.resourcePolicyChanged ? '변경됨' : '변경 없음'}</strong>
+                </div>
+              </div>
+            ) : null}
             <p className="configuration-help profile-comparison-intro">
-              전환 중 요청이 일시 중단될 수 있습니다. 실패 시 이전 모델로 복구를 시도합니다.
+              {active ? '전환 실패 시 이전 모델로 복구를 시도합니다.' : '첫 활성화에는 복구할 이전 모델이 없습니다.'}
             </p>
 
             {active && switchImpact ? (
@@ -375,10 +391,12 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                         <td>{switchImpact.qualificationChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
-                        <td><strong>리소스 정책</strong></td>
+                        <td><strong>리소스 정책 유형</strong></td>
                         <td>{mainModelResourcePolicyLabel(active)}</td>
                         <td>{mainModelResourcePolicyLabel(reviewProfile)}</td>
-                        <td>{switchImpact.resourcePolicyChanged ? <Label color="blue">변경됨</Label> : <Label color="grey">변경 없음</Label>}</td>
+                        <td>{mainModelResourcePolicyLabel(active) !== mainModelResourcePolicyLabel(reviewProfile)
+                          ? <Label color="blue">변경됨</Label>
+                          : <Label color="grey">변경 없음</Label>}</td>
                       </tr>
                       <tr>
                         <td><strong>입력</strong></td>
@@ -410,21 +428,10 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                       현재 프로필에서 가능한 {inputList(switchImpact.removedInputs)} 입력이 전환 뒤에는 제공되지 않습니다.
                     </Alert>
                   ) : null}
-                  {switchImpact.addedInputs.length ? (
-                    <Alert isInline variant="info" title="지원 입력이 추가됩니다.">
-                      전환 뒤 {inputList(switchImpact.addedInputs)} 입력이 추가됩니다.
-                    </Alert>
-                  ) : null}
-                  {switchImpact.resourcePolicyChanged ? (
-                    <Alert isInline variant="info" title="적용 리소스 정책이 달라집니다.">
-                      {mainModelResourcePolicyLabel(active)} → {mainModelResourcePolicyLabel(reviewProfile)}.
-                      선택한 프로필의 리소스 정책 차이입니다.
-                    </Alert>
-                  ) : null}
                 </div>
               </>
             ) : (
-              <Alert isInline variant="info" title="현재 사용 중인 프로필이 없습니다.">
+              <Alert isInline variant="info" title="첫 활성화 · 현재 프로필 없음">
                 현재 상태와의 차이를 계산할 수 없어 전환 대상 프로필 정보만 표시합니다.
               </Alert>
             )}
