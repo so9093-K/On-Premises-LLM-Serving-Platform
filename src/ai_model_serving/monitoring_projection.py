@@ -12,7 +12,7 @@ def macos_metal_prometheus_config_document(
     macos_runtime: dict[str, Any],
     runtime_backend: str,
 ) -> dict[str, Any]:
-    """Build the Prometheus configuration for the static Metal Compose project.
+    """정적 Metal Compose 프로젝트의 Prometheus 설정을 생성한다.
 
     rule_files를 싣지 않는 것은 의도다. model_runtime.rules.yml의 rule은 전부
     DCGM/cAdvisor/vLLM exporter를 전제하는데 이 project는 그 service들을 정의하지
@@ -76,7 +76,7 @@ def macos_metal_prometheus_config_document(
 def prometheus_scrape_config_document(
     *, registry: ModelRegistry, monitoring: dict[str, Any], services: dict[str, Any]
 ) -> dict[str, Any]:
-    """Build the Prometheus configuration generated from the runtime registry."""
+    """Runtime Registry를 기준으로 Prometheus 설정을 생성한다."""
     stack = monitoring.get("monitoring_stack", {})
     metric_sources = monitoring.get("metric_sources", {})
     gateway = metric_sources.get("gateway", {})

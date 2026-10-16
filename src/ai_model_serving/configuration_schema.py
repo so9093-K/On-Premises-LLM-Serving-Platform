@@ -62,10 +62,10 @@ def validate_configuration_schema_document(
     *,
     projection_ids: Collection[str],
 ) -> list[dict[str, Any]]:
-    """Validate the Configuration Plane metadata grammar used by runtime and CI.
+    """Runtime과 CI가 공유하는 Configuration Plane 메타데이터 문법을 검증한다.
 
-    Repository-specific cross-contract checks belong in governance validation; this
-    function owns only the schema document's intrinsic grammar and ownership rules.
+    저장소의 다른 계약과 교차 검증하는 책임은 Governance Validation에 있다.
+    이 함수는 Schema 문서 자체의 문법과 소유권 규칙만 검증한다.
     """
 
     items = document.get("items")

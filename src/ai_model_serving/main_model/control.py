@@ -45,7 +45,7 @@ _TERMINAL_STATES = frozenset({"completed", "failed", "rollback_failed"})
 
 
 def project_main_model_operation(operation: dict[str, Any]) -> dict[str, Any]:
-    """Internal switch state를 stable public operation evidence로 투영한다.
+    """내부 모델 전환 상태를 안정적인 공개 Operation 증거로 투영한다.
 
     ``previous_gate``와 ``boot_reconcile`` 같은 필드는 rollback/reconcile 실행을 위한
     controller bookkeeping이며 API 계약이 아니다. restart recovery는 terminal 결과의
@@ -230,33 +230,50 @@ class MainModelManager:
         record = self._operation_record(operation_id)
         return project_main_model_operation(record) if record is not None else None
 
-    async def _validate_and_record(self, profile: MainModelProfile) -> None:
-        """``backend.validate()``를 실행하고 검증한 컨테이너 instance를 기록한다.
+    async def _validate_and_record(
+        self, profile: MainModelProfile, *, expected_started_at: str | None = None
+    ) -> None:
+        """검증 완료로 기록하기 전에 선언된 Profile과 실제 인스턴스가 일치하는지 확인한다.
 
-        모든 validate 호출은 이 메서드를 거쳐야 재시작 감지가 비교할 마지막 정상
-        컨테이너 fingerprint를 남긴다. 기록 실패는 이미 성공한 검증을 실패로 바꾸지 않는다.
+        공개 API 별칭 `local-main`은 실제 모델·Revision·Runtime 이미지의 증거가 아니다.
+        Canary 전후에 Profile과 실행 인스턴스의 관측값이 일치해야 하며,
+        검증 근거를 얻지 못하면 요청을 차단한다.
         """
-        await self.backend.validate(self.catalog, profile)
         try:
-            started_at = await self.backend.observed_started_at(self.catalog)
-        except Exception as exc:  # noqa: BLE001 - 순수 부기(bookkeeping)이며 validate() 성공을 뒤집으면 안 된다
-            _logger.warning("failed to record container fingerprint after validate(): %s", exc)
-            return
-        if started_at is not None:
-            self.state_store.update(
-                lambda s: s.update(last_validated_container_started_at=started_at)
-            )
+            before = expected_started_at
+            if before is None:
+                before = await self.backend.observed_started_at(self.catalog)
+            observed_profile = await self.backend.observed_profile(self.catalog)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("cannot observe runtime identity before validation") from exc
+        if before is None:
+            raise RuntimeError("cannot validate a runtime without a live instance identity")
+        if observed_profile != profile.profile_id:
+            raise RuntimeError("runtime profile differs from the requested profile before validation")
+
+        await self.backend.validate(self.catalog, profile)
+
+        try:
+            after = await self.backend.observed_started_at(self.catalog)
+            verified_profile = await self.backend.observed_profile(self.catalog)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("cannot confirm runtime identity after validation") from exc
+        if after is None or after != before:
+            raise RuntimeError("runtime identity changed during verification")
+        if verified_profile != profile.profile_id:
+            raise RuntimeError("runtime profile changed during verification")
+        self.state_store.update(
+            lambda s: s.update(last_validated_container_started_at=after)
+        )
 
     async def reconcile_if_restarted(self) -> None:
-        """Detect a main-llm-vllm restart that bypassed this controller entirely
-        (e.g. an operator running `docker restart main-llm-vllm` directly instead
-        of the admin API) and re-run validate() so the active Profile's health,
-        model identity, and media capability remain verified. Intended to be
-        polled periodically in the background.
+        """Runtime Controller API를 거치지 않은 Main Runtime 재시작을 감지한다.
 
-        Does not close the gate while this verification runs. The controller
-        treats a restart as an observation problem, not as a reason to add
-        user-visible downtime.
+        운영자가 `docker restart main-llm-vllm`을 직접 실행한 경우에도
+        주기적인 백그라운드 관측을 통해 활성 Profile의 Health·모델 신원·미디어
+        Capability를 재검증한다. 새 인스턴스는 기존 검증 결과를 승계하지 않는다.
+        먼저 요청 Gate를 닫고 신원과 기능을 확인한 뒤에만 다시 열어,
+        무중단 요청 수용보다 실제 Serving 계약의 안전성을 우선한다.
 
         validate()가 계속 실패하면(예: active_profile이 가리키는 프로필과 실제
         컨테이너가 어긋난 채로 남는 drift -- 2026-07-28 실제 사고) 이 메서드는
@@ -282,37 +299,40 @@ class MainModelManager:
                 _logger.warning("reconciliation could not observe container start time: %s", exc)
                 return
             if observed_started_at is None:
-                return  # 컨테이너가 없음 — initialize()/start_main()이 처리할 문제
-            last_validated = state.get("last_validated_container_started_at")
-            if last_validated is None:
-                # 이 필드가 아직 없는 상태(신규 배포 직후)이거나 최초 관측 —
-                # drift로 취급해 불필요한 재검증을 트리거하지 않고 기준선만 기록한다.
-                # 잠재 리스크: _validate_and_record()의 fingerprint 기록 단계(관측
-                # 호출)만 계속 실패하고 validate() 자체는 계속 성공하는 상황이 생기면,
-                # 이 필드가 영원히 None으로 남아 매 tick마다 이 분기로 빠져 재검증이
-                # 트리거되지 않는다. 두 실패가 겹쳐야 하는 좁은 경우이고, 위
-                # observed_started_at() 호출이 같은 backend 메서드를 쓰므로 지속적인
-                # 장애라면 그 호출도 함께 실패해 이 분기에 도달하기 전에 걸러지지만,
-                # 간헐적 실패 패턴에서는 이 분기가 계속 반복될 수 있다.
-                self.state_store.update(
-                    lambda s: s.update(last_validated_container_started_at=observed_started_at)
-                )
+                # 이전에 검증한 인스턴스가 사라졌다는 관측 결과다.
+                # 더 이상 준비된 모델로 표시해서는 안 된다.
+                self.state_store.update(lambda s: s.update(gate="closed"))
                 return
-            if observed_started_at == last_validated:
-                self._reconcile_failure_streak = 0
-                self._reconcile_backoff_until = 0.0
-                return  # 컨테이너가 그대로임 — 조치 불필요
+            last_validated = state.get("last_validated_container_started_at")
+            if observed_started_at == last_validated and state.get("gate") == "open":
+                # 시작 시각이 같아도 기대하는 Model Profile의 실행을 증명하지는 않는다.
+                try:
+                    observed_profile = await self.backend.observed_profile(self.catalog)
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning("reconciliation could not observe model profile: %s", exc)
+                    return
+                if observed_profile == active_id:
+                    self._reconcile_failure_streak = 0
+                    self._reconcile_backoff_until = 0.0
+                    return
+            # 검증 지문이 없거나 바뀌었다면 이전 검증을 승계할 수 없다.
+            # 관측과 Canary를 시작하기 전에 요청 Gate를 먼저 닫는다.
+            self.state_store.update(lambda s: s.update(gate="closed"))
             now = asyncio.get_running_loop().time()
             if now < self._reconcile_backoff_until:
-                return  # backoff 중 — 이번 tick은 건너뛴다
+                return
             _logger.warning(
-                "main-llm-vllm container restarted outside Runtime Controller control "
-                "(observed StartedAt=%s, last validated=%s); re-validating without closing the gate",
+                "main runtime requires revalidation "
+                "(observed StartedAt=%s, last validated=%s); closing serving gate",
                 observed_started_at,
                 last_validated,
             )
             try:
-                await self._validate_and_record(self.catalog.profiles[active_id])
+                await self._validate_and_record(
+                    self.catalog.profiles[active_id],
+                    expected_started_at=observed_started_at,
+                )
+                self.state_store.update(lambda s: s.update(gate="open"))
             except Exception:
                 self._reconcile_failure_streak += 1
                 backoff = min(
@@ -354,6 +374,7 @@ class MainModelManager:
         공유 GPU 예산 admission은 호출자가 먼저 완료해야 한다.
         """
         async with self._lock:
+            self.state_store.update(lambda s: s.update(gate="closed"))
             await self.backend.start(self.catalog)
             active_id = self.state_store.read().get("active_profile") or self.boot_profile
             profile = self.catalog.profiles[active_id]
@@ -376,6 +397,9 @@ class MainModelManager:
         # 동기적으로 background task만 스케줄하고 반환하므로(락은 그 task 안에서 잡는다),
         # 여기서 호출해도 데드락은 없다.
         async with self._lock:
+            # 저장된 Gate 개방 기록은 이전 Controller 실행의 결과다.
+            # 실제 컨테이너를 관측·재검증하기 전에 Gate를 닫는다.
+            self.state_store.update(lambda s: s.update(gate="closed"))
             if self.state_store.read().get("runtime_state") == "stopped":
                 # 재시작 간에도 운영자가 의도적으로 내린 stop을 존중한다: 다시 끌어올려
                 # reconcile하는 대신 main 런타임을 내려간 상태로, gate를 닫힌 상태로 둔다.

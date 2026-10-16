@@ -9,12 +9,11 @@ ConfigurationProjection = Callable[[Any], Any]
 
 @dataclass(frozen=True)
 class ConfigurationBinding:
-    """Code-owned exposure/source binding for one schema projection id.
+    """하나의 Schema Projection ID에 대응하는 코드 소유의 값 출처·노출 연결.
 
-    YAML owns presentation and policy metadata. This registry owns the executable
-    boundary: how a projection reads resolved settings and, for operator-controlled
-    runtime values, where its repository default comes from and which runtime
-    snapshot field receives the effective value.
+    표시 및 정책 메타데이터는 YAML이 소유한다. 이 Registry는 실행 경계를
+    소유한다. Projection이 해석된 설정을 읽는 방식, 운영자 제어 Runtime 값의
+    저장소 기본값 출처, 실제 값이 투영될 Runtime Snapshot 필드를 정의한다.
     """
 
     projection: ConfigurationProjection
@@ -82,11 +81,11 @@ def binding_for_projection(projection_id: str) -> ConfigurationBinding:
 def operator_runtime_bindings(
     schema_items: list[dict[str, Any]],
 ) -> dict[str, ConfigurationBinding]:
-    """Derive operator runtime bindings from validated schema metadata.
+    """검증된 Schema 메타데이터에서 운영자 Runtime 연결 정보를 도출한다.
 
-    The schema decides which keys are operator-owned configuration controls. The
-    code registry decides how those projection ids map to repository/runtime state.
-    No second key list is maintained here.
+    운영자가 변경할 수 있는 설정 키는 Schema가 결정한다. 이 Registry는
+    해당 Projection ID를 저장소·Runtime 상태로 연결하는 방법을 소유한다.
+    동일한 키 목록을 이곳에 중복으로 유지하지 않는다.
     """
 
     bindings: dict[str, ConfigurationBinding] = {}

@@ -18,7 +18,7 @@ def validate_deployment_target_state(
     target_id: str,
     raw: dict[str, Any],
 ) -> DeploymentTargetState:
-    """Validate the canonical Deployment Target implementation and qualification axes."""
+    """Deployment Target의 구현 상태와 Qualification 축이 정규 계약을 따르는지 검증한다."""
     implementation = raw.get("implementation_status")
     qualification = raw.get("qualification_status")
     if not isinstance(implementation, str) or implementation not in IMPLEMENTATION_STATUSES:

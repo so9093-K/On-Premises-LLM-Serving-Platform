@@ -267,6 +267,18 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Alert>
       ) : null}
       {actionError ? <Alert isInline variant="danger" title="메인 모델 전환 요청에 실패했습니다.">{actionError}</Alert> : null}
+      {active && observed?.profile_id && observed.profile_id !== active.id ? (
+        <Alert isInline variant="danger" title="실제 모델이 활성 프로필과 일치하지 않습니다.">
+          현재 프로필({active.id})과 Docker에서 관측한 프로필({observed.profile_id})이 다릅니다.
+          요청 Gate와 Runtime 진단 및 작업 이력을 확인하세요.
+        </Alert>
+      ) : null}
+      {status.gate !== 'open' && status.runtime_state !== 'stopped' ? (
+        <Alert isInline variant="warning" title="메인 모델 요청이 차단되어 있습니다.">
+          현재 Runtime이 검증·재검증 중이거나 실패 상태일 수 있습니다.
+          실제 실행 상태와 전환 작업 결과를 확인하세요. 요청 허용은 실행 인스턴스 검증 성공 후 재개됩니다.
+        </Alert>
+      ) : null}
 
       <details className="context-note">
         <summary>호환성 · 검증 · GPU 리소스</summary>

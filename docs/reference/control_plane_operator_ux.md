@@ -7,6 +7,16 @@
 Navigation 메뉴와 실제 Route는 같은 feature-aware 정의를 사용하므로, 미지원 target에서 경로를 직접 입력해도 관리 화면이 열리지 않는다.
 메뉴를 숨겼다고 Runtime/Model authority가 바뀌지는 않으며 권한 검증은 서버의 책임이다.
 
+## 메인 모델 검증 상태와 운영자 행동
+
+요청 Gate, 운영 의도(`runtime_state`), Docker 실제 상태(`observed_runtime`)는
+독립된 의미다. Running 또는 Healthy만으로 현재 모델이 검증돼 요청을 받을 수
+있다고 표시하지 않는다. 활성 Profile과 관측 Profile이 다르면 명시적으로
+불일치를 알리고 Runtime 진단 및 최근 작업 이력을 안내한다. Gate가 닫혀 있으면
+검증·복구 가능성을 설명하되 성공이나 자동 복구를 약속하지 않는다.
+복수 GPU별 UI는 실제 장치 Discovery 및 실행 권위가 도입되기 전까지
+지원한다고 표시하지 않는다.
+
 ## 화면과 작업의 연결
 
 | 사용자가 하고 싶은 일 | 시작점 | 확인할 결과 | 실제 authority |

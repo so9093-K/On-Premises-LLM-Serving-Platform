@@ -80,22 +80,22 @@ def parse_configuration_history_cursor(value: str) -> str:
 
 
 class ConfigurationHistoryStore:
-    """Durable operation journal for Configuration Plane mutations.
+    """Configuration Plane 변경 작업을 기록하는 영속 Operation Journal.
 
-    Each operation gets one UUID-named record. It is written as ``pending`` before
-    persistent desired state changes, then atomically replaced until a terminal
-    state is reached. A crash therefore leaves explicit pending evidence instead of
-    silently losing the audit trail. Before/after override snapshots make restart
-    recovery and rollback compare actual persisted content, not revision numbers alone.
+    작업마다 UUID를 이름으로 사용하는 기록을 하나씩 만든다. Desired State를
+    영속 변경하기 전에 ``pending`` 상태로 기록하고 종료 상태가 될 때까지
+    원자적으로 갱신한다. 프로세스가 중단돼도 감사 기록을 조용히 잃지 않고
+    미완료 작업의 증거가 남는다. 변경 전후 Override Snapshot을 사용해
+    재시작 복구와 Rollback에서 Revision 숫자만이 아닌 실제 저장값을 비교한다.
     """
 
     def __init__(self, directory: Path) -> None:
         self.directory = directory
         self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
-        # Durable JSON records remain the audit SoT. The pending-id index is only
-        # a process-local read model so readiness checks do not rescan every
-        # terminal history record. It is rebuilt from the journal after restart.
+        # 영속 JSON 기록이 감사 결과의 Source of Truth다.
+        # Pending ID 색인은 준비 상태 확인 시 모든 완료 기록을 다시 읽지 않기 위한
+        # 프로세스 로컬 조회 모델일 뿐이며, 재시작 후 Journal에서 재구성한다.
         self._pending_operation_ids: set[str] | None = None
         self._history_directory_identity: tuple[int, int] | None = None
 

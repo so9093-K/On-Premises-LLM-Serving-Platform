@@ -118,7 +118,7 @@ def test_creation_template_preserves_private_network_without_host_binding():
 
 @pytest.mark.parametrize("mount_field", ["Binds", "Mounts"])
 def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, mount_field):
-    """Profile changes must not drop Compose's cache or accept a new mount source."""
+    """Profile 변경과 Rollback 때 Compose Cache를 잃거나 새 Mount를 허용하지 않는다."""
     import json
 
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
@@ -205,6 +205,32 @@ def test_observed_profile_requires_matching_runtime_image(monkeypatch):
     monkeypatch.setattr(backend, "_container_id", fake_container_id)
     monkeypatch.setattr(backend, "_inspect", fake_inspect)
 
+    assert asyncio.run(backend.observed_profile(catalog)) is None
+
+
+def test_observed_profile_rejects_missing_or_truncated_revision(monkeypatch):
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    profile = catalog.profiles["gemma4-26b-a4b-fp8"]
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+
+    async def fake_container_id(_service):
+        return "container-1"
+
+    command = [item for item in profile.command]
+    missing = command[:]
+    index = missing.index("--revision")
+    del missing[index:index + 2]
+
+    async def missing_inspect(_container_id):
+        return {"Config": {"Cmd": missing, "Image": profile.image}}
+
+    async def truncated_inspect(_container_id):
+        return {"Config": {"Cmd": ["--model", profile.model_id, "--revision"], "Image": profile.image}}
+
+    monkeypatch.setattr(backend, "_container_id", fake_container_id)
+    monkeypatch.setattr(backend, "_inspect", missing_inspect)
+    assert asyncio.run(backend.observed_profile(catalog)) is None
+    monkeypatch.setattr(backend, "_inspect", truncated_inspect)
     assert asyncio.run(backend.observed_profile(catalog)) is None
 
 
@@ -349,6 +375,18 @@ def test_observed_started_at_returns_container_state_started_at(monkeypatch):
 
     result = asyncio.run(backend.observed_started_at(catalog))
     assert result == "2026-07-21T00:00:00.123456789Z"
+
+
+def test_observed_started_at_rejects_exited_container_with_stale_start_time(monkeypatch):
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+    async def _id(service):
+        return "old-container-id"
+    async def _inspect(container_id):
+        return {"State": {"Status": "exited", "StartedAt": "2026-07-21T00:00:00.123456789Z"}}
+    monkeypatch.setattr(backend, "_container_id", _id)
+    monkeypatch.setattr(backend, "_inspect", _inspect)
+    assert asyncio.run(backend.observed_started_at(catalog)) is None
 
 
 def test_observed_started_at_returns_none_when_container_absent(monkeypatch):

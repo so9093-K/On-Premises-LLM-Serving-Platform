@@ -159,8 +159,8 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
     if state_path is not None:
         operator_store = OperatorConfigurationStore(state_path, metadata)
         history_store = ConfigurationHistoryStore(state_path.parent / "history")
-        # Corrupt or invalid persistent operator state is a startup error. Silently
-        # ignoring it would make the effective API disagree with operator intent.
+        # 손상되거나 유효하지 않은 영속 운영자 상태는 기동 오류다.
+        # 이를 무시하면 실제 적용된 API 설정이 운영자 의도와 달라진다.
         operator_state = operator_store.read()
 
     configuration_resolver = ConfigurationValueResolver(

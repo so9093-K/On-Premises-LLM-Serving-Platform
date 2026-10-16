@@ -24,7 +24,7 @@ def _float_flag(command: Sequence[str], flag: str) -> float | None:
 
 @dataclass(frozen=True)
 class VllmEnginePolicy:
-    """Capacity-related vLLM knobs resolved from the final runtime command."""
+    """최종 Runtime 명령에서 해석한 vLLM의 용량 관련 정책값."""
 
     max_model_len: int | None
     max_num_seqs: int | None
@@ -55,7 +55,7 @@ class VllmEnginePolicy:
 
 @dataclass(frozen=True)
 class MlxEnginePolicy:
-    """Capacity-related MLX knobs projected from the selected static runtime config."""
+    """선택한 정적 Runtime 설정에서 투영한 MLX의 용량 관련 정책값."""
 
     max_kv_size: int
     max_generation_tokens: int
@@ -67,7 +67,7 @@ class MlxEnginePolicy:
         return cls(
             max_kv_size=int(runtime["max_kv_size"]),
             max_generation_tokens=int(runtime["max_generation_tokens"]),
-            # Native MLX launcher projects runtime.max_concurrency to --max-num-seqs.
+            # 네이티브 MLX 실행기는 runtime.max_concurrency를 --max-num-seqs로 전달한다.
             max_num_seqs=int(runtime["max_concurrency"]),
             vision_cache_size=int(runtime["vision_cache_size"]),
         )

@@ -99,11 +99,10 @@ def _validate_assistant_response_message(
             )
     if isinstance(content, str) or has_tool_calls:
         return
-    # Reasoning runtimes can exhaust max_tokens before emitting final content.
-    # The reasoning text is still a valid, explicitly truncated completion and
-    # must not be rewritten as a retryable upstream failure. A completely empty
-    # result remains an upstream response error because the Gateway has no model
-    # output to return and the same shape is also produced by runtime failures.
+    # Reasoning Runtime은 최종 응답 내용보다 먼저 max_tokens를 모두 사용할 수 있다.
+    # Reasoning 텍스트가 남았다면 명시적으로 잘린 유효한 응답이므로 재시도 가능한
+    # Upstream 실패로 바꾸지 않는다. 완전히 빈 결과는 모델 출력을 반환할 수 없고
+    # 실제 Runtime 오류에서도 같은 형태가 나올 수 있으므로 Upstream 응답 오류로 본다.
     if finish_reason == "length" and isinstance(reasoning, str) and reasoning:
         return
     detail = f"chat upstream response choices[{choice_index}].message must contain assistant text content or tool_calls."
@@ -276,8 +275,8 @@ def project_to_public_contract(payload: dict[str, Any]) -> dict[str, Any]:
         message = choice.get("message")
         if isinstance(message, dict):
             narrowed["message"] = _narrow(message, message_keys)
-            # An absent thinking channel is not conversation history. Omitting
-            # null metadata also makes ordinary tool-call messages reusable.
+            # Thinking 채널이 없다는 사실은 대화 이력이 아니다.
+            # 값이 없는 메타데이터를 제외하면 일반 Tool Call 메시지도 재사용할 수 있다.
             for field in ("reasoning", "reasoning_content"):
                 if narrowed["message"].get(field) is None:
                     narrowed["message"].pop(field, None)
@@ -344,8 +343,8 @@ def validate_chat_response(
             calls = []
             for position, call in enumerate(message["tool_calls"]):
                 if isinstance(call, dict) and "index" in call:
-                    # MLX also includes the streaming position in completed calls.
-                    # Verify its meaning before projecting it out of the public object.
+                    # MLX는 완료된 Tool Call에도 Streaming 위치를 포함한다.
+                    # 공개 응답에서 제거하기 전에 위치 값의 의미가 올바른지 검증한다.
                     if not is_int(call["index"]) or call["index"] != position:
                         raise ServiceError("UPSTREAM_RESPONSE_INVALID", "Completed tool call index must match its array position.")
                     call = {key: value for key, value in call.items() if key != "index"}

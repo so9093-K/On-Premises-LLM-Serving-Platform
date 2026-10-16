@@ -5,7 +5,7 @@ from typing import Any
 
 
 def validate_configuration_value(metadata: dict[str, Any], value: Any) -> None:
-    """Validate one value against Configuration Plane metadata constraints."""
+    """하나의 값을 Configuration Plane 메타데이터의 제약 조건에 따라 검증한다."""
 
     key = str(metadata.get("key", "configuration value"))
     value_type = metadata.get("type")

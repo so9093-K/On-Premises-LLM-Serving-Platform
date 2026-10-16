@@ -23,7 +23,7 @@ from ai_model_serving.main_model.catalog import (
     resource_variant_from_mapping,
 )
 from ai_model_serving.main_model.control import MainModelManager, MainModelSwitchError
-from ai_model_serving.main_model.state import MainModelStateError, MainModelStateStore
+from ai_model_serving.main_model.state import MainModelStateError, MainModelStateRevisionError, MainModelStateStore
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -646,11 +646,10 @@ def test_reconcile_if_restarted_noop_when_container_fingerprint_unchanged(tmp_pa
     assert manager.snapshot()["gate"] == "open"
 
 
-def test_reconcile_if_restarted_records_baseline_on_first_observation(tmp_path):
+def test_reconcile_if_restarted_verifies_missing_baseline_on_first_observation(tmp_path):
     # 이 기능이 생기기 전에 쓰인 state 파일에는 아직
-    # last_validated_container_started_at이 없다. 첫 tick은 "이전 지문 없음"을
-    # drift로 취급하지 말고 baseline으로 기록해야 한다 — 안 그러면 업그레이드
-    # 시 기존 배포 전부가 불필요한 재검증을 한 번씩 겪게 된다.
+    # 이전 validation fingerprint가 없으면 관측 시각만 기록해
+    # 검증받지 않은 컨테이너를 정상 인스턴스로 승격해서는 안 된다.
     loaded = catalog()
     store = _active_store(tmp_path, loaded, started_at=None)
     backend = FakeBackend(loaded.default_profile, started_at="boot-0")
@@ -658,21 +657,26 @@ def test_reconcile_if_restarted_records_baseline_on_first_observation(tmp_path):
 
     asyncio.run(manager.reconcile_if_restarted())
 
-    assert backend.validate_calls == []
-    assert manager.snapshot()  # 여전히 읽을 수 있다
+    assert backend.validate_calls == [loaded.default_profile]
     state = store.read()
     assert state["last_validated_container_started_at"] == "boot-0"
+    assert state["gate"] == "open"
 
 
-def test_reconcile_if_restarted_revalidates_without_closing_gate_on_drift(tmp_path):
+def test_reconcile_if_restarted_closes_gate_until_validated(tmp_path):
     # 운영자가 직접 `docker restart main-llm-vllm`을 실행한 상황을 시뮬레이션한다:
     # 이 컨트롤러가 start()/replace()를 한 번도 호출하지 않았는데도 컨테이너의
     # 관측된 StartedAt이 바뀐다. reconcile_if_restarted()는 이를 감지해
     # validate()를 다시 실행해야 하고(active Profile의 runtime 계약을 재확인),
-    # 그러는 동안 gate를 닫아서는 안 된다.
+    # 실제 canary 동안에는 gate가 닫혀 있어야 한다.
     loaded = catalog()
     store = _active_store(tmp_path, loaded, started_at="boot-0")
-    backend = FakeBackend(loaded.default_profile, started_at="boot-1")
+    class GateObservingBackend(FakeBackend):
+        async def validate(self, catalog, profile):
+            assert store.read()["gate"] == "closed"
+            await super().validate(catalog, profile)
+
+    backend = GateObservingBackend(loaded.default_profile, started_at="boot-1")
     manager = MainModelManager(loaded, store, backend)
 
     asyncio.run(manager.reconcile_if_restarted())
@@ -723,6 +727,14 @@ def test_reconcile_if_restarted_propagates_validate_failure_without_updating_fin
         asyncio.run(manager.reconcile_if_restarted())
 
     assert store.read()["last_validated_container_started_at"] == "boot-0"
+    assert store.read()["gate"] == "closed"
+
+    # 이후 같은 논리 모델에 대한 재검증이 성공하면 요청 허용 상태를 복구할 수 있다.
+    backend.fail_profile = None
+    manager._reconcile_backoff_until = 0.0
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "open"
+    assert store.read()["last_validated_container_started_at"] == "boot-1"
 
 
 def test_reconcile_if_restarted_backs_off_after_repeated_validate_failures(tmp_path):
@@ -751,6 +763,44 @@ def test_reconcile_if_restarted_backs_off_after_repeated_validate_failures(tmp_p
     with pytest.raises(RuntimeError, match="validation failed"):
         asyncio.run(manager.reconcile_if_restarted())
     assert len(backend.validate_calls) == 2
+
+
+
+def test_reconcile_missing_runtime_closes_gate_until_instance_is_validated(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+    backend = FakeBackend(loaded.default_profile, started_at=None)
+    manager = MainModelManager(loaded, store, backend)
+
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+
+    backend.started_at = "boot-1"
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "open"
+    assert backend.validate_calls == [loaded.default_profile]
+
+
+def test_reconcile_rejects_instance_replaced_during_canary(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+
+    class ReplacingBackend(FakeBackend):
+        async def validate(self, catalog, profile):
+            self.started_at = "boot-2"
+            await super().validate(catalog, profile)
+
+    backend = ReplacingBackend(loaded.default_profile, started_at="boot-1")
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="identity changed during verification"):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "boot-0"
+
+    manager._reconcile_backoff_until = 0.0
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "open"
+    assert store.read()["last_validated_container_started_at"] == "boot-2"
 
 
 def test_initialize_and_reconcile_do_not_validate_concurrently(tmp_path):
@@ -1159,6 +1209,21 @@ def test_resource_variant_env_parsing_rejects_malformed_ids() -> None:
         resource_variant_from_mapping({"MAIN_MODEL_RESOURCE_VARIANT": "RTX4090"})
 
 
+def test_resource_variant_rejects_fractional_integer_knob(tmp_path):
+    import yaml
+
+    raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text())
+    profile = raw["profiles"]["gemma4-e4b-it"]
+    profile["resource_variants"]["fractional-invalid"] = {"max_num_seqs": 1.5}
+    path = tmp_path / "profiles.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    with pytest.raises(MainModelConfigurationError, match="must be an integer"):
+        load_main_model_catalog(
+            path,
+            env={"VLLM_IMAGE": _SHARED_IMAGE, "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": _PROFILE_IMAGE},
+        )
+
+
 def test_resource_variant_may_not_change_model_identity_or_policy(tmp_path) -> None:
     import yaml
 
@@ -1193,3 +1258,80 @@ def test_variant_max_model_len_is_projected_into_gateway_limits(tmp_path) -> Non
     profile = loaded.profiles["gemma4-e4b-it"]
     assert _flag(profile.command, "--max-model-len") == "32000"
     assert profile.gateway_policy["request_limits"]["max_model_len"] == 32000
+
+
+def test_initialize_closes_persisted_gate_before_verifying_instance(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="old-instance")
+
+    class GateCheckingBackend(FakeBackend):
+        async def validate(self, current_catalog, profile):
+            assert store.read()["gate"] == "closed"
+            await super().validate(current_catalog, profile)
+
+    backend = GateCheckingBackend(loaded.default_profile, started_at="new-instance")
+    manager = MainModelManager(loaded, store, backend)
+    asyncio.run(manager.initialize())
+    assert store.read()["gate"] == "open"
+    assert store.read()["last_validated_container_started_at"] == "new-instance"
+
+
+def test_start_does_not_open_gate_without_live_runtime_identity(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded)
+    backend = FakeBackend(loaded.default_profile, started_at=None)
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="live instance identity"):
+        asyncio.run(manager.start_main())
+    assert store.read()["gate"] == "closed"
+
+
+def test_reconciliation_rejects_wrong_profile_behind_shared_alias(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="old")
+    backend = FakeBackend("gemma4-26b-a4b-fp8", started_at="new")
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="profile differs"):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "old"
+
+
+def test_main_model_state_generations_prevent_stale_commit(tmp_path):
+    store = MainModelStateStore(tmp_path / "state.json", "default")
+    initial = store.read()
+    assert initial["generation"] == 0
+    first = store.compare_and_update(0, lambda state: state.update(gate="closed"))
+    assert first["generation"] == 1
+    assert store.read()["generation"] == 1
+    with pytest.raises(MainModelStateRevisionError, match="MAIN_MODEL_STATE_CHANGED"):
+        store.compare_and_update(0, lambda state: state.update(gate="open"))
+    assert store.read()["gate"] == "closed"
+    second = store.compare_and_update(1, lambda state: state.update(gate="open"))
+    assert second["generation"] == 2
+    with pytest.raises(MainModelStateRevisionError, match="MAIN_MODEL_STATE_CHANGED"):
+        store.write(initial)
+    assert store.read()["gate"] == "open"
+
+
+def test_main_model_state_generation_migrates_old_v1_without_resetting_intent(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text(
+        json.dumps({"schema_version": 1, "active_profile": "already-verified",
+                    "gate": "open", "operations": []}), encoding="utf-8",
+    )
+    store = MainModelStateStore(path, "default")
+    assert store.read()["active_profile"] == "already-verified"
+    result = store.compare_and_update(0, lambda state: state.update(runtime_state="active"))
+    assert result["generation"] == 1
+    assert store.read()["active_profile"] == "already-verified"
+    assert store.read()["gate"] == "open"
+
+
+@pytest.mark.parametrize("bad", [-1, True, "1", 1.5])
+def test_main_model_state_rejects_corrupt_generation(tmp_path, bad):
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps({"schema_version": 1, "generation": bad}), encoding="utf-8")
+    store = MainModelStateStore(path, "default")
+    with pytest.raises(MainModelStateError, match="invalid main model state generation"):
+        store.read()

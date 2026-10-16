@@ -66,21 +66,21 @@ def _timestamp(value: Any) -> bool:
 
 
 class RuntimeTransitionHistoryStore:
-    """Runtime transition audit journal with a process-local read model.
+    """Runtime 전환 작업의 감사 Journal과 프로세스 로컬 조회 모델.
 
-    Deployed Gateway instances use a persistent directory next to the runtime desired-state
-    file. Source-tree/test apps without a configured platform state root keep the same API
-    contract in memory, while every persisted record uses temp+fsync+atomic replace.
+    배포된 Gateway는 Runtime의 Desired State 파일 옆 영속 디렉터리를 사용한다.
+    Platform 상태 디렉터리가 없는 소스·테스트 앱은 같은 API 계약을 메모리에서
+    제공한다. 영속 기록은 임시 파일·fsync·원자적 교체 방식으로 쓴다.
 
-    Persistent JSON records remain the audit source of truth. The process-local mapping is a
-    read model: normal reads only stat the directory, while external additions/deletions or
-    atomic replacements invalidate that mapping and force a full journal revalidation. A
-    changed, missing, unreadable, or malformed journal fails closed instead of serving stale
-    in-memory evidence.
+    영속 JSON 기록이 감사 증거의 Source of Truth다. 프로세스 내부 Mapping은
+    조회 최적화 모델일 뿐이다. 일반 조회에서는 디렉터리 메타데이터만 검사하지만,
+    외부의 기록 추가·삭제·원자적 교체가 감지되면 조회 모델을 무효화하고
+    전체 Journal을 다시 검증한다. 기록이 변경·소멸·손상되거나 읽을 수 없으면
+    오래된 메모리 증거를 내보내지 않고 Fail-Closed한다.
 
-    HTTP operation ids are never converted into filesystem paths. Persistent paths are built
-    only from internally generated ids and indexed from validated directory entries, so read
-    routes perform trusted mapping lookup instead of user-controlled path construction.
+    HTTP Operation ID를 파일 경로로 직접 변환하지 않는다. 영속 경로는 내부에서
+    생성한 ID로만 만들고 검증된 디렉터리 항목을 색인하므로, 조회 API는
+    사용자 입력으로 경로를 조립하지 않고 검증된 Mapping에서 검색한다.
     """
 
     def __init__(self, directory: Path | None) -> None:

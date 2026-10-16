@@ -22,12 +22,11 @@ _LEGACY_PROFILE_DESCRIPTION = (
 
 @dataclass(frozen=True)
 class ControlPlaneBootstrapProjection:
-    """Startup-resolved, browser-safe Control Plane discovery inputs.
+    """기동 시 해석하는 브라우저 공개용 Control Plane 탐색 입력.
 
-    Repository YAML and process environment are composition inputs, not request-time
-    dependencies. The Gateway resolves them once while the application is built; the
-    public Bootstrap request only adds current Configuration Plane state and the
-    request hostname needed for a local direct Grafana link.
+    저장소 YAML과 프로세스 환경변수는 앱 구성 입력이며 요청마다 읽는 의존성이 아니다.
+    Gateway는 앱 구성 시 한 번 해석한다. 공개 Bootstrap 요청은 현재
+    Configuration Plane 상태와 로컬 Grafana 직접 연결에 필요한 요청 Hostname만 더한다.
     """
 
     platform_version: str
@@ -51,15 +50,15 @@ class ControlPlaneBootstrapProjection:
 
 
 def _current_access_profile(root: Path) -> AccessProfile | None:
-    """Return only an explicitly selected managed Access Profile."""
+    """명시적으로 선택한 Managed Access Profile만 반환한다."""
     name = _env("ACCESS_PROFILE", "").strip()
     if not name:
         return None
     try:
         return load_access_profile(name, root)
     except ValueError:
-        # Do not reverse-match low-level auth/network flags into a friendly profile.
-        # Unknown or absent profile selection remains explicit legacy/custom posture.
+        # 저수준 인증·네트워크 Flag를 역추론해 임의의 Access Profile로 표시하지 않는다.
+        # Profile 선택이 없거나 알 수 없는 경우 기존·맞춤 설정 상태로 남긴다.
         return None
 
 
@@ -102,9 +101,9 @@ def _grafana_projection(
     if "grafana" not in _published_services(settings, root):
         return False, None
 
-    # Monitoring may exist without a browser-safe direct URL. private/edge profiles
-    # can put TLS/proxy ownership outside the Gateway, so only a managed profile with
-    # no external TLS owner receives a direct host-port projection.
+    # Monitoring 서비스가 있어도 브라우저용 직접 URL이 없을 수 있다.
+    # Private·Edge Profile에서는 TLS·Proxy 권한이 Gateway 외부에 있을 수 있으므로
+    # 외부 TLS 소유자가 없는 Managed Profile에서만 Host Port를 직접 투영한다.
     if profile is None or profile.external_tls_owner != "none":
         return True, None
     return True, _service_host_port(root, "grafana")
@@ -115,7 +114,7 @@ def build_control_plane_bootstrap_projection(
     *,
     root: Path | None = None,
 ) -> ControlPlaneBootstrapProjection:
-    """Resolve repository/environment posture once at Gateway composition time."""
+    """Gateway 구성 시 저장소와 환경변수의 배포 상태를 한 번 해석한다."""
     project_root = resolve_project_root(root)
     profile = _current_access_profile(project_root)
     grafana_available, grafana_direct_port = _grafana_projection(
@@ -156,7 +155,7 @@ def control_plane_bootstrap_document(
     configuration_write_available: bool,
     request_hostname: str | None,
 ) -> dict[str, Any]:
-    """Render the browser-safe discovery document without repository I/O."""
+    """저장소 I/O 없이 브라우저 공개용 탐색 문서를 생성한다."""
     grafana_href = None
     if projection.grafana_direct_port is not None and request_hostname:
         host = f"[{request_hostname}]" if ":" in request_hostname else request_hostname

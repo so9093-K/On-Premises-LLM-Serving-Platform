@@ -19,7 +19,7 @@ def validate_profile_state(
     compatibility: object,
     qualification: object | None,
 ) -> ProfileState:
-    """Validate the canonical Main Model compatibility and qualification axes."""
+    """Main Model의 정규 Compatibility·Qualification 상태 축을 검증한다."""
     if not isinstance(compatibility, dict):
         raise ValueError(f"profile {profile_id} compatibility must be an object")
     compatibility_out = dict(compatibility)

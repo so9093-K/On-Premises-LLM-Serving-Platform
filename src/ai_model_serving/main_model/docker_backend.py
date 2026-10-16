@@ -175,7 +175,13 @@ class DockerMainModelBackend:
         if container_id is None:
             return None
         inspected = await self._inspect(container_id)
-        started_at = inspected.get("State", {}).get("StartedAt")
+        state = inspected.get("State") or {}
+        # 종료된 컨테이너에도 이전 StartedAt이 남는다.
+        # 이를 살아 있는 검증된 인스턴스로 취급하면 모델 프로세스가 종료됐는데도
+        # Gateway의 요청 Gate가 열린 상태로 남을 수 있다.
+        if state.get("Status") != "running":
+            return None
+        started_at = state.get("StartedAt")
         return str(started_at) if started_at else None
 
     @staticmethod
@@ -185,12 +191,24 @@ class DockerMainModelBackend:
         config = inspected.get("Config", {})
         command = list(config.get("Cmd") or [])
         image = config.get("Image")
-        model = command[command.index("--model") + 1] if "--model" in command else None
-        revision = command[command.index("--revision") + 1] if "--revision" in command else None
+
+        def command_value(flag: str) -> str | None:
+            if flag not in command:
+                return None
+            index = command.index(flag) + 1
+            return command[index] if index < len(command) else None
+
+        model = command_value("--model")
+        revision = command_value("--revision")
+        # Catalog는 고정된 --model·--revision 실행 인자를 생성한다.
+        # 신원 인자가 누락되거나 잘렸다면 이미지와 공개 모델 별칭이 같더라도
+        # 올바른 Profile로 조용히 인정해서는 안 된다.
+        if not model or not revision:
+            return None
         for profile in catalog.profiles.values():
             if (
                 profile.model_id == model
-                and (revision is None or revision == profile.revision)
+                and revision == profile.revision
                 and image == profile.image
             ):
                 return profile.profile_id

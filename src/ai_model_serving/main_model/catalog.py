@@ -67,7 +67,7 @@ class MainModelProfile:
         return self.resolved_engine_policy.gpu_memory_utilization
 
     def engine_policy(self) -> dict[str, Any]:
-        """Resolved vLLM resource knobs safe to expose as serving context."""
+        """Serving 정보로 노출할 수 있도록 해석된 vLLM 자원 정책을 반환한다."""
         return self.resolved_engine_policy.public_view()
 
     def public_view(self) -> dict[str, Any]:
@@ -215,6 +215,11 @@ def _parse_resource_variants(profile_id: str, raw: object) -> dict[str, dict[str
                 raise MainModelConfigurationError(
                     f"profile {profile_id} resource variant {name}.{key} must be a number"
                 )
+            # YAML 자원 정책의 소수 값이 int(1.5)처럼 조용히 절삭되지 않도록 한다.
+            if caster is int and not isinstance(value, int):
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be an integer"
+                )
             try:
                 cast = caster(value)
             except (TypeError, ValueError) as exc:
@@ -274,16 +279,16 @@ def _resolve_profile_image(
 ) -> str:
     """프로필 runtime image를 불변 참조로 해석한다.
 
-    - ``None`` inherits the shared ``runtime.image``.
-    - ``"${VAR}"`` is resolved from ``env`` (set by CI/deploy, like compose's
-      ``${MAIN_MODEL_VLLM_IMAGE_OVERRIDE}``). When ``VAR`` is unset/empty the profile override is not built yet,
-      so the profile inherits the shared base only to keep Runtime Controller booting; the
-      profile's declared capabilities are unchanged (it is a multimodal model, not a
-      separate text-only one), and the switch-time boot canary is what proves the live
-      runtime can actually serve them — a switch to a not-yet-built runtime fails the
-      canary and rolls back, so the model is never half-served.
-    - Registry images use ``name@sha256:...``. A locally built image may use its
-      Docker content-addressed ``sha256:...`` image ID. Mutable tags are rejected.
+    - ``None``이면 공통 ``runtime.image``를 상속한다.
+    - ``"${VAR}"`` 참조는 Compose와 마찬가지로 CI·배포 환경의 ``env``에서 해석한다.
+      예를 들어 ``${MAIN_MODEL_VLLM_IMAGE_OVERRIDE}``가 비어 있으면 아직 해당
+      Profile 이미지가 빌드되지 않은 것으로 보고, Controller 기동을 위해서만
+      공통 이미지를 상속한다. 선언된 멀티모달 Capability를 텍스트 전용으로
+      바꾸지는 않는다. 실제 전환 시 해당 기능의 Canary가 실패하면 Rollback하므로
+      검증되지 않은 기능을 정상 Serving으로 표시하지 않는다.
+    - Registry 이미지는 ``name@sha256:...`` 형식을 사용한다.
+      로컬 빌드는 Docker의 Content-addressed ``sha256:...`` 이미지 ID를 허용한다.
+      변경 가능한 이미지 태그는 거부한다.
     """
     if profile_image is None:
         if shared_image is not None:

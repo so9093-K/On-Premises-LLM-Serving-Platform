@@ -1,4 +1,4 @@
-"""Translate MLX-VLM's JSON runtime metrics into Prometheus exposition."""
+"""MLX-VLM의 JSON Runtime Metric을 Prometheus 형식으로 변환한다."""
 from __future__ import annotations
 
 import functools
@@ -31,7 +31,7 @@ def _sample(name: str, kind: str, help_text: str, value: Any) -> str:
 
 
 def render_mlx_metrics(payload: dict[str, Any] | None, *, scrape_success: bool) -> str:
-    """Render only stable numeric fields; recent request bodies/errors are excluded."""
+    """안정적인 숫자 필드만 노출하고 최근 요청 Body와 오류 본문은 제외한다."""
     output = _sample(
         "mlx_runtime_scrape_success",
         "gauge",
@@ -103,7 +103,7 @@ def _fetch_json(url: str) -> dict[str, Any]:
 
 @functools.cache
 def upstream_metrics_url() -> str:
-    """Resolve the native MLX-VLM metrics URL.
+    """네이티브 MLX-VLM Metric URL을 해석한다.
 
     Port와 경로는 configs/macos_mlx_runtime.yaml이 소유한다. 컨테이너에서 host를
     어떻게 부르는지는 배치 문제라 compose가 MLX_RUNTIME_METRICS_HOST로 넘긴다.
