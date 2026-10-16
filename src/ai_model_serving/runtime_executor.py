@@ -1,9 +1,9 @@
-"""Bounded runtime lifecycle executor: Docker identity never escapes this adapter.
+"""Docker 컨테이너 신원을 외부에 노출하지 않는 제한된 Runtime 실행 어댑터.
 
-The controller owns placement, admission, reviewed operations, and recovery.
-Only this local executor resolves allowlisted Compose services to Docker IDs.
-A second host requires a separately authenticated and fenced executor; this
-module does not grant any remote Docker socket access.
+배치·Admission·검토된 작업·복구는 Runtime Controller가 소유한다.
+이 로컬 Executor만 허용된 Compose 서비스를 Docker ID로 해석한다.
+다른 호스트에 적용하려면 인증·Fencing을 갖춘 별도 Executor가 필요하며,
+여기서는 원격 Docker Socket 접근 권한을 부여하지 않는다.
 """
 
 from __future__ import annotations

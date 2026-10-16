@@ -1,11 +1,10 @@
-"""Per-GPU VRAM admission policy, shared by all serving controllers.
+"""모든 Serving Controller가 공유하는 개별 GPU별 VRAM 허용 정책.
 
-Each call is scoped to *one physical GPU reservation domain*. The current
-managed Docker deployment uses the controller-local scope; placement across
-multiple hosts/devices is calculated by resource_placement, using this *same*
-eviction/admission authority for every GPU. Fractions cannot be summed across
-different devices or hosts. Fractions are static policy reservations, not
-measured free bytes or proof that model weights will fit.
+한 번의 판단은 **하나의 물리 GPU 예약 범위**에 한정한다. 현재 Managed Docker
+배포는 Controller 로컬 호환 범위를 사용한다. 서로 다른 GPU나 호스트의 배치는
+`resource_placement`가 수행하되, GPU별 퇴거·허용 판단은 동일한 정책을 따른다.
+다른 장치의 예약 비율은 합산하지 않는다. 이 비율은 정적 정책 예약이며
+실측 유휴 VRAM 또는 모델 가중치가 적재될 수 있다는 증거가 아니다.
 """
 
 from __future__ import annotations
@@ -84,12 +83,11 @@ def plan_activation(
 ) -> AdmissionResult:
     """``target_key``가 ``target_fraction``만큼의 GPU를 사용해도 되는지 판단한다.
 
-    The target's own current residency does not count against it (so reloading or
-    replacing an already-active runtime is feasible in place). If it does not fit,
-    evictable active participants are selected lowest-priority-first (largest
-    fraction first within a priority, to minimise the number stopped) until enough
-    room is freed. If even stopping every evictable participant is insufficient,
-    the result is infeasible with no victims.
+    Target 자신이 이미 점유 중인 예약량은 다른 Runtime의 사용량에 포함하지 않아
+    현재 Runtime을 같은 GPU에서 교체할 수 있게 한다. 여유가 부족하면 퇴거 가능한
+    Runtime을 낮은 우선순위부터 선정한다. 우선순위가 같으면 큰 예약량부터
+    선택하여 중지할 Runtime 수를 줄인다. 모든 퇴거 후보를 중지해도 부족하면
+    Victim 없이 허용 불가능한 결과를 반환한다.
     """
     _validate_pool(participants, ceiling)
     if not isinstance(target_key, str) or not target_key:

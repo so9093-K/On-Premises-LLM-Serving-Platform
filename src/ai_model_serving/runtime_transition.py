@@ -152,8 +152,8 @@ def plan_runtime_transition(
         )
 
     required = sum(by_key[key].vram_fraction for key in start)
-    # Valid individual reservations can sum to more than a GPU when startup
-    # prerequisites are included. Return a rejected plan, not ValueError/500.
+    # 개별 예약 비율이 유효해도 선행 Runtime을 함께 시작하면 합계가 상한을
+    # 초과할 수 있다. 처리되지 않은 예외 대신 허용 불가능한 Plan을 반환한다.
     if required > ceiling + 1e-9:
         return RuntimeTransitionPlan(
             target_key=target_key,

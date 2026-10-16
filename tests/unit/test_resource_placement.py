@@ -1,4 +1,4 @@
-"""Resource placement contracts with one or multiple hosts and GPUs, no hardware required."""
+"""실제 장비 없이 단일·복수 호스트 및 GPU 배치 계약을 검증한다."""
 
 from __future__ import annotations
 

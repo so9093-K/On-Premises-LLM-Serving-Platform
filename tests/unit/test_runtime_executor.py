@@ -1,4 +1,4 @@
-"""The local executor is the only non-main Docker mutation boundary."""
+"""Main Model 외 Docker 상태 변경은 로컬 Executor만 수행함을 검증한다."""
 
 from __future__ import annotations
 

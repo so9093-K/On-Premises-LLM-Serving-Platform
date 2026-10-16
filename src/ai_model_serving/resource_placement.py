@@ -1,13 +1,12 @@
-"""Deterministic GPU placement decisions over an explicit resource inventory.
+"""명시적으로 제공된 GPU 자원 목록을 사용해 결정론적으로 배치 계획을 수립한다.
 
-A Candidate is already hardware/model-qualified by its caller: this module
-never guesses whether a model fits a GPU from a device name or VRAM fraction.
-One candidate may reserve multiple GPUs for an explicitly supplied execution
-group. Single-host/single-GPU is the same contract with one pool and candidate.
+Candidate의 하드웨어·모델 적합성은 호출자가 이미 확인한 것으로 간주한다.
+GPU 이름이나 예약 비율만으로 모델이 실제 GPU에 적합한지 추정하지 않는다.
+하나의 실행 후보가 여러 GPU를 예약할 수 있으며, 단일 GPU도 동일한 계약을 따른다.
 
-Plans are read-only. The controlling authority must atomically revalidate the
-revision/digest and reserve resources before executing; a digest alone is NOT a
-distributed lock or a cross-host fencing token.
+Plan은 읽기 전용이다. 실제 적용 권한은 Revision/Digest 검증부터 자원 예약까지
+원자적으로 처리해야 한다. Digest만으로 분산 Lock이나 호스트 간 Fencing을
+대체할 수 없다.
 """
 
 from __future__ import annotations
@@ -50,7 +49,7 @@ class GpuDemand:
 
 @dataclass(frozen=True)
 class PlacementCandidate:
-    """Explicitly eligible device group, with per-device resolved reservations."""
+    """장치별 예약량이 해석된, 명시적으로 적합 판정을 받은 GPU 집합."""
 
     name: str
     demands: tuple[GpuDemand, ...]
@@ -86,12 +85,12 @@ def plan_placement(
     *,
     force: bool = False,
 ) -> PlacementDecision:
-    """Choose from caller-approved GPU groups without mixing resource budgets.
+    """서로 다른 GPU의 예약 예산을 섞지 않고 검증된 실행 후보를 선택한다.
 
-    Admission and eviction priority come *only* from gpu_budget.plan_activation.
-    A running runtime cannot silently migrate to a different set of GPUs:
-    explicitly stop it first. Stopping a multi-GPU victim stops its entire
-    runtime, not an individual shard. Candidate declaration order breaks ties.
+    허용·퇴거 우선순위는 `gpu_budget.plan_activation`만이 결정한다.
+    실행 중인 Runtime을 다른 GPU 집합으로 조용히 옮기지 않으며,
+    복수 GPU Runtime을 퇴거할 때는 일부 Shard가 아닌 전체를 중지한다.
+    동일 조건에서는 Candidate 선언 순서로 결정한다.
     """
     if not isinstance(target_key, str) or not target_key:
         raise ValueError("target runtime key is required")
@@ -139,7 +138,7 @@ def plan_placement(
     options: list[tuple[int, int, PlacementCandidate, tuple[str, ...]]] = []
 
     def fits_after_stops(demands: tuple[GpuDemand, ...], stopped: set[str]) -> bool:
-        # Stopping a multi-GPU runtime releases *all* its reservations.
+        # 복수 GPU Runtime을 중지하면 해당 Runtime의 모든 GPU 예약량이 반환된다.
         for demand in demands:
             pool = by_resource[demand.resource]
             used = sum(
@@ -163,8 +162,8 @@ def plan_placement(
                 break
             victims.update(admission.victims)
         else:
-            # Preserve each GPU's admission policy, then remove globally
-            # redundant evictions. Prefer retaining higher-priority runtimes.
+            # GPU별 Admission 정책을 유지하면서 전체 GPU 관점의 중복 퇴거를 제거한다.
+            # 퇴거가 불필요한 경우 우선순위가 높은 Runtime부터 유지한다.
             priority = {p.key: p.priority for p in participants if p.key in victims}
             for name in sorted(victims, key=lambda key: (-priority[key], key)):
                 remaining = victims - {name}
@@ -191,10 +190,10 @@ def require_current_placement(
     *,
     force: bool = False,
 ) -> PlacementDecision:
-    """Recompute a plan under the owner's lock immediately before reservation.
+    """예약 직전에 권위 있는 소유자의 Lock 안에서 Plan을 다시 계산한다.
 
-    The caller must hold an authoritative, shared lock/CAS across compare and
-    resource reservation. Without that, this check is not a safe remote apply.
+    호출자는 상태 비교부터 자원 예약 완료까지 공유 Lock/CAS를 유지해야 한다.
+    그렇지 않으면 안전한 원격 적용을 보장할 수 없다.
     """
     fresh = plan_placement(pools, participants, reviewed.runtime_key, candidates, force=force)
     if fresh.plan_digest != reviewed.plan_digest or fresh.candidate != reviewed.candidate:

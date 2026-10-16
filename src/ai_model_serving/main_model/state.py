@@ -1,4 +1,4 @@
-"""Persistent state for the main-model lifecycle."""
+"""Main Model 생명주기의 영속 제어 상태를 관리한다."""
 
 from __future__ import annotations
 
@@ -126,7 +126,7 @@ class MainModelStateStore:
             return self._read_unlocked()
 
     def write(self, state: dict[str, Any]) -> None:
-        """Replace only the exact revision that the caller previously read."""
+        """호출자가 읽었던 Revision이 현재 값과 일치할 때만 상태를 교체한다."""
         self.lock_path.touch(exist_ok=True)
         with self.lock_path.open("r+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
@@ -152,13 +152,13 @@ class MainModelStateStore:
             return state
 
     def update(self, mutate: Any) -> dict[str, Any]:
-        """Atomic local state transition under the same project-scoped file lock."""
+        """동일 프로젝트 범위의 파일 Lock 안에서 로컬 상태를 원자적으로 변경한다."""
         return self._update_locked(mutate)
 
     def compare_and_update(self, expected_generation: int, mutate: Any) -> dict[str, Any]:
-        """Reject stale decisions under the owning local state lock.
+        """로컬 상태 Lock 아래에서 오래된 Revision의 결정을 거부한다.
 
-        This is a same-filesystem contract; flock is NOT distributed fencing.
+        동일 파일시스템에서만 적용되는 계약이며 `flock`은 분산 Fencing이 아니다.
         """
         if isinstance(expected_generation, bool) or not isinstance(expected_generation, int) or expected_generation < 0:
             raise ValueError("expected_generation must be a non-negative integer")
