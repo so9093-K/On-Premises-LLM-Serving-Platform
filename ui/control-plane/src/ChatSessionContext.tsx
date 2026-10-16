@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { ApiError, postChatCompletion } from './api';
+import { prepareChatRequest } from './publicChatRequest.ts';
 import { readChatStream } from './chatStream';
 import {
   applyChatUpdate,
@@ -89,6 +90,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     exchange: Pick<Exchange, 'user' | 'attachments' | 'toolResults'>,
   ): void => {
     const id = ++nextIdRef.current;
+    // Serialize exactly once: the same bytes are sent over HTTP and exported later.
+    const request = prepareChatRequest(body);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
@@ -101,6 +104,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
         ...(exchange.toolResults ? { toolResults: [...exchange.toolResults] } : {}),
         sentAtSeconds: Date.now() / 1000,
         requestContext: createRequestContext(model, body),
+        requestJson: request.json,
         assistant: startTurn(performance.now()),
       },
     ]);
@@ -112,9 +116,9 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
 
     void (async () => {
       try {
-        const { response, requestId } = await postChatCompletion(key, body, controller.signal);
+        const { response, requestId } = await postChatCompletion(key, request, controller.signal);
         update((turn) => ({ ...turn, requestId }));
-        if (body.stream === true && response.body) {
+        if (request.streaming && response.body) {
           await readChatStream(response.body, (event) => {
             const now = performance.now();
             update((turn) => applyChatUpdate(turn, event, now));

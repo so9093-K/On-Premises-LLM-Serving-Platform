@@ -50,6 +50,8 @@ UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `
 
 ### Playground
 
+Playground에서 전송한 각 요청은 **코드로 사용하기**에서 실제 전송 JSON과 Python/Node.js/cURL 재현 예제를 제공한다. 과거 요청을 현재 모델이나 Settings에서 다시 구성하지 않고 해당 Exchange의 전송 문자열을 사용한다. ZIP 다운로드는 사용자 행동으로만 수행하며 프롬프트·멀티모달·Tool 입력의 민감도를 안내한다. [프로젝트 연동 가이드](playground_integration.md)를 따른다.
+
 Playground는 첫 사용 시 [예제 갤러리](control_plane_playground_examples.md)를 제공한다. 대화가 시작되면 예제 갤러리를 닫고 화면을 이동했다 돌아와도 기존 대화 중심으로 표시한다. 예제는 현재 공개 모델의 기능에 따라 지원 여부를 표시하며, 선택 또는 입력 적용 자체는 추론 요청을 발생시키지 않는다. 샘플 이미지는 same-origin 번들 정적 자산이고, 기존 요청 검증을 통과한 뒤에만 입력에 적용한다. 기존 대화나 작성 중인 내용을 무단으로 지우지 않는다.
 
 

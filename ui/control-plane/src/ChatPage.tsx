@@ -8,6 +8,7 @@ import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { useChatSession } from './ChatSessionContext';
 import { PlaygroundExampleGallery } from './PlaygroundExampleGallery';
+import { RequestExportPanel } from './RequestExportPanel';
 import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
 import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
@@ -448,6 +449,7 @@ function ExchangeView({
             <dd><code>{JSON.stringify(exchange.requestContext.parameters)}</code></dd>
             </dl>
           </details>
+          <RequestExportPanel requestJson={exchange.requestJson} status={turn.status} />
           {docsUrl && turn.status === 'complete' ? (
             <a href={docsUrl} target="_blank" rel="noreferrer">API 문서 ↗</a>
           ) : null}

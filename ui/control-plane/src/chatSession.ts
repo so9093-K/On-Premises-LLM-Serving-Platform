@@ -172,6 +172,9 @@ export type Exchange = {
   toolResults?: ChatToolResult[];
   sentAtSeconds: number;
   requestContext: ChatRequestContext;
+  // Exactly the UTF-8 JSON bytes sent to the public API (excluding credentials).
+  // In-memory only; do not rebuild this from a later model or settings state.
+  requestJson: string;
   assistant: AssistantTurn;
 };
 
