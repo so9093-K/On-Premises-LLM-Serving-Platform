@@ -233,25 +233,38 @@ class MainModelManager:
     async def _validate_and_record(
         self, profile: MainModelProfile, *, expected_started_at: str | None = None
     ) -> None:
-        """``backend.validate()``를 실행하고 검증한 컨테이너 instance를 기록한다.
+        """Prove the declared profile and live instance before recording validation.
 
-        모든 validate 호출은 이 메서드를 거쳐야 재시작 감지가 비교할 마지막 정상
-        컨테이너 fingerprint를 남긴다. 기록 실패는 이미 성공한 검증을 실패로 바꾸지 않는다.
+        The shared `local-main` API alias is not evidence of the actual model,
+        revision or runtime image. Profile and instance observation must agree
+        on both sides of the canary; missing evidence must fail closed.
         """
-        await self.backend.validate(self.catalog, profile)
         try:
-            started_at = await self.backend.observed_started_at(self.catalog)
+            before = expected_started_at
+            if before is None:
+                before = await self.backend.observed_started_at(self.catalog)
+            observed_profile = await self.backend.observed_profile(self.catalog)
         except Exception as exc:  # noqa: BLE001
-            if expected_started_at is not None:
-                raise RuntimeError("cannot confirm runtime identity after validation") from exc
-            _logger.warning("failed to record container fingerprint after validate(): %s", exc)
-            return
-        if expected_started_at is not None and started_at != expected_started_at:
+            raise RuntimeError("cannot observe runtime identity before validation") from exc
+        if before is None:
+            raise RuntimeError("cannot validate a runtime without a live instance identity")
+        if observed_profile != profile.profile_id:
+            raise RuntimeError("runtime profile differs from the requested profile before validation")
+
+        await self.backend.validate(self.catalog, profile)
+
+        try:
+            after = await self.backend.observed_started_at(self.catalog)
+            verified_profile = await self.backend.observed_profile(self.catalog)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("cannot confirm runtime identity after validation") from exc
+        if after is None or after != before:
             raise RuntimeError("runtime identity changed during verification")
-        if started_at is not None:
-            self.state_store.update(
-                lambda s: s.update(last_validated_container_started_at=started_at)
-            )
+        if verified_profile != profile.profile_id:
+            raise RuntimeError("runtime profile changed during verification")
+        self.state_store.update(
+            lambda s: s.update(last_validated_container_started_at=after)
+        )
 
     async def reconcile_if_restarted(self) -> None:
         """Detect a main-llm-vllm restart that bypassed this controller entirely
@@ -295,9 +308,16 @@ class MainModelManager:
                 return
             last_validated = state.get("last_validated_container_started_at")
             if observed_started_at == last_validated and state.get("gate") == "open":
-                self._reconcile_failure_streak = 0
-                self._reconcile_backoff_until = 0.0
-                return
+                # The same start time does not prove the expected model profile.
+                try:
+                    observed_profile = await self.backend.observed_profile(self.catalog)
+                except Exception as exc:  # noqa: BLE001
+                    _logger.warning("reconciliation could not observe model profile: %s", exc)
+                    return
+                if observed_profile == active_id:
+                    self._reconcile_failure_streak = 0
+                    self._reconcile_backoff_until = 0.0
+                    return
             # No recorded identity, or a changed identity, cannot inherit
             # the old instance's validation. Persist the gate before probing.
             self.state_store.update(lambda s: s.update(gate="closed"))
@@ -357,6 +377,7 @@ class MainModelManager:
         공유 GPU 예산 admission은 호출자가 먼저 완료해야 한다.
         """
         async with self._lock:
+            self.state_store.update(lambda s: s.update(gate="closed"))
             await self.backend.start(self.catalog)
             active_id = self.state_store.read().get("active_profile") or self.boot_profile
             profile = self.catalog.profiles[active_id]
@@ -379,6 +400,9 @@ class MainModelManager:
         # 동기적으로 background task만 스케줄하고 반환하므로(락은 그 task 안에서 잡는다),
         # 여기서 호출해도 데드락은 없다.
         async with self._lock:
+            # Persisted open gate belongs to a previous controller execution.
+            # Close it before observing or revalidating a live container.
+            self.state_store.update(lambda s: s.update(gate="closed"))
             if self.state_store.read().get("runtime_state") == "stopped":
                 # 재시작 간에도 운영자가 의도적으로 내린 stop을 존중한다: 다시 끌어올려
                 # reconcile하는 대신 main 런타임을 내려간 상태로, gate를 닫힌 상태로 둔다.

@@ -98,6 +98,22 @@ def test_multigpu_victim_is_never_selected_as_only_a_single_shard():
     assert result.requires_force
 
 
+def test_multigpu_stop_releases_all_reservations_without_extra_victims():
+    participants = [
+        runtime("shared", H1_A, 0.50, priority=10),
+        runtime("shared", H1_B, 0.50, priority=10),
+        runtime("independent", H1_B, 0.40, priority=0),
+    ]
+    decision = plan_placement(
+        [pool(H1_A, ceiling=0.95), pool(H1_B, ceiling=0.95)],
+        participants, "new",
+        [candidate("both", (H1_A, 0.60), (H1_B, 0.50))],
+        force=True,
+    )
+    assert decision.admissible
+    assert decision.victims == ("shared",)
+
+
 def test_plan_digest_checks_changes_to_generation_placement_and_observed_reservations():
     pools = [pool(H1_A, generation=4)]
     candidates = [candidate("a", (H1_A, 0.2))]

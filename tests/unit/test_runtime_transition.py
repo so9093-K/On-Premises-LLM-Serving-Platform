@@ -117,6 +117,21 @@ def test_stop_and_already_active_plans_are_explicit_noop_or_budget_change() -> N
     assert stopped_with_irrelevant_force.digest == stopped.digest
 
 
+def test_prerequisite_reservations_over_gpu_capacity_are_rejected_as_plan() -> None:
+    participants = [
+        _participant("prereq", 0.60, active=False),
+        _participant("target", 0.65, active=False),
+    ]
+    plan = plan_runtime_transition(
+        participants, "target", "active",
+        prerequisites=["prereq"], ceiling=0.93,
+    )
+    assert plan.admissible is False
+    assert plan.reason is not None
+    assert plan.stop == ()
+    assert plan.start == ("prereq", "target")
+
+
 def test_runtime_request_parser_enforces_types_fields_and_digest_format() -> None:
     digest = "a" * 64
     assert parse_runtime_transition_request(

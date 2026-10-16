@@ -152,6 +152,28 @@ def plan_runtime_transition(
         )
 
     required = sum(by_key[key].vram_fraction for key in start)
+    # Valid individual reservations can sum to more than a GPU when startup
+    # prerequisites are included. Return a rejected plan, not ValueError/500.
+    if required > ceiling + 1e-9:
+        return RuntimeTransitionPlan(
+            target_key=target_key,
+            desired_state=desired_state,
+            force=force,
+            current_state=current_state,
+            no_op=False,
+            admissible=False,
+            requires_force=False,
+            start=start,
+            stop=(),
+            prerequisites=prerequisite_keys,
+            budget_before=_budget_view(ceiling=ceiling, used=before_used),
+            budget_after=_budget_view(ceiling=ceiling, used=before_used),
+            impact=(),
+            reason=(
+                f"combined startup reservation {required:.3f} exceeds "
+                f"single-GPU ceiling {ceiling:.3f}"
+            ),
+        )
     protected = set(start) | {target_key}
     admission_participants = [
         replace(participant, evictable=False)

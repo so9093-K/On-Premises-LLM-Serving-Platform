@@ -137,6 +137,19 @@ def plan_placement(
     digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     active_scopes = {p.resource_pool for p in participants if p.key == target_key and p.active}
     options: list[tuple[int, int, PlacementCandidate, tuple[str, ...]]] = []
+
+    def fits_after_stops(demands: tuple[GpuDemand, ...], stopped: set[str]) -> bool:
+        # Stopping a multi-GPU runtime releases *all* its reservations.
+        for demand in demands:
+            pool = by_resource[demand.resource]
+            used = sum(
+                p.vram_fraction for p in participants
+                if p.resource_pool == demand.resource and p.active
+                and p.key != target_key and p.key not in stopped
+            )
+            if used + demand.vram_fraction > pool.ceiling + 1e-9:
+                return False
+        return True
     for index, candidate in enumerate(candidates):
         required_scopes = {d.resource for d in candidate.demands}
         if active_scopes and active_scopes != required_scopes:
@@ -150,6 +163,13 @@ def plan_placement(
                 break
             victims.update(admission.victims)
         else:
+            # Preserve each GPU's admission policy, then remove globally
+            # redundant evictions. Prefer retaining higher-priority runtimes.
+            priority = {p.key: p.priority for p in participants if p.key in victims}
+            for name in sorted(victims, key=lambda key: (-priority[key], key)):
+                remaining = victims - {name}
+                if fits_after_stops(candidate.demands, remaining):
+                    victims = remaining
             options.append((len(victims), index, candidate, tuple(sorted(victims))))
     if not options:
         return PlacementDecision(target_key, None, (), (), False, False, False, digest,

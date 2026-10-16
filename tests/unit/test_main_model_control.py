@@ -1245,6 +1245,43 @@ def test_variant_max_model_len_is_projected_into_gateway_limits(tmp_path) -> Non
     assert profile.gateway_policy["request_limits"]["max_model_len"] == 32000
 
 
+def test_initialize_closes_persisted_gate_before_verifying_instance(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="old-instance")
+
+    class GateCheckingBackend(FakeBackend):
+        async def validate(self, current_catalog, profile):
+            assert store.read()["gate"] == "closed"
+            await super().validate(current_catalog, profile)
+
+    backend = GateCheckingBackend(loaded.default_profile, started_at="new-instance")
+    manager = MainModelManager(loaded, store, backend)
+    asyncio.run(manager.initialize())
+    assert store.read()["gate"] == "open"
+    assert store.read()["last_validated_container_started_at"] == "new-instance"
+
+
+def test_start_does_not_open_gate_without_live_runtime_identity(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded)
+    backend = FakeBackend(loaded.default_profile, started_at=None)
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="live instance identity"):
+        asyncio.run(manager.start_main())
+    assert store.read()["gate"] == "closed"
+
+
+def test_reconciliation_rejects_wrong_profile_behind_shared_alias(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="old")
+    backend = FakeBackend("gemma4-26b-a4b-fp8", started_at="new")
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="profile differs"):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "old"
+
+
 def test_main_model_state_generations_prevent_stale_commit(tmp_path):
     store = MainModelStateStore(tmp_path / "state.json", "default")
     initial = store.read()
