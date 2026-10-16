@@ -1,3 +1,4 @@
+import type { RequestReceipt } from './requestReceipt.ts';
 // 채팅 테스트 화면의 순수 로직. 요청 본문은 /v1/models가 광고한 request_parameters
 // 안에서만 만들고, 응답 누적과 지연 측정은 화면과 분리해 테스트한다.
 import type { ChatStreamUpdate, ChatToolCallDelta, ChatUsage } from './chatStream';
@@ -172,9 +173,9 @@ export type Exchange = {
   toolResults?: ChatToolResult[];
   sentAtSeconds: number;
   requestContext: ChatRequestContext;
-  // Exactly the UTF-8 JSON bytes sent to the public API (excluding credentials).
-  // In-memory only; do not rebuild this from a later model or settings state.
-  requestJson: string;
+  // A lossless, immutable reference to the actual transmitted bytes.
+  // Media segments are shared with attachments rather than copied per turn.
+  receipt: RequestReceipt;
   assistant: AssistantTurn;
 };
 

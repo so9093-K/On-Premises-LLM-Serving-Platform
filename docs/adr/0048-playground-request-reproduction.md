@@ -13,8 +13,7 @@ Playground의 요청 생성기는 공개 모델 capability에 따라 실제 Chat
 ## Decision
 
 1. buildChatRequest와 buildToolResultRequest가 요청 구조의 Source of Truth로 남는다. 클라이언트가 사용하는 Chat Endpoint는 OpenAPI에 타입으로 연결된 공통 상수를 사용한다.
-2. ChatSessionContext가 JSON을 단 한 번 직렬화하고, 같은 문자열을 public
-   Gateway 전송과 해당 Exchange의 requestJson 기록에 모두 사용한다. 호출부는 별도 body와 직렬화 문자열을 각각 전달하지 않고 준비된 요청 한 개를 전달한다.
+2. ChatSessionContext는 준비된 한 요청을 Gateway로 전송하고 해당 Exchange에 불변 Request Receipt를 기록한다. 전송 Body와 Export의 바이트 시퀀스는 일치하며 현재 모델·설정으로 다시 만들지 않는다. 대형 미디어의 공유 참조·아카이브 생명주기는 [ADR-0049](0049-playground-request-receipts-streaming-export.md)가 소유한다.
 3. 요청의 내보내기는 원본을 다시 생성하지 않고, 기록한 문자열에서만 수행한다.
    다른 모델로 전환하거나 현재 Playground 설정을 바꿔도 과거 데이터는 바뀌지 않는다.
 4. 사용자 명령으로만 요청 JSON, Python, Node.js, cURL 실행 예제, README를 생성한다.
@@ -32,8 +31,7 @@ Playground의 요청 생성기는 공개 모델 capability에 따라 실제 Chat
 ## Consequences
 
 - 미디어와 확장 파라미터가 포함된 실제 Request Body를 손실 없이 내보낼 수 있다.
-- Exchange의 직렬화 요청 보관으로 탭 메모리 사용량이 증가할 수 있다.
-  기존 모델 요청 크기와 미디어 제한은 Gateway가 계속 관리한다.
+- Exchange는 전체 요청 JSON 문자열 대신 불변 Receipt를 보관한다. 원본 요청은 전송 시 일시적으로 직렬화되며, 장기 미디어 데이터의 소유권과 스트리밍 저장 계약은 ADR-0049를 따른다. 기존 요청 크기·미디어 제한은 Gateway가 계속 관리한다.
 - 검증은 실제 wire body와 export JSON의 일치, 실행된 언어별 HTTP 클라이언트의
   재전송 동등성, 브라우저 파일 다운로드와 접근성 확인을 중심으로 한다.
 
@@ -41,3 +39,4 @@ Playground의 요청 생성기는 공개 모델 capability에 따라 실제 Chat
 
 - [ADR-0047](0047-control-plane-capability-aware-chat-playground.md)
 - [Developer guide](../reference/playground_integration.md)
+- [ADR-0049](0049-playground-request-receipts-streaming-export.md)

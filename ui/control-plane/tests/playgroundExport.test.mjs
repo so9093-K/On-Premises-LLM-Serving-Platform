@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildExportFiles, createExportZip, requestPreview } from '../src/playgroundExport.ts';
+import { buildExportFiles, requestPreview } from '../src/playgroundExport.ts';
 
 const run = promisify(execFile);
 const request = JSON.stringify({
@@ -43,25 +43,6 @@ test('export preserves the original HTTP JSON rather than rebuilding or redactin
   assert.equal(requestPreview(request, 8), null);
   assert.throws(() => buildExportFiles('[]'), /JSON 객체/);
   assert.throws(() => buildExportFiles('{"model":"m"}'), /Chat Completions/);
-});
-
-test('ZIP archive contains all five UTF-8 files with valid CRC and lossless media payload', async (t) => {
-  const files = buildExportFiles(request);
-  const zip = createExportZip(files);
-  const dir = await mkdtemp(join(tmpdir(), 'playground-zip-'));
-  t.after(() => rm(dir, { recursive: true, force: true }));
-  const path = join(dir, 'bundle.zip');
-  await writeFile(path, new Uint8Array(await zip.arrayBuffer()));
-  const script = [
-    'import sys,zipfile',
-    'z=zipfile.ZipFile(sys.argv[1])',
-    'assert z.testzip() is None',
-    'assert z.namelist()==["request.json","client.py","client.mjs","client.sh","README.md"]',
-    'assert z.read("request.json").decode("utf-8")==sys.argv[2]',
-    'print("ZIP_OK")',
-  ].join('\n');
-  const { stdout } = await run('python3', ['-c', script, path, request]);
-  assert.match(stdout, /ZIP_OK/);
 });
 
 async function createFakeGateway(t, { status = 200, responseBody = 'data: [DONE]\n\n', contentType = 'text/event-stream' } = {}) {
