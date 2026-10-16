@@ -1,5 +1,5 @@
 import { Button } from '@patternfly/react-core';
-import { exampleAvailability, exampleRequiresFreshConversation, PLAYGROUND_EXAMPLES, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
+import { exampleAvailability, exampleRequiresFreshConversation, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
 import type { ChatControls, PublicModel } from './chatSession';
 
 type Props = {
@@ -20,6 +20,7 @@ type Props = {
 const CATEGORY_MARK: Record<PlaygroundExample['category'], string> = {
   text: 'Aa',
   image: '▧',
+  audio: '♫',
   structured: '{}',
 };
 
@@ -65,7 +66,7 @@ export function PlaygroundExampleGallery({
           <div className="playground-example-preview-heading">
             <h3>{selected.title}</h3>
             <div className="playground-example-tags" aria-label="적용할 입력 종류">
-              {selected.sample ? <span>이미지 1개</span> : null}
+              {selected.sample ? <span>{EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'audio' ? '오디오 1개' : '이미지 1개'}</span> : null}
               {selected.systemPrompt ? <span>시스템 프롬프트</span> : null}
               {selected.schema ? <span>JSON Schema</span> : null}
               {!selected.sample && !selected.systemPrompt && !selected.schema ? <span>텍스트 입력</span> : null}
@@ -74,9 +75,32 @@ export function PlaygroundExampleGallery({
           <p className="playground-example-prompt">{selected.prompt}</p>
           {selected.sample ? (
             <figure className="playground-example-sample">
-              <img src={sampleUrls[selected.sample]} alt={selected.sample === 'chart' ? '예제 요청 수 막대그래프' : '예제 가상 주문서'} loading="lazy" />
-              <figcaption>{selected.sample === 'chart' ? 'sample-chart.png' : 'sample-order.png'}</figcaption>
+              {EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'audio' ? (
+                <audio
+                  key={selected.sample}
+                  className="playground-example-audio"
+                  src={sampleUrls[selected.sample]}
+                  controls
+                  preload="metadata"
+                  aria-label="예제 한국어 음성 재생"
+                >
+                  오디오 재생을 지원하지 않는 브라우저입니다.
+                </audio>
+              ) : (
+                <img
+                  src={sampleUrls[selected.sample]}
+                  alt={EXAMPLE_SAMPLE_ASSETS[selected.sample].imageAlt ?? '예제 이미지'}
+                  loading="lazy"
+                />
+              )}
+              <figcaption>{EXAMPLE_SAMPLE_ASSETS[selected.sample].caption}</figcaption>
             </figure>
+          ) : null}
+          {selected.sampleTranscript ? (
+            <details className="playground-example-technical">
+              <summary>음성 대본 보기</summary>
+              <p>{selected.sampleTranscript}</p>
+            </details>
           ) : null}
           {selected.systemPrompt || selected.schema ? (
             <details className="playground-example-technical">

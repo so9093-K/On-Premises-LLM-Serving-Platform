@@ -8,9 +8,10 @@ import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { useChatSession } from './ChatSessionContext';
 import { PlaygroundExampleGallery } from './PlaygroundExampleGallery';
-import { exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
+import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
 import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
+import audioSampleUrl from './playgroundAssets/sample-audio.wav';
 import {
   attachmentAccept,
   buildChatRequest,
@@ -980,26 +981,31 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     try {
       const sampleAttachments: ChatAttachment[] = [];
       if (example.sample) {
-        const assetUrl = example.sample === 'chart' ? chartSampleUrl : orderSampleUrl;
-        const filename = example.sample === 'chart' ? 'sample-chart.png' : 'sample-order.png';
+        const asset = EXAMPLE_SAMPLE_ASSETS[example.sample];
+        const assetUrl = { chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }[example.sample];
         const response = await fetch(assetUrl, { credentials: 'same-origin' });
-        if (!response.ok) throw new Error('예제 이미지 파일을 가져오지 못했습니다.');
+        if (!response.ok) throw new Error('예제 파일을 가져오지 못했습니다.');
         const blob = await response.blob();
         if (!contextUnchanged()) return;
-        const file = new File([blob], filename, { type: 'image/png' });
+        if (blob.size !== asset.bytes) throw new Error('예제 파일의 크기가 등록된 자산과 일치하지 않습니다.');
+        const file = new File([blob], asset.filename, { type: asset.mimeType });
+        // Shared manual-attachment code retains request limits and input_audio encoding.
         const result = await chatAttachmentFromFile(file, model, conversationAttachments(exchanges));
         if (!contextUnchanged()) return;
         if (result.error) throw new Error(result.error);
         if (result.attachment) {
-          // The existing attachment validator also checks max_pixels when dimensions
-          // are available. Do not skip that limit for bundled example images.
-          const bitmap = await createImageBitmap(file);
-          const candidate = { ...result.attachment, width: bitmap.width, height: bitmap.height };
-          bitmap.close();
-          if (!contextUnchanged()) return;
-          const imageError = validateChatAttachments(model, [...conversationAttachments(exchanges), candidate]);
-          if (imageError) throw new Error(imageError);
-          sampleAttachments.push(candidate);
+          if (result.attachment.modality === 'image') {
+            // Image pixel limits are checked only for image samples.
+            const bitmap = await createImageBitmap(file);
+            const candidate = { ...result.attachment, width: bitmap.width, height: bitmap.height };
+            bitmap.close();
+            if (!contextUnchanged()) return;
+            const imageError = validateChatAttachments(model, [...conversationAttachments(exchanges), candidate]);
+            if (imageError) throw new Error(imageError);
+            sampleAttachments.push(candidate);
+          } else {
+            sampleAttachments.push(result.attachment);
+          }
         }
       }
       if (!contextUnchanged()) return;
@@ -1174,7 +1180,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 model={model}
                 controls={chatControls(model)}
                 selectedId={selectedExampleId}
-                sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl }}
+                sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }}
                 validateRequest={validateExampleRequest}
                 busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                 hasConversation={exchanges.length > 0}
@@ -1217,7 +1223,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                   <span aria-hidden="true">✓</span>
                   <span>
                     {PLAYGROUND_EXAMPLES.find((item) => item.id === appliedExampleId)?.title} 예제에서 시작
-                    {attachments.length ? ` · 이미지 ${attachments.length}개` : ''}
+                    {attachments.length ? ` · ${exampleAttachmentSummary(attachments)}` : ''}
                   </span>
                   <button type="button" onClick={() => setAppliedExampleId(null)} aria-label="예제 적용 표시 닫기">×</button>
                 </div>
@@ -1260,7 +1266,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               </div>
               <div className="chat-composer-actions">
                 {inputError ? <p className="form-error" role="alert">{inputError}</p>
-                  : exampleLoading ? <span>예제 이미지 준비 중…</span>
+                  : exampleLoading ? <span>예제 파일 준비 중…</span>
                     : attachmentBusy ? <span>첨부 파일 읽는 중…</span> : <span />}
                 {busy ? (
                   <Button type="submit" variant="danger">중지</Button>

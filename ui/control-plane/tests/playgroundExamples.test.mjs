@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync, statSync } from 'node:fs';
 import { chatControls, DEFAULT_CHAT_SETTINGS, buildChatRequest } from '../src/chatSession.ts';
 import {
-  EXAMPLE_SAMPLE_BYTES, PLAYGROUND_EXAMPLES, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch,
+  EXAMPLE_SAMPLE_ASSETS, EXAMPLE_SAMPLE_BYTES, PLAYGROUND_EXAMPLES, exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch,
 } from '../src/playgroundExamples.ts';
 
 const chat = {
@@ -33,9 +33,9 @@ const get = (id) => {
 };
 
 test('example catalog has stable unique identifiers and honest sample references', () => {
-  assert.equal(PLAYGROUND_EXAMPLES.length, 5);
+  assert.equal(PLAYGROUND_EXAMPLES.length, 6);
   assert.equal(new Set(PLAYGROUND_EXAMPLES.map((example) => example.id)).size, PLAYGROUND_EXAMPLES.length);
-  assert.deepEqual(PLAYGROUND_EXAMPLES.filter((example) => example.sample).map((example) => example.sample), ['chart', 'order']);
+  assert.deepEqual(PLAYGROUND_EXAMPLES.filter((example) => example.sample).map((example) => example.sample), ['chart', 'order', 'audio']);
   assert.ok(PLAYGROUND_EXAMPLES.every((example) => example.title && example.description && example.prompt));
 });
 
@@ -67,6 +67,58 @@ test('image examples are unavailable to text-only models and structured example 
   assert.equal(availability(get('summarize'), noChat).available, false);
 });
 
+test('example origin note reflects actual attachment modalities, not image-only assumptions', () => {
+  assert.equal(exampleAttachmentSummary([{ modality: 'audio' }]), '오디오 1개');
+  assert.equal(exampleAttachmentSummary([{ modality: 'image' }, { modality: 'image' }, { modality: 'audio' }]), '이미지 2개 · 오디오 1개');
+  assert.equal(exampleAttachmentSummary([]), '');
+});
+
+test('audio example follows model-advertised audio support, file type, byte and count limits', () => {
+  const audio = get('audio');
+  const model = {
+    ...chat,
+    input_modalities: ['text', 'audio'],
+    request_limits: {
+      audio: { allowed_formats: ['wav'], max_inputs: 1, max_bytes: EXAMPLE_SAMPLE_BYTES.audio },
+    },
+  };
+  assert.equal(availability(audio, model).available, true);
+  assert.equal(availability(audio, chat).available, false);
+  assert.match(availability(audio, chat).reason, /오디오/);
+  assert.equal(availability(audio, { ...model, request_limits: { audio: { allowed_formats: ['mp3'], max_inputs: 1, max_bytes: EXAMPLE_SAMPLE_BYTES.audio } } }).available, false);
+  assert.match(availability(audio, { ...model, request_limits: { audio: { allowed_formats: ['mp3'] } } }).reason, /WAV/);
+  assert.equal(availability(audio, { ...model, request_limits: { audio: { allowed_formats: ['wav'], max_inputs: 0 } } }).available, false);
+  assert.equal(availability(audio, { ...model, request_limits: { audio: { allowed_formats: ['wav'], max_inputs: 1, max_bytes: EXAMPLE_SAMPLE_BYTES.audio - 1 } } }).available, false);
+  const audioAttachment = {
+    id: 'fixture', name: 'sample-audio.wav', modality: 'audio', mimeType: 'audio/wav',
+    audioFormat: 'wav', sizeBytes: EXAMPLE_SAMPLE_BYTES.audio, data: 'QUJD',
+  };
+  const result = buildChatRequest(model, DEFAULT_CHAT_SETTINGS, [], audio.prompt, [audioAttachment]);
+  assert.equal(result.error, null);
+  assert.deepEqual(result.body.messages.at(-1).content.at(-1), {
+    type: 'input_audio', input_audio: { data: 'QUJD', format: 'wav' },
+  });
+});
+
+test('checked-in Korean audio sample is a bounded, identical 16 kHz mono WAV in both public and frontend trees', () => {
+  const sample = EXAMPLE_SAMPLE_ASSETS.audio;
+  const bundledUrl = new URL(`../src/playgroundAssets/${sample.filename}`, import.meta.url);
+  const publicUrl = new URL(`../../../assets/demos/inputs/${sample.filename}`, import.meta.url);
+  const bytes = readFileSync(bundledUrl);
+  assert.equal(bytes.length, sample.bytes);
+  assert.deepEqual(bytes, readFileSync(publicUrl));
+  assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(bytes.toString('ascii', 8, 12), 'WAVE');
+  assert.equal(bytes.readUInt16LE(22), 1); // mono
+  assert.equal(bytes.readUInt32LE(24), 16000);
+  assert.equal(bytes.readUInt16LE(34), 16);
+  const dataChunk = bytes.indexOf(Buffer.from('data'), 12);
+  assert.ok(dataChunk > 0);
+  const audioBytes = bytes.readUInt32LE(dataChunk + 4);
+  const durationSeconds = audioBytes / (16000 * 2);
+  assert.ok(durationSeconds >= 3.5 && durationSeconds < 15);
+});
+
 test('only example-owned settings are reset; advanced settings are preserved by patch', () => {
   const current = { ...DEFAULT_CHAT_SETTINGS, temperature: '0.4', systemPrompt: 'old', toolDrafts: [{ id: 'a', name: 'legacy', description: '', parametersText: '{}', strict: null }] };
   const next = { ...current, ...exampleSettingsPatch(get('structured'), DEFAULT_CHAT_SETTINGS) };
@@ -94,6 +146,7 @@ test('system and schema examples demand a fresh conversation; other examples can
   assert.equal(exampleRequiresFreshConversation(get('system-prompt')), true);
   assert.equal(exampleRequiresFreshConversation(get('structured')), true);
   assert.equal(exampleRequiresFreshConversation(get('chart')), false);
+  assert.equal(exampleRequiresFreshConversation(get('audio')), false);
   assert.equal(exampleRequiresFreshConversation(get('summarize')), false);
 });
 

@@ -1,15 +1,16 @@
 {
   "index.html": {
-    "file": "assets/index-BMGuSKNx.js",
+    "file": "assets/index-DCSmn7ED.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "css": [
-      "assets/index-D0dgzI7O.css"
+      "assets/index-BpUyCZ8G.css"
     ],
     "assets": [
       "assets/sample-chart-CY3Pofix.png",
       "assets/sample-order-qJ_o8BP_.png",
+      "assets/sample-audio-813705wS.wav",
       "assets/RedHatTextVF-DNKNjMr3.woff2",
       "assets/RedHatTextVF-Italic-Bw8r3dX4.woff2",
       "assets/RedHatDisplayVF-D7m-OdR-.woff2",
@@ -66,6 +67,10 @@
   "node_modules/@patternfly/react-core/dist/styles/assets/pficon/pf-v6-pficon.woff2": {
     "file": "assets/pf-v6-pficon-Dy6oiu9u.woff2",
     "src": "node_modules/@patternfly/react-core/dist/styles/assets/pficon/pf-v6-pficon.woff2"
+  },
+  "src/playgroundAssets/sample-audio.wav": {
+    "file": "assets/sample-audio-813705wS.wav",
+    "src": "src/playgroundAssets/sample-audio.wav"
   },
   "src/playgroundAssets/sample-chart.png": {
     "file": "assets/sample-chart-CY3Pofix.png",

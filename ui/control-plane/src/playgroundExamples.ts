@@ -1,12 +1,27 @@
 import type { ChatControls, ChatSettings, PublicModel } from './chatSession';
 
-export type ExampleSampleId = 'chart' | 'order';
+export type ExampleSampleId = 'chart' | 'order' | 'audio';
 
-// The sizes are pinned to the canonical public demo assets. A test prevents
-// silently changing these copies without updating the advertised limits.
+export type ExampleSampleAsset = {
+  modality: 'image' | 'audio';
+  filename: string;
+  mimeType: string;
+  bytes: number;
+  caption: string;
+  imageAlt?: string;
+};
+
+// The sizes are pinned to the canonical public demo assets. Binary integrity
+// and media-header tests protect the limits advertised in this catalog.
+export const EXAMPLE_SAMPLE_ASSETS: Readonly<Record<ExampleSampleId, ExampleSampleAsset>> = {
+  chart: { modality: 'image', filename: 'sample-chart.png', mimeType: 'image/png', bytes: 24099, caption: 'sample-chart.png', imageAlt: '예제 요청 수 막대그래프' },
+  order: { modality: 'image', filename: 'sample-order.png', mimeType: 'image/png', bytes: 34473, caption: 'sample-order.png', imageAlt: '예제 가상 주문서' },
+  audio: { modality: 'audio', filename: 'sample-audio.wav', mimeType: 'audio/wav', bytes: 158350, caption: 'sample-audio.wav' },
+};
 export const EXAMPLE_SAMPLE_BYTES: Readonly<Record<ExampleSampleId, number>> = {
-  chart: 24099,
-  order: 34473,
+  chart: EXAMPLE_SAMPLE_ASSETS.chart.bytes,
+  order: EXAMPLE_SAMPLE_ASSETS.order.bytes,
+  audio: EXAMPLE_SAMPLE_ASSETS.audio.bytes,
 };
 
 export type PlaygroundExample = {
@@ -14,9 +29,10 @@ export type PlaygroundExample = {
   title: string;
   description: string;
   prompt: string;
-  category: 'text' | 'image' | 'structured';
+  category: 'text' | 'image' | 'audio' | 'structured';
   sample?: ExampleSampleId;
   systemPrompt?: string;
+  sampleTranscript?: string;
   schema?: { name: string; value: string };
 };
 
@@ -55,6 +71,15 @@ export const PLAYGROUND_EXAMPLES: readonly PlaygroundExample[] = [
     prompt: '이미지에서 Order ID, Item, Quantity, Unit price, Total을 읽어 각 항목을 한 줄씩 정확히 적어주세요. 설명은 생략하세요.',
   },
   {
+    id: 'audio',
+    title: '오디오 분석',
+    description: '음성에서 시각과 소요 시간 구분',
+    category: 'audio',
+    sample: 'audio',
+    prompt: '오디오에서 사람들이 나간 시각과 외출한 시간을 각각 알려주세요. 들을 수 없는 정보는 추측하지 마세요.',
+    sampleTranscript: '그들은 세시에 나갔어요. 그들은 세시간을 나갔다 왔어요.',
+  },
+  {
     id: 'system-prompt',
     title: '역할 지정',
     description: '시스템 프롬프트로 답변 범위 설정',
@@ -82,21 +107,33 @@ export function exampleAvailability(
     return { available: false, reason: '현재 모델은 채팅 API를 지원하지 않습니다.' };
   }
   if (example.sample) {
-    if (!(model.input_modalities ?? []).includes('image')) {
-      return { available: false, reason: '현재 모델은 이미지 입력을 지원하지 않습니다.' };
+    const asset = EXAMPLE_SAMPLE_ASSETS[example.sample];
+    const label = asset.modality === 'image' ? '이미지' : '오디오';
+    if (!(model.input_modalities ?? []).includes(asset.modality)) {
+      return { available: false, reason: `현재 모델은 ${label} 입력을 지원하지 않습니다.` };
     }
-    const imageLimits = model.request_limits?.image;
-    const maxBytes = imageLimits?.max_bytes;
-    if (typeof maxBytes === 'number' && EXAMPLE_SAMPLE_BYTES[example.sample] > maxBytes) {
-      return { available: false, reason: '현재 모델의 이미지 크기 제한을 초과하는 예제입니다.' };
+    const maxBytes = asset.modality === 'image'
+      ? model.request_limits?.image?.max_bytes
+      : model.request_limits?.audio?.max_bytes;
+    const maxInputs = asset.modality === 'image'
+      ? model.request_limits?.image?.max_inputs
+      : model.request_limits?.audio?.max_inputs;
+    if (typeof maxBytes === 'number' && asset.bytes > maxBytes) {
+      return { available: false, reason: `현재 모델의 ${label} 크기 제한을 초과하는 예제입니다.` };
     }
-    if (Array.isArray(imageLimits?.allowed_mime_types)
-      && imageLimits.allowed_mime_types.length > 0
-      && !imageLimits.allowed_mime_types.includes('image/png')) {
-      return { available: false, reason: '현재 모델은 예제 PNG 이미지 형식을 지원하지 않습니다.' };
+    if (typeof maxInputs === 'number' && maxInputs < 1) {
+      return { available: false, reason: `현재 모델은 ${label} 첨부를 허용하지 않습니다.` };
     }
-    if (typeof imageLimits?.max_inputs === 'number' && imageLimits.max_inputs < 1) {
-      return { available: false, reason: '현재 모델은 이미지 첨부를 허용하지 않습니다.' };
+    if (asset.modality === 'image') {
+      const allowed = model.request_limits?.image?.allowed_mime_types;
+      if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes(asset.mimeType)) {
+        return { available: false, reason: '현재 모델은 예제 PNG 이미지 형식을 지원하지 않습니다.' };
+      }
+    } else {
+      const allowed = model.request_limits?.audio?.allowed_formats;
+      if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes('wav')) {
+        return { available: false, reason: '현재 모델은 예제 WAV 오디오 형식을 지원하지 않습니다.' };
+      }
     }
   }
   if (example.schema) {
@@ -109,6 +146,19 @@ export function exampleAvailability(
     if (error) return { available: false, reason: error };
   }
   return { available: true, reason: null };
+}
+
+export function exampleAttachmentSummary(
+  attachments: readonly { modality: 'image' | 'audio' | 'video' }[],
+): string {
+  const names = { image: '이미지', audio: '오디오', video: '비디오' } as const;
+  return (['image', 'audio', 'video'] as const)
+    .map((modality) => {
+      const count = attachments.filter((item) => item.modality === modality).length;
+      return count ? `${names[modality]} ${count}개` : null;
+    })
+    .filter((value): value is string => value !== null)
+    .join(' · ');
 }
 
 export function exampleSettingsPatch(
