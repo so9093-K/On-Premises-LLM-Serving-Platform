@@ -1,13 +1,17 @@
 import { CHAT_COMPLETIONS_PATH } from './publicChatRequest.ts';
+import { PYTHON_SDK_RECIPE, JAVASCRIPT_SDK_RECIPE } from './integrationRecipes.ts';
 
 // The serialized request sent to Gateway is the only authority for export.
 // This module never reads the active model, the current composer or the API key.
-export type ExportLanguage = 'python' | 'javascript' | 'curl';
-export type ExportFiles = Record<'request.json' | 'client.py' | 'client.mjs' | 'client.sh' | 'README.md', string>;
-export const EXPORT_LANGUAGES: readonly { id: ExportLanguage; label: string; file: keyof ExportFiles }[] = [
+export type ExportLanguage = 'python' | 'javascript' | 'curl' | 'python-sdk' | 'javascript-sdk';
+export type ExportFiles = Record<'request.json' | 'client.py' | 'client.mjs' | 'client.sh' | 'client_openai.py' | 'client_openai.mjs' | 'README.md', string>;
+export type ExportTemplateFile = Exclude<keyof ExportFiles, 'request.json'>;
+export const EXPORT_LANGUAGES: readonly { id: ExportLanguage; label: string; file: ExportTemplateFile }[] = [
   { id: 'python', label: 'Python (HTTP)', file: 'client.py' },
   { id: 'javascript', label: 'JavaScript (Node.js)', file: 'client.mjs' },
   { id: 'curl', label: 'cURL (Bash)', file: 'client.sh' },
+  { id: 'python-sdk', label: 'Python OpenAI SDK (Integration)', file: 'client_openai.py' },
+  { id: 'javascript-sdk', label: 'Node.js OpenAI SDK (Integration)', file: 'client_openai.mjs' },
 ];
 
 function validatedRequest(serialized: string): { stream: boolean } {
@@ -198,6 +202,19 @@ const README = [
   'node client.mjs    (Node.js 18 이상)',
   'bash client.sh',
   '',
+  '## 애플리케이션 코드 (정확한 바이트 재현과 구분)',
+  '',
+  'pip install openai',
+  'python3 client_openai.py',
+  'npm install openai',
+  'node client_openai.mjs',
+  '',
+  'SDK 예시는 스트리밍 응답, Structured Output 파싱, Tool 호출 관찰의',
+  '기초 패턴입니다. SDK는 기본 헤더·파라미터 정규화를 적용할 수 있으므로',
+  '전송 바이트 동등성이 필요한 디버깅에는 client.py/mjs/sh를 사용하세요.',
+  'Tool을 실행하려면 서비스에서 명시적 허용 목록·인자 검증·권한 검사와',
+  '검증된 결과를 다음 요청에 연결하는 코드를 별도로 작성해야 합니다.',
+  '',
   '별도 SDK 설치는 필요 없습니다. Streaming 예제는 SSE 원문을 출력하고',
   'Gateway SSE 오류 및 [DONE] 누락을 실패로 처리합니다. 서비스 앱에서는',
   '이벤트 파싱과 Tool 실행·결과 처리를 별도로 구현해야 합니다.',
@@ -215,15 +232,22 @@ const README = [
   '',
 ].join('\n');
 
-export function buildExportFiles(serializedRequest: string): ExportFiles {
-  const { stream } = validatedRequest(serializedRequest);
+// Templates are independent of the large request body and can be reused by
+// streaming archive entries without constructing request.json a second time.
+export function exportTemplates(stream: boolean): Omit<ExportFiles, 'request.json'> {
   return {
-    'request.json': serializedRequest,
     'client.py': PYTHON,
     'client.mjs': JAVASCRIPT,
     'client.sh': curlScript(stream),
+    'client_openai.py': PYTHON_SDK_RECIPE,
+    'client_openai.mjs': JAVASCRIPT_SDK_RECIPE,
     'README.md': README,
   };
+}
+
+export function buildExportFiles(serializedRequest: string): ExportFiles {
+  const { stream } = validatedRequest(serializedRequest);
+  return { 'request.json': serializedRequest, ...exportTemplates(stream) };
 }
 
 export function requestPreview(serializedRequest: string, maxCharacters = 12000): string | null {
@@ -232,69 +256,3 @@ export function requestPreview(serializedRequest: string, maxCharacters = 12000)
   return JSON.stringify(JSON.parse(serializedRequest), null, 2);
 }
 
-const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
-  let crc = index;
-  for (let bit = 0; bit < 8; bit += 1) {
-    crc = (crc >>> 1) ^ ((crc & 1) !== 0 ? 0xedb88320 : 0);
-  }
-  return crc >>> 0;
-});
-
-function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-export function createExportZip(files: ExportFiles): Blob {
-  const encoder = new TextEncoder();
-  const parts: BlobPart[] = [];
-  const centralDirectory: Uint8Array<ArrayBuffer>[] = [];
-  const entries = Object.entries(files);
-  let offset = 0;
-  for (const [filename, content] of entries) {
-    const name = encoder.encode(filename);
-    const data = encoder.encode(content);
-    if (data.length > 0xffffffff || offset + 30 + name.length + data.length > 0xffffffff) {
-      throw new Error('ZIP32에서 지원하지 않는 요청 크기입니다.');
-    }
-    const checksum = crc32(data);
-    const local = new Uint8Array(30 + name.length);
-    const l = new DataView(local.buffer);
-    l.setUint32(0, 0x04034b50, true);
-    l.setUint16(4, 20, true);
-    l.setUint16(6, 0x0800, true);
-    l.setUint32(14, checksum, true);
-    l.setUint32(18, data.length, true);
-    l.setUint32(22, data.length, true);
-    l.setUint16(26, name.length, true);
-    local.set(name, 30);
-    parts.push(local, data);
-    const central = new Uint8Array(46 + name.length);
-    const c = new DataView(central.buffer);
-    c.setUint32(0, 0x02014b50, true);
-    c.setUint16(4, 20, true);
-    c.setUint16(6, 20, true);
-    c.setUint16(8, 0x0800, true);
-    c.setUint32(16, checksum, true);
-    c.setUint32(20, data.length, true);
-    c.setUint32(24, data.length, true);
-    c.setUint16(28, name.length, true);
-    c.setUint32(42, offset, true);
-    central.set(name, 46);
-    centralDirectory.push(central);
-    offset += local.length + data.length;
-  }
-  const directorySize = centralDirectory.reduce((sum, chunk) => sum + chunk.length, 0);
-  if (offset + directorySize > 0xffffffff) throw new Error('ZIP32 크기 제한을 초과했습니다.');
-  const footer = new Uint8Array(22);
-  const e = new DataView(footer.buffer);
-  e.setUint32(0, 0x06054b50, true);
-  e.setUint16(8, entries.length, true);
-  e.setUint16(10, entries.length, true);
-  e.setUint32(12, directorySize, true);
-  e.setUint32(16, offset, true);
-  return new Blob([...parts, ...centralDirectory, footer], { type: 'application/zip' });
-}

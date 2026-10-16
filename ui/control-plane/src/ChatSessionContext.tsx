@@ -11,12 +11,14 @@ import {
 
 import { ApiError, postChatCompletion } from './api';
 import { prepareChatRequest } from './publicChatRequest.ts';
+import { MediaDataRegistry } from './mediaDataRegistry.ts';
 import { readChatStream } from './chatStream';
 import {
   applyChatUpdate,
   buildChatRequest,
   buildToolResultRequest,
   createRequestContext,
+  conversationAttachments,
   completeFromResponse,
   DEFAULT_CHAT_SETTINGS,
   failTurn,
@@ -57,6 +59,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const mediaRegistry = useRef(new MediaDataRegistry());
   const nextIdRef = useRef(0);
   // send는 최신 대화·설정으로 요청을 만들어야 하지만 매 token마다 새 함수가 되면
   // 입력창까지 다시 그린다. 최신 값은 ref로 읽는다.
@@ -65,7 +68,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     latest.current = { apiKey, exchanges, settings };
   }, [apiKey, exchanges, settings]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => { abortRef.current?.abort(); mediaRegistry.current.clear(); }, []);
 
   const setApiKey = useCallback((key: string | null) => {
     setApiKeyState(key);
@@ -81,6 +84,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const clear = useCallback(() => {
     abortRef.current?.abort();
     setExchanges([]);
+    mediaRegistry.current.clear();
   }, []);
 
   const executeRequest = useCallback((
@@ -88,10 +92,11 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     model: PublicModel,
     body: Record<string, unknown>,
     exchange: Pick<Exchange, 'user' | 'attachments' | 'toolResults'>,
+    requestMedia: readonly ChatAttachment[],
   ): void => {
     const id = ++nextIdRef.current;
     // Serialize exactly once: the same bytes are sent over HTTP and exported later.
-    const request = prepareChatRequest(body);
+    const request = prepareChatRequest(body, requestMedia);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
@@ -104,7 +109,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
         ...(exchange.toolResults ? { toolResults: [...exchange.toolResults] } : {}),
         sentAtSeconds: Date.now() / 1000,
         requestContext: createRequestContext(model, body),
-        requestJson: request.json,
+        receipt: request.receipt,
         assistant: startTurn(performance.now()),
       },
     ]);
@@ -163,7 +168,9 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     const { apiKey: key, exchanges: history, settings: current } = latest.current;
     const { body, error } = buildChatRequest(model, current, history, text, attachments);
     if (error) return error;
-    executeRequest(key, model, body, { user: text, attachments: [...attachments] });
+    const ownedAttachments = attachments.map((item) => mediaRegistry.current.intern(item));
+    executeRequest(key, model, body, { user: text, attachments: ownedAttachments },
+      [...conversationAttachments(history), ...ownedAttachments]);
     return null;
   }, [executeRequest]);
 
@@ -180,7 +187,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       user: '',
       attachments: [],
       toolResults: [...results],
-    });
+    }, conversationAttachments(history));
     return null;
   }, [executeRequest]);
 

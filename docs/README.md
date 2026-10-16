@@ -5,7 +5,7 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 프로젝트의 사용자-facing 이름과 안정 식별자 구분은 [표준 용어](reference/terminology.md)에서 확인합니다. 외부 API의 요청·응답 형식과 사용 예시는 [API 인터페이스](reference/api_reference.md)에서, OpenAI SDK로 바꿔 부를 때 무엇이 같고 무엇이 다른지는 [OpenAI 호환 범위](reference/openai_compatibility.md)에서, `/docs`·`/openapi.json`의 운영 경계는 [API 문서 화면 Reference](reference/api_docs_reference.md)에서 확인할 수 있습니다. 현재 vLLM pin에 공개된 upstream advisory가 이 플랫폼의 Gateway/Exposure 경계에서 실제로 도달 가능한지는 [vLLM 보안 노출 경계](reference/vllm_security_posture.md)에서 확인합니다.
 
 Control Plane의 실제 화면별 운영 흐름과 UX 기준은 [운영자 작업 중심 UX](reference/control_plane_operator_ux.md)를 참고합니다.
-Playground에서 사용한 실제 Request JSON과 Python/Node.js/cURL 실행 예제는 [프로젝트 연동 가이드](reference/playground_integration.md)를 참고합니다.
+Playground의 미디어 공유 Request Receipt, 원본 HTTP 재현, 스트리밍 ZIP64 및 SDK 기반 애플리케이션 예제는 [프로젝트 연동 가이드](reference/playground_integration.md)를 참고합니다.
 
 이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행은 [GIF 데모](reference/feature_demos.md)에서 볼 수 있습니다.
 
