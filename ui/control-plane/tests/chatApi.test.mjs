@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ApiError, fetchPublicModels, postChatCompletion } from '../src/api.ts';
+import { prepareChatRequest } from '../src/publicChatRequest.ts';
 
 function withFetch(t, handler) {
   const originalFetch = globalThis.fetch;
@@ -37,7 +38,7 @@ test('streaming chat requests ask for SSE and expose the gateway request id', as
   }));
   const controller = new AbortController();
 
-  const { requestId } = await postChatCompletion(null, { model: 'local-main', stream: true, messages: [] }, controller.signal);
+  const { requestId } = await postChatCompletion(null, prepareChatRequest({ model: 'local-main', stream: true, messages: [] }), controller.signal);
 
   assert.equal(requestId, 'req_stream');
   assert.equal(calls[0].url, '/v1/chat/completions');
@@ -54,10 +55,24 @@ test('a rejected chat request keeps the error code and falls back to the header 
   }));
 
   await assert.rejects(
-    postChatCompletion('k', { model: 'local-main', stream: true, messages: [] }, new AbortController().signal),
+    postChatCompletion('k', prepareChatRequest({ model: 'local-main', stream: true, messages: [] }), new AbortController().signal),
     (error) => error instanceof ApiError
       && error.status === 503
       && error.code === 'MAIN_MODEL_SWITCH_IN_PROGRESS'
       && error.requestId === 'req_503',
   );
+});
+
+test('a recorded serialized body is sent without generating a second version', async (t) => {
+  const calls = withFetch(t, () => new Response('{"choices":[]}', {
+    status: 200,
+    headers: { 'X-Request-Id': 'req_snapshot' },
+  }));
+  const body = { model: 'local-main', messages: [{ role: 'user', content: 'test' }] };
+   const request = prepareChatRequest(body);
+  const originalWireJson = request.json;
+  body.messages = [{ role: 'user', content: 'changed after prepare' }];
+  await postChatCompletion(null, request, new AbortController().signal);
+  assert.equal(calls[0].init.body, originalWireJson);
+  assert.equal(calls[0].init.headers.Accept, 'application/json');
 });

@@ -1,4 +1,5 @@
 import type { paths } from './generated/openapi';
+import { CHAT_COMPLETIONS_PATH, type PreparedChatRequest } from './publicChatRequest.ts';
 
 export type BootstrapResponse =
   paths['/admin/control-plane/bootstrap']['get']['responses'][200]['content']['application/json'];
@@ -185,18 +186,18 @@ export async function fetchPublicModels(apiKey: string | null): Promise<PublicMo
 
 export async function postChatCompletion(
   apiKey: string | null,
-  body: Record<string, unknown>,
+  request: PreparedChatRequest,
   signal: AbortSignal,
 ): Promise<{ response: Response; requestId: string | null }> {
-  const response = await fetch('/v1/chat/completions', {
+  const response = await fetch(CHAT_COMPLETIONS_PATH, {
     method: 'POST',
     cache: 'no-store',
     signal,
     headers: {
       ...adminHeaders(apiKey, true),
-      Accept: body.stream === true ? 'text/event-stream' : 'application/json',
+      Accept: request.streaming ? 'text/event-stream' : 'application/json',
     },
-    body: JSON.stringify(body),
+    body: request.json,
   });
   const requestId = response.headers.get('X-Request-Id');
   if (!response.ok) {

@@ -229,6 +229,7 @@ def run_one(browser, width, height):
 def run_audio_example(browser, width, height):
     """Real Chromium and bundled WAV; mock public model/Chat API only."""
     context = browser.new_context(viewport={"width": width, "height": height})
+    context.grant_permissions(["clipboard-read", "clipboard-write"])
     page = context.new_page()
     errors = []
     requests = []
@@ -294,6 +295,25 @@ def run_audio_example(browser, width, height):
     assert parts[-1]["input_audio"]["format"] == "wav"
     assert parts[-1]["input_audio"]["data"].startswith("UklGR"), "Expected WAV RIFF Base64"
     assert not any("sample-audio.wav" in str(part) for part in parts), "File name not in model payload"
+
+    # The same emitted multimodal request must be obtainable from the finished turn.
+    import zipfile
+    export = page.locator(".playground-export").last
+    export.locator("summary").first.click()
+    export.get_by_label("개발 언어").select_option("javascript")
+    assert "readFile" in export.locator(".playground-export-code").first.inner_text()
+    export.get_by_role("button", name="요청 JSON 복사").click()
+    assert json.loads(page.evaluate("navigator.clipboard.readText()")) == outgoing.value.post_data_json
+    with page.expect_download() as json_save:
+        export.get_by_role("button", name="요청 JSON 받기").click()
+    with open(json_save.value.path(), encoding="utf-8") as downloaded:
+        assert json.load(downloaded) == outgoing.value.post_data_json
+    with page.expect_download() as zip_save:
+        export.get_by_role("button", name="전체 예제 ZIP 받기").click()
+    with zipfile.ZipFile(zip_save.value.path()) as archive:
+        assert archive.testzip() is None
+        assert json.loads(archive.read("request.json")) == outgoing.value.post_data_json
+        assert {"client.py", "client.mjs", "client.sh", "README.md"}.issubset(archive.namelist())
     assert errors == [], errors
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     print(f"PASS audio Chromium {width}x{height}: gating, local playback, no auto-send, validated WAV request")

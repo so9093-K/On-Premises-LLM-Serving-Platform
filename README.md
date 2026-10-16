@@ -48,7 +48,7 @@ Prompt Injection 탐지까지 지원합니다. PII·Secret 탐지는 static targ
 
 *Gemma 4 E4B · Playground 응답 및 요청 지표*
 
-[Playground와 운영 흐름](docs/reference/control_plane_operator_ux.md)
+[Playground와 운영 흐름](docs/reference/control_plane_operator_ux.md) · [실험한 요청을 개발 프로젝트에서 재현하기](docs/reference/playground_integration.md)
 
 ### 모델 전환 영향
 
