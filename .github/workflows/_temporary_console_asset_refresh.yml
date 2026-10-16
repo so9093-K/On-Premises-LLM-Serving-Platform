@@ -31,7 +31,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A src/ai_model_serving/static/control-plane
-          git add -A ui/control-plane/src/generated/openapi.ts
           git rm .github/workflows/_temporary_console_asset_refresh.yml
           git diff --cached --quiet && exit 0
           git commit -m 'chore(console): refresh deterministic assets after operator UX update'
