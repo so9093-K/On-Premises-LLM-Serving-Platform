@@ -596,8 +596,8 @@ class ConfigurationMutationEngine:
                     error=f"{type(exc).__name__}: {exc}",
                 )
             except Exception:
-                # The pending record written before mutation remains durable. Future
-                # writes are blocked until restart recovery can reconcile it.
+                # 변경 전에 기록한 Pending 작업은 영속 저장소에 남는다.
+                # 재시작 복구가 상태를 정합하게 처리하기 전까지 다음 쓰기를 차단한다.
                 pass
             raise ConfigurationApplyFailure(
                 "configuration apply did not complete successfully",

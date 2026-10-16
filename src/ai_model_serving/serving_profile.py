@@ -30,10 +30,10 @@ class MainServingCatalog:
 
 
 def load_main_serving_catalog(path: Path) -> MainServingCatalog:
-    """Project only the API-serving contract from the runtime profile catalog.
+    """Runtime Profile Catalog에서 API Serving 계약에 필요한 정보만 투영한다.
 
-    Docker image, command and GPU fields deliberately never enter this object. The
-    Runtime Controller continues to load the full runtime catalog from main_model.control.
+    Docker 이미지·실행 명령·GPU 필드는 이 객체에 포함하지 않는다.
+    전체 Runtime Catalog는 계속 Runtime Controller의 Main Model 제어 경계에서 로드한다.
     """
     document = load_yaml_mapping(path)
     public_model = str(document.get("public_model", ""))

@@ -1,4 +1,4 @@
-# ADR-0039: Operator lifecycle is intent-based
+# ADR-0039: 운영자 명령은 내부 구현이 아니라 작업 의도를 표현한다
 
 ## Status
 
@@ -22,11 +22,11 @@ artifact 폐기를 같은 명령에 두면 안 된다.
 
 ## Decision
 
-### 1. Operator command surface는 intent를 기준으로 제한한다
+### 1. 운영자 명령은 작업 의도에 따라 제한한다
 
 정상 운영자가 기억해야 하는 repository-owned command는 다음 여섯 개다.
 
-| Intent | Command | Contract |
+| 운영 의도 | 명령 | 동작 계약 |
 |---|---|---|
 | 사용 가능한 상태로 수렴 | `make up` | 최초 bootstrap, 필요한 build/cache 준비와 시작을 수렴하고 target-appropriate serving gate를 내부적으로 수행 |
 | 현재 상태 확인 | `make status` | health/runtime policy를 요약하고 주의할 항목과 다음 행동을 표시 |
@@ -43,7 +43,7 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
 
 이후 정상 시작은 `make up` 하나다.
 
-### 2. `up`은 순서형 bootstrap이 아니라 desired-state convergence다
+### 2. `up`은 순서형 초기화가 아니라 원하는 상태로의 수렴이다
 
 `make up`은 필요한 단계를 내부적으로 판단한다.
 
@@ -57,14 +57,14 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
 
 이 단계들의 script는 구현 계층으로 남을 수 있지만 동명의 public Make alias를 두지 않는다.
 
-### 3. `down`이 checkout ownership 기반 recovery도 소유한다
+### 3. `down`은 현재 Checkout 소유권을 기준으로 복구 정리도 수행한다
 
 정상 target state가 있으면 해당 target을 정지한다. `.env`가 없거나 일부 상태가 손상된
 경우에도 checkout ownership label/PID를 사용해 남은 실행 리소스를 정리한다.
 
 별도 `down-all` operator command를 두지 않는다.
 
-### 4. Reset과 purge의 파괴 범위를 분리한다
+### 4. `reset`과 `purge`의 삭제 범위를 구분한다
 
 `reset`은 다시 설정할 수 있는 local state 초기화다.
 
@@ -82,7 +82,7 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
 
 둘 다 plan-first이며 정확한 confirmation 없이는 삭제하지 않는다.
 
-### 5. Operator output과 diagnostic evidence를 분리한다
+### 5. 운영자 출력과 진단 증거를 구분한다
 
 진단 가능성을 raw terminal volume과 동일시하지 않는다.
 
@@ -96,7 +96,7 @@ make up TARGET=<deployment-target> [ACCESS=local|private|edge]
   표시한다.
 - `PLATFORM_VERBOSE=1` 또는 `make logs RAW=1`은 명시적 deep-diagnostic 경로다.
 
-### 6. Removed Make aliases는 compatibility surface로 남기지 않는다
+### 6. 제거한 Make 별칭은 호환성 명령으로 남기지 않는다
 
 다음 명령은 public Make target에서 제거한다.
 
@@ -111,7 +111,7 @@ developer-specific target에 남길 수 있다. 구현 script의 존재는 opera
 
 ## Consequences
 
-| Positive | Negative |
+| 긍정적 결과 | 제약 또는 트레이드오프 |
 |---|---|
 | 정상 기동과 재기동의 mental model이 `make up` 하나로 수렴한다. | `up` orchestration이 더 많은 convergence 책임을 가진다. |
 | 내부 lifecycle 단계 추가가 operator command 증가로 이어지지 않는다. | 과거 세부 Make alias를 직접 사용하던 로컬 습관은 변경해야 한다. |

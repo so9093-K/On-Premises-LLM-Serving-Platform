@@ -10,11 +10,11 @@ _COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
 
 
 def require_compose_project(project: str) -> str:
-    """Return a normalized Compose project or fail closed.
+    """Compose 프로젝트 이름을 정규화하고 유효하지 않으면 거부한다.
 
-    Docker lifecycle calls must never fall back from project+service scope to a
-    service-only lookup. Service labels are reused by every Compose project on a
-    Docker host, so a missing project would widen authority across deployments.
+    Docker 생명주기 변경은 프로젝트·서비스 범위 검색에서 서비스 이름만 사용하는
+    검색으로 축소해서는 안 된다. 동일한 Docker 호스트에서 여러 Compose 프로젝트가
+    서비스 Label을 공유할 수 있어, 프로젝트 누락 시 다른 배포까지 제어 범위가 넓어진다.
     """
     normalized = project.strip()
     if not normalized:
@@ -41,7 +41,7 @@ def scoped_container_id(
     project: str,
     service: str | None = None,
 ) -> str:
-    """Validate one Docker list row belongs to the requested Compose scope."""
+    """Docker 조회 결과 한 건이 지정된 Compose 프로젝트·서비스에 속하는지 검증한다."""
     normalized_project = require_compose_project(project)
     if not isinstance(row, Mapping):
         raise RuntimeError("Docker container row must be an object")

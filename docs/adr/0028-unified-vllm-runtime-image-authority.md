@@ -1,4 +1,4 @@
-# ADR-0028: Unified vLLM runtime image authority
+# ADR-0028: 통합 vLLM Runtime 이미지의 단일 권한
 
 ## Status
 
@@ -8,15 +8,15 @@ Accepted
 
 ## Context
 
-26B/12B Main Model profile, embedding, embedding-ko, risk-prompt는 2026-07-24부터
+26B/12B Main Model Profile, Embedding, Embedding-KO, Risk-Prompt는 2026-07-24부터
 `ops/images/vllm-unified/Dockerfile`이 만드는 하나의 derived vLLM artifact를 사용한다.
 Gemma4 multimodal patch와 Kanana compatibility patch도 같은 image 안에서 관리되고,
 각 모델은 model id, revision, runner, command, resource/capability 설정으로 동작을 구분한다.
 
 통합 전후의 운영 상태에는 `VLLM_IMAGE`, `EMBEDDING_KO_VLLM_IMAGE`,
-`RISK_VLLM_IMAGE`가 별도 persistent pin처럼 존재했다. 하나의 artifact lifecycle을 여러
-runtime별 env key로 표현하면 실제 build/qualification/promotion/rollback 경계보다 더 많은
-상태를 만들고 artifact provenance를 모호하게 한다.
+`RISK_VLLM_IMAGE`가 각각 영속 이미지 고정값처럼 존재했다.
+하나의 Artifact 생명주기를 Runtime별 환경변수로 나누면 실제 빌드·검증·승격·복구
+권한보다 많은 상태가 만들어지고 Artifact 출처가 불분명해진다.
 
 Main Model의 `MAIN_MODEL_VLLM_IMAGE_OVERRIDE`는 일부 profile이 명시적으로 선택하는 image override이며
 shared runtime pin과 다른 lifecycle 의미를 가진다.
@@ -70,7 +70,7 @@ artifact boundary와 함께 새 authority를 정의한다.
 - `scripts/lib/vllm_unified_image.sh`
 
 
-## Terminology migration
+## 용어 이관
 
 2026-09-18 terminology audit에서 `AUDIO_VLLM_IMAGE`는 실제 역할보다 좁은 이름으로 판정했다.
 이 값은 audio 전용 artifact가 아니라 Main Model profile-specific vLLM image override다.

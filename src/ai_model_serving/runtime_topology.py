@@ -152,11 +152,11 @@ def load_runtime_topology(
     *,
     main_resource_variant: str | None = None,
 ) -> RuntimeTopology:
-    """Load the canonical runtime lifecycle topology.
+    """Runtime 생명주기의 정규 Topology를 로드한다.
 
-    configs/runtime_topology.yaml owns Runtime Control start prerequisites.
-    main_resource_variant projects reviewed host resource-policy composition constraints
-    without treating GPU identity itself as a support allowlist.
+    Runtime Control의 시작 선행조건은 `configs/runtime_topology.yaml`이 소유한다.
+    `main_resource_variant`는 검토된 호스트 자원 정책의 실행 조합 제약을
+    투영하며, GPU 제품 신원 자체를 지원 여부의 허용 목록으로 사용하지 않는다.
     """
     model_serving = load_yaml_mapping(config_root / "configs/model_serving.yaml")
     services_document = load_yaml_mapping(config_root / "configs/services.yaml")

@@ -1,4 +1,4 @@
-"""Configuration Plane metadata and effective-value projection."""
+"""Configuration Plane의 메타데이터와 실제 적용값을 투영한다."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def effective_configuration(
     *,
     write_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return metadata-aligned layered values without serializing secrets."""
+    """비밀값을 직렬화하지 않고 메타데이터에 맞춘 계층별 적용값을 반환한다."""
 
     schema_items = configuration_schema_items()
     if resolver is None:
