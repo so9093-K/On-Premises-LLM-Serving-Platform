@@ -138,12 +138,26 @@ def test_static_target_keeps_bootstrap_but_disables_runtime_and_monitoring_capab
     assert "/admin/runtimes" not in paths
 
 
-def test_macos_static_bootstrap_uses_target_monitoring_and_host_boundary(monkeypatch) -> None:
-    monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
-    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
-    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
-    monkeypatch.setenv("ACCESS_PROFILE", "local")
-    monkeypatch.setenv("GRAFANA_PORT", "9611")
+def test_macos_static_bootstrap_uses_target_monitoring_and_host_boundary(monkeypatch, tmp_path) -> None:
+    from scripts.config.render_service_env import render
+    from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
+
+    source = tmp_path / ".env"
+    output = tmp_path / "gateway.env"
+    source.write_text(
+        "APP_ENV=local\n"
+        "MAIN_MODEL_STATIC_PROFILE=gemma4-26b-a4b-qat-4bit-mlx\n"
+        "MAIN_MODEL_BASE_URL=http://host.docker.internal:9401/v1\n"
+        "ACCESS_PROFILE=local\n"
+        "GRAFANA_PORT=9611\n",
+        encoding="utf-8",
+    )
+    # 실제 Static 컨테이너는 원본 .env가 아닌 서비스별 투영만 전달받는다.
+    monkeypatch.delenv("ACCESS_PROFILE", raising=False)
+    monkeypatch.delenv("GRAFANA_PORT", raising=False)
+    render(target="macos-metal-static", source_env=source, output=output)
+    for key, value in load_strict_env_file(output).items():
+        monkeypatch.setenv(key, value)
     cfg = load_settings()
     clients = FakeGatewayClients()
     clients.runtime_controller = None

@@ -112,6 +112,11 @@
 
 ### Fixed
 
+- Static Gateway는 선택한 Access Profile과 Grafana 공개 포트를 전달받아 Control Plane의 Grafana 탐색·요청 로그 링크를 제공한다. macOS Metal에서도 `make up`과 Playground가 같은 로컬 Grafana 주소를 안내한다.
+- macOS Metal의 Grafana 서비스 개요·요청 로그는 공통 지표와 조회를 유지하면서 실제로 Provision된 Dashboard 링크만 표시한다.
+
+- 다중 GPU 배치 계획은 같은 Runtime의 GPU별 퇴거 허용 여부나 우선순위가 충돌하면 입력을 거부한다. 한 GPU의 퇴거 판단으로 다른 GPU의 보호 정책을 우회해 Runtime 전체를 중지하지 않는다.
+
 - `EXPOSURE_MODE=master_open`, `EXPOSURE_AUDIENCE=local_only`에서 `make auth-doctor`가 host bind 주소를
   읽다가 존재하지 않는 legacy 인자를 넘겨 `TypeError`로 죽던 문제를 수정했다.
 - `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한

@@ -4,6 +4,8 @@
 생성 대상:
   ops/prometheus/prometheus.yml
   ops/prometheus/prometheus.macos-metal.yml
+  ops/grafana/dashboards/service_overview.macos-metal.json
+  ops/grafana/dashboards/request_log_explorer.macos-metal.json
   specs/schemas/model_list_response.schema.json
   specs/openapi.gateway.yaml
   docs/reference/openai_compatibility.md
@@ -141,6 +143,32 @@ def compare_artifact(path: Path, expected: str) -> bool:
 
 # ── artifact map ───────────────────────────────────────────────────────────────
 
+def render_macos_dashboard(root: Path, name: str) -> str:
+    """공통 개요를 재사용하되 실제로 Provision된 Dashboard에만 연결한다."""
+    dashboard = json.loads((root / f"ops/grafana/dashboards/{name}.json").read_text(encoding="utf-8"))
+    target = load_deployment_target(root / "configs/deployment_targets.yaml", "macos-metal-static")
+    available: set[str] = set()
+    for compose_path in target.compose_files:
+        compose = load_yaml_mapping(root / compose_path)
+        grafana = compose.get("services", {}).get("grafana", {})
+        for volume in grafana.get("volumes", []):
+            if not isinstance(volume, str):
+                continue
+            source, _, destination = volume.partition(":")
+            if "/var/lib/grafana/dashboards/" not in destination or not source.endswith(".json"):
+                continue
+            # Compose 상대 경로는 첫 번째 Compose 파일을 기준으로 해석한다.
+            path = (root / target.compose_files[0]).parent / source
+            template = path.with_name(path.name.replace(".macos-metal", ""))
+            available.add(json.loads(template.read_text(encoding="utf-8"))["uid"])
+    dashboard["links"] = [
+        link for link in dashboard["links"]
+        if not link.get("url", "").startswith("/d/")
+        or link["url"].removeprefix("/d/").split("/")[0] in available
+    ]
+    return json.dumps(dashboard, ensure_ascii=False, indent=2) + "\n"
+
+
 def get_artifacts(
     registry: ModelRegistry,
     monitoring: dict[str, Any],
@@ -159,6 +187,10 @@ def get_artifacts(
     )
     return [
         (api_reference, projected_reference),
+        *[
+            (root / f"ops/grafana/dashboards/{name}.macos-metal.json", render_macos_dashboard(root, name))
+            for name in ("service_overview", "request_log_explorer")
+        ],
         (root / "ops/prometheus/prometheus.yml", render_prometheus_yml(registry, monitoring, services)),
         (
             root / "ops/prometheus/prometheus.macos-metal.yml",

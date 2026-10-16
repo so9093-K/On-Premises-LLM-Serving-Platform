@@ -103,6 +103,7 @@ def plan_placement(
     if len(names) != len(set(names)):
         raise ValueError("duplicate placement candidate name")
     observed: set[tuple[GpuResourceId, str]] = set()
+    eviction_policy: dict[str, tuple[int, bool]] = {}
     for participant in participants:
         if participant.resource_pool not in by_resource:
             raise ValueError(f"unknown GPU pool for runtime: {participant.key}")
@@ -112,6 +113,11 @@ def plan_placement(
         observed.add(key)
         if isinstance(participant.vram_fraction, bool) or not math.isfinite(participant.vram_fraction) or not 0 < participant.vram_fraction <= 1:
             raise ValueError(f"invalid GPU reservation: {participant.key}")
+        # Victim은 모든 GPU에서 중지되므로 퇴거 정책도 Runtime 전체에서 같아야 한다.
+        # 한 Shard의 허용으로 다른 Shard의 보호 정책을 우회하지 않는다.
+        policy = (participant.priority, participant.evictable)
+        if eviction_policy.setdefault(participant.key, policy) != policy:
+            raise ValueError(f"inconsistent runtime eviction policy: {participant.key}")
     for candidate in candidates:
         for demand in candidate.demands:
             if demand.resource not in by_resource:
