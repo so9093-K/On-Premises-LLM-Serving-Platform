@@ -39,11 +39,11 @@ _ASSET_HEADERS = {
 
 
 def _manifest_asset_files(manifest_path: Path, assets_root: Path) -> dict[str, Path]:
-    """Resolve the generated manifest into a trusted URL-to-file allowlist.
+    """생성된 Manifest에서 신뢰할 수 있는 URL·파일 허용 목록을 만든다.
 
-    Request path values must never participate in filesystem path construction. The
-    checked-in Vite manifest is validated once during application composition and owns
-    the exact set of immutable assets that the server may expose.
+    요청 경로를 파일시스템 경로 생성에 직접 사용해서는 안 된다. 체크인된
+    Vite Manifest를 앱 구성 시 한 번 검증하고, 서버가 제공할 수 있는
+    불변 정적 파일의 정확한 집합은 해당 Manifest가 소유한다.
     """
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -89,11 +89,11 @@ def _manifest_asset_files(manifest_path: Path, assets_root: Path) -> dict[str, P
 
 
 def register_admin_console(app: FastAPI, *, root: Path | None = None) -> None:
-    """Register the self-hosted Control Plane Console independently of API docs.
+    """API 문서와 독립적으로 자체 호스팅 Control Plane Console을 등록한다.
 
-    The generated frontend is part of the installed Python package. Missing build
-    artifacts are therefore a packaging error and fail application composition rather
-    than degrading into a blank browser page at runtime.
+    생성된 Frontend는 설치되는 Python 패키지의 구성요소다. 필수 빌드
+    산출물이 없다면 Runtime의 빈 브라우저 화면으로 넘어가지 않고
+    패키징 오류로 앱 구성 자체를 실패시킨다.
     """
     console_root = (root or _CONSOLE_ROOT).resolve()
     index_path = console_root / "index.html"
@@ -121,6 +121,6 @@ def register_admin_console(app: FastAPI, *, root: Path | None = None) -> None:
 
     @app.get(f"{CONSOLE_PREFIX}/{{client_path:path}}", include_in_schema=False)
     async def admin_console_client_route(client_path: str) -> FileResponse:
-        # BrowserRouter owns client-side paths. The server only serves the same immutable
-        # entry document; API and asset prefixes have more-specific routes above.
+        # 클라이언트 경로는 BrowserRouter가 소유한다. 서버는 동일한 불변 진입
+        # 문서만 제공하며 API·정적 파일 Prefix는 상위에서 더 구체적인 라우트로 처리한다.
         return FileResponse(index_path, headers=_INDEX_HEADERS)

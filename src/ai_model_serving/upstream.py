@@ -20,7 +20,7 @@ QUEUE_TIMEOUT_RETRY_AFTER_SECONDS = 5.0
 
 
 class AdmissionObserver(Protocol):
-    """Observe bounded RuntimeClient admission state without owning policy."""
+    """Admission 정책을 소유하지 않고 RuntimeClient의 제한된 상태만 관측한다."""
 
     def register_admission(self, target: str, limit: int) -> None: ...
 
@@ -334,13 +334,13 @@ class RuntimeClient:
 
 
     async def open_stream(self, path: str, payload: dict[str, Any], *, headers: Mapping[str, str] | None = None) -> UpstreamStream:
-        """Admit the request, then hand back the upstream SSE body.
+        """요청을 Admission한 다음 Upstream SSE Body를 스트림으로 전달한다.
 
-        Chat streaming is a transport-level fast path: the Gateway validates the
-        request before calling this method, checks the upstream HTTP status while
-        relaying, and never buffers the full response body.  Admission uses the
-        same ``_AdmissionScope`` as the JSON calls and is resolved here, before
-        the caller commits response headers.
+        Chat Streaming은 Transport 단계의 빠른 경로다. Gateway는 호출 전에
+        요청을 검증하고 중계하면서 Upstream HTTP 상태를 확인하며,
+        전체 응답 Body를 버퍼에 저장하지 않는다. Admission은 JSON 요청과 같은
+        ``_AdmissionScope``를 사용하며 호출자가 응답 Header를 확정하기 전에
+        이 경로에서 처리한다.
         """
         scope = self._admission()
         await scope.acquire()

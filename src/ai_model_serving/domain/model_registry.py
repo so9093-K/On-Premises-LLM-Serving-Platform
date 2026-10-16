@@ -149,9 +149,9 @@ class ModelRegistry:
             if record.serving_key is None:
                 continue
             serving_cfg = self._serving_models()[record.serving_key]
-            # Main Model checkpoint identity is profile-owned and changes when the
-            # active profile changes. A static copy in either registry config would
-            # recreate a second Source of Truth, so fail closed if one is re-added.
+            # Main Model Checkpoint 신원은 Profile이 소유하며 활성 Profile에 따라 바뀐다.
+            # Registry 설정에 정적 복사본을 다시 선언하면 두 번째 Source of Truth가
+            # 생기므로 해당 중복 필드가 재도입되면 Fail-Closed한다.
             if record.role == "main_llm":
                 catalog_cfg = catalog_models[record.logical_id]
                 duplicated_fields: list[str] = []

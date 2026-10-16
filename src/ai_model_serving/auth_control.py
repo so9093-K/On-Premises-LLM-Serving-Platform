@@ -20,9 +20,9 @@ from .settings_parts.env import LOCAL_ENVIRONMENTS, default_env_path, env as _en
 # 관리하는 dict가 아니다. auth 의미론 변경은 반드시 YAML을 먼저 수정한다.
 # ---------------------------------------------------------------------------
 
-# Image builds install the package in /app/.venv while configs live at /app/configs
-# (and may be replaced by the read-only Compose mount).  Do not derive the
-# config root from the installed module path; APP_CONFIG_ROOT owns that boundary.
+# 이미지 빌드는 패키지를 /app/.venv에 설치하지만 설정은 /app/configs에 둔다.
+# 이 경로는 Compose의 읽기 전용 Mount로 교체될 수 있다. 설치된 모듈 위치에서
+# 설정 루트를 추정하지 않고 APP_CONFIG_ROOT가 그 경계를 소유한다.
 _PROJECT_ROOT = resolve_project_root(required_paths=("configs/auth_profiles.yaml",))
 _AUTH_PROFILES_YAML = _PROJECT_ROOT / "configs" / "auth_profiles.yaml"
 
@@ -116,7 +116,7 @@ def auth_profile_network_mismatch(
     mode: str,
     exposure_audience: str,
 ) -> str | None:
-    """Return the canonical auth/network-audience mismatch message, if any."""
+    """인증 모드와 네트워크 접근 범위가 불일치하면 정규 오류 메시지를 반환한다."""
     if mode != "local_open":
         return None
     expected = auth_profile_network_values(mode)
