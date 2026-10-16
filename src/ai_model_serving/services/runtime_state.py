@@ -42,16 +42,16 @@ def _default_controllable_keys() -> frozenset[str]:
 
 
 class RuntimeStateStore:
-    """Gateway-side desired-state store for controllable vLLM runtimes.
+    """Gateway에서 제어할 수 있는 vLLM Runtime의 Desired State 저장소.
 
-    State reflects what the gateway *intends* to do with each runtime, not the
-    actual container status. When ``path`` is supplied, that desired state is
-    persisted so deliberate operator stops survive Gateway restarts.
+    이 상태는 실제 컨테이너 상태가 아니라 Gateway가 각 Runtime에 적용하려는
+    **운영 의도**를 나타낸다. ``path``를 지정하면 운영자가 의도적으로 중지한
+    상태를 Gateway 재시작 후에도 유지하도록 영속 저장한다.
 
-    A corrupt persistent file must never silently turn an intentional ``stopped``
-    state back into the default ``active`` state. Corrupt input is quarantined and
-    replaced with an explicit fail-closed recovery state where every controllable
-    Model Runtime is ``stopped`` until an operator starts it again.
+    손상된 상태 파일 때문에 의도적인 ``stopped``가 기본값 ``active``로
+    조용히 바뀌어서는 안 된다. 손상된 입력은 별도로 격리하고, 모든 제어 가능한
+    Model Runtime을 ``stopped``로 두는 Fail-Closed 복구 상태를 기록한다.
+    운영자가 다시 시작하기 전에는 활성 상태로 승격하지 않는다.
     """
 
     def __init__(
@@ -112,9 +112,9 @@ class RuntimeStateStore:
                 records = {}
             self._records.update(records)
             had_persisted_state = bool(records)
-        # A corrupt desired-state file means operator intent is unknown. Applying a
-        # startup directive in the same boot could immediately overwrite the fail-closed
-        # recovery state, so recovery always wins for this boot.
+        # 손상된 Desired State 파일에서는 운영자 의도를 확인할 수 없다.
+        # 같은 부팅에서 시작 지시를 적용하면 Fail-Closed 복구 상태를 즉시 덮어쓸
+        # 수 있으므로 해당 부팅에서는 복구 상태를 우선한다.
         if not recovered_corrupt_state:
             self._apply_startup_directive(
                 deferred_keys,

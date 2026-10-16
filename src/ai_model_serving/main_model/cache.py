@@ -1,4 +1,4 @@
-"""Pinned Hugging Face snapshot preparation for main-model profiles."""
+"""Main Model Profile에 사용할 고정된 Hugging Face Snapshot을 준비한다."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class PreparedModelSnapshot:
 
 
 def default_hf_hub_cache_dir() -> Path:
-    """Return the cache root used by Hugging Face Hub and vLLM."""
+    """Hugging Face Hub와 vLLM이 공유하는 캐시 루트를 반환한다."""
     explicit = os.environ.get("HF_HUB_CACHE")
     if explicit:
         return Path(explicit)
@@ -29,11 +29,11 @@ def prepare_model_snapshot(
     cache_dir: Path,
     token: str | None = None,
 ) -> PreparedModelSnapshot:
-    """Reuse or download and locally re-open one exact revision in the HF hub cache.
+    """Hugging Face Hub 캐시에서 정확히 지정한 Revision을 재사용하거나 내려받는다.
 
-    ``cache_dir`` is the hub cache root (normally ``HF_HOME/hub``), not
-    ``HF_HOME`` itself. Keeping that boundary explicit prevents the preparer and
-    vLLM from creating parallel ``models--*`` trees.
+    다운로드 후 로컬 Snapshot을 다시 열어 검증한다. ``cache_dir``는 보통
+    ``HF_HOME/hub``이며 ``HF_HOME`` 자체가 아니다. 이 경계를 명시해야
+    모델 준비 단계와 vLLM이 서로 다른 ``models--*`` 캐시 트리를 만들지 않는다.
     """
     from huggingface_hub import snapshot_download
 
