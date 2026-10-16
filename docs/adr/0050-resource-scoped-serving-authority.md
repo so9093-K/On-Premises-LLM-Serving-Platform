@@ -1,4 +1,4 @@
-# ADR-0050: GPU resource scope, placement evidence and restart validation
+# ADR-0050: GPU 자원별 예약 권한과 배치 근거, 재시작 검증
 
 - Status: Accepted
 - Date: 2026-10-16
@@ -6,169 +6,154 @@
 
 ## Context
 
-The original controller shares one GPU between Main and secondary runtimes. Its
-GPU admission uses a sum of vLLM reservation **fractions**. Those fractions are
-meaningful only within the same physical GPU. A model can also require several
-GPUs. More GPU capacity must not turn an implicit host-wide scalar budget into a
-silently incorrect cluster-wide decision.
+기존 Runtime Controller는 하나의 GPU를 Main Model과 보조 Runtime이 공유한다.
+GPU 허용 여부는 vLLM의 예약 **비율**을 합산해 판단한다. 이 비율은 **동일한 물리 GPU 안에서만** 합산할 수 있다.
+GPU가 여러 개인 장비나 복수 GPU를 사용하는 모델에 호스트 단위의 단일 예산을 그대로 적용하면 잘못된 배치가 가능해진다.
 
-The existing dynamic Linux lifecycle has **one local Docker authority** scoped
-to a Compose project and a local file-based state machine. File locks and
-process-local asyncio locks do not protect a distributed host fleet. We must not
-claim actual remote execution/failover merely by adding a `host_id` field.
+Linux 동적 배포는 현재 하나의 Compose 프로젝트에 속한 **로컬 Docker 실행 권한**과
+파일 기반 Main Model 상태 저장소를 사용한다. `fcntl.flock` 및 프로세스 내부
+`asyncio.Lock`은 서로 다른 호스트를 보호하지 않는다. `host_id` 필드를 추가했다는
+사실만으로 원격 실행이나 장애 조치를 지원한다고 해석해서는 안 된다.
 
-A runtime restarted outside the Runtime Controller could previously continue
-receiving Gateway traffic during failed canary revalidation. If the validation
-fingerprint did not exist, the reconcile loop would simply record the observed
-container start time without a canary.
+또한 Runtime Controller 밖에서 컨테이너가 재시작될 경우, 검증에 실패한 인스턴스에
+Gateway 요청이 계속 전달될 수 있었다. 이전 검증 지문이 없을 때 관측한 시작 시각만
+기록하고 Canary를 생략하던 경로도 있었다.
 
 ## Decision
 
-### 1. GPU budgets are scoped to physical resources, not aggregated hosts
+### 1. GPU 예약 예산의 범위는 호스트가 아닌 물리 GPU다
 
-`GpuResourceId(host_id, device_id)` is the reservation identity. The host is
-not the GPU. Two GPUs on one host represent two distinct budgets, as do GPUs with
-the same device ID on different hosts. A fleet with one host is the same
-resource model as a fleet with more hosts; a single pool is a valid projection.
+`GpuResourceId(host_id, device_id)`가 GPU 예약 범위의 식별자다. 하나의 호스트에
+GPU 두 개가 있으면 예약 범위도 두 개다. 서로 다른 호스트에서 `device_id`가
+같더라도 하나의 예산으로 합산하지 않는다. 단일 호스트·단일 GPU는 이 모델의 유효한 한 사례다.
 
-`gpu_budget.plan_activation` remains the unique per-GPU admission/eviction
-authority. Its existing controller-local default is a compatibility projection
-for the current **one-GPU** Docker target, not a discovery result or portable
-physical GPU identity. Mixing participants from different pools in this legacy
-function is an error, not an invitation to add their fractions.
+GPU별 허용 및 퇴거 판단의 Source of Truth는 계속
+`gpu_budget.plan_activation`이다. 기존 `CONTROLLER_LOCAL_GPU`는 현재 단일
+GPU Docker 배포를 위한 **호환성 투영**이며, 실제 탐지된 장치 식별자가 아니다.
+서로 다른 GPU 범위의 Participant를 기존 단일 GPU 함수에 함께 전달하면 오류로
+거부한다.
 
-### 2. The caller explicitly establishes hardware eligibility
+### 2. 하드웨어 실행 적합성은 호출자가 명시적으로 제공한다
 
-`resource_placement.plan_placement` accepts an inventory of GPU pools and
-eligible placement candidates, including candidate groups that reserve multiple
-GPUs. Each demand carries a resolved fraction for that *particular* GPU.
+`resource_placement.plan_placement`는 GPU Pool 목록과 실행 가능한 Placement
+Candidate를 입력받는다. 하나의 Candidate가 여러 GPU를 예약할 수도 있으며, 각 GPU의
+요구량은 **해당 장치에 대해 해석된 비율**로 선언한다.
 
-The planner never infers model compatibility, tensor parallel support,
-interconnect quality, or memory fit from GPU product names. Those must be
-qualified by the caller/active runtime policy. It uses the existing per-pool
-admission authority and combines the resulting victim identities without
-evicting one shard of a multi-GPU runtime.
+Planner는 GPU 제품명이나 예약 비율만 보고 모델 호환성, Tensor Parallel 지원,
+GPU 간 연결 특성 또는 실제 메모리 적합성을 추정하지 않는다. 이는 호출자 및 실제
+Runtime Qualification이 판단한다.
 
-A running runtime may not silently migrate its GPU set. Explicit stop,
-transition and runtime revalidation are required.
+각 GPU에서 기존 Admission 정책을 재사용하고, 퇴거 시에는 복수 GPU Runtime을
+일부 Shard만 중지하지 않고 **Runtime 전체**를 중지한다. GPU별 Victim 후보를 합친 후
+Runtime 전체가 해제하는 예약량을 모든 관련 GPU에 다시 반영하여 불필요한 중지를 제거한다.
+기존 우선순위 정책은 유지하며, 동등한 후보는 결정론적으로 선택한다.
 
-### 3. Preview evidence does not grant mutation authority
+실행 중인 Runtime은 GPU 집합을 조용히 변경할 수 없다. 이동에는 명시적인 중지,
+새로운 전환, 실제 실행 상태의 재검증이 필요하다.
 
-Placement preview produces a deterministic digest of pool generations,
-reservations, candidates and policy inputs. A changed snapshot invalidates a
-previous plan. An eviction plan is not admissible until explicitly authorized.
+### 3. 미리보기 Plan은 변경 실행 권한이 아니다
 
-**This is not an inter-host transaction.** An actual multi-host apply requires
-one authoritative state/lease owner with atomic compare-and-reserve and fencing
-of stale executors. `require_current_placement` must execute under that
-owner's lock/CAS through the reservation commit. Recomputing a digest outside
-the lock does not provide race safety. No fake in-memory multi-host lock, new
-remote Docker permission, global registry, or distributed controller is created.
+Placement 미리보기는 GPU Pool Generation, 예약량, Candidate 및 관련 정책 입력을
+이용해 결정론적인 Digest를 만든다. 상태가 바뀌면 검토했던 Plan은 무효가 된다.
+퇴거가 필요한 계획에는 별도의 명시적 승인이 필요하다.
 
-This PR deliberately does not advertise distributed serving as implemented.
-The existing Linux managed deployment remains controller-local; static
-deployment's lifecycle authority remains external. Public `/v1/*` contracts,
-logical `local-main` and operator commands remain unchanged.
+**Digest 검증은 분산 트랜잭션이 아니다.** 복수 호스트의 실제 적용에는
+하나의 권위 있는 예약·Lease 소유자가 제공하는 원자적 비교 후 예약(Compare-and-Reserve),
+오래된 Executor를 차단하는 Fencing이 필요하다. `require_current_placement`는
+그 소유자의 공유 Lock/CAS 범위에서 예약 Commit까지 실행되어야 한다.
+Lock 밖에서 Digest만 다시 계산하는 방법으로는 경쟁 상태를 막을 수 없다.
 
-### 4. Local Main Model state changes have monotonic revisions
+이번 변경은 메모리 기반 가짜 분산 Lock, 원격 Docker 접근 권한,
+전역 Registry 또는 분산 Controller를 도입하지 않는다.
+Linux Managed Deployment의 권한은 여전히 로컬 Controller가 소유한다.
+정적 배포의 생명주기 권한은 외부 운영자가 유지한다.
+공개 `/v1/*` 계약, 논리적 모델 이름 `local-main`, 운영 명령은 변경하지 않는다.
 
-`MainModelStateStore` remains the sole persistent owner of local Main Model
-control. Its state generation advances on each committed update. Stale direct
-writers are rejected, and a controller may use `compare_and_update` to commit
-only against a previously observed generation. Existing schema-v1 state
-without a generation starts at revision zero **without resetting intent**.
-Invalid generation data fails closed.
+### 4. 로컬 Main Model 상태는 단조 증가 Generation을 사용한다
 
-The atomicity guarantee covers processes using the **same local state
-directory and filesystem lock**. It does not extend to separate remote
-hosts and cannot replace distributed leases/fencing.
+`MainModelStateStore`는 로컬 Main Model 제어 상태의 유일한 영속 저장 주체다.
+상태를 기록할 때마다 Generation을 증가시키며, 오래된 Revision으로 직접 쓰는
+작업은 거부한다. `compare_and_update`는 호출자가 읽었던 Generation이 여전히
+유효할 때만 갱신한다.
 
-### 5. Runtime execution is an allowlisted local capability
+Generation이 없는 기존 Schema v1 상태는 **운영 의도를 초기화하지 않고**
+Revision 0에서 시작한다. 잘못된 Generation은 Fail-Closed한다.
 
-Runtime transition and GPU admission remain decisions of the Runtime
-Controller; only the Docker Runtime Executor maps an allowed service to
-project-scoped Docker container identity and performs start/stop/status.
-There is no separate state machine in this executor. The Main Model
-switching backend remains independently owned by the Main Model Manager.
-Log collection continues to use read-only scoped Docker observations.
+원자성의 보장 범위는 **동일한 로컬 파일시스템·상태 디렉터리·파일 Lock을 사용하는
+프로세스**까지다. 이 규칙으로 호스트 간 분산 Lease 또는 Fencing을 대체할 수 없다.
 
-The service allowlist is projected from canonical Runtime Topology and
-the Main Model Profile. An unrecognized service is rejected before any
-Docker call, and both the Docker query and its results are checked against
-the declared Compose project. The executor never accepts an arbitrary
-container ID, image, command, volume, mount, network or remote endpoint
-from an API caller. This does not sandbox Docker socket privileges.
+### 5. Runtime 실행은 허용 목록으로 제한된 로컬 기능이다
 
-The current adapter controls local Docker only; an actual remote executor
-would require explicit trust, authentication, fencing and ownership
-contracts before being enabled.
+Runtime Controller는 Runtime 전환과 GPU Admission을 판단한다.
+`DockerRuntimeExecutor`는 허용된 Compose 서비스를 프로젝트 범위의 Docker 컨테이너
+식별자로 해석해 시작·중지·상태 확인을 실행할 뿐이다. Executor에는 별도의 상태
+머신을 두지 않는다. Main Model 전환은 기존 Main Model Manager와 Docker Backend가
+독립적으로 소유한다. 로그 수집은 프로젝트 범위로 제한된 Docker 관측을 계속 사용한다.
 
-### 6. Out-of-band Runtime replacement loses validation
+서비스 허용 목록은 Canonical Runtime Topology와 Main Model Profile에서 투영된다.
+허용하지 않은 서비스는 Docker API 호출 전에 거부하며, 검색 요청과 결과 모두
+Compose 프로젝트 소속인지 검사한다. API 호출자는 임의의 컨테이너 ID, 이미지,
+명령, Volume, Mount, Network, Device 또는 원격 Endpoint를 지정할 수 없다.
 
-When reconciliation observes a new or missing container instance, or finds no
-previously validated identity, it closes the Main Model request gate before
-canary verification. It reopens only after the expected observed container
-identity is rechecked at the end of successful validation. If identity changes
-during canary, fingerprint cannot be observed, or validation fails, the gate
-remains closed and reconciliation follows its bounded retry/backoff policy.
+이 경계는 **Docker Socket 자체의 높은 권한을 Sandbox로 격리한다는 뜻이 아니다.**
+실제 Remote Executor를 도입하려면 별도의 인증, 신뢰, Fencing 및 소유권 계약이
+선행되어야 한다.
 
-This prioritizes truthful advertised serving capability over continued
-requests to an unvalidated runtime. A transient Docker inspect failure alone
-does not prove replacement and remains a diagnostic event.
+### 6. 외부 Runtime 교체 시 이전 검증 효력은 상실한다
+
+Runtime Controller가 새 인스턴스·인스턴스 소멸·이전 검증 지문 부재를 관측하면
+Main Model 요청 Gate를 먼저 닫고 Canary를 다시 수행한다.
+
+Controller 초기화, 명시적 시작, 재시작 감지, Profile 전환, Rollback에서 Gate를
+열기 전에 **실행 중인 컨테이너의 시작 신원과 실제 Model Profile(모델·Revision·이미지)**
+이 Canary 전후에 모두 일치해야 한다. `local-main`이라는 공개 API Alias의 응답
+성공만으로 실제 모델 신원을 증명할 수 없다. 관측 실패, 신원 변경, 검증 실패가
+발생하면 Gate를 닫은 채 유지한다. Controller 시작 시에는 저장된 이전
+`gate=open`을 현재 인스턴스의 검증 근거로 승계하지 않는다.
+
+재검증 실패는 상한이 있는 Backoff 정책에 따라 재시도한다.
+일시적인 Docker Inspect 실패 자체는 인스턴스 교체의 확정 증거가 아니므로
+진단 이벤트로 취급한다. **외부 교체 감지는 Polling 기반**이므로 다음 관측까지
+시간 창이 남는다. 즉각적인 분산 Fencing이나 무중단 Serving을 보증하지 않는다.
+
+### 7. 실행 계획 거부 및 운영 진단의 계약
+
+여러 선행 Runtime과 Target의 시작 예약량 합계가 단일 GPU Ceiling을 넘으면
+잘못된 개별 Fraction이나 처리되지 않은 예외가 아니라 **허용 불가능한 Plan**을
+반환한다.
+
+Main Model State는 저장된 활성 Profile과 요청 Gate를 소유하고,
+Docker Inspect는 실제 컨테이너 관측 결과를 소유한다. Control Plane은
+운영 의도, 실제 Profile, 요청 Gate를 별개로 표시한다.
+Runtime Plan 변경은 기존 Gateway 오류 Envelope의 `CONFLICT`와
+`details.reason=RUNTIME_PLAN_CHANGED` 계약을 따른다.
 
 ## Consequences
 
-- Single-GPU existing admission uses the same planner and priority policy.
-- Runtime Control uses one permission-bounded Docker execution adapter instead of duplicating container ID lookups and mutation calls in the coordinator.
-- Local Main Model state updates expose a monotonic revision without replacing the canonical ledger or inventing another state writer.
-- One host with two GPUs, two hosts with one GPU each, and a multi-GPU
-  candidate can be reasoned about without attaching deployment decisions to
-  Docker container IDs.
-- No automatic placement or distributed execution is exposed as supported
-  until an authoritative inventory, durable reservation store and remote
-  executor fencing are implemented and tested with real hosts.
-- A model restarted outside the controller may produce a brief 503 window
-  while it is revalidated. A failed canary does not reopen the gate.
-- Percentage reservations are not a measured GPU memory fit guarantee.
-  Real-device execution qualification remains distinct from planner tests.
-
-### 7. Runtime validation and operational evidence
-
-Every path that reopens the Main Model gate (initialization, explicit start,
-external-restart reconciliation, profile switch and rollback) must observe a
-live container start marker and a matching actual Model Profile before and after
-the canary. The shared `local-main` API alias alone cannot prove the model,
-revision or runtime image. Missing evidence or an instance/profile change fails
-closed; controller startup closes an inherited gate before awaiting Docker.
-
-Multi-GPU placement removes redundant victims after evaluating the runtime-wide
-impact of stops on every selected GPU, without replacing the single-GPU
-admission policy. Startup prerequisites whose combined reservation exceeds the
-single-GPU ceiling produce an inadmissible plan, not an uncaught input error.
-
-The Main Model State Store owns local desired profile and gate transitions;
-Docker inspection owns actual instance observation. The operator Console
-separately displays persisted intent, observed identity and request gate.
-Runtime plan conflicts continue using the Gateway CONFLICT error and
-`details.reason=RUNTIME_PLAN_CHANGED`. Neither the plan digest nor local
-file lock is remote execution authority, an atomic inter-host reservation,
-or fencing of stale executors.
-
-Detection of out-of-band replacement remains polling-based: the interval
-before the next observation is not a guarantee of uninterrupted safety.
-Remote executor fencing and split-brain recovery remain unsupported.
+- 단일 GPU Admission의 판단 함수와 우선순위 정책을 유지한다.
+- Runtime Controller의 보조 Runtime 변경은 별도 Docker ID 검색·변경 코드를
+  복제하는 대신 허용 목록 기반 Executor를 사용한다.
+- Main Model State는 기존 Ledger 권위를 유지하면서 단조 증가 Revision을 제공한다.
+- 호스트 한 대의 GPU 두 개, 서로 다른 호스트의 GPU 각 한 개, 복수 GPU Candidate를
+  같은 자원 식별 방식으로 표현할 수 있다.
+- 권위 있는 장치 Inventory, 영속 Reservation Store, Remote Executor Fencing을
+  구현하고 실제 호스트에서 검증하기 전까지 자동 분산 배치를 지원한다고 표시하지 않는다.
+- Controller 밖에서 재시작된 모델의 재검증 중에는 일시적으로 요청이 503으로
+  거부될 수 있다. Canary 실패 시 Gate를 다시 열지 않는다.
+- GPU 예약 비율은 실제 유휴 VRAM 또는 모델 가중치 적합성의 측정 결과가 아니다.
+  실제 장치에서의 실행 적합성 검증은 Planner 단위 테스트와 별개다.
 
 ## Verification
 
-- Per-pool non-mixing, eligibility, deterministic placement, multi-device
-  candidates, victim grouping, changed-generation invalidation, no silent move.
-- Docker executor's service allowlist, Compose project scope, no-op missing container, ambiguous identity and lifecycle mutations.
-- Single-GPU admission regressions and existing runtime transition tests.
-- Local state revision compare-and-update, stale writer rejection and migration of legacy schema-v1 snapshots.
-- Reconciliation with a missing identity, out-of-band restart, failed canary,
-  instance replacement during validation, retry/backoff and success recovery.
-- Project-defined `make check`, generated contract drift checks and Linux
-  managed runtime validation when appropriate hardware is available.
+- GPU Pool 범위 혼합 거부, 후보 적합성, 결정론적 Placement, 여러 GPU 예약,
+  Runtime 단위 Victim 퇴거와 중복 퇴거 제거, Generation 변경 시 Plan 무효화.
+- Docker Executor의 서비스 허용 목록, Compose 프로젝트 범위, 컨테이너 부재,
+  모호한 컨테이너 신원 및 생명주기 변경.
+- 기존 단일 GPU Admission 및 Runtime Transition의 회귀 검증.
+- 로컬 상태의 Compare-and-Update, 오래된 쓰기 거부, Schema v1 상태 이관.
+- 지문 부재·외부 재시작·Canary 실패·검증 중 인스턴스 교체·Backoff 및 성공 복구.
+- 프로젝트의 `make check`, 생성 계약 드리프트 검증. 실제 GPU·다중 호스트
+  기능은 적절한 물리 환경에서 별도로 검증한다.
 
 ## Related
 
