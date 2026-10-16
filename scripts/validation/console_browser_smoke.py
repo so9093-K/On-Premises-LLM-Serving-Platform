@@ -225,6 +225,81 @@ def run_one(browser, width, height):
     context.close()
 
 
+
+def run_audio_example(browser, width, height):
+    """Real Chromium and bundled WAV; mock public model/Chat API only."""
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    errors = []
+    requests = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    state = {"traffic_failure": False, "revision": 7, "value": 300, "active_profile": False, "audio": False}
+    bootstrap["deployment"]["features"] = ["chat"]
+    install_routes(page, state)
+
+    def handle_public(route):
+        from urllib.parse import urlsplit
+        path = urlsplit(route.request.url).path
+        if path == "/v1/models":
+            return send(route, {
+                "object": "list",
+                "data": [{
+                    "id": "local-main",
+                    "backend": "vllm-cuda",
+                    "capabilities": ["chat.completions"],
+                    "input_modalities": ["text", "audio"] if state["audio"] else ["text"],
+                    "request_parameters": {"stream": {"type": "boolean"}},
+                    "request_limits": {"audio": {"allowed_formats": ["wav"], "max_inputs": 1, "max_bytes": 250000}},
+                }],
+            })
+        if path == "/v1/chat/completions":
+            body = json.loads(route.request.post_data)
+            requests.append(body)
+            route.fulfill(
+                status=200, content_type="text/event-stream",
+                body='data: {"choices":[{"delta":{"content":"확인했습니다."}}]}\n\ndata: [DONE]\n\n',
+            )
+            return
+        route.continue_()
+
+    page.route("**/v1/models", handle_public)
+    page.route("**/v1/chat/completions", handle_public)
+    page.goto(URL, wait_until="domcontentloaded")
+    page.get_by_role("link", name="Playground").click()
+    page.get_by_role("button", name="오디오 분석").click()
+    page.get_by_text("현재 모델은 오디오 입력을 지원하지 않습니다.").first.wait_for()
+    assert page.get_by_role("button", name="입력에 적용").is_disabled(), "Unsupported model must not apply audio"
+    state["audio"] = True
+    page.reload(wait_until="domcontentloaded")
+    page.get_by_role("button", name="오디오 분석").click()
+    audio = page.get_by_label("예제 한국어 음성 재생")
+    audio.wait_for()
+    page.wait_for_function("() => document.querySelector('.playground-example-audio')?.readyState >= 1")
+    assert audio.evaluate("(el) => el.duration > 3.5 && el.duration < 15")
+    assert not audio.evaluate("(el) => el.autoplay")
+    page.get_by_text("음성 대본 보기").click()
+    page.get_by_text("그들은 세시에 나갔어요. 그들은 세시간을 나갔다 왔어요.").wait_for()
+    assert requests == [], "Sample selection and playback must not submit inference"
+    page.get_by_role("button", name="입력에 적용").click()
+    page.locator(".chat-attachment-list").get_by_text("sample-audio.wav").wait_for()
+    page.get_by_text("오디오 분석 예제에서 시작 · 오디오 1개").wait_for()
+    assert requests == [], "Applying fixture must not submit inference"
+    page.screenshot(path=str(SCREENSHOTS / f"playground-audio-ready-{width}.png"), full_page=True)
+    with page.expect_request("**/v1/chat/completions") as outgoing:
+        page.get_by_role("button", name="보내기").click()
+    page.wait_for_function("() => document.querySelectorAll('.chat-log li').length > 0")
+    user = outgoing.value.post_data_json["messages"][-1]
+    parts = user["content"]
+    assert parts[-1]["type"] == "input_audio", parts
+    assert parts[-1]["input_audio"]["format"] == "wav"
+    assert parts[-1]["input_audio"]["data"].startswith("UklGR"), "Expected WAV RIFF Base64"
+    assert not any("sample-audio.wav" in str(part) for part in parts), "File name not in model payload"
+    assert errors == [], errors
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    print(f"PASS audio Chromium {width}x{height}: gating, local playback, no auto-send, validated WAV request")
+    context.close()
+
+
 def main():
     for _ in range(40):
         try:
@@ -242,6 +317,8 @@ def main():
         try:
             run_one(browser, 1440, 900)
             run_one(browser, 390, 844)
+            run_audio_example(browser, 1440, 900)
+            run_audio_example(browser, 390, 844)
         finally:
             browser.close()
 

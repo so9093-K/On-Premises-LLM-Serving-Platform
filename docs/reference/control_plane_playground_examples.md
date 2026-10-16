@@ -25,19 +25,20 @@ Control Plane의 Playground는 공개 `/v1/models`와 `/v1/chat/completions`를 
 | 한국어 요약 | Chat | User Prompt |
 | 그래프 분석 | Chat, Image | User Prompt, `sample-chart.png` |
 | 주문서 정보 추출 | Chat, Image | User Prompt, `sample-order.png` |
+| 오디오 분석 | Chat, Audio, WAV 허용 | User Prompt, `sample-audio.wav` |
 | 역할 지정 | Chat | System Prompt, User Prompt |
 | JSON 정보 추출 | Chat, JSON Schema response_format | User Prompt, JSON Schema |
 
 모델별 가용성은 `/v1/models`의 `capabilities`, `input_modalities`,
 `request_parameters`를 프런트엔드가 해석한 기존 `chatControls`에 따라 결정한다.
-지원되지 않는 예제는 이유를 표시하고 적용을 막는다. 이미지의 정적 크기 제한과
-JSON Schema 제약은 예제 선택 전에 검사하고, 실제 이미지 픽셀 수·대화 전체 첨부
-제한은 이미지를 준비하는 과정에서 기존 요청 검증으로 재확인한다.
+지원되지 않는 예제는 이유를 표시하고 적용을 막는다. 이미지·오디오의 정적 크기와 모델별 MIME/확장자·첨부 개수 제한, JSON Schema 제약은 예제 선택 전에 검사한다.
+실제 파일 준비 과정에서는 기존 파일 검증으로 전체 대화 첨부 개수와 이미지 픽셀 수를 재확인한다.
 Gateway가 최종 요청 검증의 authority다.
 
 기존 대화가 있으면 System Prompt 또는 Structured Output이 바뀌는 예제를
 자동으로 적용하지 않는다. 운영자가 기존 대화를 명시적으로 지워야 새 예제에 사용할 수 있다.
-단순 텍스트·이미지 예제는 기존 대화로 이어갈 수 있으나, 전체 대화의 이미지 제한도 그대로 적용한다.
+단순 텍스트·이미지·오디오 예제는 기존 대화로 이어갈 수 있지만, 전체 대화의 미디어 제한을 그대로 적용한다.
+오디오 미리보기 재생은 로컬 정적 파일만 사용하며 추론 요청을 발생시키지 않는다. 「음성 대본 보기」는 접근성을 위해 제공하지만 모델 요청에는 포함하지 않는다.
 
 예제 적용 시 작성 중인 메시지·첨부와 시스템 프롬프트·응답 형식·Tool 정의가
 해당 예제로 바뀐다. **고급 Sampling 설정과 완료된 대화는 유지한다.**
@@ -51,21 +52,24 @@ API Key와 대화는 기존과 같이 탭 메모리에만 남고 영구 저장�
 ## 공개 샘플 자산과 오프라인 경계
 
 샘플 원본은 `assets/demos/inputs/`에 있으며,
-프런트엔드 번들에 같은 이미지 데이터를 로컬 정적 자산으로 포함한다.
+프런트엔드 번들에 동일한 PNG/WAV 데이터를 로컬 정적 자산으로 포함한다.
 브라우저는 현재 Console의 same-origin 정적 경로에서만 샘플을 불러온다.
 외부 URL fetch, 제3자 저장소 업로드 및 새로운 API endpoint를 추가하지 않는다.
 
-Vite가 이미지 파일을 `asset-manifest.json`에 기록해야 Gateway의
+Vite가 이미지와 오디오 파일을 `asset-manifest.json`에 기록해야 Gateway의
 `admin_console.py` 파일 허용 목록에서 제공할 수 있다.
 따라서 `make console-build` 뒤 `make console-check`로 생성 파일 일치를 확인하고,
-실제 Console 브라우저에서 이미지 로딩을 확인한다.
+실제 Console 브라우저에서 이미지·오디오 로딩 및 WAV 재생을 확인한다.
+오디오 원본의 CC0 사용 조건과 녹음·가공 근거는 [Playground 오디오 샘플](playground_audio_sample.md)에 기록한다.
 
 샘플들은 [기능 데모](feature_demos.md)의 실제 촬영 조건에 근거한 예시다.
 별도의 정답률·처리량·Prompt Injection 탐지 성능을 보증하지 않는다.
 
 ## 검증 체크
 
-- Text-only 모델에서 Image·JSON 예제 비활성화 및 이유 표시
+- Text-only 모델에서 Image·Audio·JSON 예제 비활성화 및 이유 표시
+- Audio 모델에서 허용 포맷·크기·첨부 개수 검사, 샘플 WAV 준비, 재생·대본 확인
+- 오디오 요청의 `input_audio` 직렬화, 미지원 모델과 파일 획득 실패 시 원래 입력 유지
 - Image/JSON 지원 모델에서 올바른 Prompt, Schema, 정적 샘플 적용
 - 입력 교체 전 확인, 예제 선택 시 비실행, 기존 대화·API Key 보존
 - Tool result 대기·stream 진행·파일 로딩 중 예제 적용 차단
