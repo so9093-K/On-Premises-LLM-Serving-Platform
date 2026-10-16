@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Operator-facing log view.
+"""운영자에게 필요한 요약 로그를 제공한다.
 
-Default output is structured application events. Raw container/process logs are
-available explicitly so diagnostic evidence remains rich without flooding the terminal.
+기본 출력은 구조화된 애플리케이션 이벤트다. 원시 컨테이너·프로세스 로그는
+운영자가 명시적으로 요청할 때 제공하여 진단 증거를 보존하면서도
+일반 터미널 출력에 과도한 로그가 쌓이지 않도록 한다.
 """
 from __future__ import annotations
 
