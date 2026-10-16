@@ -186,8 +186,15 @@ export async function readChatStream(
   // stream 옵션이 여러 byte 글자가 조각 경계에 걸려도 다음 조각까지 들고 있는다.
   const decoder = new TextDecoder('utf-8');
   const parser = createSseParser();
+  let completed = false;
+  let failed = false;
   const emit = (events: SseEvent[]) => {
-    for (const event of events) onUpdate(interpretChatEvent(event));
+    for (const event of events) {
+      const update = interpretChatEvent(event);
+      if (update.kind === 'done') completed = true;
+      if (update.kind === 'error') failed = true;
+      onUpdate(update);
+    }
   };
   try {
     for (;;) {
@@ -197,6 +204,14 @@ export async function readChatStream(
     }
     emit(parser.push(decoder.decode()));
     emit(parser.finish());
+    if (!completed && !failed) {
+      onUpdate({
+        kind: 'error',
+        code: 'STREAM_INCOMPLETE',
+        message: '응답이 완료되기 전에 연결이 종료되었습니다. 받은 내용까지만 표시합니다. 다시 요청하세요.',
+        requestId: null,
+      });
+    }
   } finally {
     reader.releaseLock();
   }

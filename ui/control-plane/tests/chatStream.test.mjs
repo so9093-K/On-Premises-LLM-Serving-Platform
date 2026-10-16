@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createSseParser, interpretChatEvent, readChatStream } from '../src/chatStream.ts';
+import { applyChatUpdate, buildChatRequest, DEFAULT_CHAT_SETTINGS, finishTurn, startTurn } from '../src/chatSession.ts';
 
 function chunk(delta, extra = {}) {
   return `data: ${JSON.stringify({ id: 'chatcmpl_1', object: 'chat.completion.chunk', choices: [{ index: 0, delta, ...extra }] })}\n\n`;
@@ -119,5 +120,41 @@ test('a gateway SSE error event surfaces code, message and request id', () => {
 
 test('a final event without the trailing blank line is still delivered', async () => {
   const updates = await collect([chunk({ content: '앞' }), `data: ${JSON.stringify({ choices: [{ delta: { content: '끝' } }] })}`]);
-  assert.deepEqual(updates.map((update) => update.content), ['앞', '끝']);
+  assert.deepEqual(updates.filter((update) => update.kind === 'chunk').map((update) => update.content), ['앞', '끝']);
+  assert.equal(updates.at(-1).code, 'STREAM_INCOMPLETE');
+});
+
+test('truncated text remains visible but cannot enter successful conversation history', async () => {
+  let turn = startTurn(0);
+  await readChatStream(streamOf([chunk({ content: '부분 응답' })]), (update) => {
+    turn = applyChatUpdate(turn, update, 10);
+  });
+  turn = finishTurn(turn, 20);
+  assert.equal(turn.content, '부분 응답');
+  assert.equal(turn.status, 'failed');
+  assert.equal(turn.error.code, 'STREAM_INCOMPLETE');
+  const model = { id: 'local-main', backend: 'vllm', capabilities: ['chat.completions'], request_parameters: {} };
+  const history = [{ id: 1, user: '이전 질문', attachments: [], assistant: turn }];
+  const request = buildChatRequest(model, DEFAULT_CHAT_SETTINGS, history, '다시 질문');
+  assert.equal(request.error, null);
+  assert.deepEqual(request.body.messages, [{ role: 'user', content: '다시 질문' }]);
+});
+
+test('empty and comment-only streams fail without a completion signal', async () => {
+  for (const parts of [[], [': keep-alive\n\n']]) {
+    const updates = await collect(parts);
+    assert.equal(updates.at(-1).code, 'STREAM_INCOMPLETE');
+  }
+});
+
+test('a final DONE without a trailing newline completes normally', async () => {
+  const updates = await collect([chunk({ content: '정상' }), 'data: [DONE]']);
+  assert.equal(updates.at(-1).kind, 'done');
+  assert.equal(updates.some((update) => update.kind === 'error'), false);
+});
+
+test('an upstream error retains its original diagnosis when the connection closes', async () => {
+  const updates = await collect(['event: error\ndata: {"error":{"code":"UPSTREAM_TIMEOUT","message":"timeout"}}\n\n']);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].code, 'UPSTREAM_TIMEOUT');
 });

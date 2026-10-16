@@ -1199,7 +1199,7 @@ export function applyChatUpdate(turn: AssistantTurn, update: ChatStreamUpdate, n
   }
 }
 
-// [DONE] 없이 연결이 끝나도 받은 내용은 완료로 본다. 중단·실패는 이미 상태가 바뀌어 있다.
+// 종료 신호 없이 닫힌 stream은 readChatStream이 실패로 표시한다. 그 상태를 유지한다.
 export function finishTurn(turn: AssistantTurn, now: number): AssistantTurn {
   return turn.status === 'streaming' ? { ...turn, status: 'complete', finishedAt: now } : turn;
 }
