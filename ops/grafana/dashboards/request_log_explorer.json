@@ -320,8 +320,12 @@
       },
       "targets": [
         {
-          "expr": "{job=~\"docker|native\"} |~ `\" [45][0-9]{2}( |$)`",
+          "expr": "{job=\"docker\",service=~\"main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime\"} |~ `\" [45][0-9]{2}( |$)`",
           "refId": "A"
+        },
+        {
+          "expr": "{job=\"native\"} |~ `\" [45][0-9]{2}( |$)`",
+          "refId": "B"
         }
       ],
       "options": {
@@ -364,6 +368,10 @@
           }
         },
         {
+          "id": "merge",
+          "options": {}
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
@@ -391,7 +399,7 @@
           }
         }
       ],
-      "description": "uvicorn access log(JSON 아님)의 4xx/5xx를 텍스트 파싱해 컬럼으로 본다(주로 vLLM 계열, best-effort).\n\n- 위 **Service** 필터 영향 안 받음(모든 컨테이너 대상)\n- gateway도 이 포맷을 같이 남겨서 위 **API Errors**와 일부 겹칠 수 있음\n- 이 패널은 테이블이라 container_id 돋보기(+) 드릴다운 없음 -> 아래 **Raw Runtime Log**에서"
+      "description": "uvicorn access log(JSON 아님)의 4xx/5xx를 텍스트 파싱해 컬럼으로 본다(주로 vLLM 계열, best-effort).\n\n- 위 **Service** 필터와 무관하게 모델 Runtime Docker 로그 및 native MLX 로그만 검색\n- Gateway 로그는 별도 **API Errors** 패널에서 확인\n- 이 패널은 테이블이라 container_id 돋보기(+) 드릴다운 없음 -> 아래 **Raw Runtime Log**에서"
     },
     {
       "id": 4,
@@ -409,8 +417,12 @@
       },
       "targets": [
         {
-          "expr": "{job=~\"docker|native\"} |~ `${search_text}`",
+          "expr": "{job=\"docker\",service=~\"main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime\"} |~ `${search_text}`",
           "refId": "A"
+        },
+        {
+          "expr": "{job=\"native\"} |~ `${search_text}`",
+          "refId": "B"
         }
       ],
       "options": {
@@ -418,7 +430,7 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "runtime 원본 로그 전체(구조화 로그로 안 잡히는 시작 실패/크래시 등 확인용). full-stack에서는 컨테이너 stdout(job=docker), macOS Metal에서는 native MLX runtime의 stdout(job=native)이다.\n\n- 이 호스트의 모든 컨테이너 대상(Grafana 자신 포함) -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**에 키워드(예: `ValueError`, `18.65 GiB`) 입력 시 그 문자열이 포함된 줄만 남음\n- 로그 줄 펼쳐서 **container_id** 옆 돋보기(+) 클릭 -> 전 패널에 ad-hoc filter 적용(container_id로 좁히는 유일한 진입점)\n- docker.sock 미사용 -> 컨테이너 이름 아닌 container_id(해시)로만 구분"
+      "description": "runtime 원본 로그 전체(구조화 로그로 안 잡히는 시작 실패/크래시 등 확인용). full-stack에서는 컨테이너 stdout(job=docker), macOS Metal에서는 native MLX runtime의 stdout(job=native)이다.\n\n- 모델 Runtime 컨테이너와 native MLX 로그만 대상(Grafana 등 운영 서비스 제외) -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**에 키워드(예: `ValueError`, `18.65 GiB`) 입력 시 그 문자열이 포함된 줄만 남음\n- 로그 줄 펼쳐서 **container_id** 옆 돋보기(+) 클릭 -> 전 패널에 ad-hoc filter 적용(container_id로 좁히는 유일한 진입점)\n- docker.sock 미사용 -> 컨테이너 이름 아닌 container_id(해시)로만 구분"
     },
     {
       "id": 5,
@@ -436,8 +448,12 @@
       },
       "targets": [
         {
-          "expr": "{job=~\"docker|native\"} |~ `(?i)traceback|valueerror|exception|failed to start|engine core failed|out of memory` |~ `${search_text}`",
+          "expr": "{job=\"docker\",service=~\"main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime\"} |~ `(?i)traceback|valueerror|exception|failed to start|engine core failed|out of memory` |~ `${search_text}`",
           "refId": "A"
+        },
+        {
+          "expr": "{job=\"native\"} |~ `(?i)traceback|valueerror|exception|failed to start|engine core failed|out of memory` |~ `${search_text}`",
+          "refId": "B"
         }
       ],
       "options": {
@@ -445,7 +461,7 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "HTTP 상태 코드 없이 죽는 크래시(엔진 초기화 실패, Python traceback 등)를 키워드로 찾는다.\n\n- 이 호스트의 모든 컨테이너 대상 -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**로 추가로 좁힐 수 있음(예: 특정 모델/에러 문구)\n- Traceback은 stdout 한 줄마다 별도 로그 라인으로 저장돼 여러 줄에 걸쳐 나타남 -- container_id 돋보기(+)로 좁혀서 순서대로 읽는다\n- best-effort 키워드 매칭이라 놓치는 크래시가 있을 수 있음 -> 안 잡히면 **Raw Runtime Log**에서 시간대로 직접 확인"
+      "description": "HTTP 상태 코드 없이 죽는 크래시(엔진 초기화 실패, Python traceback 등)를 키워드로 찾는다.\n\n- 모델 Runtime 컨테이너와 native MLX 로그만 대상 -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**로 추가로 좁힐 수 있음(예: 특정 모델/에러 문구)\n- Traceback은 stdout 한 줄마다 별도 로그 라인으로 저장돼 여러 줄에 걸쳐 나타남 -- container_id 돋보기(+)로 좁혀서 순서대로 읽는다\n- best-effort 키워드 매칭이라 놓치는 크래시가 있을 수 있음 -> 안 잡히면 **Raw Runtime Log**에서 시간대로 직접 확인"
     },
     {
       "id": 6,

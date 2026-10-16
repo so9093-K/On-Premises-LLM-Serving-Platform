@@ -72,3 +72,15 @@ export function mainRuntimeDiagnosticsUrl(
 ): string | null {
   return dashboardUrl(grafanaBaseUrl, mainRuntimeDashboardUid(runtimeBackend), updatedAtSeconds);
 }
+
+/** Observed GPU metrics remain owned by Grafana, not by Runtime admission policy. */
+export function gpuCapacityDashboardUrl(grafanaBaseUrl: string | null): string | null {
+  if (!grafanaBaseUrl) return null;
+  try {
+    const base = new URL(grafanaBaseUrl.endsWith('/') ? grafanaBaseUrl : `${grafanaBaseUrl}/`);
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') return null;
+    return new URL('d/gpu_capacity_and_oom_risk', base).toString();
+  } catch {
+    return null;
+  }
+}

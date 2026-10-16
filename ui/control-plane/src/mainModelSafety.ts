@@ -180,7 +180,8 @@ export function mainModelProfileImpact(
     addedInputs: target.capabilities.deployed_input.filter((item) => !currentInputs.has(item)),
     removedInputs: current.capabilities.deployed_input.filter((item) => !targetInputs.has(item)),
     resourcePolicyChanged:
-      mainModelResourcePolicyLabel(current) !== mainModelResourcePolicyLabel(target),
+      mainModelResourcePolicyLabel(current) !== mainModelResourcePolicyLabel(target)
+      || current.vram_fraction !== target.vram_fraction,
     vramFractionDelta: target.vram_fraction - current.vram_fraction,
     compatibilityChanged: current.compatibility.status !== target.compatibility.status,
     qualificationChanged: current.qualification.status !== target.qualification.status,

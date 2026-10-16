@@ -48,8 +48,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "메인 모델 요청",
-      "description": "Gateway가 local-main 요청을 받는지 보여 줍니다. 모델 전환·기동 중이거나 Runtime Controller가 요청을 막으면 '요청 차단'입니다. 원인은 Control Plane의 메인 모델 화면에서 확인합니다.",
+      "title": "메인 모델 요청 허용",
+      "description": "메인 모델의 요청 gate 상태입니다. 허용은 새 요청을 받는 제어 상태이며 추론 성공이나 runtime health를 보장하지 않습니다. 실제 성공·오류·지연은 옆의 Gateway 지표와 Playground에서 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -69,8 +69,8 @@
         }
       ],
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
+        "colorMode": "value",
+        "graphMode": "none",
         "justifyMode": "center",
         "textMode": "value",
         "reduceOptions": {

@@ -1489,15 +1489,14 @@ input {
 }
 .overview-action-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: 0.75rem;
-  margin-top: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 .overview-action-tile {
-  display: grid;
-  align-content: start;
-  gap: 0.4rem;
-  padding: 1rem;
+  display: flex;
+  align-items: center;
+  padding: 0.7rem 0.85rem;
   min-width: 0;
   color: var(--console-text);
   border: 1px solid var(--console-border);
@@ -1509,7 +1508,7 @@ a.overview-action-tile:hover {
   border-color: var(--console-focus);
   background: var(--console-surface-hover);
 }
-.overview-action-tile strong { font-size: 0.9375rem; }
+.overview-action-tile strong { font-size: 0.875rem; }
 .overview-action-tile span { color: var(--console-text-muted); font-size: 0.8125rem; }
 .configuration-browse {
   display: flex;
@@ -1852,4 +1851,35 @@ a.overview-action-tile:hover {
   .playground-example-description { display: none; }
   .playground-example-mark { width: 1.5rem; height: 1.5rem; }
   .playground-example-prompt { max-height: 4.5rem; }
+}
+
+/* Fast-scan impact summary; the existing table keeps full technical evidence. */
+.profile-impact-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+.profile-impact-summary-item { display: grid; align-content: start; gap: 0.375rem; padding: 0.75rem; background: var(--console-surface-raised); border: 1px solid var(--console-border); border-left: 0.2rem solid var(--console-border); border-radius: 0.375rem; }
+.profile-impact-summary-item > span { color: var(--console-text-muted); font-size: 0.8125rem; }
+.profile-impact-summary-item[data-tone="warning"] { border-left-color: var(--pf-t--global--color--status--warning--default, #f0ab00); }
+.profile-impact-summary-item[data-tone="info"] { border-left-color: var(--console-focus); }
+
+/* Verified apply outcome is the focus destination; raw revision data stays in details. */
+.configuration-result-focus:focus { outline: 0.125rem solid var(--console-focus); outline-offset: 0.25rem; }
+.configuration-result-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.625rem; margin-bottom: 0.875rem; }
+.configuration-result-changes { display: grid; gap: 0.625rem; margin-bottom: 0.875rem; }
+.configuration-result-change { padding: 0.75rem; border: 1px solid var(--console-border); border-radius: 0.375rem; background: var(--console-surface-raised); }
+.configuration-result-diff { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.625rem; margin-top: 0.5rem; overflow-wrap: anywhere; }
+.configuration-result-diff span { min-width: 0; }
+.configuration-result-diff small { display: block; color: var(--console-text-muted); font-size: 0.75rem; margin-bottom: 0.125rem; }
+@media (max-width: 390px) { .configuration-result-diff { gap: 0.35rem; } }
+
+/* Preserve the setting identity while mobile operators scroll to the edit action. */
+@media (max-width: 600px) {
+  .configuration-table-scroll th:first-child,
+  .configuration-table-scroll td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 7.5rem;
+    max-width: 9rem;
+    background: var(--console-surface-raised);
+    border-right: 1px solid var(--console-border);
+  }
 }

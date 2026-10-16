@@ -74,6 +74,67 @@ jobs:
           PLATFORM_BUILD_PLATFORM: linux/amd64
         run: make build-image
 
+  loki-query-smoke:
+    name: Loki Runtime LogQL smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Start pinned Loki (loopback only)
+        run: |
+          image="$(sed -n 's/^LOKI_IMAGE=//p' .env.compose.example)"
+          test -n "$image"
+          docker run --detach --name loki-query-smoke \
+            --publish 127.0.0.1:3100:3100 \
+            --tmpfs /loki:rw,mode=1777 \
+            --env LOKI_RETENTION_HOURS=168 \
+            --volume "$PWD/ops/loki/loki-config.yml:/etc/loki/loki-config.yml:ro" \
+            "$image" -config.file=/etc/loki/loki-config.yml -config.expand-env=true
+      - name: Query real Loki with synthetic labeled runtime logs
+        run: python3 scripts/validation/grafana_loki_smoke.py
+      - name: Loki diagnostics on failure
+        if: failure()
+        run: docker logs loki-query-smoke --tail 120
+
+  operator-browser:
+    name: Chromium operator workflows (desktop/mobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: ui/control-plane/package-lock.json
+      - name: Pin npm and install frontend
+        run: |
+          npm install --global npm@11.19.0
+          npm --prefix ui/control-plane ci
+      - name: Install pinned browser runner
+        run: |
+          python3 -m venv /tmp/ux-playwright
+          /tmp/ux-playwright/bin/pip install playwright==1.56.0
+          /tmp/ux-playwright/bin/python -m playwright install --with-deps chromium
+      - name: Build Console from source for browser smoke
+        run: npm --prefix ui/control-plane run build
+      - name: Start built Console preview
+        run: |
+          (cd ui/control-plane && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/vite-preview.log 2>&1 &)
+      - name: Verify actual Chromium workflows
+        run: /tmp/ux-playwright/bin/python scripts/validation/console_browser_smoke.py
+      - name: Archive diagnostic screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: operator-ux-chromium
+          path: /tmp/operator-ux-browser/*.png
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Preview diagnostics on failure
+        if: failure()
+        run: cat /tmp/vite-preview.log
+
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
@@ -81,6 +142,8 @@ jobs:
       - app-contract
       - console
       - platform-image
+      - loki-query-smoke
+      - operator-browser
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -89,6 +152,8 @@ jobs:
           APP_CONTRACT_RESULT: ${{ needs.app-contract.result }}
           CONSOLE_RESULT: ${{ needs.console.result }}
           PLATFORM_IMAGE_RESULT: ${{ needs.platform-image.result }}
+          LOKI_QUERY_RESULT: ${{ needs.loki-query-smoke.result }}
+          OPERATOR_BROWSER_RESULT: ${{ needs.operator-browser.result }}
         run: |
           printf 'app-contract: %s\n' "${APP_CONTRACT_RESULT}"
           printf 'console: %s\n' "${CONSOLE_RESULT}"
@@ -101,6 +166,16 @@ jobs:
 
           if [[ "${CONSOLE_RESULT}" != "success" ]]; then
             echo "Control Plane frontend did not succeed." >&2
+            exit 1
+          fi
+
+          if [[ "${OPERATOR_BROWSER_RESULT}" != "success" ]]; then
+            echo "Chromium operator UX smoke did not succeed." >&2
+            exit 1
+          fi
+
+          if [[ "${LOKI_QUERY_RESULT}" != "success" ]]; then
+            echo "Loki Runtime LogQL smoke did not succeed." >&2
             exit 1
           fi
 

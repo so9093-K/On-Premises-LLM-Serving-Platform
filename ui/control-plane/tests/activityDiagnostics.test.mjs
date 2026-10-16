@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  gpuCapacityDashboardUrl,
   mainRuntimeDiagnosticsUrl,
   requestLogDiagnosticsUrl,
 } from '../src/activityDiagnostics.ts';
@@ -47,4 +48,10 @@ test('diagnostic links fail closed without a safe direct Grafana URL', () => {
   assert.equal(requestLogDiagnosticsUrl(null, 'req_1', 1_700_000_000), null);
   assert.equal(requestLogDiagnosticsUrl('javascript:alert(1)', 'req_1', 1_700_000_000), null);
   assert.equal(requestLogDiagnosticsUrl('http://127.0.0.1:9411', '   ', 1_700_000_000), null);
+});
+
+test('GPU diagnosis uses provisioned dashboard and rejects unsafe origins', () => {
+  assert.equal(new URL(gpuCapacityDashboardUrl('https://ops.example.test/grafana')).pathname, '/grafana/d/gpu_capacity_and_oom_risk');
+  assert.equal(gpuCapacityDashboardUrl(null), null);
+  assert.equal(gpuCapacityDashboardUrl('javascript:alert(1)'), null);
 });
