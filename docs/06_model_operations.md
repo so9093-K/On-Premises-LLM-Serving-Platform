@@ -8,6 +8,21 @@ AI Model Serving Platform의 Main Model 운영은 **현재 상태 확인 → 프
 
 ---
 
+### 재검증과 요청 차단
+
+Runtime Controller가 다시 시작되거나 Main Runtime이 외부에서 교체되면 이전
+`gate=open` 기록을 현재 인스턴스에 대한 검증 증거로 재사용하지 않는다.
+현재 Profile의 모델·Revision·이미지와 실행 중 컨테이너의 시작 신원을 Canary
+전후에 확인한다. 관측할 수 없거나 불일치하면 Gate는 닫힌 상태를 유지한다.
+공개 모델 별칭 `local-main`의 API 성공만으로 실제 프로필 일치를 보증하지 않는다.
+
+Control Plane의 **메인 모델**에서 현재 활성 Profile, 관측 Profile, 실제
+Runtime 상태와 요청 Gate를 함께 확인한다. 불일치·차단이 지속되면
+Runtime Controller 로그와 최근 Model Operation을 검토하고, 정상 실행 신원을
+복구한 뒤 검증 결과를 재확인한다. 검증되지 않은 컨테이너를 반복 재시작하거나
+Gate를 임의로 개방하지 않는다. 재시작 감지는 주기적으로 수행되므로 다음
+관측까지 지연될 수 있으며, 원격 실행의 Fencing은 지원하지 않는다.
+
 ## 6.1 모델 운영 흐름
 
 일반적인 Main Model 변경 작업은 다음 순서로 진행한다.

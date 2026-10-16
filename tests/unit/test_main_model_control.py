@@ -1209,6 +1209,21 @@ def test_resource_variant_env_parsing_rejects_malformed_ids() -> None:
         resource_variant_from_mapping({"MAIN_MODEL_RESOURCE_VARIANT": "RTX4090"})
 
 
+def test_resource_variant_rejects_fractional_integer_knob(tmp_path):
+    import yaml
+
+    raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text())
+    profile = raw["profiles"]["gemma4-e4b-it"]
+    profile["resource_variants"]["fractional-invalid"] = {"max_num_seqs": 1.5}
+    path = tmp_path / "profiles.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    with pytest.raises(MainModelConfigurationError, match="must be an integer"):
+        load_main_model_catalog(
+            path,
+            env={"VLLM_IMAGE": _SHARED_IMAGE, "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": _PROFILE_IMAGE},
+        )
+
+
 def test_resource_variant_may_not_change_model_identity_or_policy(tmp_path) -> None:
     import yaml
 

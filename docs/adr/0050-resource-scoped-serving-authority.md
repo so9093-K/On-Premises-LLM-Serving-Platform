@@ -132,6 +132,32 @@ does not prove replacement and remains a diagnostic event.
 - Percentage reservations are not a measured GPU memory fit guarantee.
   Real-device execution qualification remains distinct from planner tests.
 
+### 7. Runtime validation and operational evidence
+
+Every path that reopens the Main Model gate (initialization, explicit start,
+external-restart reconciliation, profile switch and rollback) must observe a
+live container start marker and a matching actual Model Profile before and after
+the canary. The shared `local-main` API alias alone cannot prove the model,
+revision or runtime image. Missing evidence or an instance/profile change fails
+closed; controller startup closes an inherited gate before awaiting Docker.
+
+Multi-GPU placement removes redundant victims after evaluating the runtime-wide
+impact of stops on every selected GPU, without replacing the single-GPU
+admission policy. Startup prerequisites whose combined reservation exceeds the
+single-GPU ceiling produce an inadmissible plan, not an uncaught input error.
+
+The Main Model State Store owns local desired profile and gate transitions;
+Docker inspection owns actual instance observation. The operator Console
+separately displays persisted intent, observed identity and request gate.
+Runtime plan conflicts continue using the Gateway CONFLICT error and
+`details.reason=RUNTIME_PLAN_CHANGED`. Neither the plan digest nor local
+file lock is remote execution authority, an atomic inter-host reservation,
+or fencing of stale executors.
+
+Detection of out-of-band replacement remains polling-based: the interval
+before the next observation is not a guarantee of uninterrupted safety.
+Remote executor fencing and split-brain recovery remain unsupported.
+
 ## Verification
 
 - Per-pool non-mixing, eligibility, deterministic placement, multi-device

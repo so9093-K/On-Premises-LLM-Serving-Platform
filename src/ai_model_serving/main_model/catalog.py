@@ -215,6 +215,11 @@ def _parse_resource_variants(profile_id: str, raw: object) -> dict[str, dict[str
                 raise MainModelConfigurationError(
                     f"profile {profile_id} resource variant {name}.{key} must be a number"
                 )
+            # Never silently truncate a fractional YAML knob via int(1.5).
+            if caster is int and not isinstance(value, int):
+                raise MainModelConfigurationError(
+                    f"profile {profile_id} resource variant {name}.{key} must be an integer"
+                )
             try:
                 cast = caster(value)
             except (TypeError, ValueError) as exc:

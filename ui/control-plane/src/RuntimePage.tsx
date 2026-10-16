@@ -70,7 +70,7 @@ function criticalityLabel(value: string | null | undefined): string {
   const labels: Record<string, string> = {
     primary_user_path: '주요 요청 경로',
     retrieval_support_path: '검색 지원 경로',
-    risk_support_path: '위험 신호 지원',
+    risk_signal_path: '위험 신호 지원',
   };
   return value ? labels[value] ?? value : '—';
 }
