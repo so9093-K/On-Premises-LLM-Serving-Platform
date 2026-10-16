@@ -6,6 +6,8 @@
 
 ### Added
 
+- Playground에서 `[DONE]` 없이 연결이 종료된 스트리밍 응답을 `STREAM_INCOMPLETE`로 표시한다. 부분 응답은 화면에 남기고 다음 요청의 성공 대화 기록에서 제외하며, Gateway 오류와 사용자 중지 상태를 보존한다.
+
 - Control Plane Playground에 Capability-aware 예제 갤러리를 제공한다. 현재 모델의 공개 기능 계약에 따라 한국어 요약·그래프 분석·주문서 정보 추출·역할 지정·JSON 정보 추출의 가용성을 설명하며, 공개 샘플 이미지와 입력을 검증한 뒤 명시적 사용자 행동으로만 적용한다. 예제 선택 자체는 inference를 실행하지 않으며 기존 Chat/Gateway/보안 계약을 유지한다.
 
 - README를 실제 Control Plane 화면과 사용 흐름 중심으로 구성하고, 이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행 GIF와 입력·응답·촬영 조건을 제공한다. 설치·API·Deployment Target별 지원 범위는 상세 문서로 연결한다.
