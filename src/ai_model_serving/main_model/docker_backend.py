@@ -176,9 +176,9 @@ class DockerMainModelBackend:
             return None
         inspected = await self._inspect(container_id)
         state = inspected.get("State") or {}
-        # An exited container keeps its previous StartedAt. Treating that old
-        # timestamp as a live validated instance leaves the Gateway gate open
-        # even though the model process has died.
+        # 종료된 컨테이너에도 이전 StartedAt이 남는다.
+        # 이를 살아 있는 검증된 인스턴스로 취급하면 모델 프로세스가 종료됐는데도
+        # Gateway의 요청 Gate가 열린 상태로 남을 수 있다.
         if state.get("Status") != "running":
             return None
         started_at = state.get("StartedAt")
@@ -200,9 +200,9 @@ class DockerMainModelBackend:
 
         model = command_value("--model")
         revision = command_value("--revision")
-        # The catalog always emits pinned --model and --revision argv.
-        # Missing or truncated identity flags must not silently match an
-        # otherwise compatible image via the shared public model alias.
+        # Catalog는 고정된 --model·--revision 실행 인자를 생성한다.
+        # 신원 인자가 누락되거나 잘렸다면 이미지와 공개 모델 별칭이 같더라도
+        # 올바른 Profile로 조용히 인정해서는 안 된다.
         if not model or not revision:
             return None
         for profile in catalog.profiles.values():

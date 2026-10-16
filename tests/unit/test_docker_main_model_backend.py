@@ -118,7 +118,7 @@ def test_creation_template_preserves_private_network_without_host_binding():
 
 @pytest.mark.parametrize("mount_field", ["Binds", "Mounts"])
 def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, mount_field):
-    """Profile changes must not drop Compose's cache or accept a new mount source."""
+    """Profile 변경과 Rollback 때 Compose Cache를 잃거나 새 Mount를 허용하지 않는다."""
     import json
 
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")

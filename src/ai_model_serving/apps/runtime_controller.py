@@ -207,8 +207,8 @@ async def _refresh_log_targets() -> int:
 
 
 def _executor() -> RuntimeExecutor:
-    # Keep controller import usable in local tests/app-only. The actual
-    # managed executor validates Compose project ownership when invoked.
+    # 로컬 테스트와 애플리케이션 단독 실행에서도 Controller를 Import할 수 있게 둔다.
+    # 실제 Managed Executor 호출 시에는 Compose 프로젝트 소속을 검증한다.
     return DockerRuntimeExecutor(
         docker_socket=DOCKER_SOCKET,
         compose_project=COMPOSE_PROJECT,
@@ -405,8 +405,9 @@ def _parse_runtime_plan_payload(payload: Any) -> tuple[str, bool]:
 async def _admit_or_raise(target_key: str, target_fraction: float, *, force: bool) -> list[str]:
     """공유 GPU 예산 안에서 런타임 활성화를 허용하거나 거부한다.
 
-    Returns the list of victims stopped (empty if it already fit). Raises 409 with
-    a plan when it does not fit (and force is False) or is impossible.
+    중지한 Victim 목록을 반환한다. 별도 중지가 필요 없으면 빈 목록이다.
+    예산이 부족하거나 `force=False`로 퇴거를 승인하지 않았다면
+    실행 Plan을 포함한 409 응답을 발생시킨다.
     """
     participants = await _build_participants()
     result = plan_activation(
@@ -460,8 +461,8 @@ async def _require_runtime_controller_token(authorization: str | None = Header(d
 async def _run_initialize() -> None:
     global _initialization_error
     try:
-        # Running without a project label would widen Docker lookup authority to
-        # every Compose project that reuses the same service names on this host.
+        # 프로젝트 Label 없이 실행하면 같은 서비스 이름을 쓰는 다른 Compose 프로젝트까지
+        # Docker 검색 권한이 넓어지므로 허용하지 않는다.
         require_compose_project(COMPOSE_PROJECT)
         await _main_model_manager.initialize()
     except Exception as exc:  # noqa: BLE001 - /health를 통해 노출되며, 루프를 죽여서는 안 된다

@@ -729,7 +729,7 @@ def test_reconcile_if_restarted_propagates_validate_failure_without_updating_fin
     assert store.read()["last_validated_container_started_at"] == "boot-0"
     assert store.read()["gate"] == "closed"
 
-    # The next successful validation can restore the same logical model.
+    # 이후 같은 논리 모델에 대한 재검증이 성공하면 요청 허용 상태를 복구할 수 있다.
     backend.fail_profile = None
     manager._reconcile_backoff_until = 0.0
     asyncio.run(manager.reconcile_if_restarted())

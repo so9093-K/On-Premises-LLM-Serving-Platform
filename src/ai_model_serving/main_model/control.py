@@ -45,7 +45,7 @@ _TERMINAL_STATES = frozenset({"completed", "failed", "rollback_failed"})
 
 
 def project_main_model_operation(operation: dict[str, Any]) -> dict[str, Any]:
-    """Internal switch state를 stable public operation evidence로 투영한다.
+    """내부 모델 전환 상태를 안정적인 공개 Operation 증거로 투영한다.
 
     ``previous_gate``와 ``boot_reconcile`` 같은 필드는 rollback/reconcile 실행을 위한
     controller bookkeeping이며 API 계약이 아니다. restart recovery는 terminal 결과의
@@ -233,11 +233,11 @@ class MainModelManager:
     async def _validate_and_record(
         self, profile: MainModelProfile, *, expected_started_at: str | None = None
     ) -> None:
-        """Prove the declared profile and live instance before recording validation.
+        """검증 완료로 기록하기 전에 선언된 Profile과 실제 인스턴스가 일치하는지 확인한다.
 
-        The shared `local-main` API alias is not evidence of the actual model,
-        revision or runtime image. Profile and instance observation must agree
-        on both sides of the canary; missing evidence must fail closed.
+        공개 API 별칭 `local-main`은 실제 모델·Revision·Runtime 이미지의 증거가 아니다.
+        Canary 전후에 Profile과 실행 인스턴스의 관측값이 일치해야 하며,
+        검증 근거를 얻지 못하면 요청을 차단한다.
         """
         try:
             before = expected_started_at
@@ -267,16 +267,13 @@ class MainModelManager:
         )
 
     async def reconcile_if_restarted(self) -> None:
-        """Detect a main-llm-vllm restart that bypassed this controller entirely
-        (e.g. an operator running `docker restart main-llm-vllm` directly instead
-        of the admin API) and re-run validate() so the active Profile's health,
-        model identity, and media capability remain verified. Intended to be
-        polled periodically in the background.
+        """Runtime Controller API를 거치지 않은 Main Runtime 재시작을 감지한다.
 
-        An externally restarted instance has lost its previous validation.
-        Close the serving gate before probing, and reopen only after its
-        identity and capability have been reverified. This intentionally
-        prioritizes the serving contract over uninterrupted availability.
+        운영자가 `docker restart main-llm-vllm`을 직접 실행한 경우에도
+        주기적인 백그라운드 관측을 통해 활성 Profile의 Health·모델 신원·미디어
+        Capability를 재검증한다. 새 인스턴스는 기존 검증 결과를 승계하지 않는다.
+        먼저 요청 Gate를 닫고 신원과 기능을 확인한 뒤에만 다시 열어,
+        무중단 요청 수용보다 실제 Serving 계약의 안전성을 우선한다.
 
         validate()가 계속 실패하면(예: active_profile이 가리키는 프로필과 실제
         컨테이너가 어긋난 채로 남는 drift -- 2026-07-28 실제 사고) 이 메서드는
@@ -302,13 +299,13 @@ class MainModelManager:
                 _logger.warning("reconciliation could not observe container start time: %s", exc)
                 return
             if observed_started_at is None:
-                # Absence is positive evidence that the previously verified
-                # instance is gone. Never advertise it as a ready model.
+                # 이전에 검증한 인스턴스가 사라졌다는 관측 결과다.
+                # 더 이상 준비된 모델로 표시해서는 안 된다.
                 self.state_store.update(lambda s: s.update(gate="closed"))
                 return
             last_validated = state.get("last_validated_container_started_at")
             if observed_started_at == last_validated and state.get("gate") == "open":
-                # The same start time does not prove the expected model profile.
+                # 시작 시각이 같아도 기대하는 Model Profile의 실행을 증명하지는 않는다.
                 try:
                     observed_profile = await self.backend.observed_profile(self.catalog)
                 except Exception as exc:  # noqa: BLE001
@@ -318,8 +315,8 @@ class MainModelManager:
                     self._reconcile_failure_streak = 0
                     self._reconcile_backoff_until = 0.0
                     return
-            # No recorded identity, or a changed identity, cannot inherit
-            # the old instance's validation. Persist the gate before probing.
+            # 검증 지문이 없거나 바뀌었다면 이전 검증을 승계할 수 없다.
+            # 관측과 Canary를 시작하기 전에 요청 Gate를 먼저 닫는다.
             self.state_store.update(lambda s: s.update(gate="closed"))
             now = asyncio.get_running_loop().time()
             if now < self._reconcile_backoff_until:
@@ -400,8 +397,8 @@ class MainModelManager:
         # 동기적으로 background task만 스케줄하고 반환하므로(락은 그 task 안에서 잡는다),
         # 여기서 호출해도 데드락은 없다.
         async with self._lock:
-            # Persisted open gate belongs to a previous controller execution.
-            # Close it before observing or revalidating a live container.
+            # 저장된 Gate 개방 기록은 이전 Controller 실행의 결과다.
+            # 실제 컨테이너를 관측·재검증하기 전에 Gate를 닫는다.
             self.state_store.update(lambda s: s.update(gate="closed"))
             if self.state_store.read().get("runtime_state") == "stopped":
                 # 재시작 간에도 운영자가 의도적으로 내린 stop을 존중한다: 다시 끌어올려
