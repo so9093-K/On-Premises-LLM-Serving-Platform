@@ -208,6 +208,32 @@ def test_observed_profile_requires_matching_runtime_image(monkeypatch):
     assert asyncio.run(backend.observed_profile(catalog)) is None
 
 
+def test_observed_profile_rejects_missing_or_truncated_revision(monkeypatch):
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    profile = catalog.profiles["gemma4-26b-a4b-fp8"]
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+
+    async def fake_container_id(_service):
+        return "container-1"
+
+    command = [item for item in profile.command]
+    missing = command[:]
+    index = missing.index("--revision")
+    del missing[index:index + 2]
+
+    async def missing_inspect(_container_id):
+        return {"Config": {"Cmd": missing, "Image": profile.image}}
+
+    async def truncated_inspect(_container_id):
+        return {"Config": {"Cmd": ["--model", profile.model_id, "--revision"], "Image": profile.image}}
+
+    monkeypatch.setattr(backend, "_container_id", fake_container_id)
+    monkeypatch.setattr(backend, "_inspect", missing_inspect)
+    assert asyncio.run(backend.observed_profile(catalog)) is None
+    monkeypatch.setattr(backend, "_inspect", truncated_inspect)
+    assert asyncio.run(backend.observed_profile(catalog)) is None
+
+
 def test_observed_profile_accepts_matching_command_and_runtime_image(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]

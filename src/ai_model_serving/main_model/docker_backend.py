@@ -191,12 +191,24 @@ class DockerMainModelBackend:
         config = inspected.get("Config", {})
         command = list(config.get("Cmd") or [])
         image = config.get("Image")
-        model = command[command.index("--model") + 1] if "--model" in command else None
-        revision = command[command.index("--revision") + 1] if "--revision" in command else None
+
+        def command_value(flag: str) -> str | None:
+            if flag not in command:
+                return None
+            index = command.index(flag) + 1
+            return command[index] if index < len(command) else None
+
+        model = command_value("--model")
+        revision = command_value("--revision")
+        # The catalog always emits pinned --model and --revision argv.
+        # Missing or truncated identity flags must not silently match an
+        # otherwise compatible image via the shared public model alias.
+        if not model or not revision:
+            return None
         for profile in catalog.profiles.values():
             if (
                 profile.model_id == model
-                and (revision is None or revision == profile.revision)
+                and revision == profile.revision
                 and image == profile.image
             ):
                 return profile.profile_id
