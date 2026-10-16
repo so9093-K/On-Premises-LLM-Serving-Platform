@@ -351,6 +351,18 @@ def test_observed_started_at_returns_container_state_started_at(monkeypatch):
     assert result == "2026-07-21T00:00:00.123456789Z"
 
 
+def test_observed_started_at_rejects_exited_container_with_stale_start_time(monkeypatch):
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+    async def _id(service):
+        return "old-container-id"
+    async def _inspect(container_id):
+        return {"State": {"Status": "exited", "StartedAt": "2026-07-21T00:00:00.123456789Z"}}
+    monkeypatch.setattr(backend, "_container_id", _id)
+    monkeypatch.setattr(backend, "_inspect", _inspect)
+    assert asyncio.run(backend.observed_started_at(catalog)) is None
+
+
 def test_observed_started_at_returns_none_when_container_absent(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")

@@ -6,6 +6,9 @@
 
 ### Added
 
+- GPU 자원 계획은 Host ID와 Device ID로 구분되는 GPU별 예약 범위에서 평가한다. Runtime Controller의 보조 Runtime Docker Lifecycle은 허용된 Compose 서비스만 조작하는 Executor가 소유한다. 여러 GPU를 요구하는 명시적 실행 후보를 결정론적으로 비교하되, 실제 다중 호스트 배포 및 원격 실행은 지원한다고 표시하지 않는다. 외부에서 Main Runtime이 재시작되면 기존 검증을 계승하지 않고 요청 Gate를 닫은 뒤 동일 실행 인스턴스를 재검증해 성공 시에만 다시 개방한다. Main Model 상태는 동일한 로컬 상태 저장소에서 증가하는 Generation을 가지며 오래된 쓰기 요청을 거부한다. ([ADR-0050](docs/adr/0050-resource-scoped-serving-authority.md))
+
+
 - Playground의 실제 요청 본문을 중복된 JSON 문자열 대신 공유 미디어 참조와 불변 Receipt로 보관한다. ZIP64 다운로드는 청크 단위 비동기 쓰기·취소·진행률을 지원하고, 대용량 요청은 가능한 환경에서 직접 파일로 저장하며 메모리 다운로드 상한을 명시한다. SDK 통합용 Python/Node.js 예제와 원본 HTTP 재현 예제를 구분한다.
 
 - Playground의 개별 Chat/Tool 결과 요청에서 실제로 전송한 JSON을 확인하고 Python·Node.js·cURL로 재현할 수 있다. 사용자 선택으로 원본 요청과 실행 예제 ZIP을 내려받으며, 인증 자격 증명은 포함하지 않고 멀티모달 입력·비표준 요청 필드를 손실 없이 보존한다.

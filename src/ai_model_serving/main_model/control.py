@@ -230,7 +230,9 @@ class MainModelManager:
         record = self._operation_record(operation_id)
         return project_main_model_operation(record) if record is not None else None
 
-    async def _validate_and_record(self, profile: MainModelProfile) -> None:
+    async def _validate_and_record(
+        self, profile: MainModelProfile, *, expected_started_at: str | None = None
+    ) -> None:
         """``backend.validate()``를 실행하고 검증한 컨테이너 instance를 기록한다.
 
         모든 validate 호출은 이 메서드를 거쳐야 재시작 감지가 비교할 마지막 정상
@@ -239,9 +241,13 @@ class MainModelManager:
         await self.backend.validate(self.catalog, profile)
         try:
             started_at = await self.backend.observed_started_at(self.catalog)
-        except Exception as exc:  # noqa: BLE001 - 순수 부기(bookkeeping)이며 validate() 성공을 뒤집으면 안 된다
+        except Exception as exc:  # noqa: BLE001
+            if expected_started_at is not None:
+                raise RuntimeError("cannot confirm runtime identity after validation") from exc
             _logger.warning("failed to record container fingerprint after validate(): %s", exc)
             return
+        if expected_started_at is not None and started_at != expected_started_at:
+            raise RuntimeError("runtime identity changed during verification")
         if started_at is not None:
             self.state_store.update(
                 lambda s: s.update(last_validated_container_started_at=started_at)
@@ -254,9 +260,10 @@ class MainModelManager:
         model identity, and media capability remain verified. Intended to be
         polled periodically in the background.
 
-        Does not close the gate while this verification runs. The controller
-        treats a restart as an observation problem, not as a reason to add
-        user-visible downtime.
+        An externally restarted instance has lost its previous validation.
+        Close the serving gate before probing, and reopen only after its
+        identity and capability have been reverified. This intentionally
+        prioritizes the serving contract over uninterrupted availability.
 
         validate()가 계속 실패하면(예: active_profile이 가리키는 프로필과 실제
         컨테이너가 어긋난 채로 남는 drift -- 2026-07-28 실제 사고) 이 메서드는
@@ -282,37 +289,33 @@ class MainModelManager:
                 _logger.warning("reconciliation could not observe container start time: %s", exc)
                 return
             if observed_started_at is None:
-                return  # 컨테이너가 없음 — initialize()/start_main()이 처리할 문제
-            last_validated = state.get("last_validated_container_started_at")
-            if last_validated is None:
-                # 이 필드가 아직 없는 상태(신규 배포 직후)이거나 최초 관측 —
-                # drift로 취급해 불필요한 재검증을 트리거하지 않고 기준선만 기록한다.
-                # 잠재 리스크: _validate_and_record()의 fingerprint 기록 단계(관측
-                # 호출)만 계속 실패하고 validate() 자체는 계속 성공하는 상황이 생기면,
-                # 이 필드가 영원히 None으로 남아 매 tick마다 이 분기로 빠져 재검증이
-                # 트리거되지 않는다. 두 실패가 겹쳐야 하는 좁은 경우이고, 위
-                # observed_started_at() 호출이 같은 backend 메서드를 쓰므로 지속적인
-                # 장애라면 그 호출도 함께 실패해 이 분기에 도달하기 전에 걸러지지만,
-                # 간헐적 실패 패턴에서는 이 분기가 계속 반복될 수 있다.
-                self.state_store.update(
-                    lambda s: s.update(last_validated_container_started_at=observed_started_at)
-                )
+                # Absence is positive evidence that the previously verified
+                # instance is gone. Never advertise it as a ready model.
+                self.state_store.update(lambda s: s.update(gate="closed"))
                 return
-            if observed_started_at == last_validated:
+            last_validated = state.get("last_validated_container_started_at")
+            if observed_started_at == last_validated and state.get("gate") == "open":
                 self._reconcile_failure_streak = 0
                 self._reconcile_backoff_until = 0.0
-                return  # 컨테이너가 그대로임 — 조치 불필요
+                return
+            # No recorded identity, or a changed identity, cannot inherit
+            # the old instance's validation. Persist the gate before probing.
+            self.state_store.update(lambda s: s.update(gate="closed"))
             now = asyncio.get_running_loop().time()
             if now < self._reconcile_backoff_until:
-                return  # backoff 중 — 이번 tick은 건너뛴다
+                return
             _logger.warning(
-                "main-llm-vllm container restarted outside Runtime Controller control "
-                "(observed StartedAt=%s, last validated=%s); re-validating without closing the gate",
+                "main runtime requires revalidation "
+                "(observed StartedAt=%s, last validated=%s); closing serving gate",
                 observed_started_at,
                 last_validated,
             )
             try:
-                await self._validate_and_record(self.catalog.profiles[active_id])
+                await self._validate_and_record(
+                    self.catalog.profiles[active_id],
+                    expected_started_at=observed_started_at,
+                )
+                self.state_store.update(lambda s: s.update(gate="open"))
             except Exception:
                 self._reconcile_failure_streak += 1
                 backoff = min(

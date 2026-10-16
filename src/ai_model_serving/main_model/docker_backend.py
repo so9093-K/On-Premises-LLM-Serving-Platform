@@ -175,7 +175,13 @@ class DockerMainModelBackend:
         if container_id is None:
             return None
         inspected = await self._inspect(container_id)
-        started_at = inspected.get("State", {}).get("StartedAt")
+        state = inspected.get("State") or {}
+        # An exited container keeps its previous StartedAt. Treating that old
+        # timestamp as a live validated instance leaves the Gateway gate open
+        # even though the model process has died.
+        if state.get("Status") != "running":
+            return None
+        started_at = state.get("StartedAt")
         return str(started_at) if started_at else None
 
     @staticmethod

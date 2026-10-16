@@ -20,6 +20,17 @@ class MainModelSwitchLockError(RuntimeError):
     pass
 
 
+class MainModelStateRevisionError(MainModelStateError):
+    pass
+
+
+def _generation(state: dict[str, Any]) -> int:
+    value = state.get("generation", 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise MainModelStateError("invalid main model state generation")
+    return value
+
+
 def read_main_model_state_file(path: Path) -> dict[str, Any] | None:
     """상태 파일을 변경하지 않고 읽어 공통 스키마만 검증한다."""
     if not path.exists():
@@ -34,6 +45,7 @@ def read_main_model_state_file(path: Path) -> dict[str, Any] | None:
         raise MainModelStateError(f"main model state is corrupt: {path}") from exc
     if not isinstance(value, dict) or value.get("schema_version") != 1:
         raise MainModelStateError("unsupported main model state schema")
+    _generation(value)
     return value
 
 
@@ -61,6 +73,7 @@ class MainModelStateStore:
     def _initial(self) -> dict[str, Any]:
         return {
             "schema_version": 1,
+            "generation": 0,
             "active_profile": None,
             "last_known_good_profile": None,
             "previous_known_good_profile": None,
@@ -113,20 +126,43 @@ class MainModelStateStore:
             return self._read_unlocked()
 
     def write(self, state: dict[str, Any]) -> None:
+        """Replace only the exact revision that the caller previously read."""
         self.lock_path.touch(exist_ok=True)
         with self.lock_path.open("r+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            current = self._read_unlocked()
+            revision = _generation(current)
+            if _generation(state) != revision:
+                raise MainModelStateRevisionError("MAIN_MODEL_STATE_CHANGED")
+            state = dict(state)
+            state["generation"] = revision + 1
             self._write_unlocked(state)
 
-    def update(self, mutate: Any) -> dict[str, Any]:
-        """하나의 프로세스 잠금 안에서 상태를 원자적으로 읽고 변경·교체한다."""
+    def _update_locked(self, mutate: Any, *, expected_generation: int | None = None) -> dict[str, Any]:
         self.lock_path.touch(exist_ok=True)
         with self.lock_path.open("r+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             state = self._read_unlocked()
+            revision = _generation(state)
+            if expected_generation is not None and revision != expected_generation:
+                raise MainModelStateRevisionError("MAIN_MODEL_STATE_CHANGED")
             mutate(state)
+            state["generation"] = revision + 1
             self._write_unlocked(state)
             return state
+
+    def update(self, mutate: Any) -> dict[str, Any]:
+        """Atomic local state transition under the same project-scoped file lock."""
+        return self._update_locked(mutate)
+
+    def compare_and_update(self, expected_generation: int, mutate: Any) -> dict[str, Any]:
+        """Reject stale decisions under the owning local state lock.
+
+        This is a same-filesystem contract; flock is NOT distributed fencing.
+        """
+        if isinstance(expected_generation, bool) or not isinstance(expected_generation, int) or expected_generation < 0:
+            raise ValueError("expected_generation must be a non-negative integer")
+        return self._update_locked(mutate, expected_generation=expected_generation)
 
     def quarantine_corrupt_state(self, reason: str) -> Path | None:
         """읽을 수 없는 상태 파일을 격리하고 fail-closed 초기 상태를 만든다."""

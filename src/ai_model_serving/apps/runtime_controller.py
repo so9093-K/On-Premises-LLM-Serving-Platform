@@ -28,13 +28,13 @@ from ..log_target_manifest import build_targets, write_manifest
 from ..platform_state import DEFAULT_PLATFORM_STATE_DIR, configured_platform_state_root
 from ..docker_scope import (
     compose_container_filter,
-    one_scoped_container_row,
     require_compose_project,
     scoped_container_id,
 )
 from ..settings_parts.env import as_bool, is_default_secret
 from ..runtime_topology import load_runtime_topology
 from ..runtime_transition import plan_runtime_transition
+from ..runtime_executor import DockerRuntimeExecutor, RuntimeExecutor
 
 _logger = service_logger("runtime_controller")
 
@@ -170,10 +170,6 @@ def _docker_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=transport, base_url="http://docker")
 
 
-def _label_filter(service: str) -> str:
-    return compose_container_filter(COMPOSE_PROJECT, service)
-
-
 def _compose_project_filter() -> str:
     return compose_container_filter(COMPOSE_PROJECT)
 
@@ -210,54 +206,15 @@ async def _refresh_log_targets() -> int:
     return len(targets)
 
 
-async def _find_container_id(service: str) -> str | None:
-    async with _docker_client() as dc:
-        resp = await dc.get(
-            "/containers/json",
-            params={"all": "true", "filters": _label_filter(service)},
-            timeout=5.0,
-        )
-        resp.raise_for_status()
-        row = one_scoped_container_row(
-            resp.json(),
-            project=COMPOSE_PROJECT,
-            service=service,
-        )
-        if row is None:
-            return None
-        return scoped_container_id(row, project=COMPOSE_PROJECT, service=service)
-
-
-async def _container_status(service: str) -> str:
-    async with _docker_client() as dc:
-        resp = await dc.get(
-            "/containers/json",
-            params={"all": "true", "filters": _label_filter(service)},
-            timeout=5.0,
-        )
-        resp.raise_for_status()
-        row = one_scoped_container_row(
-            resp.json(),
-            project=COMPOSE_PROJECT,
-            service=service,
-        )
-        if row is None:
-            return "not_found"
-        return str(row.get("State") or "unknown")
-
-
-async def _do_stop(container_id: str) -> None:
-    async with _docker_client() as dc:
-        resp = await dc.post(f"/containers/{container_id}/stop", timeout=30.0)
-        if resp.status_code not in (204, 304):
-            resp.raise_for_status()
-
-
-async def _do_start(container_id: str) -> None:
-    async with _docker_client() as dc:
-        resp = await dc.post(f"/containers/{container_id}/start", timeout=30.0)
-        if resp.status_code not in (204, 304):
-            resp.raise_for_status()
+def _executor() -> RuntimeExecutor:
+    # Keep controller import usable in local tests/app-only. The actual
+    # managed executor validates Compose project ownership when invoked.
+    return DockerRuntimeExecutor(
+        docker_socket=DOCKER_SOCKET,
+        compose_project=COMPOSE_PROJECT,
+        allowed_services=CONTROLLABLE,
+        status_only_services=frozenset({_MAIN_SERVICE}),
+    )
 
 
 async def _wait_healthy(service: str, url: str, timeout: float = 120.0) -> bool:
@@ -320,7 +277,7 @@ async def _build_participants() -> list[Participant]:
     """현재 GPU 예산 참여자(보조 런타임과 main model)를 구성한다."""
     participants: list[Participant] = []
     for service, fraction in _VRAM_FRACTION.items():
-        status = await _container_status(service)
+        status = await _executor().status(service)
         criticality = _CRITICALITY.get(service, "")
         priority, evictable = _eviction_policy(criticality)
         participants.append(
@@ -339,7 +296,7 @@ async def _build_participants() -> list[Participant]:
     # 예약값으로 폴백하여, ledger가 실제 main-model 비용을 반영하도록 한다.
     _boot_fraction = _catalog.profiles[_main_model_manager.boot_profile].vram_fraction
     main_fraction = float(active_profile.get("vram_fraction") or _boot_fraction)
-    main_status = await _container_status(_MAIN_SERVICE)
+    main_status = await _executor().status(_MAIN_SERVICE)
     participants.append(
         Participant(
             key=_MAIN_SERVICE,
@@ -485,9 +442,7 @@ async def _admit_or_raise(target_key: str, target_fraction: float, *, force: boo
         )
     stopped: list[str] = []
     for victim in result.victims:
-        container_id = await _find_container_id(victim)
-        if container_id is not None:
-            await _do_stop(container_id)
+        if await _executor().stop(victim):
             stopped.append(victim)
     return stopped
 
@@ -602,7 +557,7 @@ async def containers_status(authorization: str | None = Header(default=None)) ->
     statuses: dict[str, str] = {}
     for service in CONTROLLABLE:
         try:
-            statuses[service] = await _container_status(service)
+            statuses[service] = await _executor().status(service)
         except Exception as exc:
             statuses[service] = f"error: {exc}"
     return JSONResponse({"containers": statuses})
@@ -794,10 +749,8 @@ async def stop_container(
     async with _budget_lock:
         plan = await _runtime_transition_plan(service, "stopped", force=False)
         _validate_reviewed_plan(plan, plan_digest)
-        container_id = await _find_container_id(service)
-        if container_id is None:
+        if not await _executor().stop(service):
             raise HTTPException(404, detail=f"container not found: {service}")
-        await _do_stop(container_id)
     return JSONResponse({"action": "stop", "service": service, "stopped": [service]})
 
 
@@ -825,9 +778,9 @@ async def start_container(
         to_start = [
             prereq
             for prereq in _START_PREREQUISITES.get(service, [])
-            if await _container_status(prereq) != "running"
+            if await _executor().status(prereq) != "running"
         ]
-        if await _container_status(service) != "running":
+        if await _executor().status(service) != "running":
             to_start.append(service)
         target_fraction = sum(_VRAM_FRACTION.get(svc, 0.0) for svc in to_start)
         if target_fraction > 0:
@@ -836,24 +789,22 @@ async def start_container(
         # prerequisite들을 순서대로 시작한다(GPU 메모리 프로파일링을 순차적으로 진행).
         for prereq in _START_PREREQUISITES.get(service, []):
             prereq_url = _HEALTH_URL[prereq]
-            status = await _container_status(prereq)
+            status = await _executor().status(prereq)
             if status == "running":
                 continue
-            prereq_id = await _find_container_id(prereq)
-            if prereq_id is None:
+            if not await _executor().start(prereq):
                 raise HTTPException(503, detail=f"prerequisite container not found: {prereq}")
-            await _do_start(prereq_id)
             if not await _wait_healthy(prereq, prereq_url):
                 raise HTTPException(
                     503, detail=f"prerequisite {prereq} did not become healthy within timeout"
                 )
             started.append(prereq)
 
-        container_id = await _find_container_id(service)
-        if container_id is None:
+        if await _executor().status(service) == "not_found":
             raise HTTPException(404, detail=f"container not found: {service}")
-        if await _container_status(service) != "running":
-            await _do_start(container_id)
+        if await _executor().status(service) != "running":
+            if not await _executor().start(service):
+                raise HTTPException(404, detail=f"container not found: {service}")
             started.append(service)
         target_url = _HEALTH_URL[service]
         if not await _wait_healthy(service, target_url):

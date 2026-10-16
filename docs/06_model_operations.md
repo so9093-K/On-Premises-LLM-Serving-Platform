@@ -83,7 +83,9 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 | `last_operation` | 가장 최근 모델 전환 operation |
 | `observed_runtime` | 조회 시점 Docker 관측값. 실제 컨테이너 상태·health·profile, image ref/image ID, image label에서 읽은 runtime engine/version을 포함 |
 
-`active_profile`과 `runtime_state`는 Docker를 매번 조회해 계산한 값이 아니다. 실제 서비스
+`active_profile`과 `runtime_state`는 Docker를 매번 조회해 계산한 값이 아니다. Main Runtime이 운영 API 밖에서 재시작되거나 사라진 사실을 Controller가 관측하면 기존 검증을 계승하지 않고 Gate를 닫으며, 실제 컨테이너 신원·기능 검증 후에만 다시 개방한다. 재검증 실패 시에는 요청이 일시적으로 503으로 거부될 수 있고 Gate는 닫힌 상태를 유지한다. ([ADR-0050](adr/0050-resource-scoped-serving-authority.md))
+
+실제 서비스
 가능 여부는 `observed_runtime.status=ready`, `observed_runtime.health=healthy`, 그리고
 `gate=open`을 함께 확인한다. `observed_runtime.image_ref`는 컨테이너 생성에 실제 사용된
 image 참조이고, `image_id`는 Docker local image ID다. `image_digest`는 실행 image의
