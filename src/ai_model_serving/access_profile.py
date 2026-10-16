@@ -11,9 +11,9 @@ from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
 
 
-# Keep the configuration root independent of whether this is a source-tree
-# invocation or an installed package in the Platform image.  The latter keeps
-# configs at /app/configs and declares it through APP_CONFIG_ROOT.
+# 설정 루트는 소스 트리 실행 또는 Platform 이미지 안의 설치 패키지 실행과
+# 무관하게 해석한다. 설치된 이미지는 설정을 /app/configs에 보관하고
+# APP_CONFIG_ROOT로 위치를 명시한다.
 _PROJECT_ROOT = resolve_project_root(
     required_paths=("configs/access_profiles.yaml", "configs/services.yaml"),
 )
@@ -71,7 +71,7 @@ def access_profile_env_values(
     *,
     current: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Resolve a user-facing access intent into existing policy primitives."""
+    """사용자가 선택한 접근 의도를 기존 보안 정책 구성요소로 해석한다."""
     profile = load_access_profile(name, root)
     values = {
         "ACCESS_PROFILE": profile.name,
