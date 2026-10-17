@@ -520,7 +520,7 @@ def create_runtime_controller_app(
 
 
     async def _run_initialize() -> None:
-            try:
+        try:
             # 프로젝트 Label 없이 실행하면 같은 서비스 이름을 쓰는 다른 Compose 프로젝트까지
             # Docker 검색 권한이 넓어지므로 허용하지 않는다.
             require_compose_project(context.COMPOSE_PROJECT)
