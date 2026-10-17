@@ -98,6 +98,24 @@ def test_multigpu_victim_is_never_selected_as_only_a_single_shard():
     assert result.requires_force
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("policy", [{"evictable": False}, {"priority": 100}])
+def test_multigpu_runtime_rejects_conflicting_eviction_policy(policy, reverse):
+    # 한 GPU에서 선정한 Victim은 다른 GPU에서도 전체 Runtime을 중지한다.
+    # 다른 Shard의 보호·우선순위 정책을 무시한 퇴거는 허용할 수 없다.
+    participants = [
+        runtime("shared", H1_A, 0.6),
+        runtime("shared", H1_B, 0.6, **policy),
+    ]
+    if reverse:
+        participants.reverse()
+    with pytest.raises(ValueError, match="inconsistent runtime eviction policy"):
+        plan_placement(
+            [pool(H1_A), pool(H1_B)], participants, "new",
+            [candidate("on-first", (H1_A, 0.8))], force=True,
+        )
+
+
 def test_multigpu_stop_releases_all_reservations_without_extra_victims():
     participants = [
         runtime("shared", H1_A, 0.50, priority=10),

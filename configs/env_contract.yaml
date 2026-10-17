@@ -109,6 +109,8 @@ service_env_projections:
     runtime_keys:
       - DEPLOYMENT_TARGET
       - APP_ENV
+      - ACCESS_PROFILE
+      - GRAFANA_PORT
       - AUTH_MODE
       - EXPOSURE_AUDIENCE
       - API_KEY_REQUIRED

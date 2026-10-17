@@ -58,3 +58,19 @@ def test_runtime_queries_do_not_claim_gateway_overlap() -> None:
     dashboard = json.loads(DASHBOARD.read_text(encoding="utf-8"))
     runtime_errors = next(panel for panel in dashboard["panels"] if panel["title"] == RUNTIME_TITLES[0])
     assert "Gateway 로그는 별도" in runtime_errors["description"]
+
+
+def test_metal_overview_preserves_shared_metrics_and_links_to_provisioned_dashboards() -> None:
+    from scripts.render_runtime_assets import render_macos_dashboard
+
+    shared = json.loads((ROOT / "ops/grafana/dashboards/service_overview.json").read_text(encoding="utf-8"))
+    metal = json.loads(render_macos_dashboard(ROOT, "service_overview"))
+    assert metal["uid"] == shared["uid"]
+    assert metal["panels"] == shared["panels"]
+    # Static Metal은 GPU 용량·오늘 사용량 Dashboard를 Provision하지 않는다.
+    assert [link["url"] for link in metal["links"]] == ["/d/request_log_explorer"]
+    assert {link["url"] for link in shared["links"]} >= {
+        "/d/gpu_capacity_and_oom_risk", "/d/usage_today",
+    }
+    explorer = json.loads(render_macos_dashboard(ROOT, "request_log_explorer"))
+    assert [link["url"] for link in explorer["links"] if link["url"].startswith("/d/")] == ["/d/service_overview"]
