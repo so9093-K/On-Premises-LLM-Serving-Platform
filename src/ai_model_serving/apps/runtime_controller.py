@@ -4,7 +4,7 @@ import asyncio
 import os
 import re
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -427,7 +427,14 @@ def _parse_runtime_plan_payload(payload: Any) -> tuple[str, bool]:
     return desired_state, force
 
 
-async def _admit_or_raise(target_key: str, target_fraction: float, *, force: bool) -> list[str]:
+async def _admit_or_raise(
+    target_key: str,
+    target_fraction: float,
+    *,
+    force: bool,
+    protected_keys: frozenset[str] = frozenset(),
+    reviewed_victims: tuple[str, ...] | None = None,
+) -> list[str]:
     """공유 GPU 예산 안에서 런타임 활성화를 허용하거나 거부한다.
 
     중지한 Victim 목록을 반환한다. 별도 중지가 필요 없으면 빈 목록이다.
@@ -435,9 +442,24 @@ async def _admit_or_raise(target_key: str, target_fraction: float, *, force: boo
     실행 Plan을 포함한 409 응답을 발생시킨다.
     """
     participants = await _build_participants()
+    # 실제 Start 대상의 선행 Runtime은 Plan과 동일하게 퇴거 불가로 취급한다.
+    if protected_keys:
+        participants = [
+            replace(p, evictable=False) if p.key in protected_keys else p
+            for p in participants
+        ]
     result = plan_activation(
         participants, target_key, target_fraction, ceiling=_GPU_BUDGET_CEILING
     )
+    if result.feasible and reviewed_victims is not None and result.victims != reviewed_victims:
+        # Plan 검토 이후 Docker 상태가 바뀌어 퇴거 대상이 달라지면 자동 재선정하지 않는다.
+        raise HTTPException(
+            409,
+            detail={
+                "code": "RUNTIME_PLAN_CHANGED",
+                "message": "Runtime transition plan changed after review.",
+            },
+        )
     if result.already_fits:
         return []
     if not result.feasible:
@@ -809,8 +831,16 @@ async def start_container(
         if await _executor().status(service) != "running":
             to_start.append(service)
         target_fraction = sum(_VRAM_FRACTION.get(svc, 0.0) for svc in to_start)
+        if to_start and service not in to_start:
+            # 이미 Running인 target은 신규 시작 목록에 없지만 GPU를 계속 점유한다.
+            # Admission이 target 자신을 others에서 제외하므로 예약량을 명시적으로 더한다.
+            target_fraction += _VRAM_FRACTION[service]
         if target_fraction > 0:
-            evicted = await _admit_or_raise(service, target_fraction, force=force)
+            evicted = await _admit_or_raise(
+                service, target_fraction, force=force,
+                protected_keys=frozenset(_START_PREREQUISITES.get(service, [])),
+                reviewed_victims=tuple(plan["stop"]),
+            )
 
         # prerequisite들을 순서대로 시작한다(GPU 메모리 프로파일링을 순차적으로 진행).
         for prereq in _START_PREREQUISITES.get(service, []):

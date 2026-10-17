@@ -259,3 +259,137 @@ def test_non_running_gpu_reservation_cannot_be_automatically_evicted(
             ))
         assert rejected.value.status_code == 409
         assert mutations == []
+
+
+def test_runtime_start_preserves_running_target_reservation_when_starting_prerequisite(
+    tmp_path, monkeypatch
+):
+    # 기존 target이 실행 중이어도 누락된 선행 서비스의 예약 비용이 추가된다.
+    # Plan과 Apply가 동일한 victim을 선택해야 GPU 상한을 넘지 않는다.
+    import json
+
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    target, prereq, victim = sorted(controller.CONTROLLABLE)[:3]
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {
+        target: 0.60, prereq: 0.20, victim: 0.20,
+    })
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {target: [prereq]})
+    monkeypatch.setattr(controller, "_HEALTH_URL", {prereq: "http://test/health", target: "http://test/health"})
+    states = {target: "running", prereq: "exited", victim: "running"}
+    stopped: list[str] = []
+    started: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            stopped.append(service)
+            states[service] = "exited"
+            return True
+
+        async def start(self, service):
+            started.append(service)
+            states[service] = "running"
+            return True
+
+    async def healthy(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    monkeypatch.setattr(controller, "_wait_healthy", healthy)
+    plan = asyncio.run(controller._runtime_transition_plan(target, "active", force=True))
+    assert plan["admissible"] is True
+    assert plan["stop"] == [victim]
+    result = asyncio.run(controller.start_container(
+        target, force=True, plan_digest=plan["plan_digest"], authorization=None
+    ))
+    assert json.loads(result.body)["evicted"] == [victim]
+    assert stopped == [victim]
+    assert started == [prereq]
+    assert states[target] == "running"
+
+
+def test_runtime_start_does_not_evict_active_prerequisite_even_if_lower_priority(
+    tmp_path, monkeypatch
+):
+    # 적용 시 Admission을 다시 계산하더라도 선행 서비스는 Plan과 같이 보호해야 한다.
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    target, prereq, victim = sorted(controller.CONTROLLABLE)[:3]
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {
+        target: 0.70, prereq: 0.20, victim: 0.20,
+    })
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {target: [prereq]})
+    monkeypatch.setattr(controller, "_CRITICALITY", {
+        prereq: "retrieval_support_path",
+        victim: "risk_signal_path",
+    })
+    states = {target: "exited", prereq: "running", victim: "running"}
+    stopped: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            stopped.append(service)
+            states[service] = "exited"
+            return True
+
+        async def start(self, service):
+            states[service] = "running"
+            return True
+
+    async def healthy(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    monkeypatch.setattr(controller, "_wait_healthy", healthy)
+    plan = asyncio.run(controller._runtime_transition_plan(target, "active", force=True))
+    assert plan["admissible"] is True
+    assert plan["stop"] == [victim]
+    asyncio.run(controller.start_container(
+        target, force=True, plan_digest=plan["plan_digest"], authorization=None
+    ))
+    assert stopped == [victim]
+    assert states[prereq] == "running"
+
+
+def test_runtime_apply_rejects_different_victim_after_plan_review(
+    tmp_path, monkeypatch
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    target, victim, other = sorted(controller.CONTROLLABLE)[:3]
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {
+        target: 0.80, victim: 0.20, other: 0.20,
+    })
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {target: []})
+    states = {target: "exited", victim: "running", other: "exited"}
+    mutations: list[str] = []
+
+    class ObservedExecutor:
+        status_calls = 0
+
+        async def status(self, service):
+            if service == other:
+                self.status_calls += 1
+                # Plan 유효성 검사 직후 외부 Docker 변경이 관측되는 상황.
+                if self.status_calls >= 2:
+                    return "running"
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            mutations.append(service)
+            return True
+
+    executor = ObservedExecutor()
+    monkeypatch.setattr(controller, "_executor", lambda: executor)
+    # 초기 계획에서 victim만 중지할 수 있다. 재관측 결과가 달라지면 Apply는 거부한다.
+    first_plan = asyncio.run(controller._runtime_transition_plan(target, "active", force=True))
+    assert first_plan["stop"] == [victim]
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(controller.start_container(
+            target, force=True, plan_digest=first_plan["plan_digest"], authorization=None
+        ))
+    assert rejected.value.status_code == 409
+    assert mutations == []
