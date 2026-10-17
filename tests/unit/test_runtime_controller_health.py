@@ -38,6 +38,18 @@ def test_lifespan_does_not_block_health_on_main_model_reconciliation(tmp_path, m
         assert not controller._initialized.is_set()
 
 
+def test_lifespan_cleans_up_background_tasks_before_exit(tmp_path, monkeypatch):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+
+    async def slow_initialize() -> None:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(controller._main_model_manager, "initialize", slow_initialize)
+    with TestClient(controller.app) as client:
+        assert client.get("/health").status_code == 200
+    assert not controller._BACKGROUND_TASKS
+
+
 def test_initialization_fails_closed_without_compose_project(tmp_path, monkeypatch):
     controller = _load_runtime_controller(tmp_path, monkeypatch)
     monkeypatch.setattr(controller, "COMPOSE_PROJECT", "")
@@ -72,6 +84,40 @@ def test_health_surfaces_definitive_reconciliation_failure(tmp_path, monkeypatch
     assert "main runtime did not become healthy" in str(excinfo.value.detail)
 
 
+
+def test_factory_owns_independent_state_and_dependencies(tmp_path, monkeypatch):
+    from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
+
+    first = _load_runtime_controller(tmp_path / "first", monkeypatch)
+    second = _load_runtime_controller(tmp_path / "second", monkeypatch)
+
+    assert first.app is not second.app
+    assert first._budget_lock is not second._budget_lock
+    assert first._initialized is not second._initialized
+    assert first._BACKGROUND_TASKS is not second._BACKGROUND_TASKS
+    assert first._main_model_manager is not second._main_model_manager
+    assert first._state_store.path != second._state_store.path
+    assert first.app.state.controller is first
+    assert second.app.state.controller is second
+    assert first._initialized.is_set() is False
+    assert second._initialized.is_set() is False
+
+    class FakeExecutor:
+        async def status(self, service):
+            return "exited"
+
+        async def start(self, service):
+            return True
+
+        async def stop(self, service):
+            return True
+
+    injected = FakeExecutor()
+    app = create_runtime_controller_app(executor=injected)
+    assert app.state.controller._executor() is injected
+
+
+
 def test_runtime_controller_reads_canonical_main_model_env(tmp_path):
     from pathlib import Path
 
@@ -90,6 +136,67 @@ def test_runtime_controller_reads_canonical_main_model_env(tmp_path):
     assert config.boot_profile == "gemma4-12b-unified-fp8"
     assert config.profile_locked is True
     assert config.idempotency_ttl_seconds == "30"
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("INTERNAL_SERVICE_AUTH_REQUIRED", "treu"),
+        ("INTERNAL_SERVICE_AUTH_REQUIRED", ""),
+        ("MAIN_MODEL_PROFILE_LOCKED", "flase"),
+        ("MAIN_MODEL_PROFILE_LOCKED", ""),
+    ],
+)
+def test_runtime_controller_rejects_invalid_boolean_configuration(tmp_path, name, value):
+    from ai_model_serving.apps.runtime_controller import load_runtime_controller_config
+
+    with pytest.raises(RuntimeError, match="invalid boolean setting"):
+        load_runtime_controller_config(
+            {"MAIN_MODEL_STATE_PATH": str(tmp_path / "s.json"), name: value}
+        )
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "-inf"])
+def test_runtime_controller_rejects_invalid_log_refresh_period(tmp_path, value):
+    from ai_model_serving.apps.runtime_controller import load_runtime_controller_config
+
+    with pytest.raises(RuntimeError, match="LOG_TARGET_REFRESH_SECONDS"):
+        load_runtime_controller_config(
+            {"MAIN_MODEL_STATE_PATH": str(tmp_path / "s.json"), "LOG_TARGET_REFRESH_SECONDS": value}
+        )
+
+
+@pytest.mark.parametrize("required,anonymous_status", [(False, 200), (True, 401)])
+def test_internal_controller_auth_follows_declared_flag_even_with_a_token(
+    tmp_path, monkeypatch, required, anonymous_status
+):
+    from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
+
+    app = create_runtime_controller_app(
+        environment={
+            "COMPOSE_PROJECT": "test-platform",
+            "MAIN_MODEL_STATE_PATH": str(tmp_path / "auth-state.json"),
+            "INTERNAL_SERVICE_AUTH_REQUIRED": str(required).lower(),
+            "INTERNAL_SERVICE_TOKEN": "valid-runtime-controller-token",
+            # 환경을 명시적으로 주입하므로 프로필 이미지 pin도 함께 제공한다.
+            "VLLM_IMAGE": "registry.example.com/vllm@sha256:" + "a" * 64,
+        }
+    )
+
+    async def slow_initialize() -> None:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(app.state.controller._main_model_manager, "initialize", slow_initialize)
+    with TestClient(app) as client:
+        assert client.get("/main-model/profiles").status_code == anonymous_status
+        assert client.get(
+            "/main-model/profiles",
+            headers={"Authorization": "Bearer valid-runtime-controller-token"},
+        ).status_code == 200
+        if required:
+            assert client.get(
+                "/main-model/profiles", headers={"Authorization": "Bearer wrong-token"}
+            ).status_code == 401
+
 
 def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_token(tmp_path):
     """가장 높은 권한을 가진 프로세스는 인증을 조용히 끄지 않아야 한다.

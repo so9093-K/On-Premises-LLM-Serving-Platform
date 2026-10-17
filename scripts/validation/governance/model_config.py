@@ -168,6 +168,19 @@ def validate_ports() -> None:
             f'gateway default_host_port must remain 9400, got {host_ports.get("gateway")}'
         )
 
+    # Risk Signal Service는 vLLM topology 밖의 내부 서비스이므로 서비스 레지스트리와
+    # 기본 내부 endpoint의 정합성을 여기에서 검증한다. 외부 env override는 별도 계약이다.
+    risk_service = services['risk_signal_service']
+    expected_risk_endpoint = (
+        f"http://{risk_service['compose_service']}:{risk_service['container_port']}"
+    )
+    actual_risk_endpoint = read_yaml('configs/model_serving.yaml')['risk_signal_service']['endpoint']
+    if actual_risk_endpoint != expected_risk_endpoint:
+        raise SystemExit(
+            'risk_signal_service.endpoint must match services.yaml '
+            f'risk_signal_service internal URL {expected_risk_endpoint!r}, got {actual_risk_endpoint!r}'
+        )
+
     metal_port = int(read_yaml('configs/macos_mlx_runtime.yaml')['runtime']['port'])
     main_runtime_port = int(services['main_llm_vllm']['container_port'])
     if metal_port != main_runtime_port:

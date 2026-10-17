@@ -5,8 +5,10 @@
 `configs/main_model_profiles.yaml`, `configs/model_serving.yaml`을 기준으로 하고, 실제
 배포 상태는 boot log, `nvidia-smi`, vLLM `/metrics`로 확인한다.
 
+- `main_model_profile_validation_history.md`: Main Model 프로필별 과거 GPU 측정·모델 전환·엔진 변경 이력. 현재 설정의 근거를 보존하나 운영 정책값을 정의하지 않는다.
 - `gpu_resource_requirements_48gb.md`: 초기 Gemma 26B/12B 프로필을 48GB GPU에서
   검증하며 얻은 resource 판단 이력과 실측값. 현재 선택 가능한 전체 Main Model profile의
-  실행값·검증 근거는 `configs/main_model_profiles.yaml`을 기준으로 한다.
+  실행값·현재 qualification 선언은 `configs/main_model_profiles.yaml`을 기준으로 하며,
+  당시 실측·검증 근거는 `main_model_profile_validation_history.md`에서 확인한다.
 
 문서 안의 과거 26B·20K 기준은 현 기본 profile의 운영값으로 사용하지 않는다.

@@ -483,6 +483,14 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         minimum=1,
     )
 
+    # YAML 선언뿐 아니라 실제 환경변수 투영 결과도 detector context와 일치시킨다.
+    # vLLM detector가 없는 local-only 구성에는 vLLM 기준 상한을 강제하지 않는다.
+    if detector_windows and risk_input_max_chars > detector_context_chars:
+        raise RuntimeError(
+            "RISK_INPUT_MAX_CHARS exceeds enabled detector context budget "
+            f"({risk_input_max_chars} > {detector_context_chars})"
+        )
+
     streaming_cfg = model_serving.get("streaming", {})
 
     return AppSettings(

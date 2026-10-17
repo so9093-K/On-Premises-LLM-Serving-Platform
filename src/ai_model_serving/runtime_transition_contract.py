@@ -8,6 +8,11 @@ from .errors import ServiceError
 _PLAN_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+def is_valid_plan_digest(value: object) -> bool:
+    """Plan Digest의 wire 형식만 검사한다. API별 거부 코드는 호출자가 결정한다."""
+    return isinstance(value, str) and _PLAN_DIGEST_RE.fullmatch(value) is not None
+
+
 def parse_runtime_transition_request(
     payload: Any,
     *,
@@ -51,7 +56,7 @@ def parse_runtime_transition_request(
             param="plan_digest",
         )
     if plan_digest is not None and (
-        not isinstance(plan_digest, str) or not _PLAN_DIGEST_RE.fullmatch(plan_digest)
+        not is_valid_plan_digest(plan_digest)
     ):
         raise ServiceError(
             "VALIDATION_ERROR",

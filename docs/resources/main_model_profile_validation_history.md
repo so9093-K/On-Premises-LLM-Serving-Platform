@@ -1,0 +1,185 @@
+# Main Model 프로필 검증·실측 이력
+
+이 문서는 `configs/main_model_profiles.yaml`에 있던 과거 검증 기록을 원문에 가깝게 보존한다.
+현재 모델의 실행 identity, 커맨드, Gateway 정책, capability, qualification 상태는
+[Main Model Profiles](../../configs/main_model_profiles.yaml)가 유일한 기준이다.
+여기 기록된 과거 GPU 사용량·엔진 버전·처리량은 현재 Runtime의 보증값이 아니다.
+새로운 Qualification Evidence, benchmark, baseline 계약을 정의하지 않는다
+([ADR-0042](../adr/0042-remove-qualification-evidence-and-benchmark.md)).
+
+---
+
+이력은 현재 설정의 근거를 보존하기 위한 참고 정보다. 전환 로직은 각 profile의
+compatibility.status와 실행 canary만 사용한다.
+
+## `gemma4-26b-a4b-fp8`
+아래는 해당 profile 검증 당시 RTX 6000 Ada 48GiB 환경의 20K 런타임 실측 이력이다.
+현재 활성 host·profile·GPU 사용량을 나타내지 않는다.
+이 프로필을 추가할 때 모델 revision과 런타임 이미지 digest를 기록했다.
+
+12B(50K) 검증 직후 실제로 이 프로필로 전환해 재확인했다. local-main 자체 35,940
+MiB(35.1 GiB), 전체(embed/embed-ko/risk-prompt 포함) 41.5 GiB 사용, headroom 5.8 GiB.
+/metrics에서 num_gpu_blocks=10812, block_size=16 (KV cache 172,992 tokens) 확인 -- 현재
+설정(seq=1, 20K = 최소 필요 20,000 tokens) 대비 약 8.6배 여유가 있다.
+
+2026-07-24, runtime.image를 gemma4-unified-cu129(vLLM main 브랜치 2026-06-03 dev
+snapshot)에서 v0.25.1 정식 릴리스 digest로 바꿨다 -- 12B/risk-prompt 파생 이미지는 이미
+이 릴리스를 베이스로 쓰고 있었고, 26B만 구버전 dev snapshot에 남아 있던 걸 맞춘 것.
+
+같은 날 실제로 12B(당시 라이브)를 잠깐 내리고 이 이미지로 26B를 부팅해 재검증했다 --
+healthy, /v1/models//v1/chat/completions 실제 호출 정상. gpu_worker.py 실측 -- Available
+KV cache memory 6.6 GiB, GPU KV cache size 31,438 tokens, 20,000 tokens 요청 기준 max
+concurrency 1.57x(20K 단일 요청 대비 여유, 12B의 현재 1.07x보다 넉넉함). 검증 후 그 시점
+라이브 상태(12B)로 복귀했다 -- 26B를 실제 기본으로 올릴지는 별도 결정 필요.
+
+2026-07-25, runtime.image가 이제 Gemma4 멀티모달 패치 + Kanana Llama head_dim 패치가
+병합된 vllm-unified 이미지를 가리킨다. 12B/embedding/embedding-ko/risk-prompt 재부팅
+검증 직후 26B로도 다시 전환해 재확인했다 -- healthy, 텍스트/이미지 입력 둘 다 정상(두
+patch 모두 26B의 코드 경로와 안 겹쳐 no-op이라는 설계 그대로 확인됨). 검증 후 12B로
+복귀했다.
+
+검증값: gpu=NVIDIA RTX 6000 Ada Generation, compute_capability=8.9, vram_mib=49140,
+context_tokens=20000, concurrency=1, validated_at=2026-07-25,
+kv_cache_size_tokens=31438, kv_cache_max_concurrency=1.57.
+
+## `gemma4-12b-unified-fp8`
+마지막으로 live-validated된 커맨드에서 --max-model-len/--max-num-batched-tokens만
+20000 -> 50000으로 바뀌었다; --max-num-seqs(2)와 --gpu-memory-utilization(0.76)은
+그대로다.
+
+직전 20K 엔진의 실측 /metrics에서 num_gpu_blocks=20707, block_size=16 (KV cache 용량
+331,312 tokens)이 확인됐다. 20K/seq=2 기준 필요량은 40,000 tokens로 약 8배 여유가
+있었고, 이 여유를 근거로 50K를 실제 배포 서버에서 전환(switch)해 부팅 성공을 확인했다.
+
+부팅 후 실측 /metrics에서 num_gpu_blocks=16638 (KV cache 용량 266,208 tokens)로
+재확인됐다 -- 20K 때보다 줄었는데, --max-num-batched-tokens가 커지면서 profiling 시
+activation 메모리 추정치가 커져 KV cache 몫이 줄어든 것으로 보인다. 그래도
+2x50,000=100,000 tokens 대비 약 2.7배 여유가 남아 gpu_memory_utilization은 건드리지
+않았다.
+
+이 프로필 ID는 별도로 만들었던 gemma4-12b-unified-fp8-50k 후보를 이 자리로 합친 것이다.
+그 결과 이전에 verified였던 20K 커맨드를 가리키는 별도의 known-good 프로필 ID는 더 이상
+없다 -- 이후 50K 커맨드가 이상 동작하면, 별도 프로필로의 자동 롤백이 아니라 이 파일을
+(예를 들어 git으로) 수동으로 되돌려야 20K로 복구된다.
+
+이 model_id/revision/런타임 이미지 조합의 최초 호스트 검증은 2026-06-25에 20K context에서
+완료됐다; 해당 기록은 git history를 참고한다.
+
+--max-num-seqs를 2 -> 3으로 올렸다. 50K/seq=2 실측 pool(266,208 tokens, KV cache 용량
+--max-num-batched-tokens=50000 기준) 대비 seq=3 필요량은 3x50,000=150,000 tokens로
+pool의 약 56%, 여유 약 1.77배(116,208 tokens)다. seq=2->50K 때(8배 여유)보다는
+타이트하지만 여전히 안전한 수준으로 판단해 운영자 결정으로 반영했다.
+
+seq=3 커맨드가 실제로 라이브 배포된 상태에서 2026-07-23에 /metrics를 재확인했다 --
+num_gpu_blocks=17634, block_size=16 (KV cache 용량 282,144 tokens), seq=3 필요량 150,000
+tokens 대비 약 1.88배 여유로, 위 예측(1.77배)보다 실측 여유가 더 컸다.
+
+--max-model-len/--max-num-batched-tokens를 50000 -> 58192로 올렸다. 58192 =
+max_output_tokens(8192, gateway 정책 상한) + 50000(기존 검증된 입력 여유)이다 --
+지금까지는 입력+출력이 50000 안에서 서로를 갉아먹었는데, 이후로는 입력 50000과 출력
+8192가 서로 침범하지 않고 각각 보장된다. 이 정확한 커맨드(58192)의 실제 boot//metrics
+재확인은 아직 없다 -- 위 1.88배 여유는 max-num-batched-tokens가 50000일 때 실측이고,
+58192로 올리면 activation 메모리 프로파일링 추정치가 커져 KV cache pool이 줄어드는 현상이
+재현될 수 있다(20K->50K 전환 때 실측으로 확인된 패턴, 이번엔 상승폭이 훨씬 작아 영향도
+작을 것으로 예상하나 확정 아님). 배포 전 재부팅 후 재측정 필요.
+
+게이트웨이 max_output_tokens 정책을 8192 -> 13000으로 올렸다(단일 스트림 실측 52
+tokens/sec 기준, MAIN_MODEL_TIMEOUT_SECONDS=300 안에 약 250초로 여유 50초). 위 58192
+산식(50000 입력 + 8192 출력)이 더 이상 정확히 들어맞지 않는다 -- max-model-len은 58192
+그대로 뒀으므로, 출력이 13000을 다 쓰는 최악의 경우 입력 여유는 50000이 아니라
+58192-13000=45192로 줄어든다. 원래 의도한 50000 입력 여유를 그대로 지키려면
+max-model-len도 63000(=50000+13000)으로 같이 올려야 한다는 선택지가 있었다. 아래
+58192 boot 실패 뒤 50000으로 복구했으므로, 현재 50000은 입력 보장량이 아니라
+runtime이 검사하는 입력+출력 전체 context 상한이다.
+
+58192/seq=3를 실제로 배포했다가 boot 자체가 실패했다(2026-07-23, 실제 배포 로그 확인).
+vLLM 엔진이 초기화 단계에서 ValueError -- To serve at least one request with the model's
+max seq len (58192), (18.65 GiB KV cache is needed, which is larger than the available KV
+cache memory (16.28 GiB) -- 로 죽었고, vLLM 자신이 계산한 안전 상한은 50800이었다.
+배포 스크립트가 자동 롤백해 이전 릴리스(50000/seq=3)로 정상 복구됐다. 위 1.88배 여유
+계산(seq=3 기준)은 --max-num-batched-tokens=50000일 때의 activation 메모리 프로파일
+기준이라 58192로 올리면 무효였다는 뜻이다.
+
+크래시 로그의 실측값(18.65 GiB 필요/16.28 GiB 가용, seq=3·58192 기준)을 seq 비례로
+역산해 --max-num-seqs를 3 -> 2로 낮추면 필요량이 18.65 * 2/3 ≈ 12.44 GiB로 줄어 여유가
+생길 거라 예상하고 seq=2/max-model-len=58192로 반영했었다.
+
+2026-07-24 실제 배포에서 seq=2/58192 조합도 boot 자체가 실패했다 -- 크래시 로그가
+seq=3 때와 완전히 동일하다(18.65 GiB 필요/16.28 GiB 가용). 원인은 위 seq 비례 계산이
+틀렸다는 것 -- vLLM 에러 메시지는 "to serve at least one request with the model's max seq
+len"이라고 명시하는데, 이는 max_model_len 하나짜리 시퀀스 1개의 요구량이라
+--max-num-seqs와 무관하다 -- seq를 낮춰도 이 체크는 전혀 바뀌지 않는다. 배포 스크립트가
+다시 자동 롤백해 50000/seq=3으로 정상 복구됐다(같은 날 확인).
+
+gpu_memory_utilization 상향과 configs/gpu_budgets.yaml의 total_gpu_memory_utilization
+재분배도 검토했다 -- avoid_above(0.93)까지 다른 3개 서비스를 전부 tuning_range 최저치로
+눌러도 main_llm이 받을 수 있는 최댓값은 0.81 근처로, 18.65 GiB 요구량 대비 마진이
+사실상 0이다. avoid_above 자체가 reserve_gib.hard_minimum(3.5 GiB)에서 역산된 값이라
+더 올리는 것도 하드 미니멈을 깎아먹는 것과 같다. 즉 이 카드에서 58192는 다른 3개 모델과
+공존하는 한 안전 마진을 확보할 방법이 없다고 판단해
+--max-model-len/--max-num-batched-tokens/--max-num-seqs를 50000/50000/3으로 되돌린다.
+
+참고 -- 위 "266,208/282,144/331,312 tokens" 식의 과거 기록은 num_gpu_blocks x
+block_size(16)로 계산한 값인데, 이 model(Gemma4 heterogeneous head dim, TRITON_ATTN)에서는
+이 공식이 실제 용량과 안 맞는다 -- 실측 vllm:cache_config_info의 kv_cache_size_tokens는
+50000 커맨드에서 53,722(= "Available KV cache memory -- 17.22 GiB"와 일치),
+num_gpu_blocks(17634) x 16 = 282,144와는 다르다. 앞으로 이 model의 KV 캐시 용량은
+num_gpu_blocks 곱셈이 아니라 kv_cache_size_tokens 또는 부팅 로그의 Available KV cache
+memory GiB 값으로 확인한다.
+
+max-model-len을 50000으로 되돌렸지만 게이트웨이 max_output_tokens 정책은 13000 그대로
+뒀다 -- 위(2026-07-23 항목)에서 미뤄뒀던 입력/출력 공유 트레이드오프가 58192 때(입력
+여유 45192)보다 더 타이트하게(입력 여유 50000-13000=37000) 재적용된다는 뜻이다.
+max_model_len 관점에서는 여전히 유효한 설정(13000 < 50000)이라 boot를 막지는 않으나,
+출력이 13000을 다 쓰는 요청은 입력 37000 안에서만 허용된다는 걸 gateway 정책 결정으로
+의식하고 있어야 한다 -- 별도 결정 없이는 이 상태 유지.
+
+2026-07-25, ${MAIN_MODEL_VLLM_IMAGE_OVERRIDE}가 resolve하는 image 값이 이제 Gemma4 멀티모달 패치 +
+Kanana Llama head_dim 패치가 병합된 vllm-unified 이미지를 가리킨다(당시 build
+automation에서 실제로 빌드/push함). 실제 이 이미지로 재부팅 -- healthy, 텍스트 채팅 정상,
+이미지 입력도 정상 응답(패치가 여전히 유효함을 확인).
+
+검증값: gpu=NVIDIA RTX 6000 Ada Generation, compute_capability=8.9, vram_mib=49140,
+context_tokens=50000, concurrency=3, validated_at=2026-07-25,
+kv_cache_size_tokens=53722, kv_cache_max_concurrency=1.07.
+
+## `qwen2.5-omni-7b-thinker`
+2026-08-14, 후보 profile로 처음 추가. 최초 커맨드(--max-model-len 8192,
+--gpu-memory-utilization 0.4)로 전환 시도 -- text/image/audio canary는 성공했으나 video
+canary가 vLLM 자체 Qwen2VLVideoBackend.compute_frames_index_to_sample에서
+ZeroDivisionError로 실패, 자동 rollback으로 Gemma 12B 복귀. 원인은 vLLM/Qwen
+호환성 문제가 아니라 우리 video canary fixture(TINY_MP4_VIDEO_B64)가 1 frame짜리
+degenerate 영상이었던 것 -- total_frames_num=1이 temporal_patch_size(2) 나눗셈에서
+n=0을 유발했다. fixture를 6 frame/2fps 영상으로 교체 후 재전환 -- text/image/audio/video
+4종 전부 성공, 혼합 입력(image+audio+video 한 요청)도 성공, streaming도 정상.
+
+같은 날, structured output(response_format: json_schema/json_object)을 vLLM 직접
+요청으로 실측 검증 -- strict schema 강제(자유 대화 프롬프트에도 스키마 강제됨),
+무효 schema는 400 거부 확인. Gemma와 달리 --structured-outputs-config 등 별도 커맨드
+옵션 없이 vLLM 기본 xgrammar backend로 그대로 동작한다. gateway_policy에 반영 후
+재전환(--max-model-len 8192->32768, --gpu-memory-utilization 0.4->0.6로 리소스 여유도
+같이 반영) -- Gateway 경유 response_format 요청도 정상 확인.
+
+검증값(2026-08-14, --max-model-len 32768/--gpu-memory-utilization 0.6 기준):
+gpu=NVIDIA RTX 6000 Ada Generation, vram_mib=49140, kv_cache_size_tokens=209536,
+kv_cache_max_concurrency=6.39, gpu_used_mib=35840(free=12671, embedding/embedding-ko/
+risk-prompt 포함 전체 사용량).
+
+리소스 설정 변경 재부팅 로그를 다시 확인한 결과, 재시작 감지 reconcile이 4종 canary를
+다시 돌렸고(GET /v1/models -> text -> image -> audio -> video, 전부 200) 이 역시
+성공했다 -- 즉 독립된 재부팅 2회(fixture 수정 직후, 리소스 설정 변경 후) 모두 4종 전부
+성공해 재현성 조건을 충족했다. use_audio_in_video와 다중 media 정책은 후속 실측으로 확인했다. response_format,
+logprobs, logit_bias는 vLLM 직접 요청과 Gateway 경유에서 확인했다: logprobs/top_logprobs,
+logit_bias, stream+logprobs, json_schema+logit_bias가 모두 HTTP 200 및 기대 응답 형상을
+통과했다. 이 근거로 status를 verified로 승격했다. tool calling은 안정적인 parser/template
+경로가 없어 비활성, reasoning은 이 Thinker 경로의 기능이 아니다.
+
+리소스 재검토로 --max-num-seqs를 1 -> 4, Gateway max_output_tokens를 2048 -> 13000으로
+조정했다. 변경 전 실제 KV cache는 209,536 tokens(32,768 context 기준 6.39 seq), Gateway
+admission은 4였고, 13,000-token 강제 생성은 약 59 tok/s로 HTTP 200을 완료했다(KV cache
+최대 6.1%). 따라서 4 seq와 13,000 output은 각각 KV cache 여유와 production 300초 upstream
+timeout 안의 사용점이다. 단, 입력과 출력은 32K context를 공유한다. 720p·60초·60-frame
+video는 prompt 약 21.6K tokens를 소비해 13,000 output을 전부 보장할 수 없다. 후속 CICD
+배포 후 Gateway 경유 13,000-token 생성은 217.09초/HTTP 200/length(13,000 completion tokens)로
+완료했고, image·20초 audio·10초 video·3종 혼합 요청 4개 동시는 모두 200으로 완료했다.
+이때 vLLM running=4, waiting=0, peak KV cache=1.879%였다.

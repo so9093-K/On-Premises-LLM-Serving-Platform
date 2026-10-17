@@ -243,6 +243,22 @@ Runtime Controller는 플랫폼의 **runtime control plane**이다.
 
 Gateway가 외부 요청 처리에 집중하도록 Docker 제어 권한과 runtime lifecycle을 별도 process로 격리한다.
 
+### App Factory와 실행 소유권
+
+Runtime Controller는 `create_runtime_controller_app()`이 설정, Topology, GPU 예산 Lock,
+Main Model Manager, Docker Executor와 백그라운드 작업을 **App 인스턴스별로** 조립한다.
+운영 Compose는 `uvicorn ai_model_serving.apps.runtime_controller:create_runtime_controller_app --factory`를 사용한다.
+모듈 import만으로 Runtime Controller 상태를 만들거나 Docker 작업을 시작하지 않는다.
+
+Controller의 `/health`는 Main Model의 기동 완료를 기다리지 않으며, Model Reconciliation과
+Alloy 로그 대상 갱신은 App Lifespan에서 별도 작업으로 시작한다. 실제 검증 전 Gate를
+열지 않는 Main Model 상태 정책은 기존 `MainModelManager`가 유지한다.
+
+Factory가 서로 다른 테스트 App의 상태를 격리하더라도 동일 GPU·Docker 프로젝트에서
+복수 운영 Controller나 다중 Worker가 동시에 쓰는 것은 지원하지 않는다.
+현재 GPU Admission Lock은 프로세스 내부 Lock이며 멀티 프로세스 Fencing이 아니다.
+
+
 ```text
 Gateway
   │

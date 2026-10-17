@@ -40,6 +40,43 @@ def boot_config(tmp_path, *, utilization="0.76", locked=False):
     return profile_id, boot, effective
 
 
+@pytest.mark.parametrize("mutation", ["runtime_port", "profile_port", "service_name"])
+def test_main_model_runtime_port_and_identity_follow_service_registry(
+    tmp_path, monkeypatch, mutation
+):
+    catalog = validator.load_yaml(validator.MAIN_MODEL_PROFILES_PATH)
+    if mutation == "runtime_port":
+        catalog["runtime"]["container_port"] = 9501
+        expected = "runtime.container_port must match services.yaml"
+    elif mutation == "service_name":
+        catalog["runtime"]["compose_service"] = "legacy-main"
+        expected = "runtime.compose_service must match services.yaml"
+    else:
+        command = catalog["profiles"][catalog["default_profile"]]["command"]
+        command[command.index("--port") + 1] = "9501"
+        expected = "--port must match services.yaml"
+
+    path = tmp_path / "profiles.yaml"
+    path.write_text(yaml.safe_dump(catalog, allow_unicode=True), encoding="utf-8")
+    monkeypatch.setattr(validator, "MAIN_MODEL_PROFILES_PATH", path)
+    errors = validator.validate_main_llm_bootstrap_image(validator.load_yaml(validator.COMPOSE_PATH))
+    assert any(expected in message for message in errors)
+
+
+def test_risk_service_endpoint_follows_service_registry(monkeypatch):
+    from scripts.validation.governance import common, model_config
+
+    canonical = common.read_yaml("configs/model_serving.yaml")
+    canonical["risk_signal_service"]["endpoint"] = "http://risk-signal-service:9999"
+    monkeypatch.setattr(
+        model_config,
+        "read_yaml",
+        lambda path: canonical if path == "configs/model_serving.yaml" else common.read_yaml(path),
+    )
+    with pytest.raises(SystemExit, match="risk_signal_service.endpoint must match services.yaml"):
+        model_config.validate_ports()
+
+
 @pytest.mark.parametrize("locked", [False, True])
 def test_effective_main_uses_persisted_or_locked_profile(tmp_path, locked):
     profile_id, boot, effective = boot_config(tmp_path, locked=locked)

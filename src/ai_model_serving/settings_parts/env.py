@@ -32,7 +32,12 @@ def as_bool(value: str | bool | None, default: bool) -> bool:
         return default
     if isinstance(value, bool):
         return value
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"invalid boolean setting: {value!r}; expected true or false")
 
 
 def env(name: str, default: str) -> str:

@@ -27,6 +27,7 @@ SERVING_PATH = ROOT / "configs/model_serving.yaml"
 CATALOG_PATH = ROOT / "configs/model_catalog.yaml"
 GPU_BUDGETS_PATH = ROOT / "configs/gpu_budgets.yaml"
 MAIN_MODEL_PROFILES_PATH = ROOT / "configs/main_model_profiles.yaml"
+SERVICES_PATH = ROOT / "configs/services.yaml"
 GEMMA4_CHAT_TEMPLATE_PATH = ROOT / "configs/gemma4_chat_template.jinja"
 
 COMPOSE_SCALAR_ARGS = (
@@ -152,6 +153,26 @@ def validate_main_llm_bootstrap_image(compose: dict[str, Any]) -> list[str]:
     catalog = load_yaml(MAIN_MODEL_PROFILES_PATH)
     default_profile_id = catalog.get("default_profile")
     runtime_image = catalog.get("runtime", {}).get("image")
+    # Main Model의 실제 vLLM 포트는 service registry의 내부 포트와 일치해야 한다.
+    main_service = load_yaml(SERVICES_PATH)["services"]["main_llm_vllm"]
+    canonical_service = str(main_service["compose_service"])
+    canonical_port = int(main_service["container_port"])
+    catalog_runtime = catalog.get("runtime", {})
+    if catalog_runtime.get("compose_service") != canonical_service:
+        errors.append(
+            "main-model runtime.compose_service must match services.yaml main_llm_vllm.compose_service"
+        )
+    if str(catalog_runtime.get("container_port")) != str(canonical_port):
+        errors.append(
+            "main-model runtime.container_port must match services.yaml main_llm_vllm.container_port"
+        )
+    for candidate_id, candidate in catalog.get("profiles", {}).items():
+        args = command_args(candidate.get("command", []))
+        if str(args.get("port")) != str(canonical_port):
+            errors.append(
+                f"main-model profile {candidate_id} --port must match "
+                "services.yaml main_llm_vllm.container_port"
+            )
     profile = catalog.get("profiles", {}).get(default_profile_id, {})
     profile_image = profile.get("image")
     compose_image = compose.get("services", {}).get("main-llm-vllm", {}).get("image")
