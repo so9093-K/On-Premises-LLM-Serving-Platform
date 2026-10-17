@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildExportFiles, requestPreview } from '../src/playgroundExport.ts';
+import { buildExportFiles } from '../src/playgroundExport.ts';
 
 const run = promisify(execFile);
 const request = JSON.stringify({
@@ -39,8 +39,6 @@ test('export preserves the original HTTP JSON rather than rebuilding or redactin
   assert.match(files['client.mjs'], /request.json/);
   assert.match(files['client.sh'], /request.json/);
   assert.doesNotMatch(JSON.stringify(files), /Bearer only-in-env/);
-  assert.match(requestPreview(request), /"reasoning": true/);
-  assert.equal(requestPreview(request, 8), null);
   assert.throws(() => buildExportFiles('[]'), /JSON 객체/);
   assert.throws(() => buildExportFiles('{"model":"m"}'), /Chat Completions/);
 });

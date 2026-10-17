@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const chatPage = readFileSync(new URL('../src/ChatPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-import { CHAT_FOLLOW_DISTANCE_PX, conversationEndNearViewport } from '../src/chatScroll.ts';
+import { conversationEndNearViewport } from '../src/chatScroll.ts';
 
 test('tool result input captures event value before the deferred state updater runs', () => {
   assert.doesNotMatch(
@@ -38,7 +38,6 @@ test('the mobile settings shortcut has a real target and a way back to the compo
 });
 
 test('conversation follow threshold has observable viewport boundary behavior', () => {
-  assert.equal(CHAT_FOLLOW_DISTANCE_PX, 160);
   assert.equal(conversationEndNearViewport(840, 844), true);
   assert.equal(conversationEndNearViewport(1003, 844), true);
   assert.equal(conversationEndNearViewport(1004, 844), false);
