@@ -165,6 +165,37 @@ def test_runtime_controller_rejects_invalid_log_refresh_period(tmp_path, value):
         )
 
 
+@pytest.mark.parametrize("required,anonymous_status", [(False, 200), (True, 401)])
+def test_internal_controller_auth_follows_declared_flag_even_with_a_token(
+    tmp_path, monkeypatch, required, anonymous_status
+):
+    from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
+
+    app = create_runtime_controller_app(
+        environment={
+            "COMPOSE_PROJECT": "test-platform",
+            "MAIN_MODEL_STATE_PATH": str(tmp_path / "auth-state.json"),
+            "INTERNAL_SERVICE_AUTH_REQUIRED": str(required).lower(),
+            "INTERNAL_SERVICE_TOKEN": "valid-runtime-controller-token",
+        }
+    )
+
+    async def slow_initialize() -> None:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(app.state.controller._main_model_manager, "initialize", slow_initialize)
+    with TestClient(app) as client:
+        assert client.get("/main-model/profiles").status_code == anonymous_status
+        assert client.get(
+            "/main-model/profiles",
+            headers={"Authorization": "Bearer valid-runtime-controller-token"},
+        ).status_code == 200
+        if required:
+            assert client.get(
+                "/main-model/profiles", headers={"Authorization": "Bearer wrong-token"}
+            ).status_code == 401
+
+
 def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_token(tmp_path):
     """가장 높은 권한을 가진 프로세스는 인증을 조용히 끄지 않아야 한다.
 
