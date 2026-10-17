@@ -571,9 +571,16 @@ Source와 artifact 관계가 핵심이면 validator를 강화하고, application
 테스트 파일은 실패 시 영향받는 Production 계약을 기준으로 구분한다.
 Runtime Controller의 Health/초기화는 `test_runtime_controller_health.py`, GPU 예약과
 Plan/Apply는 `test_runtime_controller_gpu.py`, 순수 상태 전환 의사결정은
-`test_runtime_transition.py`가 각각 검증한다. 같은 위험을 두 계층에서
+`test_runtime_transition.py`가 각각 검증한다. Main Model 상태 머신·재검증은
+`test_main_model_control.py`, 이미지·Profile·자원 변형 해석은
+`test_main_model_catalog.py`가 소유한다. 같은 위험을 두 계층에서
 확인할 때는 정책 함수의 decision branch와 실제 API/Executor 연결이라는
 서로 다른 검증 목적이 있어야 한다.
+
+Docker 예약 상태의 전체 분기표는 `test_runtime_executor.py`가 검사하고,
+Controller Ledger·Plan 연동은 대표 상태와 실패 경로만 검증한다.
+분기별 케이스를 여러 계층에 반복하지 않으며 테스트를 통합·삭제할 때는
+같은 위험을 무엇이 대신 막는지 확인한다.
 
 ### 삭제·통합 기준
 

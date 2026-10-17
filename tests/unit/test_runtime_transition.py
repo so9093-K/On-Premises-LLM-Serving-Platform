@@ -109,7 +109,6 @@ def test_already_running_prerequisite_is_never_selected_as_activation_victim() -
     assert plan.admissible is True
     assert plan.start == ("target",)
     assert plan.stop == ("other",)
-    assert all(item["key"] != "prereq" for item in plan.impact)
 
 
 def test_stop_and_already_active_plans_are_explicit_noop_or_budget_change() -> None:

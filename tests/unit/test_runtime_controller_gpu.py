@@ -14,9 +14,10 @@ from fastapi import HTTPException
 from tests.support.runtime_controller import load_runtime_controller as _load_runtime_controller
 
 
+# 예약 상태의 전체 조합은 순수 정책 테스트가 소유한다. 여기서는
+# Controller의 상태 조회 → Ledger 연결 계약을 대표 상태만 확인한다.
 @pytest.mark.parametrize(("docker_state", "reserved"), [
-    ("running", True), ("paused", True), ("restarting", True),
-    ("created", False), ("exited", False), ("not_found", False),
+    ("running", True), ("paused", True), ("exited", False),
 ])
 def test_gpu_budget_uses_docker_reservation_not_serving_readiness(
     tmp_path, monkeypatch, docker_state, reserved
@@ -66,10 +67,7 @@ def test_reserved_but_not_running_runtime_cannot_be_activated_as_noop(
         assert docker_state in str(raised.value.detail)
 
 
-@pytest.mark.parametrize("docker_state", ["dead", "removing", "unknown"])
-def test_unconfirmed_docker_state_denies_gpu_plan_and_budget(
-    tmp_path, monkeypatch, docker_state
-):
+def test_unconfirmed_docker_state_denies_gpu_plan_and_budget(tmp_path, monkeypatch):
     controller = _load_runtime_controller(tmp_path, monkeypatch)
     service = next(iter(controller.CONTROLLABLE))
     monkeypatch.setattr(controller, "_VRAM_FRACTION", {service: 0.20})
@@ -77,7 +75,7 @@ def test_unconfirmed_docker_state_denies_gpu_plan_and_budget(
 
     class ObservedExecutor:
         async def status(self, key):
-            return docker_state if key == service else "exited"
+            return "unknown" if key == service else "exited"
 
     monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
     with pytest.raises(HTTPException) as budget:
