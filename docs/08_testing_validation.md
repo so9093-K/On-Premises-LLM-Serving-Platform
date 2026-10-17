@@ -727,6 +727,12 @@ JUnit 손상·테스트 케이스 0건·JUnit 선언과 실제 케이스 불일�
 `summary.exit_code`는 공통 CLI의 최종 종료 코드이고 `summary.runner_exit_code`는
 원래 프로세스의 종료 코드다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
 
+Control Plane의 `npm run test:safety`는 Node Adapter를 통해 공통 CLI를 호출한다.
+Python 실행 파일이 아예 없는 독립적인 Node 개발 환경에서는 기존 Node 내장 테스트로
+돌아가며, 이때 표준 Manifest가 생성되지 않음을 경고한다. 명시적으로 지정된
+`PYTHON_BIN`의 기동 실패는 조용히 대체하지 않고 실패시킨다. CI 환경은 공통 CLI
+경로를 사용하며 그 결과를 Artifacts로 게시한다.
+
 GitHub Actions는 기존 Job Gate를 유지하면서 `if: always()`로 해당 Job의 검증 산출물을
 Artifact로 게시한다. GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를
 그대로 소비하면 되며, 이 저장소는 GitLab Pipeline을 별도로 배포하지 않는다.
