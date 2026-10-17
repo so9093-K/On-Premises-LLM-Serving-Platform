@@ -374,7 +374,7 @@ def test_runtime_apply_rejects_different_victim_after_plan_review(
             if service == other:
                 self.status_calls += 1
                 # Plan 유효성 검사 직후 외부 Docker 변경이 관측되는 상황.
-                if self.status_calls >= 2:
+                if self.status_calls >= 3:
                     return "running"
             return states.get(service, "exited")
 
