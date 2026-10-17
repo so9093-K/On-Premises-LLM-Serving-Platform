@@ -20,7 +20,6 @@ from ai_model_serving.main_model.catalog import (
     MainModelConfigurationError,
     load_main_model_catalog,
     resolve_boot_profile,
-    resource_variant_from_mapping,
 )
 from ai_model_serving.main_model.control import MainModelManager, MainModelSwitchError
 from ai_model_serving.main_model.state import MainModelStateError, MainModelStateRevisionError, MainModelStateStore
