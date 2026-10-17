@@ -37,7 +37,7 @@ Main Model cache와 runtime startup을 현재 상태에 맞춰 수렴한다. man
 | 작업 | 주요 요구사항 |
 |---|---|
 | Application 개발·검증·테스트 | Python `>=3.12,<3.14`, `pyproject.toml`에 고정된 uv |
-| Control Plane 검증 | `ui/control-plane/package.json`에 고정된 Node.js / npm |
+| Control Plane 검증 | `ui/control-plane/package.json`에 고정된 Node.js / npm과 테스트 예제 실행용 Python·Bash |
 | Platform Image Build | Docker CLI / Docker daemon. 로컬 기본 target은 daemon architecture |
 | Full-stack 실행 | Bash 4 이상, native Linux amd64 Docker daemon, NVIDIA GPU/driver/Container Toolkit |
 | Unified vLLM Image Build | `vllm_unified_build.yaml` target과 같은 native Docker daemon. CUDA/NVIDIA image 전용 |
