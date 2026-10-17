@@ -393,3 +393,32 @@ def test_runtime_apply_rejects_different_victim_after_plan_review(
         ))
     assert rejected.value.status_code == 409
     assert mutations == []
+
+
+
+@pytest.mark.parametrize("failed_service", ["secondary", "main"])
+def test_docker_observation_error_denies_admission_without_releasing_gpu(
+    tmp_path, monkeypatch, failed_service
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    service = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {service: 0.20})
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {service: []})
+
+    class UnavailableExecutor:
+        async def status(self, key):
+            if (failed_service == "secondary" and key == service) or (
+                failed_service == "main" and key == controller._MAIN_SERVICE
+            ):
+                raise RuntimeError("Docker daemon temporarily unavailable")
+            return "exited"
+
+    monkeypatch.setattr(controller, "_executor", lambda: UnavailableExecutor())
+    with pytest.raises(HTTPException) as budget:
+        asyncio.run(controller.gpu_budget())
+    assert budget.value.status_code == 503
+    assert "cannot observe GPU reservation" in str(budget.value.detail)
+
+    with pytest.raises(HTTPException) as plan:
+        asyncio.run(controller._runtime_transition_plan(service, "active", force=True))
+    assert plan.value.status_code == 503

@@ -283,12 +283,22 @@ def _reserved_or_unavailable(service: str, status: str) -> bool:
         ) from exc
 
 
+async def _docker_reservation_status(service: str) -> str:
+    """Docker 조회 장애를 예약 해제로 추정하지 않고 사용 불가로 반환한다."""
+    try:
+        return await _executor().status(service)
+    except Exception as exc:  # noqa: BLE001 - Docker 관측 실패는 Admission 차단 사유다
+        raise HTTPException(
+            503, detail=f"cannot observe GPU reservation for {service}"
+        ) from exc
+
+
 async def _observe_budget_participants() -> tuple[list[Participant], dict[str, str]]:
     """GPU 예약 참여자와 원본 Docker 상태를 하나의 관측 집합으로 구성한다."""
     participants: list[Participant] = []
     observed: dict[str, str] = {}
     for service, fraction in _VRAM_FRACTION.items():
-        status = await _executor().status(service)
+        status = await _docker_reservation_status(service)
         observed[service] = status
         criticality = _CRITICALITY.get(service, "")
         priority, evictable = _eviction_policy(criticality)
@@ -308,7 +318,7 @@ async def _observe_budget_participants() -> tuple[list[Participant], dict[str, s
     # 아직 active profile이 기록되지 않았을 때는 boot profile 예약값을 사용한다.
     boot_fraction = _catalog.profiles[_main_model_manager.boot_profile].vram_fraction
     main_fraction = float(active_profile.get("vram_fraction") or boot_fraction)
-    main_status = await _executor().status(_MAIN_SERVICE)
+    main_status = await _docker_reservation_status(_MAIN_SERVICE)
     observed[_MAIN_SERVICE] = main_status
     participants.append(
         Participant(
