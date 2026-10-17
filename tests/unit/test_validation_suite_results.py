@@ -44,6 +44,9 @@ def test_junit_counts_supports_node_and_pytest(tmp_path, xml, expected):
         ('<testsuite><testcase name="ok"/></testsuite>', 0, "passed", 0),
         ('<testsuite><testcase name="bad"><failure/></testcase></testsuite>', 1, "test_failed", 1),
         ('<testsuite><testcase name="bad"><error/></testcase></testsuite>', 2, "execution_error", 2),
+        ('<testsuite><testcase name="bad"><failure/></testcase></testsuite>', 0, "test_failed", 2),
+        ('<testsuite tests="2"><testcase name="one"/></testsuite>', 0, "execution_error", 2),
+        ('<testsuite tests="1" failures="1"><testcase name="one"/></testsuite>', 0, "execution_error", 2),
         ("<testsuite/>", 0, "execution_error", 2),
         ("<not-junit/>", 0, "execution_error", 2),
     ],
@@ -62,7 +65,8 @@ def test_native_runner_outcome_is_not_reinterpreted(monkeypatch, tmp_path, xml, 
     assert run_suite.run("pytest", tmp_path) == expected_exit
     manifest, summary, output = latest_summary(tmp_path, "pytest")
     assert summary["status"] == expected_status
-    assert summary["exit_code"] == exit_code
+    assert summary["exit_code"] == expected_exit
+    assert summary["runner_exit_code"] == exit_code
     assert summary["junit"] == ("junit.xml" if summary["counts"] else None)
     assert manifest["source_revision"] is None
     assert manifest["run_id"] == summary["run_id"] == output.name
@@ -109,3 +113,33 @@ def test_runner_launch_failure_is_not_test_failure(monkeypatch, tmp_path):
     _, summary, _ = latest_summary(tmp_path, "pytest")
     assert summary["status"] == "execution_error"
     assert summary["diagnostic"] == "FileNotFoundError"
+
+def test_runner_terminated_by_signal_is_not_a_test_failure(monkeypatch, tmp_path):
+    script = (
+        "from pathlib import Path; import os, signal; "
+        "Path('junit.xml').write_text('<testsuite tests=\"1\" failures=\"1\"><testcase><failure/></testcase></testsuite>'); "
+        "os.kill(os.getpid(), signal.SIGTERM)"
+    )
+    def invocation(suite, junit):
+        # Signal 종료 직전 유효한 JUnit을 남겨도 실행이 완료된 것으로 취급하지 않는다.
+        script_with_report = script.replace("'junit.xml'", repr(str(junit)))
+        return [sys.executable, "-c", script_with_report], tmp_path, {}
+    monkeypatch.setattr(run_suite, "invocation", invocation)
+    monkeypatch.setattr(run_suite, "source_revision", lambda: None)
+    assert run_suite.run("pytest", tmp_path) == 143
+    _, summary, _ = latest_summary(tmp_path, "pytest")
+    assert summary["status"] == "interrupted"
+    assert summary["runner_exit_code"] == -15
+    assert summary["exit_code"] == 143
+
+
+def test_keyboard_interrupt_still_emits_summary(monkeypatch, tmp_path):
+    monkeypatch.setattr(run_suite, "invocation", lambda suite, junit: ([sys.executable, "-c", "pass"], tmp_path, {}))
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+    monkeypatch.setattr(run_suite.subprocess, "run", interrupt)
+    monkeypatch.setattr(run_suite, "source_revision", lambda: None)
+    assert run_suite.run("playwright", tmp_path) == 130
+    _, summary, output = latest_summary(tmp_path, "playwright")
+    assert summary["status"] == "interrupted"
+    assert not (output / "junit.xml").exists()

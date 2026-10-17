@@ -713,16 +713,19 @@ CI Job 분리, Runtime 검증의 별도 경계는 유지된다.
 산출물은 기본적으로 `reports/validation/<suite>/<run-id>/`에 생성된다.
 `VALIDATION_REPORT_DIR` 또는 `--output-root`로 위치를 변경할 수 있으며,
 Git에 추적하지 않는다. `manifest.json`은 실행 ID·Suite·Runner·알려진 Git Revision·
-시작/종료 시각·검증 범위를, `summary.json`은 상태·실제 종료 코드·테스트 수·
+시작/종료 시각·검증 범위·관측 가능한 러너 버전을, `summary.json`은 상태·종료 코드·테스트 수·
 JUnit 상대 경로·진단 종류를 기록한다. 테스트 Suite에는 `junit.xml`이 포함된다.
 CLI는 Secret, raw Prompt/Response, 전체 환경변수, subprocess stdout/stderr를
 이 파일에 복사하지 않는다. 다만 테스트 러너의 자체 Assertion/JUnit 출력에
 민감정보가 포함되지 않도록 테스트 데이터와 오류 메시지를 관리해야 한다.
 
 테스트 실패는 `test_failed`, 정적 검증 실패는 `validation_failed`, 실행 파일 부재·
-JUnit 손상·테스트 케이스 0건 등은 `execution_error`로 구분한다. 원래 실행이 실패한
-경우 Exit Code를 그대로 반환한다. 원래 실행이 성공해도 필수 JUnit 결과가 없거나
-잘못됐으면 Exit Code 2로 실패한다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
+JUnit 손상·테스트 케이스 0건·JUnit 선언과 실제 케이스 불일치 등은 `execution_error`,
+시그널 종료·사용자 인터럽트는 `interrupted`로 구분한다. 원래 실행이 실패한
+경우 Exit Code를 그대로 반환하며, 시그널 종료는 128+시그널 번호로 변환한다.
+원래 실행이 성공해도 필수 JUnit 결과가 없거나 잘못됐으면 Exit Code 2로 실패한다.
+`summary.exit_code`는 공통 CLI의 최종 종료 코드이고 `summary.runner_exit_code`는
+원래 프로세스의 종료 코드다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
 
 GitHub Actions는 기존 Job Gate를 유지하면서 `if: always()`로 해당 Job의 검증 산출물을
 Artifact로 게시한다. GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를

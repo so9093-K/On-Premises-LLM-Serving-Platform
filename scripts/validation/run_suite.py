@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
+from importlib import metadata
 import subprocess
 import sys
 import time
@@ -40,12 +42,32 @@ def junit_counts(path: Path) -> dict[str, int]:
     if root.tag not in ("testsuite", "testsuites"):
         raise ValueError("unexpected JUnit root element")
     cases = list(root.iter("testcase"))
-    return {
+    result = {
         "tests": len(cases),
         "failures": sum(case.find("failure") is not None for case in cases),
         "errors": sum(case.find("error") is not None for case in cases),
         "skipped": sum(case.find("skipped") is not None for case in cases),
     }
+    # JUnit header와 실제 케이스가 모순되면 실행 성공으로 받아들이지 않는다.
+    for suite in root.iter("testsuite"):
+        nested_cases = list(suite.iter("testcase"))
+        actual = {
+            "tests": len(nested_cases),
+            "failures": sum(case.find("failure") is not None for case in nested_cases),
+            "errors": sum(case.find("error") is not None for case in nested_cases),
+            "skipped": sum(case.find("skipped") is not None for case in nested_cases),
+        }
+        for field, value in actual.items():
+            declared = suite.get(field)
+            if declared is None:
+                continue
+            try:
+                parsed = int(declared)
+            except ValueError as exc:
+                raise ValueError(f"invalid JUnit {field} declaration") from exc
+            if parsed < 0 or parsed != value:
+                raise ValueError(f"JUnit {field} declaration does not match testcases")
+    return result
 
 
 def browser_junit(path: Path, exit_code: int, duration: float) -> None:
@@ -95,6 +117,24 @@ def invocation(suite: str, junit: Path) -> tuple[list[str], Path, dict[str, str]
     raise ValueError(f"unknown suite: {suite}")
 
 
+def runner_version(suite: str) -> str | None:
+    if suite in ("pytest", "playwright"):
+        try:
+            return metadata.version("pytest" if suite == "pytest" else "playwright")
+        except metadata.PackageNotFoundError:
+            return None
+    if suite == "node":
+        try:
+            result = subprocess.run(
+                ["node", "--version"], cwd=CONSOLE, capture_output=True,
+                text=True, check=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        return result.stdout.strip() or None
+    return None
+
+
 def run(suite: str, output_root: Path) -> int:
     run_id = uuid.uuid4().hex
     output = output_root.resolve() / suite / run_id
@@ -105,15 +145,20 @@ def run(suite: str, output_root: Path) -> int:
     started = time.monotonic()
     exit_code = 127
     launch_error = None
+    interrupted = False
     try:
         exit_code = subprocess.run(command, cwd=cwd, env=env, check=False).returncode
     except OSError as exc:
         # 실행 파일 부재 등의 실행 오류는 테스트 실패로 둔갑시키지 않는다.
         launch_error = type(exc).__name__
         print(f"[validation] {suite}: runner could not start ({launch_error})", file=sys.stderr)
+    except KeyboardInterrupt:
+        interrupted = True
+        exit_code = 130
+        print(f"[validation] {suite}: interrupted", file=sys.stderr)
     duration = round(time.monotonic() - started, 3)
 
-    if suite == "playwright" and launch_error is None:
+    if suite == "playwright" and launch_error is None and not interrupted and exit_code >= 0:
         browser_junit(junit, exit_code, duration)
 
     counts = None
@@ -127,7 +172,9 @@ def run(suite: str, output_root: Path) -> int:
             report_error = type(exc).__name__
             counts = None
 
-    if launch_error or report_error:
+    if interrupted or exit_code < 0:
+        status = "interrupted"
+    elif launch_error or report_error:
         status = "execution_error"
     elif suite == "validate":
         status = "passed" if exit_code == 0 else "validation_failed"
@@ -137,12 +184,15 @@ def run(suite: str, output_root: Path) -> int:
         status = "passed"
 
     # 성공하지 않은 결과가 성공으로 승격되지 않도록 원래 exit code를 유지한다.
-    final_code = exit_code if exit_code != 0 else (0 if status == "passed" else 2)
+    final_code = (128 - exit_code) if exit_code < 0 else (exit_code if exit_code != 0 else (0 if status == "passed" else 2))
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
         "suite": suite,
         "runner": {"validate": "shell", "pytest": "pytest", "node": "node:test", "playwright": "python-playwright"}[suite],
+        "runner_version": runner_version(suite),
+        "python_version": platform.python_version(),
+        "platform": sys.platform,
         "source_revision": source_revision(),
         "started_at": started_at,
         "finished_at": utc_now(),
@@ -153,7 +203,8 @@ def run(suite: str, output_root: Path) -> int:
         "schema_version": 1,
         "run_id": run_id,
         "status": status,
-        "exit_code": exit_code,
+        "exit_code": final_code,
+        "runner_exit_code": exit_code,
         "counts": counts,
         "junit": "junit.xml" if counts is not None else None,
         "diagnostic": launch_error or report_error,
