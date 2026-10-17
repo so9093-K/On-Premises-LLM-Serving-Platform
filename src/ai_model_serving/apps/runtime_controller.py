@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import re
 from contextlib import asynccontextmanager
@@ -93,13 +94,16 @@ def load_runtime_controller_config(
             "INTERNAL_SERVICE_TOKEN must be set to a non-default value when "
             "INTERNAL_SERVICE_AUTH_REQUIRED=true. Initialize with `make up TARGET=<deployment-target>` or set a non-default token in the existing .env."
         )
+    log_refresh_seconds = float(environment.get("LOG_TARGET_REFRESH_SECONDS", "15"))
+    if not math.isfinite(log_refresh_seconds) or log_refresh_seconds <= 0:
+        raise RuntimeError("LOG_TARGET_REFRESH_SECONDS must be a finite positive number")
     return RuntimeControllerConfig(
         docker_socket=environment.get("DOCKER_SOCKET", "/var/run/docker.sock"),
         compose_project=environment.get("COMPOSE_PROJECT", ""),
         config_root=config_root,
         state_path=Path(environment.get("MAIN_MODEL_STATE_PATH", str(default_state_path))),
         boot_profile=environment.get("MAIN_MODEL_BOOT_PROFILE") or None,
-        profile_locked=environment.get("MAIN_MODEL_PROFILE_LOCKED", "false").lower() == "true",
+        profile_locked=as_bool(environment.get("MAIN_MODEL_PROFILE_LOCKED"), False),
         idempotency_ttl_seconds=environment.get("MAIN_MODEL_SWITCH_IDEMPOTENCY_TTL_SECONDS") or None,
         internal_service_token=internal_service_token,
         internal_service_auth_required=internal_service_auth_required,
@@ -110,7 +114,7 @@ def load_runtime_controller_config(
                 str(default_log_target_manifest_path),
             )
         ),
-        log_target_refresh_seconds=float(environment.get("LOG_TARGET_REFRESH_SECONDS", "15")),
+        log_target_refresh_seconds=log_refresh_seconds,
     )
 
 

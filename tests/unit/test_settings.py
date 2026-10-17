@@ -358,6 +358,31 @@ def test_load_settings_rejects_invalid_or_missing_required_model_configuration(t
         load_settings(root)
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "API_KEY_REQUIRED",
+        "INTERNAL_SERVICE_AUTH_REQUIRED",
+        "ADMIN_API_KEY_REQUIRED",
+        "ADMIN_ENDPOINTS_INTERNAL_ONLY",
+        "STRICT_ADMIN_ENDPOINT_SECURITY",
+    ],
+)
+def test_load_settings_rejects_misspelled_security_boolean(monkeypatch, name):
+    monkeypatch.setenv(name, "flase")
+    with pytest.raises(RuntimeError, match="invalid boolean setting"):
+        load_settings()
+
+
+def test_load_settings_enforces_effective_risk_detector_context_limit(tmp_path, monkeypatch):
+    root = _config_root_with_prompt_detector(tmp_path)
+    monkeypatch.setenv("RISK_INPUT_MAX_CHARS", "32512")
+    assert load_settings(root).risk_input_max_chars == 32512
+    monkeypatch.setenv("RISK_INPUT_MAX_CHARS", "32513")
+    with pytest.raises(RuntimeError, match="RISK_INPUT_MAX_CHARS exceeds"):
+        load_settings(root)
+
+
 def test_load_settings_requires_internal_token_in_non_local_env(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")

@@ -125,6 +125,34 @@ def test_runtime_controller_reads_canonical_main_model_env(tmp_path):
     assert config.profile_locked is True
     assert config.idempotency_ttl_seconds == "30"
 
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("INTERNAL_SERVICE_AUTH_REQUIRED", "treu"),
+        ("INTERNAL_SERVICE_AUTH_REQUIRED", ""),
+        ("MAIN_MODEL_PROFILE_LOCKED", "flase"),
+        ("MAIN_MODEL_PROFILE_LOCKED", ""),
+    ],
+)
+def test_runtime_controller_rejects_invalid_boolean_configuration(tmp_path, name, value):
+    from ai_model_serving.apps.runtime_controller import load_runtime_controller_config
+
+    with pytest.raises(RuntimeError, match="invalid boolean setting"):
+        load_runtime_controller_config(
+            {"MAIN_MODEL_STATE_PATH": str(tmp_path / "s.json"), name: value}
+        )
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "-inf"])
+def test_runtime_controller_rejects_invalid_log_refresh_period(tmp_path, value):
+    from ai_model_serving.apps.runtime_controller import load_runtime_controller_config
+
+    with pytest.raises(RuntimeError, match="LOG_TARGET_REFRESH_SECONDS"):
+        load_runtime_controller_config(
+            {"MAIN_MODEL_STATE_PATH": str(tmp_path / "s.json"), "LOG_TARGET_REFRESH_SECONDS": value}
+        )
+
+
 def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_token(tmp_path):
     """가장 높은 권한을 가진 프로세스는 인증을 조용히 끄지 않아야 한다.
 
