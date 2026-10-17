@@ -66,6 +66,14 @@ jobs:
         run: npm install --global npm@11.19.0
       - name: Check Control Plane source and generated Console
         run: make console-check
+      - name: Verify Node-only fallback and explicit Python failure
+        run: |
+          node_bin="$(command -v node)"
+          PATH="/nonexistent" "$node_bin" ui/control-plane/scripts/run-safety-tests.mjs
+          if PYTHON_BIN="missing-validation-python" "$node_bin" ui/control-plane/scripts/run-safety-tests.mjs; then
+            echo "Explicit invalid Python must not fall back to Node." >&2
+            exit 1
+          fi
       - name: Archive frontend validation results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
