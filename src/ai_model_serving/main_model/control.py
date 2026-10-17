@@ -304,7 +304,8 @@ class MainModelManager:
             if observed_started_at is None:
                 # 이전에 검증한 인스턴스가 사라졌다는 관측 결과다.
                 # 더 이상 준비된 모델로 표시해서는 안 된다.
-                self.state_store.update(lambda s: s.update(gate="closed"))
+                if state.get("gate") != "closed":
+                    self.state_store.update(lambda s: s.update(gate="closed"))
                 return
             last_validated = state.get("last_validated_container_started_at")
             if observed_started_at == last_validated and state.get("gate") == "open":
@@ -323,7 +324,9 @@ class MainModelManager:
                     return
             # 검증 지문이 없거나 바뀌었다면 이전 검증을 승계할 수 없다.
             # 관측과 Canary를 시작하기 전에 요청 Gate를 먼저 닫는다.
-            self.state_store.update(lambda s: s.update(gate="closed"))
+            # 이미 닫힌 Gate를 매 Poll마다 기록하면 상태 Generation만 증가한다.
+            if state.get("gate") != "closed":
+                self.state_store.update(lambda s: s.update(gate="closed"))
             now = asyncio.get_running_loop().time()
             if now < self._reconcile_backoff_until:
                 return

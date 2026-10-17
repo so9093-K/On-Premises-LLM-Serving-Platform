@@ -744,6 +744,41 @@ def test_reconcile_observation_error_does_not_reopen_on_canary_failure(tmp_path)
     assert store.read()["last_validated_container_started_at"] == "boot-0"
 
 
+@pytest.mark.parametrize("observation", ["missing", "failing"])
+def test_reconciliation_does_not_increment_state_generation_while_gate_is_closed(tmp_path, observation):
+    # 컨테이너 부재·관측 장애로 닫힌 Gate는 Poll 때마다 기록할 필요가 없다.
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+    store.update(lambda s: s.update(gate="closed"))
+    initial_generation = store.read()["generation"]
+
+    class MissingBackend(FakeBackend):
+        async def observed_started_at(self, catalog):
+            if observation == "failing":
+                raise RuntimeError("Docker inspect unavailable")
+            return None
+
+    manager = MainModelManager(loaded, store, MissingBackend(loaded.default_profile))
+    for _ in range(3):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["generation"] == initial_generation
+
+
+def test_reconciliation_backoff_keeps_closed_gate_generation_stable(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+    backend = FakeBackend(loaded.default_profile, started_at="boot-1", fail_profile=loaded.default_profile)
+    manager = MainModelManager(loaded, store, backend)
+    with pytest.raises(RuntimeError, match="validation failed"):
+        asyncio.run(manager.reconcile_if_restarted())
+    initial_generation = store.read()["generation"]
+    assert store.read()["gate"] == "closed"
+    for _ in range(3):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["generation"] == initial_generation
+
+
 def test_reconcile_if_restarted_skips_when_runtime_stopped(tmp_path):
     loaded = catalog()
     store = _active_store(tmp_path, loaded, started_at="boot-0")

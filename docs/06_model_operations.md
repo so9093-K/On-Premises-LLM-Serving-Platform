@@ -120,7 +120,9 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 이 API에서는 Main Model과 non-main Model Runtime의 상태, GPU budget 사용량을 함께 확인할 수 있다.
 GPU 예산에서 `paused`·`restarting`은 실제 Serving 준비와 무관하게 예약 중으로 계산한다.
 종료·부재를 확인한 상태만 예약 해제로 계산하며 Docker 상태가 불명확하면
-예약이 비었다고 추정하지 않고 503으로 거부한다. 이 비율은 실측 VRAM 사용량이 아니다.
+예약이 비었다고 추정하지 않고 503으로 거부한다. `paused`·`restarting`은
+자동 퇴거 및 Start/Stop Plan으로 정상 처리할 수 없으므로 Docker에서 상태를
+복구한 뒤 다시 계획한다. 이 비율은 실측 VRAM 사용량이 아니다.
 
 ---
 

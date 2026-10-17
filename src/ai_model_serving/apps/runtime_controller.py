@@ -298,7 +298,8 @@ async def _observe_budget_participants() -> tuple[list[Participant], dict[str, s
                 vram_fraction=fraction,
                 active=_reserved_or_unavailable(service, status),
                 priority=priority,
-                evictable=evictable,
+                # paused/restarting은 VRAM을 점유하지만 안전한 자동 Stop 대상은 아니다.
+                evictable=evictable and status == "running",
                 criticality=criticality or None,
             )
         )
@@ -343,14 +344,14 @@ async def _runtime_transition_plan(
         raise HTTPException(403, detail=f"not controllable: {service}")
 
     participants, observed = await _observe_budget_participants()
-    if desired_state == "active":
-        # paused/restarting은 VRAM을 예약하지만 정상 기동 상태가 아니다.
-        # active=True가 no-op 승인이나 잘못된 Docker start로 이어지지 않게 한다.
-        for key in dict.fromkeys([*prerequisites, target_key]):
-            if observed[key] in {"paused", "restarting"}:
-                raise HTTPException(
-                    409, detail=f"runtime {key} is {observed[key]}; stop it before requesting activation"
-                )
+    # paused/restarting은 VRAM을 예약하지만 정상 기동도 안전한 Stop도 보장하지 않는다.
+    # API가 성공할 수 없는 상태를 No-op 또는 적용 가능한 Plan으로 광고하지 않는다.
+    affected = [*prerequisites, target_key] if desired_state == "active" else [target_key]
+    for key in dict.fromkeys(affected):
+        if observed[key] in {"paused", "restarting"}:
+            raise HTTPException(
+                409, detail=f"runtime {key} is {observed[key]}; resolve Docker state before transition"
+            )
     plan = plan_runtime_transition(
         participants,
         target_key,

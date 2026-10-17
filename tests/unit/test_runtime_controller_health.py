@@ -152,6 +152,8 @@ def test_gpu_budget_uses_docker_reservation_not_serving_readiness(
     participants = asyncio.run(controller._build_participants())
     secondary = next(p for p in participants if p.key == "embedding-vllm")
     assert secondary.active is reserved
+    # 자동 퇴거에는 실제로 Running인 Runtime만 포함한다.
+    assert secondary.evictable is (docker_state == "running")
 
     # 같은 상태는 운영 조회에도 실제 예약량으로 나타나야 한다.
     response = asyncio.run(controller.gpu_budget())
@@ -174,16 +176,13 @@ def test_reserved_but_not_running_runtime_cannot_be_activated_as_noop(
             return docker_state if key == service else "exited"
 
     monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
-    # GPU가 아직 점유된 상태이므로 Stop Plan은 예약 반환을 계산한다.
-    stop_plan = asyncio.run(controller._runtime_transition_plan(service, "stopped", force=False))
-    assert stop_plan["stop"] == [service]
-    assert stop_plan["budget"]["after"]["used"] == 0.0
-
-    # Start Plan은 실제로 실행 중이지 않은 컨테이너를 기동 완료로 가장할 수 없다.
-    with pytest.raises(HTTPException) as raised:
-        asyncio.run(controller._runtime_transition_plan(service, "active", force=False))
-    assert raised.value.status_code == 409
-    assert docker_state in str(raised.value.detail)
+    # Docker paused 상태의 Stop은 실패할 수 있다. 실행 불가능한 Stop Plan이나
+    # 활성화 No-op을 발행하지 않고 운영자에게 Docker 상태 복구를 요구한다.
+    for desired_state in ("active", "stopped"):
+        with pytest.raises(HTTPException) as raised:
+            asyncio.run(controller._runtime_transition_plan(service, desired_state, force=False))
+        assert raised.value.status_code == 409
+        assert docker_state in str(raised.value.detail)
 
 
 @pytest.mark.parametrize("docker_state", ["dead", "removing", "unknown"])
@@ -226,3 +225,37 @@ def test_paused_main_runtime_keeps_its_protected_gpu_reservation(tmp_path, monke
     # 예약되어 있고 퇴거할 수 없는 main을 무시하고 secondary를 시작하지 않는다.
     plan = asyncio.run(controller._runtime_transition_plan(service, "active", force=True))
     assert plan["admissible"] is False
+
+
+@pytest.mark.parametrize("docker_state", ["running", "paused", "restarting"])
+def test_non_running_gpu_reservation_cannot_be_automatically_evicted(
+    tmp_path, monkeypatch, docker_state
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    victim, target = sorted(controller.CONTROLLABLE)[:2]
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {victim: 0.25, target: 0.85})
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {target: []})
+    mutations: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return docker_state if service == victim else "exited"
+
+        async def stop(self, service):
+            mutations.append(service)
+            raise AssertionError("unapproved Docker mutation")
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    plan = asyncio.run(controller._runtime_transition_plan(target, "active", force=True))
+    if docker_state == "running":
+        assert plan["admissible"] is True
+        assert plan["stop"] == [victim]
+    else:
+        assert plan["admissible"] is False
+        assert plan["stop"] == []
+        with pytest.raises(HTTPException) as rejected:
+            asyncio.run(controller.start_container(
+                target, force=True, plan_digest=plan["plan_digest"], authorization=None
+            ))
+        assert rejected.value.status_code == 409
+        assert mutations == []
