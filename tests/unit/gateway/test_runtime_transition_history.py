@@ -126,3 +126,36 @@ def test_runtime_transition_fails_closed_when_apply_cannot_be_verified() -> None
     record = client.get(f"/admin/runtimes/operations/{operation_id}").json()
     assert record["status"] == "verification_failed"
     assert record["verification"]["observed_state"] == "exited"
+
+
+class MissingMainStopSidecar:
+    async def main_model(self):
+        return {
+            "runtime_state": "stopped",
+            "observed_runtime": {
+                "status": "unavailable",
+                "container_state": "not_found",
+            },
+        }
+
+    async def main_stop(self, *, plan_digest: str):
+        assert plan_digest == _DIGEST
+        return {"runtime_state": "stopped", "evicted": []}
+
+
+def test_main_stop_verifies_absent_container_as_converged() -> None:
+    # Docker 컨테이너 자체가 없는 경우 observable status는 unavailable이지만,
+    # 요청 상태 stopped와 관측 상태 not_found가 함께 확인되면 종료는 완료다.
+    clients = FakeGatewayClients()
+    clients.runtime_controller = MissingMainStopSidecar()
+    client = TestClient(create_gateway_app(settings(), clients))
+    response = client.request(
+        "PATCH",
+        "/admin/runtimes/main",
+        json={"desired_state": "stopped", "plan_digest": _DIGEST},
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["operation_status"] == "verified"
+    assert result["verification"]["converged"] is True
+    assert result["verification"]["container_state"] == "not_found"
