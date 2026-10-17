@@ -582,6 +582,17 @@ Controller Ledger·Plan 연동은 대표 상태와 실패 경로만 검증한다
 분기별 케이스를 여러 계층에 반복하지 않으며 테스트를 통합·삭제할 때는
 같은 위험을 무엇이 대신 막는지 확인한다.
 
+목록은 수동 Registry에 복제하지 않고 설치된 pytest의 실제 Collection을 조회한다.
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest --collect-only -q
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest --collect-only -q tests/unit/test_runtime_controller_gpu.py
+```
+
+Control Plane의 Node.js 테스트는 `npm --prefix ui/control-plane run test:safety`로
+실행하고 테스트 이름으로 개별 실패 목적을 확인한다. 두 런타임의 원래 품질 Gate는
+`make check`이며 목록 조회를 별도의 CI 필수 관문으로 늘리지 않는다.
+
 현재 저장소의 문서·설정 동기화 판정은 `make validate`의 Governance가
 소유한다. `tests/unit/test_operator_docs_governance.py`는 판정 함수의 실패
 경계와 문서 변환 동작만 검증하며, 실제 저장소 문서를 같은 방식으로 다시
