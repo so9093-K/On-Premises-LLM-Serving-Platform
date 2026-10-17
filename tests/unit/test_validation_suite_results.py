@@ -143,3 +143,63 @@ def test_keyboard_interrupt_still_emits_summary(monkeypatch, tmp_path):
     _, summary, output = latest_summary(tmp_path, "playwright")
     assert summary["status"] == "interrupted"
     assert not (output / "junit.xml").exists()
+
+
+def test_empty_node_test_suite_does_not_trigger_implicit_discovery(monkeypatch, tmp_path):
+    console = tmp_path / "empty-console"
+    console.mkdir()
+    monkeypatch.setattr(run_suite, "CONSOLE", console)
+    monkeypatch.setattr(run_suite, "source_revision", lambda: None)
+    monkeypatch.setattr(run_suite, "runner_version", lambda _suite: None)
+
+    output_root = tmp_path / "reports"
+    assert run_suite.run("node", output_root) == 2
+    _, summary, _ = latest_summary(output_root, "node")
+    assert summary["status"] == "execution_error"
+    assert summary["diagnostic"] == "suite_precondition"
+    assert summary["runner_exit_code"] is None
+    assert summary["counts"] is None
+
+
+def test_direct_cli_python_incompatibility_stops_before_runner(monkeypatch, tmp_path):
+    marker = tmp_path / "runner-invoked"
+
+    def invocation(_suite, _junit):
+        command = [sys.executable, "-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"]
+        return command, tmp_path, {}
+
+    monkeypatch.setattr(run_suite, "invocation", invocation)
+    monkeypatch.setattr(run_suite, "check_python_compatibility", lambda _suite: 2)
+    monkeypatch.setattr(run_suite, "source_revision", lambda: None)
+    monkeypatch.setattr(run_suite, "runner_version", lambda _suite: None)
+
+    assert run_suite.run("pytest", tmp_path) == 2
+    _, summary, _ = latest_summary(tmp_path, "pytest")
+    assert not marker.exists()
+    assert summary["status"] == "execution_error"
+    assert summary["diagnostic"] == "python_compatibility"
+    assert summary["exit_code"] == 2
+    assert summary["runner_exit_code"] is None
+
+
+def test_python_compatibility_uses_existing_check_script(monkeypatch):
+    from types import SimpleNamespace
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=2)
+
+    monkeypatch.setattr(run_suite.subprocess, "run", fake_run)
+    assert run_suite.check_python_compatibility("validate") == 0
+    assert calls == []
+
+    for suite in ("pytest", "node", "playwright"):
+        assert run_suite.check_python_compatibility(suite) == 2
+
+    assert [command for command, _ in calls] == [
+        [sys.executable, "scripts/build/check_python.py", "--context", suite]
+        for suite in ("pytest", "node", "playwright")
+    ]
+    assert all(kwargs["check"] is False for _, kwargs in calls)

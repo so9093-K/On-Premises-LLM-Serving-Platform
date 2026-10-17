@@ -702,6 +702,7 @@ CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate�
 Control Plane Node 테스트는 기존에도 Python SDK 및 Bash Client 예제의 실제
 실행 확인을 포함하므로 Node만으로 완료되는 테스트 Suite가 아니다.
 공통 CLI를 호출하는 `npm run test:safety`는 Python 3 환경을 요구하며,
+Makefile이 지정한 `PYTHON_BIN`을 우선하고 없으면 `python3`를 사용한다.
 도구가 누락되면 성공으로 재분류하지 않는다.
 공통 CLI는 새로운 테스트 정의·재판정 엔진이 아니라, 원래 프로세스의 종료 코드와
 검증 결과를 일관되게 기록하는 개발자 도구다. 일반 `make check`의 검증 범위,
@@ -723,6 +724,11 @@ CLI는 Secret, raw Prompt/Response, 전체 환경변수, subprocess stdout/stder
 이 파일에 복사하지 않는다. 다만 테스트 러너의 자체 Assertion/JUnit 출력에
 민감정보가 포함되지 않도록 테스트 데이터와 오류 메시지를 관리해야 한다.
 
+직접 호출된 CLI의 pytest·Node·Playwright Suite도 canonical `check_python.py`로
+Python 호환성을 먼저 확인한다. `validate`는 기존 `run_validate.sh`에서 검사하므로
+중복 실행하지 않는다. Node 테스트 파일이 0개면 Node의 기본 자동 탐색으로 넘기지 않고
+`execution_error`로 종료한다. Runner가 실행되지 못한 경우 `runner_exit_code`는 null이다.
+
 테스트 실패는 `test_failed`, 정적 검증 실패는 `validation_failed`, 실행 파일 부재·
 JUnit 손상·테스트 케이스 0건·JUnit 선언과 실제 케이스 불일치 등은 `execution_error`,
 시그널 종료·사용자 인터럽트는 `interrupted`로 구분한다. 원래 실행이 실패한
@@ -731,7 +737,9 @@ JUnit 손상·테스트 케이스 0건·JUnit 선언과 실제 케이스 불일�
 `summary.exit_code`는 공통 CLI의 최종 종료 코드이고 `summary.runner_exit_code`는
 원래 프로세스의 종료 코드다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
 
-GitHub Actions는 기존 Job Gate를 유지하면서 `if: always()`로 해당 Job의 검증 산출물을
-Artifact로 게시한다. GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를
+GitHub Actions는 기존 Job Gate를 유지하면서 검증 단계가 실행된 경우 성공·실패와
+상관없이 표준 결과 Artifact를 게시한다. 결과 파일이 없으면 업로드도 실패하며,
+검증 단계 자체가 생략되면 추가적인 업로드 실패를 만들지 않는다.
+GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를
 그대로 소비하면 되며, 이 저장소는 GitLab Pipeline을 별도로 배포하지 않는다.
 `make runtime-validate`의 Live GPU Report는 별도 실행 환경·계약에 남는다.

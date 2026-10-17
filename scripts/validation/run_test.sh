@@ -5,7 +5,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
 
-"$PYTHON_BIN" scripts/build/check_python.py --context test >/dev/null
-# xdist의 병렬도와 plugin autoload 제어는 공통 검증 CLI가 유지한다.
+# Python 호환성 검사와 xdist 실행 정책은 공통 검증 CLI가 소유한다.
 # 한 process에서 순서대로 보려면 PYTEST_WORKERS=0을 준다.
 "$PYTHON_BIN" scripts/validation/run_suite.py pytest

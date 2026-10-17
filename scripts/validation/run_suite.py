@@ -106,6 +106,8 @@ def invocation(suite: str, junit: Path) -> tuple[list[str], Path, dict[str, str]
         ], ROOT, env
     if suite == "node":
         tests = sorted(str(path.relative_to(CONSOLE)) for path in (CONSOLE / "tests").glob("*.test.mjs"))
+        if not tests:
+            raise ValueError("no Node safety test files matched tests/*.test.mjs")
         return [
             "node", "--experimental-strip-types", "--test",
             "--test-reporter=spec", "--test-reporter-destination=stdout",
@@ -135,21 +137,45 @@ def runner_version(suite: str) -> str | None:
     return None
 
 
+def check_python_compatibility(suite: str) -> int:
+    """검증기와 동일한 Python 정책을 직접 CLI 진입에도 적용한다."""
+    # validate Suite는 run_validate.sh의 첫 번째 검사가 이 계약을 이미 소유한다.
+    if suite == "validate":
+        return 0
+    return subprocess.run(
+        [sys.executable, "scripts/build/check_python.py", "--context", suite],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        check=False,
+    ).returncode
+
+
 def run(suite: str, output_root: Path) -> int:
     run_id = uuid.uuid4().hex
     output = output_root.resolve() / suite / run_id
     output.mkdir(parents=True, exist_ok=False)
     junit = output / "junit.xml"
-    command, cwd, env = invocation(suite, junit)
     started_at = utc_now()
     started = time.monotonic()
     exit_code = 127
+    runner_exit_code = None
     launch_error = None
     interrupted = False
     try:
-        exit_code = subprocess.run(command, cwd=cwd, env=env, check=False).returncode
+        command, cwd, env = invocation(suite, junit)
+        check_code = check_python_compatibility(suite)
+        if check_code != 0:
+            exit_code = check_code
+            launch_error = "python_compatibility"
+        else:
+            runner_exit_code = subprocess.run(command, cwd=cwd, env=env, check=False).returncode
+            exit_code = runner_exit_code
+    except ValueError as exc:
+        # 대상 Suite가 비어도 native runner의 자동 탐색으로 넘어가지 않는다.
+        exit_code = 2
+        launch_error = "suite_precondition"
+        print(f"[validation] {suite}: {exc}", file=sys.stderr)
     except OSError as exc:
-        # 실행 파일 부재 등의 실행 오류는 테스트 실패로 둔갑시키지 않는다.
         launch_error = type(exc).__name__
         print(f"[validation] {suite}: runner could not start ({launch_error})", file=sys.stderr)
     except KeyboardInterrupt:
@@ -204,7 +230,7 @@ def run(suite: str, output_root: Path) -> int:
         "run_id": run_id,
         "status": status,
         "exit_code": final_code,
-        "runner_exit_code": exit_code,
+        "runner_exit_code": runner_exit_code,
         "counts": counts,
         "junit": "junit.xml" if counts is not None else None,
         "diagnostic": launch_error or report_error,

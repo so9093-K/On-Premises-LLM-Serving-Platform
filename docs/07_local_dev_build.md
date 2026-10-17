@@ -52,7 +52,7 @@ MLX runtime도 별도 설정에서 Python 3.13을 사용한다.
 `pyproject.toml`과 `uv.lock`으로 두 minor를 함께 지원하고, MLX만 충돌하는 native dependency
 때문에 `runtimes/mlx/`의 독립 project와 lock을 사용한다.
 
-로컬 Make 명령은 프로젝트의 `.venv`가 존재하면 해당 Python을 우선 사용한다. 호출자가 `PYTHON_BIN`을 지정한 경우에는 지정된 interpreter를 사용한다.
+로컬 Make 명령은 프로젝트의 `.venv`가 존재하면 해당 Python을 우선 사용한다. 호출자가 `PYTHON_BIN`을 지정한 경우에는 지정된 interpreter를 사용한다. Control Plane의 `npm run test:safety`도 이 환경변수를 우선하며 설정되지 않으면 `python3`를 사용한다.
 
 ### 개발 환경 준비
 

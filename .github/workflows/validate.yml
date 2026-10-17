@@ -42,14 +42,15 @@ jobs:
       - name: Prepare developer environment
         run: make setup-dev PYTHON_BIN=python
       - name: Check application and contracts
+        id: app_validation
         run: make app-check
       - name: Archive application validation results
-        if: always()
+        if: ${{ always() && steps.app_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: app-validation-${{ matrix.os }}
           path: reports/validation/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
   console:
     name: Control Plane frontend
@@ -65,14 +66,15 @@ jobs:
       - name: Pin npm toolchain
         run: npm install --global npm@11.19.0
       - name: Check Control Plane source and generated Console
+        id: console_validation
         run: make console-check
       - name: Archive frontend validation results
-        if: always()
+        if: ${{ always() && steps.console_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: console-validation
           path: reports/validation/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
 
   platform-image:
@@ -138,14 +140,15 @@ jobs:
         run: |
           (cd ui/control-plane && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/vite-preview.log 2>&1 &)
       - name: Verify actual Chromium workflows
+        id: browser_validation
         run: /tmp/ux-playwright/bin/python scripts/validation/run_suite.py playwright
       - name: Archive browser validation results
-        if: always()
+        if: ${{ always() && steps.browser_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-validation
           path: reports/validation/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
       - name: Archive diagnostic screenshots
         if: always()
