@@ -286,10 +286,13 @@ async def _verify_main_transition(
             and container_state == "running"
         )
     else:
+        # 컨테이너 자체가 없는 경우 Backend는 status=unavailable,
+        # container_state=not_found로 보고한다. 중지 요청에 대해서는
+        # 없는 컨테이너도 예약이 없는 수렴 상태다.
         target_converged = (
             runtime_state == "stopped"
-            and observed_status == "stopped"
             and container_state != "running"
+            and (observed_status == "stopped" or container_state == "not_found")
         )
     effects: dict[str, str] = {}
     effects_converged = True

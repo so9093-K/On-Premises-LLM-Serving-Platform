@@ -4,6 +4,13 @@
 
 Accepted
 
+> **실측 적용 범위:** 아래 32-frame 비디오 처리 상한과 엔진 내부 구현 분석은
+> **vLLM 0.25.1 당시의 검증 기록**이다. 현재 Unified vLLM 후보 버전은
+> `configs/vllm_unified_build.yaml`이 소유하며, 해당 엔진·모델·GPU 조합에서
+> 재검증하지 않은 이전 측정값을 현재 한도로 간주하지 않는다.
+> 현재 Gateway 입력 제한은 활성 Main Model Profile의
+> `gateway_policy.request_limits`가 소유한다.
+
 > **현재 운영 기준 (2026-08-13)**: Main Model의 media 요청 한도는
 > `configs/main_model_profiles.yaml` 활성 profile의 `gateway_policy.request_limits`가 소유한다.
 > 아래 Context의 `model_serving.yaml` 경로는 이 결정 당시의 구현을 기록한 것이다.

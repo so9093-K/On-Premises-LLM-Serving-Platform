@@ -11,7 +11,7 @@ function isApiErrorLike(error: unknown): error is ApiErrorLike {
     && typeof (error as Record<string, unknown>).status === 'number';
 }
 
-export function runtimeErrorReason(error: unknown): string | null {
+function runtimeErrorReason(error: unknown): string | null {
   if (!isApiErrorLike(error) || typeof error.details !== 'object' || error.details === null) {
     return null;
   }

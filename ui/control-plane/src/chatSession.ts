@@ -1268,7 +1268,7 @@ export function completeFromResponse(turn: AssistantTurn, payload: unknown, now:
   };
 }
 
-export function formatDuration(ms: number): string {
+function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '—';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)}초`;

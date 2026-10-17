@@ -95,6 +95,22 @@ def test_transition_protects_current_target_while_starting_missing_prerequisite(
     assert plan.reason is not None
 
 
+def test_already_running_prerequisite_is_never_selected_as_activation_victim() -> None:
+    # Target은 아직 시작되지 않았지만 선행 Runtime은 이미 Running이다.
+    # 선행 Runtime의 priority가 낮아도 다른 Runtime부터 퇴거해야 한다.
+    participants = [
+        _participant("target", 0.70, active=False, priority=50),
+        _participant("prereq", 0.20, active=True, priority=10),
+        _participant("other", 0.20, active=True, priority=60),
+    ]
+    plan = plan_runtime_transition(
+        participants, "target", "active", prerequisites=["prereq"], ceiling=0.93, force=True
+    )
+    assert plan.admissible is True
+    assert plan.start == ("target",)
+    assert plan.stop == ("other",)
+
+
 def test_stop_and_already_active_plans_are_explicit_noop_or_budget_change() -> None:
     participants = [
         _participant("target", 0.20, active=True, criticality="retrieval_support_path"),

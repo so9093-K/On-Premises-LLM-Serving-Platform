@@ -33,6 +33,15 @@ GPU Docker 배포를 위한 **호환성 투영**이며, 실제 탐지된 장치 
 서로 다른 GPU 범위의 Participant를 기존 단일 GPU 함수에 함께 전달하면 오류로
 거부한다.
 
+로컬 Docker 관측에서 `running`·`paused`·`restarting`은 GPU 예약이
+유지된 것으로 취급한다. `created`·`exited`·`not_found`만 예약 해제를
+인정하고, 자원 해제를 판단할 수 없는 상태(`dead`·`removing`·`unknown`)는
+예산·전환 계획을 거부한다. GPU 예약 유무는 Serving 준비 상태와 별개다.
+따라서 `paused`·`restarting`을 정상 실행 중으로 보고 Start Plan을
+무조건 성공·No-op 처리하지 않는다. 또한 해당 상태의 Runtime을 자동 퇴거
+Victim으로 선택하거나 적용 가능한 Stop Plan으로 광고하지 않는다.
+운영자가 Docker 상태를 직접 해소한 뒤 변경 계획을 다시 확인한다.
+
 ### 2. 하드웨어 실행 적합성은 호출자가 명시적으로 제공한다
 
 `resource_placement.plan_placement`는 GPU Pool 목록과 실행 가능한 Placement
@@ -112,15 +121,23 @@ Controller 초기화, 명시적 시작, 재시작 감지, Profile 전환, Rollba
 `gate=open`을 현재 인스턴스의 검증 근거로 승계하지 않는다.
 
 재검증 실패는 상한이 있는 Backoff 정책에 따라 재시도한다.
-일시적인 Docker Inspect 실패 자체는 인스턴스 교체의 확정 증거가 아니므로
-진단 이벤트로 취급한다. **외부 교체 감지는 Polling 기반**이므로 다음 관측까지
+일시적인 Docker Inspect 실패 자체는 인스턴스 교체의 확정 증거는 아니지만,
+실행 신원을 검증할 수 없는 상태이므로 Gate를 닫고 진단 이벤트로 기록한다.
+관측이 복구되면 이전 개방 상태를 재사용하지 않고 Canary를 다시 통과해야 한다.
+**외부 교체 감지는 Polling 기반**이므로 다음 관측까지
 시간 창이 남는다. 즉각적인 분산 Fencing이나 무중단 Serving을 보증하지 않는다.
 
 ### 7. 실행 계획 거부 및 운영 진단의 계약
 
 여러 선행 Runtime과 Target의 시작 예약량 합계가 단일 GPU Ceiling을 넘으면
 잘못된 개별 Fraction이나 처리되지 않은 예외가 아니라 **허용 불가능한 Plan**을
-반환한다.
+반환한다. Plan과 Apply는 같은 `runtime_transition.plan_runtime_transition`을
+호출하며, 선행 Runtime 예약과 기존 Target 예약의 보존·퇴거 대상 선정은
+동일한 GPU Admission 정책에서 결정한다. Apply는 로컬 GPU Budget Lock 안에서
+동일한 Planner로 상태를 재관측하고 검토한 Digest와 다르면 퇴거 전에 거부한다.
+Profile 자체를 교체할 때의 증액 검사는 자동 퇴거 없이 별도로 수행한다.
+이 재관측은 Docker 외부 변경에 대한 원자적 Fencing이 아니므로 실제
+Docker 상태와 응답 수렴 여부는 별도 Runtime 관측이 책임진다.
 
 Main Model State는 저장된 활성 Profile과 요청 Gate를 소유하고,
 Docker Inspect는 실제 컨테이너 관측 결과를 소유한다. Control Plane은

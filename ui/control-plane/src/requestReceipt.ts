@@ -170,17 +170,3 @@ export async function* receiptChunks(
     }
   }
 }
-
-export function receiptStream(receipt: RequestReceipt, signal?: AbortSignal): ReadableStream<Uint8Array<ArrayBuffer>> {
-  const iterator = receiptChunks(receipt, signal);
-  return new ReadableStream({
-    async pull(controller) {
-      try {
-        const next = await iterator.next();
-        if (next.done) controller.close();
-        else controller.enqueue(next.value);
-      } catch (error) { controller.error(error); }
-    },
-    async cancel() { await iterator.return(undefined); },
-  });
-}

@@ -50,7 +50,7 @@ export function requestLogDiagnosticsUrl(
 
 // 메인 런타임 지표는 target마다 다른 Dashboard가 소유한다. MLX runtime 전용 Dashboard는
 // Apple Silicon target에만 provisioning되고, vLLM target은 서비스 개요가 메인 모델 지표를 보여 준다.
-export function mainRuntimeDashboardUid(runtimeBackend: string): string {
+function mainRuntimeDashboardUid(runtimeBackend: string): string {
   return runtimeBackend === 'mlx-vlm' ? 'main-runtime-health' : 'service_overview';
 }
 

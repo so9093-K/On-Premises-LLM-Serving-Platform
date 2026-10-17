@@ -76,7 +76,6 @@ make down
 | `ops/down_all.sh` | `.env`와 Compose project name에 의존하지 않고 이 checkout의 host process와 Compose container/network를 정지한다. |
 | `ops/clean_project.sh` | build/test 산출물과 runtime report를 정리한다. 실행 중인 host process가 있으면 중단하며 `--dry-run`, `--logs`만 지원한다. |
 | `ops/reset_all.sh` | 기본 실행은 project-local 초기화 plan만 출력하고, 정확한 확인값에서 해당 state만 삭제한다. Docker build cache와 전역 model cache는 보존한다. |
-| `build/reset_version.py` | VERSION, OpenAPI, pyproject, env 예시, platform image tag를 같은 버전으로 맞춘다. |
 
 ## 운영 주의사항
 

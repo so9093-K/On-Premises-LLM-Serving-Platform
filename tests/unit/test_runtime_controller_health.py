@@ -12,20 +12,11 @@ control plane이다: 그 liveness는 main-llm 부팅(gate가 따로 추적한다
 from __future__ import annotations
 
 import asyncio
-import importlib
 
 import pytest
 from fastapi import HTTPException
 from tests.support.asgi import InlineASGITestClient as TestClient
-
-
-def _load_runtime_controller(tmp_path, monkeypatch):
-    monkeypatch.setenv("MAIN_MODEL_STATE_PATH", str(tmp_path / "state.json"))
-    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "")
-    monkeypatch.setenv("COMPOSE_PROJECT", "test-platform")
-    import ai_model_serving.apps.runtime_controller as runtime_controller
-
-    return importlib.reload(runtime_controller)
+from tests.support.runtime_controller import load_runtime_controller as _load_runtime_controller
 
 
 def test_lifespan_does_not_block_health_on_main_model_reconciliation(tmp_path, monkeypatch):
@@ -129,4 +120,5 @@ def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_
         {**base, "INTERNAL_SERVICE_AUTH_REQUIRED": "true", "INTERNAL_SERVICE_TOKEN": "real-internal-token"}
     )
     assert admitted.internal_service_token == "real-internal-token"
+
 

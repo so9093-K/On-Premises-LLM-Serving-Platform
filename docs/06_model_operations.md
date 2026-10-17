@@ -13,7 +13,8 @@ AI Model Serving Platform의 Main Model 운영은 **현재 상태 확인 → 프
 Runtime Controller가 다시 시작되거나 Main Runtime이 외부에서 교체되면 이전
 `gate=open` 기록을 현재 인스턴스에 대한 검증 증거로 재사용하지 않는다.
 현재 Profile의 모델·Revision·이미지와 실행 중 컨테이너의 시작 신원을 Canary
-전후에 확인한다. 관측할 수 없거나 불일치하면 Gate는 닫힌 상태를 유지한다.
+전후에 확인한다. Docker 시작 신원·Profile의 관측 자체가 실패해도
+기존 Gate 개방은 폐기하며, 관측 복구 후 Canary를 통과해야 다시 개방한다.
 공개 모델 별칭 `local-main`의 API 성공만으로 실제 프로필 일치를 보증하지 않는다.
 
 Control Plane의 **메인 모델**에서 현재 활성 Profile, 관측 Profile, 실제
@@ -117,6 +118,13 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 ```
 
 이 API에서는 Main Model과 non-main Model Runtime의 상태, GPU budget 사용량을 함께 확인할 수 있다.
+GPU 예산에서 `paused`·`restarting`은 실제 Serving 준비와 무관하게 예약 중으로 계산한다.
+종료·부재를 확인한 상태만 예약 해제로 계산하며 Docker 상태가 불명확하면
+예약이 비었다고 추정하지 않고 503으로 거부한다. `paused`·`restarting`은
+자동 퇴거 및 Start/Stop Plan으로 정상 처리할 수 없으므로 Docker에서 상태를
+복구한 뒤 다시 계획한다. 실행 중인 대상 Runtime에 선행 Runtime을 추가로
+시작하는 경우에도 기존 대상의 GPU 예약을 유지하며, 검토한 퇴거 대상이
+적용 시 달라졌다면 다시 계획해야 한다. 이 비율은 실측 VRAM 사용량이 아니다.
 
 ---
 

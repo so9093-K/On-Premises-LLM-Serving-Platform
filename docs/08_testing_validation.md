@@ -566,6 +566,38 @@ Source of Truth와 여러 artifact의 관계를 비교하는 규칙은 validator
 Source와 artifact 관계가 핵심이면 validator를 강화하고, application behavior가 핵심이면 Unit/Contract Test를 사용한다.
 실제 환경 상태가 핵심이면 live validation으로 연결한다.
 
+### 테스트 파일의 소유 계약
+
+테스트 파일은 실패 시 영향받는 Production 계약을 기준으로 구분한다.
+Runtime Controller의 Health/초기화는 `test_runtime_controller_health.py`, GPU 예약과
+Plan/Apply는 `test_runtime_controller_gpu.py`, 순수 상태 전환 의사결정은
+`test_runtime_transition.py`가 각각 검증한다. Main Model 상태 머신·재검증은
+`test_main_model_control.py`, 이미지·Profile·자원 변형 해석은
+`test_main_model_catalog.py`가 소유한다. 같은 위험을 두 계층에서
+확인할 때는 정책 함수의 decision branch와 실제 API/Executor 연결이라는
+서로 다른 검증 목적이 있어야 한다.
+
+Docker 예약 상태의 전체 분기표는 `test_runtime_executor.py`가 검사하고,
+Controller Ledger·Plan 연동은 대표 상태와 실패 경로만 검증한다.
+분기별 케이스를 여러 계층에 반복하지 않으며 테스트를 통합·삭제할 때는
+같은 위험을 무엇이 대신 막는지 확인한다.
+
+목록은 수동 Registry에 복제하지 않고 설치된 pytest의 실제 Collection을 조회한다.
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest --collect-only -q
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest --collect-only -q tests/unit/test_runtime_controller_gpu.py
+```
+
+Control Plane의 Node.js 테스트는 `npm --prefix ui/control-plane run test:safety`로
+실행하고 테스트 이름으로 개별 실패 목적을 확인한다. 두 런타임의 원래 품질 Gate는
+`make check`이며 목록 조회를 별도의 CI 필수 관문으로 늘리지 않는다.
+
+현재 저장소의 문서·설정 동기화 판정은 `make validate`의 Governance가
+소유한다. `tests/unit/test_operator_docs_governance.py`는 판정 함수의 실패
+경계와 문서 변환 동작만 검증하며, 실제 저장소 문서를 같은 방식으로 다시
+검사하지 않는다.
+
 ### 삭제·통합 기준
 
 테스트나 validator도 지속적인 책임이 없으면 유지하지 않는다. 다음 조건이면 삭제하거나 하나의 validator로 통합한다.
@@ -650,7 +682,7 @@ make logs RAW=1
 | Validation entry point | `scripts/validation/run_validate.sh` | `make validate` 실행 순서 |
 | Contract validator | `scripts/validation/validate_contracts.py` | 공통 API·model·resource contract |
 | Environment contract | `scripts/validation/validate_env_contract.py` | env template 정합성 |
-| Exposure validator | `scripts/validation/validate_exposure_profiles.py` | service exposure 구조 |
+| Exposure validator | `scripts/validation/validate_access_profiles.py` | service exposure 구조 |
 | Generated artifact renderer | `scripts/render_runtime_assets.py` | generated artifact 생성·drift 확인 |
 | Test entry point | `scripts/validation/run_test.sh` | Unit / Contract pytest |
 | Test source | `tests/unit/`, `tests/contract/` | 동작 / contract test |

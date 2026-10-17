@@ -21,6 +21,25 @@ from .docker_scope import (
 )
 
 
+# GPU 예약 해제는 Docker 프로세스의 종료 또는 부재가 확인될 때만 인정한다.
+# paused는 GPU 메모리가 남고, restarting은 자동 재기동되므로 예약 상태로 취급한다.
+_GPU_RESERVED_STATES = frozenset({"running", "paused", "restarting"})
+_GPU_RELEASED_STATES = frozenset({"created", "exited", "not_found"})
+
+
+def gpu_reservation_active(container_state: str) -> bool:
+    """Docker 상태를 GPU 예약 여부로 변환하며, 불명확한 상태는 거부한다.
+
+    GPU 예약 여부는 서비스 준비 상태와 별개다. paused/restarting은 예약을 차지해도
+    정상 Running이나 Start 완료를 뜻하지 않는다.
+    """
+    if container_state in _GPU_RESERVED_STATES:
+        return True
+    if container_state in _GPU_RELEASED_STATES:
+        return False
+    raise ValueError(f"GPU reservation is unknown for Docker state: {container_state!r}")
+
+
 class RuntimeExecutor(Protocol):
     async def status(self, service: str) -> str: ...
     async def start(self, service: str) -> bool: ...

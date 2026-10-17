@@ -26,7 +26,7 @@ export type TrafficTile = {
   tone: TrafficTone;
 };
 
-export function formatSeconds(seconds: number | null): string {
+function formatSeconds(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) return '—';
   if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
   return `${seconds.toFixed(1)}초`;

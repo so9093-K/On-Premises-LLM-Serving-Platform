@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { formatSeconds, trafficTiles, trafficWindowLabel } from '../src/trafficSummary.ts';
+import { trafficTiles, trafficWindowLabel } from '../src/trafficSummary.ts';
 
 function summary(overrides = {}) {
   return {
@@ -50,5 +50,4 @@ test('an idle window reads as no traffic rather than as missing data', () => {
 test('window label discloses a partially observed window after restart', () => {
   assert.equal(trafficWindowLabel(summary()), '최근 5분');
   assert.equal(trafficWindowLabel(summary({ observed_seconds: 95 })), '최근 5분 (Gateway 시작 후 2분 관측)');
-  assert.equal(formatSeconds(null), '—');
 });

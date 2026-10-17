@@ -16,7 +16,8 @@ import { RuntimePage } from './RuntimePage';
 import { NAVIGATION_GROUPS, visibleNavigationSections, type NavigationPath } from './navigation';
 import { deploymentTargetLabel, t } from './uiText';
 
-const SUPPORTED_BOOTSTRAP_VERSION = 4;
+// The generated OpenAPI literal version is the compile-time contract for the Console.
+const SUPPORTED_BOOTSTRAP_VERSION: BootstrapResponse['bootstrap_version'] = 4;
 
 function LoadingScreen() {
   return (

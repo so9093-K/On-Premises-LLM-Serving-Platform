@@ -149,7 +149,7 @@ def test_plan_digest_checks_changes_to_generation_placement_and_observed_reserva
 @pytest.mark.parametrize("bad", [0.0, float("nan"), float("inf"), -0.1, 1.1, True])
 def test_resource_budget_rejects_invalid_reservations_and_limits(bad):
     with pytest.raises(ValueError):
-        plan_activation([], "new", bad)
+        plan_activation([], "new", bad, ceiling=0.93)
     with pytest.raises(ValueError):
         GpuPool(H1_A, bad, 0)
 
@@ -157,9 +157,9 @@ def test_resource_budget_rejects_invalid_reservations_and_limits(bad):
 def test_multi_pool_participants_fail_closed_in_legacy_single_gpu_planner():
     participants = [runtime("a", H1_A, 0.3), runtime("b", H2_A, 0.2)]
     with pytest.raises(ValueError, match="different GPU resource pools"):
-        plan_activation(participants, "c", 0.2)
+        plan_activation(participants, "c", 0.2, ceiling=0.93)
     with pytest.raises(ValueError, match="different GPU resource pools"):
-        budget_snapshot(participants)
+        budget_snapshot(participants, ceiling=0.93)
 
 
 def test_invalid_inventory_identity_or_duplicate_reservation_is_rejected():

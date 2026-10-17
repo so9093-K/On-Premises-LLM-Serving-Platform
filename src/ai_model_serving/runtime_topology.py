@@ -196,6 +196,15 @@ def load_runtime_topology(
                 f"runtime topology binding {key!r} service_id {service_id!r} port "
                 "does not match model_serving"
             )
+        # Managed 내부 endpoint는 services.yaml의 Compose identity/port에서 파생된
+        # canonical vLLM URL이어야 한다. 외부 static endpoint override는 별도
+        # deployment/env 경계에서 처리하며 이 repository default를 변경하지 않는다.
+        expected_endpoint = f"http://{compose_service}:{service_cfg['container_port']}/v1"
+        if model.get("endpoint") != expected_endpoint:
+            raise ValueError(
+                f"runtime topology binding {key!r} endpoint does not match "
+                f"services.yaml canonical endpoint {expected_endpoint!r}"
+            )
         raw_features = raw_binding.get("features")
         if (
             not isinstance(raw_features, list)

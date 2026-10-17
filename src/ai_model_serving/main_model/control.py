@@ -295,13 +295,17 @@ class MainModelManager:
                 return
             try:
                 observed_started_at = await self.backend.observed_started_at(self.catalog)
-            except Exception as exc:  # noqa: BLE001 - 다음 tick에 다시 시도한다
+            except Exception as exc:  # noqa: BLE001 - 관측 실패는 검증 근거가 아니다
+                # 인스턴스 신원을 확인할 수 없으면 이전 Gate 개방을 승계하지 않는다.
+                if state.get("gate") != "closed":
+                    self.state_store.update(lambda s: s.update(gate="closed"))
                 _logger.warning("reconciliation could not observe container start time: %s", exc)
                 return
             if observed_started_at is None:
                 # 이전에 검증한 인스턴스가 사라졌다는 관측 결과다.
                 # 더 이상 준비된 모델로 표시해서는 안 된다.
-                self.state_store.update(lambda s: s.update(gate="closed"))
+                if state.get("gate") != "closed":
+                    self.state_store.update(lambda s: s.update(gate="closed"))
                 return
             last_validated = state.get("last_validated_container_started_at")
             if observed_started_at == last_validated and state.get("gate") == "open":
@@ -309,6 +313,9 @@ class MainModelManager:
                 try:
                     observed_profile = await self.backend.observed_profile(self.catalog)
                 except Exception as exc:  # noqa: BLE001
+                    # StartedAt이 같아도 실제 Profile의 관측이 실패하면 Fail-Closed한다.
+                    if state.get("gate") != "closed":
+                        self.state_store.update(lambda s: s.update(gate="closed"))
                     _logger.warning("reconciliation could not observe model profile: %s", exc)
                     return
                 if observed_profile == active_id:
@@ -317,7 +324,9 @@ class MainModelManager:
                     return
             # 검증 지문이 없거나 바뀌었다면 이전 검증을 승계할 수 없다.
             # 관측과 Canary를 시작하기 전에 요청 Gate를 먼저 닫는다.
-            self.state_store.update(lambda s: s.update(gate="closed"))
+            # 이미 닫힌 Gate를 매 Poll마다 기록하면 상태 Generation만 증가한다.
+            if state.get("gate") != "closed":
+                self.state_store.update(lambda s: s.update(gate="closed"))
             now = asyncio.get_running_loop().time()
             if now < self._reconcile_backoff_until:
                 return

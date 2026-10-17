@@ -250,9 +250,3 @@ export function buildExportFiles(serializedRequest: string): ExportFiles {
   return { 'request.json': serializedRequest, ...exportTemplates(stream) };
 }
 
-export function requestPreview(serializedRequest: string, maxCharacters = 12000): string | null {
-  if (serializedRequest.length > maxCharacters) return null;
-  validatedRequest(serializedRequest);
-  return JSON.stringify(JSON.parse(serializedRequest), null, 2);
-}
-
