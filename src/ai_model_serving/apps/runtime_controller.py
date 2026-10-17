@@ -783,9 +783,14 @@ async def stop_container(
     async with _budget_lock:
         plan = await _runtime_transition_plan(service, "stopped", force=False)
         _validate_reviewed_plan(plan, plan_digest)
-        if not await _executor().stop(service):
-            raise HTTPException(404, detail=f"container not found: {service}")
-    return JSONResponse({"action": "stop", "service": service, "stopped": [service]})
+        # 검토한 Plan이 No-op이면 Docker Stop 호출로 의미를 바꾸지 않는다.
+        # not_found/exited 모두 이미 GPU 예약이 해제돼 있는 상태다.
+        stopped: list[str] = []
+        if plan["stop"]:
+            if not await _executor().stop(service):
+                raise HTTPException(404, detail=f"container not found: {service}")
+            stopped.append(service)
+    return JSONResponse({"action": "stop", "service": service, "stopped": stopped})
 
 
 @app.post("/containers/{service}/start")

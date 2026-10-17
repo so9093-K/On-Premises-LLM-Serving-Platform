@@ -341,7 +341,7 @@ def test_main_start_applies_only_the_reviewed_gpu_evictions(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("missing_prerequisite", [False, True])
-def test_missing_activation_container_never_evictions_a_running_runtime(
+def test_missing_activation_container_never_evicts_a_running_runtime(
     tmp_path, monkeypatch, missing_prerequisite
 ):
     # 대상 또는 선행 컨테이너 부재는 GPU 예약 해제이지만 Start 가능 상태가 아니다.
@@ -380,7 +380,7 @@ def test_missing_activation_container_never_evictions_a_running_runtime(
     assert mutated == []
 
 
-def test_missing_main_container_does_not_eviction_secondary_runtime(
+def test_missing_main_container_does_not_evict_secondary_runtime(
     tmp_path, monkeypatch
 ):
     controller = _load_runtime_controller(tmp_path, monkeypatch)
@@ -401,3 +401,36 @@ def test_missing_main_container_does_not_eviction_secondary_runtime(
         asyncio.run(controller._runtime_transition_plan("main", "active", force=True))
     assert rejected.value.status_code == 404
     assert changed == []
+
+
+@pytest.mark.parametrize("already_stopped", ["exited", "not_found"])
+def test_stop_noop_follows_reviewed_plan_without_docker_mutation(
+    tmp_path, monkeypatch, already_stopped
+):
+    # Preview의 stop=[]는 실제 Apply에서도 부수효과 없는 성공이다.
+    # not_found 컨테이너를 다시 Stop하고 404로 바꾸는 일도 방지한다.
+    import json
+
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    target = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {target: 0.20})
+    states = {target: already_stopped}
+    mutations: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            mutations.append(service)
+            raise AssertionError("No-op Plan must not reach Docker mutation")
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    plan = asyncio.run(controller._runtime_transition_plan(target, "stopped", force=False))
+    assert plan["no_op"] is True
+    assert plan["stop"] == []
+    result = asyncio.run(controller.stop_container(
+        target, plan_digest=plan["plan_digest"], authorization=None
+    ))
+    assert json.loads(result.body)["stopped"] == []
+    assert mutations == []
