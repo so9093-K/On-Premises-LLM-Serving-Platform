@@ -414,6 +414,8 @@ def test_stop_noop_follows_reviewed_plan_without_docker_mutation(
     controller = _load_runtime_controller(tmp_path, monkeypatch)
     target = next(iter(controller.CONTROLLABLE))
     monkeypatch.setattr(controller, "_VRAM_FRACTION", {target: 0.20})
+    # 단일 participant로 축소한 가상 Topology이므로 선행 서비스도 비운다.
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {target: []})
     states = {target: already_stopped}
     mutations: list[str] = []
 
