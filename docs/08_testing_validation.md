@@ -730,7 +730,7 @@ Python 호환성을 먼저 확인한다. `validate`는 기존 `run_validate.sh`�
 `execution_error`로 종료한다. Runner가 실행되지 못한 경우 `runner_exit_code`는 null이다.
 
 테스트 실패는 `test_failed`, 정적 검증 실패는 `validation_failed`, 실행 파일 부재·
-JUnit 손상·테스트 케이스 0건·JUnit 선언과 실제 케이스 불일치 등은 `execution_error`,
+JUnit 손상·테스트 케이스 0건·JUnit의 개별 Suite 및 최상위 합계와 실제 케이스 불일치 등은 `execution_error`,
 시그널 종료·사용자 인터럽트는 `interrupted`로 구분한다. 원래 실행이 실패한
 경우 Exit Code를 그대로 반환하며, 시그널 종료는 128+시그널 번호로 변환한다.
 원래 실행이 성공해도 필수 JUnit 결과가 없거나 잘못됐으면 Exit Code 2로 실패한다.

@@ -49,7 +49,11 @@ def junit_counts(path: Path) -> dict[str, int]:
         "skipped": sum(case.find("skipped") is not None for case in cases),
     }
     # JUnit header와 실제 케이스가 모순되면 실행 성공으로 받아들이지 않는다.
-    for suite in root.iter("testsuite"):
+    # 전체 testsuites 헤더에도 합계가 선언될 수 있다.
+    # 개별 testsuite와 최상위 집계의 선언을 모두 실제 testcase와 대조한다.
+    for suite in root.iter():
+        if suite.tag not in ("testsuite", "testsuites"):
+            continue
         nested_cases = list(suite.iter("testcase"))
         actual = {
             "tests": len(nested_cases),
