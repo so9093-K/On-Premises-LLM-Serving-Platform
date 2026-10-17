@@ -131,7 +131,13 @@ Controller 초기화, 명시적 시작, 재시작 감지, Profile 전환, Rollba
 
 여러 선행 Runtime과 Target의 시작 예약량 합계가 단일 GPU Ceiling을 넘으면
 잘못된 개별 Fraction이나 처리되지 않은 예외가 아니라 **허용 불가능한 Plan**을
-반환한다.
+반환한다. Plan과 Apply는 같은 `runtime_transition.plan_runtime_transition`을
+호출하며, 선행 Runtime 예약과 기존 Target 예약의 보존·퇴거 대상 선정은
+동일한 GPU Admission 정책에서 결정한다. Apply는 로컬 GPU Budget Lock 안에서
+동일한 Planner로 상태를 재관측하고 검토한 Digest와 다르면 퇴거 전에 거부한다.
+Profile 자체를 교체할 때의 증액 검사는 자동 퇴거 없이 별도로 수행한다.
+이 재관측은 Docker 외부 변경에 대한 원자적 Fencing이 아니므로 실제
+Docker 상태와 응답 수렴 여부는 별도 Runtime 관측이 책임진다.
 
 Main Model State는 저장된 활성 Profile과 요청 Gate를 소유하고,
 Docker Inspect는 실제 컨테이너 관측 결과를 소유한다. Control Plane은
