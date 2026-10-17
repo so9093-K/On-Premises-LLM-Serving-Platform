@@ -338,3 +338,66 @@ def test_main_start_applies_only_the_reviewed_gpu_evictions(tmp_path, monkeypatc
     assert json.loads(result.body)["evicted"] == [victim]
     assert mutations == [victim]
     assert model_starts == [True]
+
+
+@pytest.mark.parametrize("missing_prerequisite", [False, True])
+def test_missing_activation_container_never_evictions_a_running_runtime(
+    tmp_path, monkeypatch, missing_prerequisite
+):
+    # 대상 또는 선행 컨테이너 부재는 GPU 예약 해제이지만 Start 가능 상태가 아니다.
+    # 강제 퇴거 승인 시에도 다른 서비스를 먼저 중지해서는 안 된다.
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    target, prerequisite, victim = sorted(controller.CONTROLLABLE)[:3]
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {
+        target: 0.85, prerequisite: 0.05, victim: 0.20,
+    })
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {
+        target: [prerequisite] if missing_prerequisite else [],
+    })
+    states = {
+        target: "exited" if missing_prerequisite else "not_found",
+        prerequisite: "not_found",
+        victim: "running",
+    }
+    mutated: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            mutated.append(service)
+            return True
+
+        async def start(self, service):
+            mutated.append(service)
+            return True
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(controller._runtime_transition_plan(target, "active", force=True))
+    assert rejected.value.status_code == 404
+    assert mutated == []
+
+
+def test_missing_main_container_does_not_eviction_secondary_runtime(
+    tmp_path, monkeypatch
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    victim = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {victim: 0.50})
+    changed: list[str] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return "not_found" if service == controller._MAIN_SERVICE else "running"
+
+        async def stop(self, service):
+            changed.append(service)
+            return True
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(controller._runtime_transition_plan("main", "active", force=True))
+    assert rejected.value.status_code == 404
+    assert changed == []

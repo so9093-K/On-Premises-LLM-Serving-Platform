@@ -354,10 +354,14 @@ async def _runtime_transition_plan(
         raise HTTPException(403, detail=f"not controllable: {service}")
 
     participants, observed = await _observe_budget_participants()
-    # paused/restarting은 VRAM을 예약하지만 정상 기동도 안전한 Stop도 보장하지 않는다.
-    # API가 성공할 수 없는 상태를 No-op 또는 적용 가능한 Plan으로 광고하지 않는다.
+    # 시작할 컨테이너가 없다면 GPU 퇴거를 승인하기 전에 계획 단계에서 거부한다.
+    # not_found의 GPU 예약은 해제 상태이지만 새 Runtime을 생성할 권한은 없다.
     affected = [*prerequisites, target_key] if desired_state == "active" else [target_key]
     for key in dict.fromkeys(affected):
+        if desired_state == "active" and observed[key] == "not_found":
+            raise HTTPException(404, detail=f"container not found: {key}")
+        # paused/restarting은 VRAM을 예약하지만 정상 기동도 안전한 Stop도 보장하지 않는다.
+        # API가 성공할 수 없는 상태를 No-op 또는 적용 가능한 Plan으로 광고하지 않는다.
         if observed[key] in {"paused", "restarting"}:
             raise HTTPException(
                 409, detail=f"runtime {key} is {observed[key]}; resolve Docker state before transition"
