@@ -224,7 +224,9 @@ profile에는 주로 다음 정보가 들어간다.
 - modality capability
 - Gateway request limits와 request parameter policy
 - runtime features(tool/reasoning/structured output 등)
-- qualification status와 검증 이력
+- qualification status (현재 maintainer 선언)
+
+과거 프로필별 검증·실측 이력은 [프로필 검증 기록](./resources/main_model_profile_validation_history.md)에 분리 보존하며 현재 실행값을 정의하지 않는다.
 
 Main Model 전환과 rollback 절차는 [6. 모델 운영](./06_model_operations.md)에서 설명한다.
 

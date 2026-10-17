@@ -145,7 +145,7 @@ Main Model Profile
    └─ resource policy (reference / explicit override)
 ```
 
-Profile의 Source of Truth는 `configs/main_model_profiles.yaml`이다.
+Profile의 Source of Truth는 `configs/main_model_profiles.yaml`이다. 과거 실측과 모델 전환 검증의 서술 기록은 [프로필 검증 이력](./resources/main_model_profile_validation_history.md)에서 확인한다. 이 기록은 현재 Runtime 상태나 admission 한도가 아니다.
 
 현재 사용 가능한 profile은 다음 API로 조회한다.
 
