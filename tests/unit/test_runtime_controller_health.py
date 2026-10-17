@@ -177,6 +177,8 @@ def test_internal_controller_auth_follows_declared_flag_even_with_a_token(
             "MAIN_MODEL_STATE_PATH": str(tmp_path / "auth-state.json"),
             "INTERNAL_SERVICE_AUTH_REQUIRED": str(required).lower(),
             "INTERNAL_SERVICE_TOKEN": "valid-runtime-controller-token",
+            # 환경을 명시적으로 주입하므로 프로필 이미지 pin도 함께 제공한다.
+            "VLLM_IMAGE": "registry.example.com/vllm@sha256:" + "a" * 64,
         }
     )
 
