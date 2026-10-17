@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import math
 import os
-import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -36,6 +35,7 @@ from ..docker_scope import (
 from ..settings_parts.env import as_bool, is_default_secret
 from ..runtime_topology import load_runtime_topology
 from ..runtime_transition import plan_runtime_transition
+from ..runtime_transition_contract import is_valid_plan_digest
 from ..runtime_executor import DockerRuntimeExecutor, RuntimeExecutor, gpu_reservation_active
 
 _logger = service_logger("runtime_controller")
@@ -415,11 +415,10 @@ def create_runtime_controller_app(
         return response
 
 
-    context._PLAN_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
     def _validate_reviewed_plan(plan: dict[str, Any], plan_digest: str | None) -> None:
-        if not isinstance(plan_digest, str) or not context._PLAN_DIGEST_RE.fullmatch(plan_digest):
+        if not is_valid_plan_digest(plan_digest):
             raise HTTPException(
                 422,
                 detail="plan_digest is required and must be a lowercase SHA-256 hex digest",
@@ -578,7 +577,7 @@ def create_runtime_controller_app(
         context._BACKGROUND_TASKS.add(init_task)
         init_task.add_done_callback(context._BACKGROUND_TASKS.discard)
         # 이 루프는 initialize()와 달리 main-llm이 healthy해지길 기다리지 않는다 —
-        # 그냥 30초마다 자고 관측만 하므로 Runtime Controller startup을 절대 지연시키지 않는다.
+        # 주기적으로 대기하고 관측할 뿐이므로 Runtime Controller startup을 지연시키지 않는다.
         reconcile_task = asyncio.create_task(_run_reconciliation_loop())
         context._BACKGROUND_TASKS.add(reconcile_task)
         reconcile_task.add_done_callback(context._BACKGROUND_TASKS.discard)
@@ -591,6 +590,9 @@ def create_runtime_controller_app(
             init_task.cancel()
             reconcile_task.cancel()
             log_target_task.cancel()
+            # App이 시작한 작업의 취소 완료를 확인한다. Manager의 영속 모델 전환
+            # Task는 별도 복구 계약을 가지므로 이 수명주기에서 임의로 취소하지 않는다.
+            await asyncio.gather(init_task, reconcile_task, log_target_task, return_exceptions=True)
 
 
     # --------------------------------------------------------------------- app

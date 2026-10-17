@@ -38,6 +38,18 @@ def test_lifespan_does_not_block_health_on_main_model_reconciliation(tmp_path, m
         assert not controller._initialized.is_set()
 
 
+def test_lifespan_cleans_up_background_tasks_before_exit(tmp_path, monkeypatch):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+
+    async def slow_initialize() -> None:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(controller._main_model_manager, "initialize", slow_initialize)
+    with TestClient(controller.app) as client:
+        assert client.get("/health").status_code == 200
+    assert not controller._BACKGROUND_TASKS
+
+
 def test_initialization_fails_closed_without_compose_project(tmp_path, monkeypatch):
     controller = _load_runtime_controller(tmp_path, monkeypatch)
     monkeypatch.setattr(controller, "COMPOSE_PROJECT", "")

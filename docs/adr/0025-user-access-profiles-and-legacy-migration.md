@@ -13,7 +13,7 @@ Accepted
 > 현재 사용자 운영 진입점은 `make up TARGET=<id> ACCESS=<profile>`이다.
 > 신규 설치의 실제 네트워크 공개 범위는 `configs/services.yaml` 및 Compose가 소유한다.
 
-- Partially superseded by: [ADR-0043](./0043-internal-runtime-validation-and-private-host-exposure.md) — `master_open` 유지와 exposure-* legacy surface 결정
+- Partially superseded by: [ADR-0043](./0043-internal-runtime-validation-and-private-host-exposure.md), [ADR-0045](./0045-host-exposure-invariant.md) — 채택 당시 `master_open` 및 `exposure-*` 유지 결정은 현재 폐기됐으며, Access Profile과 명시적 이관 원칙은 유효하다.
 
 ## Context
 
