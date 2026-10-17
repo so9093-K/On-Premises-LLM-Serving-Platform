@@ -18,7 +18,7 @@ RISK = Participant("prompt_injection_detector", 0.065, active=True, priority=50)
 def test_reactivating_an_active_runtime_fits_in_place():
     # main을 동일 비용 프로필로 교체: main 자신의 점유량은 계산에 포함되지 않는다.
     fleet = [MAIN, EMB, EMB_KO, RISK]
-    result = plan_activation(fleet, "main", 0.76)
+    result = plan_activation(fleet, "main", 0.76, ceiling=0.95)
     assert result.already_fits
     assert result.victims == ()
 
@@ -26,7 +26,7 @@ def test_reactivating_an_active_runtime_fits_in_place():
 def test_second_heavy_model_requires_eviction_plan():
     # main(0.76)+secondaries(0.165)가 활성 상태인 채로 0.76짜리 모델 "main2"를 올린다.
     fleet = [MAIN, EMB, EMB_KO, RISK]
-    result = plan_activation(fleet, "main2", 0.76)
+    result = plan_activation(fleet, "main2", 0.76, ceiling=0.95)
     # main은 evict 불가능하므로, secondary를 전부 멈춰도(0.165) 또 다른 0.76을
     # 위한 공간을 확보할 수 없다 -> 불가능.
     assert not result.feasible
@@ -37,10 +37,10 @@ def test_eviction_frees_room_when_possible():
     # main은 중지됨; 0.85짜리 모델을 올린다. secondary들은 evict 가능.
     main_stopped = Participant("main", 0.76, active=False, priority=100, evictable=False)
     fleet = [main_stopped, EMB, EMB_KO, RISK]
-    result = plan_activation(fleet, "big", 0.85)
+    result = plan_activation(fleet, "big", 0.85, ceiling=0.95)
     # used_by_others = 0.165, available = 0.785; deficit = 0.065. 하나의 tier
     # 안에서, 가장 큰 evict 대상(prompt_injection_detector 0.065)이면 충분하다 -> 희생자 1개.
-    # admin_sidecar는 feasible/victims를 직접 본다 -- 같은 필드로 검증한다.
+    # Runtime Controller는 feasible/victims 계약을 그대로 소비한다.
     assert result.feasible and result.victims
     assert result.victims == ("prompt_injection_detector",)
 
@@ -50,7 +50,7 @@ def test_victims_minimise_count_largest_first_within_tier():
     fleet = [main_stopped, EMB, EMB_KO, RISK]
     # target 0.9 -> available 0.785, deficit 0.115. 큰 것부터: risk 0.065 다음
     # embedding_ko 0.06 -> 0.125 >= 0.115, 희생자 2개.
-    result = plan_activation(fleet, "big", 0.9)
+    result = plan_activation(fleet, "big", 0.9, ceiling=0.95)
     assert result.feasible
     assert result.victims == ("prompt_injection_detector", "embedding_ko")
 
@@ -62,7 +62,7 @@ def test_lower_priority_tier_evicted_before_higher():
     fleet = [main_stopped, low, high]
     # target 0.89에 대해 available 0.85, deficit 0.04: 둘 다 단독으로 충분해도
     # 더 낮은 priority tier가 먼저 나간다.
-    result = plan_activation(fleet, "t", 0.89)
+    result = plan_activation(fleet, "t", 0.89, ceiling=0.95)
     assert result.victims == ("low",)
 
 
@@ -76,7 +76,7 @@ def test_criticality_policy_evicts_retrieval_before_risk():
     fleet = [main, emb, emb_ko, risk]
     # main은 중지됨; target 0.9를 올린다. available 0.765, deficit 0.135.
     # retrieval tier가 먼저(0.06+0.04=0.10 < 0.135), 그다음 risk(0.165 >= 0.135).
-    result = plan_activation(fleet, "main", 0.9)
+    result = plan_activation(fleet, "main", 0.9, ceiling=0.95)
     assert result.victims == ("embedding_ko", "embedding", "prompt_injection_detector")
     # retrieval만으론 부족했기 때문에만 risk가 선택된다; 그래서 마지막이다.
     assert result.victims[-1] == "prompt_injection_detector"
@@ -86,7 +86,7 @@ def test_main_never_auto_evicted_for_others():
     # main을 멈춰야만 들어맞는 target이라도, main은 evict 불가능하므로
     # 여전히 불가능한 채로 남는다.
     fleet = [MAIN, EMB]  # "x"에 대한 used_by_others = 0.80
-    result = plan_activation(fleet, "x", 0.5)  # available 0.15, deficit 0.35
+    result = plan_activation(fleet, "x", 0.5, ceiling=0.95)  # available 0.15, deficit 0.35
     # EMB(0.04)만 evict 가능 -> 0.35에 도달 불가 -> 불가능, main은 그대로.
     assert not result.feasible
     assert "main" not in result.victims

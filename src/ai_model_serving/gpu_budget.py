@@ -14,7 +14,6 @@ import math
 
 from .resource_identity import CONTROLLER_LOCAL_GPU, GpuResourceId
 
-DEFAULT_CEILING = 0.95
 # fraction에 대한 float 연산(예: 0.85 - 0.785)이 오차로 인해 불필요한 victim을
 # 추가로 요구하거나 정확히 맞는 경우를 거부하지 않도록 두는 허용 오차.
 _EPS = 1e-9
@@ -39,10 +38,10 @@ class Participant:
 @dataclass(frozen=True)
 class AdmissionResult:
     feasible: bool
+    ceiling: float
     victims: tuple[str, ...] = ()
     required: float = 0.0
     used_by_others: float = 0.0
-    ceiling: float = DEFAULT_CEILING
     reason: str = ""
 
     @property
@@ -79,7 +78,7 @@ def plan_activation(
     target_key: str,
     target_fraction: float,
     *,
-    ceiling: float = DEFAULT_CEILING,
+    ceiling: float,
 ) -> AdmissionResult:
     """``target_key``가 ``target_fraction``만큼의 GPU를 사용해도 되는지 판단한다.
 
@@ -143,7 +142,7 @@ def plan_activation(
 
 
 def budget_snapshot(
-    participants: list[Participant], *, ceiling: float = DEFAULT_CEILING
+    participants: list[Participant], *, ceiling: float
 ) -> dict:
     """참여자별 비용·상태와 전체 예산을 포함한 운영자용 ledger를 반환한다."""
     _validate_pool(participants, ceiling)

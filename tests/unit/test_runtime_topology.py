@@ -78,6 +78,25 @@ def test_runtime_topology_rejects_wrong_service_reference(tmp_path) -> None:
 
 
 @pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://other-runtime:9402/v1",
+        "http://embedding-vllm:9409/v1",
+        "http://embedding-vllm:9402/other",
+    ],
+)
+def test_runtime_topology_rejects_internal_endpoint_drift(tmp_path, endpoint) -> None:
+    _copy_runtime_configs(tmp_path)
+    path = tmp_path / "configs" / "model_serving.yaml"
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    document["models"]["embedding"]["endpoint"] = endpoint
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="endpoint does not match"):
+        load_runtime_topology(tmp_path)
+
+
+@pytest.mark.parametrize(
     ("update", "message"),
     [
         ({"features": ["embeddings_typo"]}, "references unknown features"),

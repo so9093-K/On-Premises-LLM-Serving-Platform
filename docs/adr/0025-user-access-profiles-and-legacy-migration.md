@@ -4,6 +4,15 @@
 
 Accepted
 
+> **현재 적용 범위 (2026-10-17):** 이 ADR의 Access Profile
+> `local/private/edge` 및 기존 환경의 명시적 이관 원칙은 유지된다.
+> 다만 `master_open`, 선택형 `EXPOSURE_MODE`, `exposure-*` 도구의 유지 결정은
+> [ADR-0043](./0043-internal-runtime-validation-and-private-host-exposure.md)과
+> [ADR-0045](./0045-host-exposure-invariant.md)에 의해 폐기됐다.
+> 아래 `make setup` 명령 및 exposure 관련 서술은 **채택 당시 기록**이며,
+> 현재 사용자 운영 진입점은 `make up TARGET=<id> ACCESS=<profile>`이다.
+> 신규 설치의 실제 네트워크 공개 범위는 `configs/services.yaml` 및 Compose가 소유한다.
+
 - Partially superseded by: [ADR-0043](./0043-internal-runtime-validation-and-private-host-exposure.md) — `master_open` 유지와 exposure-* legacy surface 결정
 
 ## Context
