@@ -693,3 +693,38 @@ make logs RAW=1
 
 CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate로 사용한다.
 자동화와 배포의 책임 경계는 [9. 자동화 경계](./09_cicd.md), live failure 진단은 [11. 관측성과 장애 대응](./11_observability.md)에서 설명한다.
+
+## 8.7 공통 검증 결과와 CI 게시
+
+로컬/CI의 기존 `make validate`, `make test`, `npm run test:safety`는
+`scripts/validation/run_suite.py`를 통해 각각의 원래 검증기/러너를 실행한다.
+브라우저 CI도 같은 CLI의 `playwright` Suite로 Python Playwright Smoke를 호출한다.
+공통 CLI는 새로운 테스트 정의·재판정 엔진이 아니라, 원래 프로세스의 종료 코드와
+검증 결과를 일관되게 기록하는 개발자 도구다. 일반 `make check`의 검증 범위,
+CI Job 분리, Runtime 검증의 별도 경계는 유지된다.
+
+| Suite | 실제 실행 주체 | JUnit 생성 단위 |
+|---|---|---|
+| `validate` | 기존 Shell 정적 Validator | 생성하지 않음(테스트 케이스가 아님) |
+| `pytest` | pytest/xdist | pytest 테스트 케이스 |
+| `node` | Node 내장 `node --test` | Node 테스트 케이스; Vitest 도입 없음 |
+| `playwright` | 기존 Python Playwright Smoke | 전체 Smoke 스크립트 1건(개별 Browser Assertion이 아님) |
+
+산출물은 기본적으로 `reports/validation/<suite>/<run-id>/`에 생성된다.
+`VALIDATION_REPORT_DIR` 또는 `--output-root`로 위치를 변경할 수 있으며,
+Git에 추적하지 않는다. `manifest.json`은 실행 ID·Suite·Runner·알려진 Git Revision·
+시작/종료 시각·검증 범위를, `summary.json`은 상태·실제 종료 코드·테스트 수·
+JUnit 상대 경로·진단 종류를 기록한다. 테스트 Suite에는 `junit.xml`이 포함된다.
+CLI는 Secret, raw Prompt/Response, 전체 환경변수, subprocess stdout/stderr를
+이 파일에 복사하지 않는다. 다만 테스트 러너의 자체 Assertion/JUnit 출력에
+민감정보가 포함되지 않도록 테스트 데이터와 오류 메시지를 관리해야 한다.
+
+테스트 실패는 `test_failed`, 정적 검증 실패는 `validation_failed`, 실행 파일 부재·
+JUnit 손상·테스트 케이스 0건 등은 `execution_error`로 구분한다. 원래 실행이 실패한
+경우 Exit Code를 그대로 반환한다. 원래 실행이 성공해도 필수 JUnit 결과가 없거나
+잘못됐으면 Exit Code 2로 실패한다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
+
+GitHub Actions는 기존 Job Gate를 유지하면서 `if: always()`로 해당 Job의 검증 산출물을
+Artifact로 게시한다. GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를
+그대로 소비하면 되며, 이 저장소는 GitLab Pipeline을 별도로 배포하지 않는다.
+`make runtime-validate`의 Live GPU Report는 별도 실행 환경·계약에 남는다.
