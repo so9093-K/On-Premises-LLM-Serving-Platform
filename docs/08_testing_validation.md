@@ -582,6 +582,11 @@ Controller Ledger·Plan 연동은 대표 상태와 실패 경로만 검증한다
 분기별 케이스를 여러 계층에 반복하지 않으며 테스트를 통합·삭제할 때는
 같은 위험을 무엇이 대신 막는지 확인한다.
 
+현재 저장소의 문서·설정 동기화 판정은 `make validate`의 Governance가
+소유한다. `tests/unit/test_operator_docs_governance.py`는 판정 함수의 실패
+경계와 문서 변환 동작만 검증하며, 실제 저장소 문서를 같은 방식으로 다시
+검사하지 않는다.
+
 ### 삭제·통합 기준
 
 테스트나 validator도 지속적인 책임이 없으면 유지하지 않는다. 다음 조건이면 삭제하거나 하나의 validator로 통합한다.

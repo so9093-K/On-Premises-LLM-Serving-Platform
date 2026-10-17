@@ -86,6 +86,3 @@ def test_preflight_removed_key_guidance_detects_actionable_old_image_ref(tmp_pat
     operator_docs.validate_removed_env_key_guidance()
 
 
-def test_current_repository_tool_policy_reference_is_in_sync() -> None:
-    # Runtime governance catches this too; this test describes the documentation contract.
-    operator_docs.validate_operator_documentation()
