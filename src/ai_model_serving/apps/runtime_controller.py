@@ -4,7 +4,7 @@ import asyncio
 import os
 import re
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -437,71 +437,49 @@ def _parse_runtime_plan_payload(payload: Any) -> tuple[str, bool]:
     return desired_state, force
 
 
-async def _admit_or_raise(
-    target_key: str,
-    target_fraction: float,
-    *,
-    force: bool,
-    protected_keys: frozenset[str] = frozenset(),
-    reviewed_victims: tuple[str, ...] | None = None,
-) -> list[str]:
-    """공유 GPU 예산 안에서 런타임 활성화를 허용하거나 거부한다.
+async def _admit_profile_switch_or_raise(target_fraction: float) -> None:
+    """Main Model Profile 전환의 예약량 변경을 보수적으로 검사한다.
 
-    중지한 Victim 목록을 반환한다. 별도 중지가 필요 없으면 빈 목록이다.
-    예산이 부족하거나 `force=False`로 퇴거를 승인하지 않았다면
-    실행 Plan을 포함한 409 응답을 발생시킨다.
+    Runtime 시작·중지의 Plan/Apply는 _runtime_transition_plan만 사용한다.
+    이 함수는 Profile 교체의 다른 VRAM 비용을 별도로 검증하며 자동 퇴거하지 않는다.
     """
     participants = await _build_participants()
-    # 실제 Start 대상의 선행 Runtime은 Plan과 동일하게 퇴거 불가로 취급한다.
-    if protected_keys:
-        participants = [
-            replace(p, evictable=False) if p.key in protected_keys else p
-            for p in participants
-        ]
     result = plan_activation(
-        participants, target_key, target_fraction, ceiling=_GPU_BUDGET_CEILING
+        participants, _MAIN_SERVICE, target_fraction, ceiling=_GPU_BUDGET_CEILING
     )
-    if result.feasible and reviewed_victims is not None and result.victims != reviewed_victims:
-        # Plan 검토 이후 Docker 상태가 바뀌어 퇴거 대상이 달라지면 자동 재선정하지 않는다.
-        raise HTTPException(
-            409,
-            detail={
-                "code": "RUNTIME_PLAN_CHANGED",
-                "message": "Runtime transition plan changed after review.",
-            },
-        )
     if result.already_fits:
-        return []
-    if not result.feasible:
-        raise HTTPException(
-            409,
-            detail={
-                "code": "GPU_BUDGET_EXCEEDED",
-                "message": "GPU budget does not allow this activation.",
-                "feasible": False,
-                "required": round(result.required, 4),
-                "available": round(result.available, 4),
-                "ceiling": result.ceiling,
-                "reason": result.reason,
-            },
-        )
-    if not force:
-        raise HTTPException(
-            409,
-            detail={
-                "code": "GPU_BUDGET_EXCEEDED",
-                "message": "GPU budget does not allow this activation.",
-                "feasible": True,
-                "required": round(result.required, 4),
-                "available": round(result.available, 4),
-                "ceiling": result.ceiling,
-                "plan": {"stop": list(result.victims)},
-            },
-        )
+        return
+    detail: dict[str, Any] = {
+        "code": "GPU_BUDGET_EXCEEDED",
+        "message": "GPU budget does not allow this activation.",
+        "feasible": result.feasible,
+        "required": round(result.required, 4),
+        "available": round(result.available, 4),
+        "ceiling": result.ceiling,
+    }
+    if result.feasible:
+        detail["plan"] = {"stop": list(result.victims)}
+    else:
+        detail["reason"] = result.reason
+    raise HTTPException(409, detail=detail)
+
+
+async def _apply_reviewed_activation(service: str, plan: dict[str, Any], *, force: bool) -> list[str]:
+    """하나의 Planner 계약으로 상태를 재확인한 뒤 검토된 Victim만 중지한다.
+
+    Docker는 Controller 외부에서도 변경될 수 있다. 변경 실행 직전 같은
+    Transition Planner를 재관측하고 Digest가 바뀌면 중지하지 않는다.
+    별도 Admission 계산을 두지 않으며 로컬 _budget_lock 안에서 호출한다.
+    """
+    fresh = await _runtime_transition_plan(service, "active", force=force)
+    _validate_reviewed_plan(fresh, str(plan["plan_digest"]))
     stopped: list[str] = []
-    for victim in result.victims:
-        if await _executor().stop(victim):
-            stopped.append(victim)
+    for victim in fresh["stop"]:
+        if victim not in CONTROLLABLE:
+            raise HTTPException(503, detail=f"uncontrollable eviction target: {victim}")
+        if not await _executor().stop(victim):
+            raise HTTPException(503, detail=f"cannot stop planned GPU eviction target: {victim}")
+        stopped.append(victim)
     return stopped
 
 
@@ -698,7 +676,7 @@ async def switch_main_model(
             # 운영자에게 먼저 무엇을 stop해야 하는지 알려준다. (여기서는 auto-evict를 하지
             # 않는다: profile 변경은 의도적인 행위이므로, 공간 확보는 명시적인 단계여야 한다.)
             if target_profile is not None:
-                await _admit_or_raise(_MAIN_SERVICE, target_profile.vram_fraction, force=False)
+                await _admit_profile_switch_or_raise(target_profile.vram_fraction)
             outcome = _main_model_manager.request_switch(
                 profile_id,
                 confirm_unverified=payload.get("confirm_unverified") is True,
@@ -779,16 +757,10 @@ async def main_model_start(
 ) -> JSONResponse:
     """GPU 예산을 확인한 뒤 main runtime을 시작하고 검증한다."""
     await _require_runtime_controller_token(authorization)
-    snapshot = _main_model_manager.snapshot()
-    active_profile = snapshot.get("active_profile") or {}
-    target_fraction = float(
-        active_profile.get("vram_fraction")
-        or _catalog.profiles[_main_model_manager.boot_profile].vram_fraction
-    )
     async with _budget_lock:
         plan = await _runtime_transition_plan("main", "active", force=force)
         _validate_reviewed_plan(plan, plan_digest)
-        evicted = await _admit_or_raise(_MAIN_SERVICE, target_fraction, force=force)
+        evicted = await _apply_reviewed_activation("main", plan, force=force)
         await _main_model_manager.start_main()
     return JSONResponse(
         {"action": "start", "service": _MAIN_SERVICE, "runtime_state": "active", "evicted": evicted}
@@ -829,28 +801,9 @@ async def start_container(
     async with _budget_lock:
         plan = await _runtime_transition_plan(service, "active", force=force)
         _validate_reviewed_plan(plan, plan_digest)
-        # 아무것도 건드리기 전에, 함께 기동되는 전체 집합(service + 아직 실행 중이 아닌
-        # prerequisite들)을 공유 GPU budget에 대해 admit한다. 실제 start/health
-        # 시퀀스 동안에도 lock을 유지하여, 다른 동시 activation이 동일한 pre-start
-        # snapshot을 기준으로 admission을 통과해 VRAM을 overcommit하는 일이 없도록 한다.
-        to_start = [
-            prereq
-            for prereq in _START_PREREQUISITES.get(service, [])
-            if await _executor().status(prereq) != "running"
-        ]
-        if await _executor().status(service) != "running":
-            to_start.append(service)
-        target_fraction = sum(_VRAM_FRACTION.get(svc, 0.0) for svc in to_start)
-        if to_start and service not in to_start:
-            # 이미 Running인 target은 신규 시작 목록에 없지만 GPU를 계속 점유한다.
-            # Admission이 target 자신을 others에서 제외하므로 예약량을 명시적으로 더한다.
-            target_fraction += _VRAM_FRACTION[service]
-        if target_fraction > 0:
-            evicted = await _admit_or_raise(
-                service, target_fraction, force=force,
-                protected_keys=frozenset(_START_PREREQUISITES.get(service, [])),
-                reviewed_victims=tuple(plan["stop"]),
-            )
+        # 동일한 Runtime Planner로 재관측하여 검토한 Plan과의 일치를 확인한다.
+        # GPU 예약량·기동 대상·선행 서비스 보호·퇴거 순위는 Planner 한 곳이 소유한다.
+        evicted = await _apply_reviewed_activation(service, plan, force=force)
 
         # prerequisite들을 순서대로 시작한다(GPU 메모리 프로파일링을 순차적으로 진행).
         for prereq in _START_PREREQUISITES.get(service, []):
