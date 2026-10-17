@@ -174,7 +174,9 @@ def plan_runtime_transition(
                 f"single-GPU ceiling {ceiling:.3f}"
             ),
         )
-    protected = set(start) | {target_key}
+    # 이미 실행 중인 선행 Runtime도 Target 기동 과정에서 퇴거해서는 안 된다.
+    # 새로 시작할 선행 Runtime만 보호하면 Plan이 운영 의존성을 깨뜨릴 수 있다.
+    protected = set(start) | set(prerequisite_keys) | {target_key}
     admission_participants = [
         replace(participant, evictable=False)
         if participant.key in protected
