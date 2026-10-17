@@ -301,3 +301,40 @@ def test_docker_observation_error_denies_admission_without_releasing_gpu(
     with pytest.raises(HTTPException) as plan:
         asyncio.run(controller._runtime_transition_plan(service, "active", force=True))
     assert plan.value.status_code == 503
+
+
+def test_main_start_applies_only_the_reviewed_gpu_evictions(tmp_path, monkeypatch):
+    # Main Model 기동도 Secondary와 동일한 Transition Plan을 사용한다.
+    # Profile 변경과 달리 명시적 force로 검토한 Victim만 퇴거할 수 있다.
+    import json
+
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    victim = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {victim: 0.50})
+    states = {victim: "running", controller._MAIN_SERVICE: "exited"}
+    mutations: list[str] = []
+    model_starts: list[bool] = []
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return states.get(service, "exited")
+
+        async def stop(self, service):
+            mutations.append(service)
+            states[service] = "exited"
+            return True
+
+    async def start_main():
+        model_starts.append(True)
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    monkeypatch.setattr(controller._main_model_manager, "start_main", start_main)
+    plan = asyncio.run(controller._runtime_transition_plan("main", "active", force=True))
+    assert plan["admissible"] is True
+    assert plan["stop"] == [victim]
+    result = asyncio.run(controller.main_model_start(
+        force=True, plan_digest=plan["plan_digest"], authorization=None
+    ))
+    assert json.loads(result.body)["evicted"] == [victim]
+    assert mutations == [victim]
+    assert model_starts == [True]
