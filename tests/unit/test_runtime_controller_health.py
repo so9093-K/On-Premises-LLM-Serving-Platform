@@ -72,6 +72,40 @@ def test_health_surfaces_definitive_reconciliation_failure(tmp_path, monkeypatch
     assert "main runtime did not become healthy" in str(excinfo.value.detail)
 
 
+
+def test_factory_owns_independent_state_and_dependencies(tmp_path, monkeypatch):
+    from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
+
+    first = _load_runtime_controller(tmp_path / "first", monkeypatch)
+    second = _load_runtime_controller(tmp_path / "second", monkeypatch)
+
+    assert first.app is not second.app
+    assert first._budget_lock is not second._budget_lock
+    assert first._initialized is not second._initialized
+    assert first._BACKGROUND_TASKS is not second._BACKGROUND_TASKS
+    assert first._main_model_manager is not second._main_model_manager
+    assert first._state_store.path != second._state_store.path
+    assert first.app.state.controller is first
+    assert second.app.state.controller is second
+    assert first._initialized.is_set() is False
+    assert second._initialized.is_set() is False
+
+    class FakeExecutor:
+        async def status(self, service):
+            return "exited"
+
+        async def start(self, service):
+            return True
+
+        async def stop(self, service):
+            return True
+
+    injected = FakeExecutor()
+    app = create_runtime_controller_app(executor=injected)
+    assert app.state.controller._executor() is injected
+
+
+
 def test_runtime_controller_reads_canonical_main_model_env(tmp_path):
     from pathlib import Path
 

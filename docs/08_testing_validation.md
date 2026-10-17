@@ -569,7 +569,7 @@ Source와 artifact 관계가 핵심이면 validator를 강화하고, application
 ### 테스트 파일의 소유 계약
 
 테스트 파일은 실패 시 영향받는 Production 계약을 기준으로 구분한다.
-Runtime Controller의 Health/초기화는 `test_runtime_controller_health.py`, GPU 예약과
+Runtime Controller의 Health/초기화와 App Factory 인스턴스 격리는 `test_runtime_controller_health.py`, GPU 예약과
 Plan/Apply는 `test_runtime_controller_gpu.py`, 순수 상태 전환 의사결정은
 `test_runtime_transition.py`가 각각 검증한다. Main Model 상태 머신·재검증은
 `test_main_model_control.py`, 이미지·Profile·자원 변형 해석은
