@@ -566,6 +566,15 @@ Source of Truth와 여러 artifact의 관계를 비교하는 규칙은 validator
 Source와 artifact 관계가 핵심이면 validator를 강화하고, application behavior가 핵심이면 Unit/Contract Test를 사용한다.
 실제 환경 상태가 핵심이면 live validation으로 연결한다.
 
+### 테스트 파일의 소유 계약
+
+테스트 파일은 실패 시 영향받는 Production 계약을 기준으로 구분한다.
+Runtime Controller의 Health/초기화는 `test_runtime_controller_health.py`, GPU 예약과
+Plan/Apply는 `test_runtime_controller_gpu.py`, 순수 상태 전환 의사결정은
+`test_runtime_transition.py`가 각각 검증한다. 같은 위험을 두 계층에서
+확인할 때는 정책 함수의 decision branch와 실제 API/Executor 연결이라는
+서로 다른 검증 목적이 있어야 한다.
+
 ### 삭제·통합 기준
 
 테스트나 validator도 지속적인 책임이 없으면 유지하지 않는다. 다음 조건이면 삭제하거나 하나의 validator로 통합한다.
@@ -650,7 +659,7 @@ make logs RAW=1
 | Validation entry point | `scripts/validation/run_validate.sh` | `make validate` 실행 순서 |
 | Contract validator | `scripts/validation/validate_contracts.py` | 공통 API·model·resource contract |
 | Environment contract | `scripts/validation/validate_env_contract.py` | env template 정합성 |
-| Exposure validator | `scripts/validation/validate_exposure_profiles.py` | service exposure 구조 |
+| Exposure validator | `scripts/validation/validate_access_profiles.py` | service exposure 구조 |
 | Generated artifact renderer | `scripts/render_runtime_assets.py` | generated artifact 생성·drift 확인 |
 | Test entry point | `scripts/validation/run_test.sh` | Unit / Contract pytest |
 | Test source | `tests/unit/`, `tests/contract/` | 동작 / contract test |
