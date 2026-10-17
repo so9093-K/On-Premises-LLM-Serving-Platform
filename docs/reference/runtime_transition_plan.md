@@ -19,6 +19,19 @@ Runtime Start Plan과 달리 자동 퇴거를 실행하지 않는다.
 
 Apply는 Plan에서 받은 `plan_digest` 없이는 실행되지 않는다. first-party Admin Console과 외부 자동화 모두 Plan을 먼저 요청하고 반환된 digest를 Apply에 전달한다. 이 digest는 클라이언트가 public projection을 다시 해시하기 위한 값이 아니라, sidecar가 검토 시점의 canonical transition snapshot을 apply-time 재계산과 비교하기 위한 opaque token이다.
 
+## Runtime 부재와 No-op 처리
+
+GPU 예약 해제 상태와 Docker 컨테이너를 시작할 수 있는 상태는 다르다.
+Start Plan의 Target 또는 prerequisite가 `not_found`이면 404로 거부하고,
+GPU Victim을 먼저 중지하지 않는다. `created`·`exited`는 Docker 컨테이너가
+존재하므로 일반적인 Start 정책에 따라 판단한다.
+
+Stop Plan의 `stop=[]`은 Docker 변경이 필요 없는 No-op이며, Apply도
+`stopped=[]`로 응답한다. `exited`와 `not_found`를 다시 Stop하지 않는다.
+Main Model이 영속 상태 `stopped`이고 Docker 상태 `not_found`이면
+Gateway는 컨테이너 관측의 `unavailable` 표시와 무관하게 Stop 완료로
+검증한다. 새 컨테이너 생성, 복수 호스트의 원자적 Fencing까지 보장하는 것은 아니다.
+
 ## Apply verification과 operation history
 
 Runtime mutation은 sidecar 호출 성공만으로 완료 처리하지 않는다. Gateway는 apply 이후 컨테이너 또는 Main Model의 실제 관측 상태를 다시 읽고 목표 상태와 prerequisite/eviction effect가 수렴했는지 확인한다. 수렴하지 않거나 관측 자체가 실패하면 `RUNTIME_VERIFICATION_FAILED`로 fail-closed하며 operation record는 `verification_failed`로 남는다. destructive mutation은 자동 재실행하지 않는다.
