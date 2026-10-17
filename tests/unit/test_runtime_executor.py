@@ -8,7 +8,24 @@ import asyncio
 import httpx
 import pytest
 
-from ai_model_serving.runtime_executor import DockerRuntimeExecutor
+from ai_model_serving.runtime_executor import DockerRuntimeExecutor, gpu_reservation_active
+
+
+@pytest.mark.parametrize(
+    ("state", "reserved"),
+    [
+        ("running", True), ("paused", True), ("restarting", True),
+        ("created", False), ("exited", False), ("not_found", False),
+    ],
+)
+def test_docker_gpu_reservation_is_independent_of_serving_readiness(state, reserved):
+    assert gpu_reservation_active(state) is reserved
+
+
+@pytest.mark.parametrize("state", ["dead", "removing", "unknown", "unexpected"])
+def test_unverified_docker_state_cannot_release_gpu_reservation(state):
+    with pytest.raises(ValueError, match="GPU reservation is unknown"):
+        gpu_reservation_active(state)
 
 
 def make_executor(handler, *, allowed=frozenset({"embedding-vllm"}), project="serving"):

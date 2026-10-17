@@ -687,6 +687,63 @@ def test_reconcile_if_restarted_closes_gate_until_validated(tmp_path):
     assert state["gate"] == "open"
 
 
+@pytest.mark.parametrize("failure", ["started_at", "profile"])
+def test_reconcile_observation_error_closes_open_gate_and_recovers(tmp_path, failure):
+    # StartedAt이 같아도 Docker의 실행 신원 또는 Profile 관측이 실패하면 차단한다.
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+
+    class FailingObservationBackend(FakeBackend):
+        observation_fails = True
+
+        async def observed_started_at(self, catalog):
+            if self.observation_fails and failure == "started_at":
+                raise RuntimeError("Docker inspect unavailable")
+            return await super().observed_started_at(catalog)
+
+        async def observed_profile(self, catalog):
+            if self.observation_fails and failure == "profile":
+                raise RuntimeError("Docker profile unavailable")
+            return await super().observed_profile(catalog)
+
+    backend = FailingObservationBackend(loaded.default_profile, started_at="boot-0")
+    manager = MainModelManager(loaded, store, backend)
+
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "boot-0"
+    assert backend.validate_calls == []
+
+    # 관측 복구 후에도 Canary를 통과해야 Gate를 다시 연다.
+    backend.observation_fails = False
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "open"
+    assert backend.validate_calls == [loaded.default_profile]
+
+
+def test_reconcile_observation_error_does_not_reopen_on_canary_failure(tmp_path):
+    loaded = catalog()
+    store = _active_store(tmp_path, loaded, started_at="boot-0")
+
+    class UnavailableBackend(FakeBackend):
+        async def observed_started_at(self, catalog):
+            if self.started_at == "unavailable":
+                raise RuntimeError("Docker temporarily unavailable")
+            return await super().observed_started_at(catalog)
+
+    backend = UnavailableBackend(loaded.default_profile, started_at="unavailable",
+                                 fail_profile=loaded.default_profile)
+    manager = MainModelManager(loaded, store, backend)
+    asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+
+    backend.started_at = "boot-1"
+    with pytest.raises(RuntimeError, match="validation failed"):
+        asyncio.run(manager.reconcile_if_restarted())
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "boot-0"
+
+
 def test_reconcile_if_restarted_skips_when_runtime_stopped(tmp_path):
     loaded = catalog()
     store = _active_store(tmp_path, loaded, started_at="boot-0")

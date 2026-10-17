@@ -34,7 +34,7 @@ from ..docker_scope import (
 from ..settings_parts.env import as_bool, is_default_secret
 from ..runtime_topology import load_runtime_topology
 from ..runtime_transition import plan_runtime_transition
-from ..runtime_executor import DockerRuntimeExecutor, RuntimeExecutor
+from ..runtime_executor import DockerRuntimeExecutor, RuntimeExecutor, gpu_reservation_active
 
 _logger = service_logger("runtime_controller")
 
@@ -273,18 +273,30 @@ _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 _budget_lock = asyncio.Lock()
 
 
-async def _build_participants() -> list[Participant]:
-    """현재 GPU 예산 참여자(보조 런타임과 main model)를 구성한다."""
+def _reserved_or_unavailable(service: str, status: str) -> bool:
+    """자원 해제가 확인되지 않았을 때 GPU 여유량을 임의로 늘리지 않는다."""
+    try:
+        return gpu_reservation_active(status)
+    except ValueError as exc:
+        raise HTTPException(
+            503, detail=f"cannot confirm GPU reservation for {service}: Docker state {status!r}"
+        ) from exc
+
+
+async def _observe_budget_participants() -> tuple[list[Participant], dict[str, str]]:
+    """GPU 예약 참여자와 원본 Docker 상태를 하나의 관측 집합으로 구성한다."""
     participants: list[Participant] = []
+    observed: dict[str, str] = {}
     for service, fraction in _VRAM_FRACTION.items():
         status = await _executor().status(service)
+        observed[service] = status
         criticality = _CRITICALITY.get(service, "")
         priority, evictable = _eviction_policy(criticality)
         participants.append(
             Participant(
                 key=service,
                 vram_fraction=fraction,
-                active=(status == "running"),
+                active=_reserved_or_unavailable(service, status),
                 priority=priority,
                 evictable=evictable,
                 criticality=criticality or None,
@@ -292,22 +304,26 @@ async def _build_participants() -> list[Participant]:
         )
     snapshot = _main_model_manager.snapshot()
     active_profile = snapshot.get("active_profile") or {}
-    # 아직 active profile이 기록되지 않았을 때는(일반적인 0.9가 아니라) boot profile의
-    # 예약값으로 폴백하여, ledger가 실제 main-model 비용을 반영하도록 한다.
-    _boot_fraction = _catalog.profiles[_main_model_manager.boot_profile].vram_fraction
-    main_fraction = float(active_profile.get("vram_fraction") or _boot_fraction)
+    # 아직 active profile이 기록되지 않았을 때는 boot profile 예약값을 사용한다.
+    boot_fraction = _catalog.profiles[_main_model_manager.boot_profile].vram_fraction
+    main_fraction = float(active_profile.get("vram_fraction") or boot_fraction)
     main_status = await _executor().status(_MAIN_SERVICE)
+    observed[_MAIN_SERVICE] = main_status
     participants.append(
         Participant(
             key=_MAIN_SERVICE,
             vram_fraction=main_fraction,
-            active=(main_status == "running"),
+            active=_reserved_or_unavailable(_MAIN_SERVICE, main_status),
             priority=_MAIN_PRIORITY,
             evictable=False,
             criticality="primary_user_path",
         )
     )
-    return participants
+    return participants, observed
+
+
+async def _build_participants() -> list[Participant]:
+    return (await _observe_budget_participants())[0]
 
 
 async def _runtime_transition_plan(
@@ -326,7 +342,15 @@ async def _runtime_transition_plan(
     else:
         raise HTTPException(403, detail=f"not controllable: {service}")
 
-    participants = await _build_participants()
+    participants, observed = await _observe_budget_participants()
+    if desired_state == "active":
+        # paused/restarting은 VRAM을 예약하지만 정상 기동 상태가 아니다.
+        # active=True가 no-op 승인이나 잘못된 Docker start로 이어지지 않게 한다.
+        for key in dict.fromkeys([*prerequisites, target_key]):
+            if observed[key] in {"paused", "restarting"}:
+                raise HTTPException(
+                    409, detail=f"runtime {key} is {observed[key]}; stop it before requesting activation"
+                )
     plan = plan_runtime_transition(
         participants,
         target_key,
