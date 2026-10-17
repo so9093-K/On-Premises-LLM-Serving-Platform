@@ -112,6 +112,9 @@
 
 ### Fixed
 
+- Main Runtime의 Docker 시작 신원·Profile 관측 실패 시 검증되지 않은 기존 Gate 개방을 폐기한다. 관측 복구 후 동일 인스턴스·Profile 및 Canary 검증을 통과해야 요청을 다시 허용한다.
+- GPU Admission은 Docker `paused`·`restarting` 상태의 예약을 유지하고, 자원 해제를 확정할 수 없는 상태는 예산·전환 계획을 거부한다. 비실행 상태를 Start Plan의 성공 또는 No-op으로 취급하지 않는다.
+
 - Static Gateway는 선택한 Access Profile과 Grafana 공개 포트를 전달받아 Control Plane의 Grafana 탐색·요청 로그 링크를 제공한다. macOS Metal에서도 `make up`과 Playground가 같은 로컬 Grafana 주소를 안내한다.
 - macOS Metal의 Grafana 서비스 개요·요청 로그는 공통 지표와 조회를 유지하면서 실제로 Provision된 Dashboard 링크만 표시한다.
 

@@ -297,7 +297,8 @@ class MainModelManager:
                 observed_started_at = await self.backend.observed_started_at(self.catalog)
             except Exception as exc:  # noqa: BLE001 - 관측 실패는 검증 근거가 아니다
                 # 인스턴스 신원을 확인할 수 없으면 이전 Gate 개방을 승계하지 않는다.
-                self.state_store.update(lambda s: s.update(gate="closed"))
+                if state.get("gate") != "closed":
+                    self.state_store.update(lambda s: s.update(gate="closed"))
                 _logger.warning("reconciliation could not observe container start time: %s", exc)
                 return
             if observed_started_at is None:
@@ -312,7 +313,8 @@ class MainModelManager:
                     observed_profile = await self.backend.observed_profile(self.catalog)
                 except Exception as exc:  # noqa: BLE001
                     # StartedAt이 같아도 실제 Profile의 관측이 실패하면 Fail-Closed한다.
-                    self.state_store.update(lambda s: s.update(gate="closed"))
+                    if state.get("gate") != "closed":
+                        self.state_store.update(lambda s: s.update(gate="closed"))
                     _logger.warning("reconciliation could not observe model profile: %s", exc)
                     return
                 if observed_profile == active_id:

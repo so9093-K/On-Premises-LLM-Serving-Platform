@@ -130,3 +130,99 @@ def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_
     )
     assert admitted.internal_service_token == "real-internal-token"
 
+
+
+
+@pytest.mark.parametrize(("docker_state", "reserved"), [
+    ("running", True), ("paused", True), ("restarting", True),
+    ("created", False), ("exited", False), ("not_found", False),
+])
+def test_gpu_budget_uses_docker_reservation_not_serving_readiness(
+    tmp_path, monkeypatch, docker_state, reserved
+):
+    # GPU 예산은 컨테이너가 요청을 처리할 수 있는지와 무관하게 예약을 보존한다.
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {"embedding-vllm": 0.20})
+
+    class ObservedExecutor:
+        async def status(self, service):
+            return docker_state if service == "embedding-vllm" else "exited"
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    participants = asyncio.run(controller._build_participants())
+    secondary = next(p for p in participants if p.key == "embedding-vllm")
+    assert secondary.active is reserved
+
+    # 같은 상태는 운영 조회에도 실제 예약량으로 나타나야 한다.
+    response = asyncio.run(controller.gpu_budget())
+    import json
+    ledger = json.loads(response.body)
+    assert ledger["used"] == (0.20 if reserved else 0.0)
+
+
+@pytest.mark.parametrize("docker_state", ["paused", "restarting"])
+def test_reserved_but_not_running_runtime_cannot_be_activated_as_noop(
+    tmp_path, monkeypatch, docker_state
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    service = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {service: 0.20})
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {service: []})
+
+    class ObservedExecutor:
+        async def status(self, key):
+            return docker_state if key == service else "exited"
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    # GPU가 아직 점유된 상태이므로 Stop Plan은 예약 반환을 계산한다.
+    stop_plan = asyncio.run(controller._runtime_transition_plan(service, "stopped", force=False))
+    assert stop_plan["stop"] == [service]
+    assert stop_plan["budget"]["after"]["used"] == 0.0
+
+    # Start Plan은 실제로 실행 중이지 않은 컨테이너를 기동 완료로 가장할 수 없다.
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(controller._runtime_transition_plan(service, "active", force=False))
+    assert raised.value.status_code == 409
+    assert docker_state in str(raised.value.detail)
+
+
+@pytest.mark.parametrize("docker_state", ["dead", "removing", "unknown"])
+def test_unconfirmed_docker_state_denies_gpu_plan_and_budget(
+    tmp_path, monkeypatch, docker_state
+):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    service = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {service: 0.20})
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {service: []})
+
+    class ObservedExecutor:
+        async def status(self, key):
+            return docker_state if key == service else "exited"
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    with pytest.raises(HTTPException) as budget:
+        asyncio.run(controller.gpu_budget())
+    assert budget.value.status_code == 503
+    with pytest.raises(HTTPException) as plan:
+        asyncio.run(controller._runtime_transition_plan(service, "active", force=True))
+    assert plan.value.status_code == 503
+
+
+def test_paused_main_runtime_keeps_its_protected_gpu_reservation(tmp_path, monkeypatch):
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    service = next(iter(controller.CONTROLLABLE))
+    monkeypatch.setattr(controller, "_VRAM_FRACTION", {service: 0.60})
+    monkeypatch.setattr(controller, "_START_PREREQUISITES", {service: []})
+
+    class ObservedExecutor:
+        async def status(self, key):
+            return "paused" if key == controller._MAIN_SERVICE else "exited"
+
+    monkeypatch.setattr(controller, "_executor", lambda: ObservedExecutor())
+    participants = asyncio.run(controller._build_participants())
+    main = next(p for p in participants if p.key == controller._MAIN_SERVICE)
+    assert main.active is True
+    assert main.evictable is False
+    # 예약되어 있고 퇴거할 수 없는 main을 무시하고 secondary를 시작하지 않는다.
+    plan = asyncio.run(controller._runtime_transition_plan(service, "active", force=True))
+    assert plan["admissible"] is False
