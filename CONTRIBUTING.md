@@ -1,5 +1,7 @@
 # Contributing
 
+처음 기여한다면 [개발자 가이드](docs/guides/developer-guide.md)의 환경 준비·수정 위치·검증·PR 순서로 시작한다.
+
 이 저장소의 변경 기록과 테스트는 구현 과정이 아니라 **변경 뒤 시스템에 남는 계약**을 설명한다.
 
 ## Working notes and review notes

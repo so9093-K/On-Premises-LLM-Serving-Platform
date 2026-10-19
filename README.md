@@ -10,7 +10,7 @@ Run, serve, and operate AI models on your infrastructure.
 
 Linux/NVIDIA · Apple Silicon · Self-hosted — [환경별 지원 기능](#deployment-targets)
 
-[빠른 시작](#quick-start) · [API 문서](docs/reference/api_reference.md) · [모델 운영](docs/06_model_operations.md) · [전체 문서](docs/README.md)
+[빠른 시작](docs/guides/getting-started.md) · [사용자 가이드](docs/guides/user-guide.md) · [API 연동](docs/guides/api-integration.md) · [개발자 가이드](docs/guides/developer-guide.md) · [전체 문서](docs/README.md)
 
 ## 01. 시스템 구성
 
