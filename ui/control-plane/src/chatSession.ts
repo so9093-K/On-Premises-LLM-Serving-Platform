@@ -1,4 +1,6 @@
 import type { RequestReceipt } from './requestReceipt.ts';
+import { exchangeIncludedInHistory, pendingToolCallExchange, conversationAttachments } from './chatHistory';
+export { pendingToolCallExchange, conversationAttachments };
 // 채팅 테스트 화면의 순수 로직. 요청 본문은 /v1/models가 광고한 request_parameters
 // 안에서만 만들고, 응답 누적과 지연 측정은 화면과 분리해 테스트한다.
 import type { ChatStreamUpdate, ChatToolCallDelta, ChatUsage } from './chatStream';
@@ -328,45 +330,6 @@ function userMessageContent(text: string, attachments: readonly ChatAttachment[]
   if (text) parts.push({ type: 'text', text });
   parts.push(...attachments.map(attachmentContentPart));
   return parts;
-}
-
-function exchangeIncludedInHistory(exchange: Exchange): boolean {
-  const turn = exchange.assistant;
-  if (turn.status === 'failed') return false;
-  if (turn.toolCalls.length > 0) {
-    return turn.status === 'complete'
-      && turn.finishReason === 'tool_calls'
-      && turn.toolCalls.every((call) => call.id !== '' && call.function.name !== '');
-  }
-  return turn.content !== '';
-}
-
-function toolResultsResolveSource(source: Exchange, candidate: Exchange): boolean {
-  if (candidate.id <= source.id || !exchangeIncludedInHistory(candidate)) return false;
-  const callIds = new Set(source.assistant.toolCalls.map((call) => call.id));
-  const results = candidate.toolResults ?? [];
-  if (callIds.size === 0 || results.length !== callIds.size) return false;
-  const resultIds = new Set(results.map((result) => result.toolCallId));
-  return resultIds.size === callIds.size && [...callIds].every((id) => resultIds.has(id));
-}
-
-export function pendingToolCallExchange(exchanges: readonly Exchange[]): Exchange | null {
-  for (const exchange of exchanges) {
-    if (
-      exchange.assistant.toolCalls.length > 0
-      && exchangeIncludedInHistory(exchange)
-      && !exchanges.some((candidate) => toolResultsResolveSource(exchange, candidate))
-    ) {
-      return exchange;
-    }
-  }
-  return null;
-}
-
-export function conversationAttachments(exchanges: readonly Exchange[]): ChatAttachment[] {
-  return exchanges
-    .filter(exchangeIncludedInHistory)
-    .flatMap((exchange) => exchange.attachments);
 }
 
 export function modelFeatureLabels(model: PublicModel): string[] {
