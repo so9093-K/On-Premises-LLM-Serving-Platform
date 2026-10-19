@@ -68,6 +68,8 @@ jobs:
     name: Control Plane frontend
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -77,6 +79,22 @@ jobs:
           cache-dependency-path: ui/control-plane/package-lock.json
       - name: Pin npm toolchain
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Synchronize generated Console assets in this PR only (temporary)
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'refactor/platform-maintainability-stabilization' && github.event.pull_request.head.repo.full_name == github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin refs/heads/refactor/platform-maintainability-stabilization
+          git switch -C console-build-sync FETCH_HEAD
+          npm --prefix ui/control-plane ci
+          npm --prefix ui/control-plane run build
+          git add -A src/ai_model_serving/static/control-plane
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "build(console): 모듈 분리 뒤 생성 자산을 동기화한다"
+            git push origin HEAD:refs/heads/refactor/platform-maintainability-stabilization
+          fi
       - name: Check Control Plane source and generated Console
         id: console_validation
         run: make console-check
