@@ -1,0 +1,36 @@
+// 예제 정책: 기존 Tailnet 정책 전체와 병합 검토 후 적용한다.
+// 기본 allow-all Grants/ACL이 남아 있으면 아래 경계는 성립하지 않는다.
+// 각 이메일을 실제 조직 계정으로 치환하고 Tailnet Policy Editor의 Tests를 통과시킨다.
+{
+  "groups": {
+    "group:llm-admins": ["operator@example.com"],
+    "group:llm-team": ["teammate@example.com"]
+  },
+  "tagOwners": {
+    "tag:llm-server": ["group:llm-admins"]
+  },
+  "grants": [
+    {
+      "src": ["group:llm-admins"],
+      "dst": ["tag:llm-server"],
+      "ip": ["tcp:443", "tcp:8443"]
+    },
+    {
+      "src": ["group:llm-team"],
+      "dst": ["tag:llm-server"],
+      "ip": ["tcp:8443"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "operator@example.com",
+      "accept": ["tag:llm-server:443", "tag:llm-server:8443"],
+      "deny": ["tag:llm-server:9400", "tag:llm-server:9411"]
+    },
+    {
+      "src": "teammate@example.com",
+      "accept": ["tag:llm-server:8443"],
+      "deny": ["tag:llm-server:443", "tag:llm-server:9400", "tag:llm-server:9411", "tag:llm-server:22"]
+    }
+  ]
+}

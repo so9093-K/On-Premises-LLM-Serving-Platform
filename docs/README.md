@@ -8,6 +8,7 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 |---|---|
 | 내 환경에서 설치하고 첫 응답 확인 | [빠른 시작](guides/getting-started.md) |
 | Console·모델·GPU 운영과 오류 복구 | [사용자 가이드](guides/user-guide.md) |
+| 외부 지역에서 관리자·팀원 VPN 원격 접속 | [원격 접근 가이드](guides/remote-access.md) |
 | 외부 애플리케이션에서 API·SDK 사용 | [API 연동 가이드](guides/api-integration.md) |
 | 이 저장소의 코드 수정·검증·기여 | [개발자 가이드](guides/developer-guide.md) |
 
