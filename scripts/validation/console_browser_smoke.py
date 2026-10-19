@@ -292,6 +292,7 @@ def run_audio_example(browser, width, height):
     page.get_by_role("button", name="입력에 적용").click()
     page.locator(".chat-attachment-list").get_by_text("sample-audio.wav").wait_for()
     page.get_by_text("오디오 분석 예제에서 시작 · 오디오 1개").wait_for()
+    expect(page.get_by_label("메시지")).to_be_focused(timeout=3000)
     assert requests == [], "Applying fixture must not submit inference"
     page.screenshot(path=str(SCREENSHOTS / f"playground-audio-ready-{width}.png"), full_page=True)
     with page.expect_request("**/v1/chat/completions") as outgoing:
