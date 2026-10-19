@@ -320,6 +320,91 @@ def run_audio_example(browser, width, height):
     context.close()
 
 
+
+def run_tool_result_roundtrip(browser, width, height):
+    """컴포넌트 분리 뒤에도 도구 결과는 명시적인 사용자 제출로만 전송된다."""
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    errors = []
+    requests = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    state = {"traffic_failure": False, "revision": 7, "value": 300, "active_profile": False}
+    bootstrap["deployment"]["features"] = ["chat"]
+    install_routes(page, state)
+
+    def handle_public(route):
+        from urllib.parse import urlsplit
+        path = urlsplit(route.request.url).path
+        if path == "/v1/models":
+            return send(route, {
+                "object": "list",
+                "data": [{
+                    "id": "local-main",
+                    "backend": "vllm-cuda",
+                    "capabilities": ["chat.completions", "chat.completions.tools"],
+                    "input_modalities": ["text"],
+                    "request_parameters": {
+                        "stream": {"type": "boolean"},
+                        "tools": {"type": "array", "min_items": 0, "max_items": 2},
+                        "tool_choice": {"allowed": ["auto", "none"]},
+                    },
+                }],
+            })
+        if path == "/v1/chat/completions":
+            body = json.loads(route.request.post_data)
+            requests.append(body)
+            if len(requests) == 1:
+                chunk = {
+                    "choices": [{
+                        "delta": {"tool_calls": [{
+                            "index": 0,
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": '{"q":"x"}'},
+                        }]},
+                        "finish_reason": "tool_calls",
+                    }],
+                }
+            else:
+                chunk = {"choices": [{"delta": {"content": "처리 완료"}, "finish_reason": "stop"}]}
+            route.fulfill(
+                status=200,
+                content_type="text/event-stream",
+                body="data: " + json.dumps(chunk, ensure_ascii=False) + "\\n\\ndata: [DONE]\\n\\n",
+            )
+            return
+        route.continue_()
+
+    page.route("**/v1/models", handle_public)
+    page.route("**/v1/chat/completions", handle_public)
+    page.goto(URL, wait_until="domcontentloaded")
+    page.get_by_role("link", name="Playground").click()
+    page.get_by_label("메시지").fill("조회해주세요")
+    with page.expect_request("**/v1/chat/completions"):
+        page.get_by_role("button", name="보내기").click()
+
+    form = page.locator(".chat-tool-result-form")
+    form.wait_for()
+    result_input = form.locator("textarea").first
+    assert result_input.evaluate("(el) => document.activeElement === el"), "Tool result must receive focus"
+    assert page.get_by_label("메시지").is_disabled(), "Pending result blocks unrelated turns"
+    assert len(requests) == 1, "Model tool calls are not executed automatically"
+    result_input.fill('{"temp":18}')
+    assert len(requests) == 1, "Editing a result must not submit inference"
+    with page.expect_request("**/v1/chat/completions") as outgoing:
+        form.get_by_role("button", name="도구 결과 보내기").click()
+    messages = outgoing.value.post_data_json["messages"]
+    assert [item["role"] for item in messages] == ["user", "assistant", "tool"], messages
+    assert messages[-1] == {"role": "tool", "tool_call_id": "call_1", "content": '{"temp":18}'}
+    page.get_by_text("처리 완료").wait_for()
+    assert len(requests) == 2, requests
+    assert errors == [], errors
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    print(f"PASS tool result Chromium {width}x{height}: manual submit, exact tool_call_id, focus, no auto-send")
+    context.close()
+
+
+
 def main():
     for _ in range(40):
         try:
@@ -339,6 +424,8 @@ def main():
             run_one(browser, 390, 844)
             run_audio_example(browser, 1440, 900)
             run_audio_example(browser, 390, 844)
+            run_tool_result_roundtrip(browser, 1440, 900)
+            run_tool_result_roundtrip(browser, 390, 844)
         finally:
             browser.close()
 
