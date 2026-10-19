@@ -86,9 +86,13 @@ def render_mlx_metrics(payload: dict[str, Any] | None, *, scrape_success: bool) 
         "mlx_runtime_latest_decode_tokens_per_second", "gauge",
         "Decode throughput for the latest completed request.", latest.get("decode_tok_s"),
     )
+    # 고정 MLX-VLM은 get_peak_memory() / 1e9를 GB로 반환한다.
+    # 공개 지표의 GiB 단위에는 2**30 bytes 기준으로 변환한다.
+    peak_memory_gb = _number(latest.get("peak_memory_gb"))
     output += _sample(
         "mlx_runtime_latest_peak_memory_gib", "gauge",
-        "MLX peak memory reported for the latest completed request in GiB.", latest.get("peak_memory_gb"),
+        "MLX peak memory reported for the latest completed request in GiB.",
+        peak_memory_gb * 1e9 / (2**30) if peak_memory_gb is not None else None,
     )
     return output
 
