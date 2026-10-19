@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ai_model_serving.apps.runtime_controller import load_runtime_controller_config
+from ai_model_serving.runtime_controller_config import load_runtime_controller_config
 from ai_model_serving.platform_state import (
     DEFAULT_PLATFORM_STATE_DIR,
     configured_platform_state_root,
@@ -54,3 +54,9 @@ def test_runtime_controller_state_children_follow_platform_state_root(tmp_path: 
     assert config.log_target_manifest_path == (
         state_root / "log-targets" / "docker-containers.json"
     )
+
+
+def test_runtime_controller_config_default_root_independent_of_app_module() -> None:
+    config = load_runtime_controller_config({"INTERNAL_SERVICE_AUTH_REQUIRED": "false"})
+    assert (config.config_root / "configs" / "main_model_profiles.yaml").is_file()
+    assert config.gateway_internal_url.startswith("http://gateway:")
