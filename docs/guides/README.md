@@ -18,6 +18,11 @@
 
 ## 화면과 실행 범위
 
+[단계별 새 화면과 촬영 조건](../../assets/screenshots/guides/README.md)은 2026-10-19 Linux/NVIDIA에서
+재기동·인증·Playground·API/SDK·요청 내보내기를 확인한 기록입니다.
+스트림 중단은 브라우저에 테스트 응답을 주입한 경우로 따로 표시합니다.
+Mac과 외부 Runtime의 안내는 설정·구현을 대조한 범위이며 이번 장비에서 실행한 기록이 아닙니다.
+
 [기존 화면](../../assets/screenshots/showcase/README.md)은 2026-10-15의 실제 Linux/NVIDIA
 운영·추론 기록입니다. 최신 UI의 Playground 예제 갤러리, 오디오 예제,
 **코드로 사용하기**가 추가되기 전 화면이므로 버튼 위치가 현재와 다를 수 있습니다.

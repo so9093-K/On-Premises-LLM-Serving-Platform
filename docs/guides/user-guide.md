@@ -36,6 +36,10 @@ edge 선택만으로 TLS proxy가 자동 설치되는 것은 아닙니다.
 | Internal Service token | 내부 서비스 간 통신 | 운영 설정이 관리; 사용자 클라이언트에 전달하지 않음 |
 | Hugging Face token | 모델 다운로드 | 해당 모델 이용 권한을 가진 운영자 |
 
+![키를 입력하기 전의 실제 관리자 인증 화면](../../assets/screenshots/guides/admin-auth.png)
+
+*2026-10-19 별도 인증 Gateway에서 촬영. 운영 `.env`의 인증 설정은 유지했고 키 입력 전 상태입니다.*
+
 **성공 기준:** Console을 열고 관리자 작업을 조회할 수 있으며 Playground의 공개 요청도 허용됩니다.
 키는 현재 브라우저 탭 메모리에 유지되어 새로고침하면 다시 입력해야 할 수 있습니다.
 **실패 시:** 401이면 사용하는 키의 종류와 현재 profile을 확인합니다. local에서 인증 화면이 없는 것은
@@ -70,9 +74,9 @@ edge 선택만으로 TLS proxy가 자동 설치되는 것은 아닙니다.
 4. 응답·요청 정보와 request ID를 확인합니다. 필요하면 **중지**를 누를 수 있습니다.
 5. 각 응답의 **코드로 사용하기**에서 해당 요청을 내보냅니다. [API 연동 절차](api-integration.md#replay)로 이어집니다.
 
-![기존 Playground의 공개 API 요청과 응답](../../assets/screenshots/showcase/playground.png)
+![현재 Playground에서 한국어 요약 예제의 실제 응답 확인](../../assets/screenshots/guides/playground-after.png)
 
-*2026-10-15 기록. 현재 예제 선택·요청 내보내기 기능은 [Playground 예제](../reference/control_plane_playground_examples.md)와
+*2026-10-19 실제 기록. 예제 선택·요청 내보내기 상세는 [Playground 예제](../reference/control_plane_playground_examples.md)와
 [요청 재현](../reference/playground_integration.md)을 참고합니다.*
 
 **성공 기준:** 응답이 정상 종료되고 전송 당시의 요청 정보를 확인할 수 있습니다.
@@ -88,9 +92,10 @@ Tool 호출이 나오면 실제 함수 실행 결과를 수동으로 입력해 �
 **목표:** 필요한 Runtime을 자원 정책 안에서 실행하거나 중지합니다.
 **사전 조건:** Linux/NVIDIA managed target과 운영 권한이 필요합니다. Static Main은 외부 lifecycle을 따릅니다.
 
-![정책상 GPU 예약과 Runtime의 원하는 상태·실제 상태를 보여주는 화면](../../assets/screenshots/showcase/runtimes.png)
+![실행 중 Main·중지된 Embedding·정책상 제외된 탐지기를 구분하는 화면](../../assets/screenshots/guides/runtime-states.png)
 
-*2026-10-15 실제 화면. GPU 비율은 정책상 예약값이며 VRAM 실측이 아닙니다.*
+*2026-10-19 실제 상태. GPU 비율은 정책상 예약값이며 VRAM 실측이 아닙니다.
+이 캡처는 다른 target의 미지원 기능이나 GPU 장애 화면이 아닙니다.*
 
 | 관찰 상태 | 의미와 다음 행동 |
 |---|---|
@@ -169,6 +174,11 @@ make logs
 | `DETECTOR_DISABLED` | target와 effective topology | 현재 제공되지 않는 탐지 기능임을 확인 |
 | Gate 닫힘 / 모델 불일치 | 메인 모델 상태·최근 operation | 원인 해결과 실제 검증·복구 결과 확인 |
 | `STREAM_INCOMPLETE` / 스트림 오류 | 받은 내용, request ID, Gateway 로그 | 부분 응답을 완료로 쓰지 말고 원인 확인 후 새 요청 |
+
+![의도적으로 잘린 스트림에 대해 부분 응답과 STREAM_INCOMPLETE를 표시하는 화면](../../assets/screenshots/guides/stream-incomplete-injected.png)
+
+*브라우저 테스트 주입 화면(2026-10-19). 실제 API 대신 `[DONE]` 없는 SSE를 반환했습니다.
+응답 내용·request ID·지연은 테스트 데이터이며 실제 GPU 장애·모델 응답·성능 측정이 아닙니다.*
 
 로그·설정을 공유하기 전에 키·입력 원문·내부 주소를 확인하세요.
 원인을 수정한 뒤 `make up` → `make status` → Playground/API 요청 순서로 복구를 확인합니다.

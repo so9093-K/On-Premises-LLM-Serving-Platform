@@ -118,6 +118,15 @@ make status
 출력된 실제 주소를 우선 사용합니다. 기본 Console은 `http://127.0.0.1:9400/admin/console/`입니다.
 `/health` 200은 프로세스 생존 확인이며 모델의 실제 응답 성공을 대신하지 않습니다.
 
+![캐시를 재사용한 실제 make up 완료 출력과 중지된 Embedding 주의 항목](../../assets/screenshots/guides/startup-output.png)
+
+*2026-10-19 실제 stdout/stderr 발췌를 렌더링한 이미지. 새 설치의 다운로드 기록이 아닌 기존 캐시 재기동입니다.*
+
+이 실행에서는 Main이 `ACTIVE / running`이고, Embedding 2종은 `STOPPED / created`,
+Prompt Injection Detector는 `UNAVAILABLE / policy`입니다. `Platform READY`여도
+dependency의 주의 항목이 있으면 `make status`는 종료 코드 1을 반환할 수 있습니다.
+이를 전체 Runtime 기동 성공으로 읽지 말고, 필요한 기능의 상태를 [사용자 가이드](user-guide.md#runtime-states)에서 구분하세요.
+
 운영 개요에서 상태를 확인하세요.
 
 ![Main Model·Runtime 상태와 운영 작업 진입점을 보여주는 운영 개요](../../assets/screenshots/showcase/overview.png)
@@ -133,9 +142,13 @@ make status
 4. **보내기**를 누릅니다. 공개 API 인증이 요구되면 **사용자 API Key**를 입력합니다.
 5. 응답 내용·request ID·종료 상태를 확인합니다.
 
-![실제 모델 응답과 요청별 지표를 보여주는 기존 Playground](../../assets/screenshots/showcase/playground.png)
+![한국어 요약 예제를 선택하고 입력 적용 버튼을 확인하는 현재 Playground](../../assets/screenshots/guides/playground-before.png)
 
-*2026-10-15 화면. 최신 UI에서는 예제 갤러리와 “코드로 사용하기”를 함께 제공합니다.*
+*2026-10-19 실제 UI. 예제를 선택한 단계이며, 아직 추론하지 않았습니다.*
+
+![예제를 적용하고 실제 모델 응답을 받은 Playground](../../assets/screenshots/guides/playground-after.png)
+
+*같은 날 실제 E4B 응답. 지연·토큰·문구는 한 요청의 결과입니다. [촬영 조건](../../assets/screenshots/guides/README.md)을 참고하세요.*
 
 **성공 기준:** 실제 응답이 도착하고 오류나 미완료 경고 없이 종료됩니다.
 정확한 문구와 지연은 모델·입력·장비에 따라 달라집니다. 다음은 [사용자 가이드](user-guide.md)의

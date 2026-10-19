@@ -79,19 +79,20 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
 
 
 def _owned_containers(service: str | None = None) -> list[str]:
-    command = [
-        "docker",
-        "ps",
-        "-aq",
-        "--filter",
-        f"label=com.docker.compose.project.working_dir={ROOT}",
-    ]
-    if service:
-        command += ["--filter", f"label=com.docker.compose.service={service}"]
-    result = subprocess.run(command, text=True, capture_output=True, check=False)
-    if result.returncode != 0:
-        return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    containers: list[str] = []
+    # Compose는 첫 -f 파일의 디렉터리를 working_dir로 기록한다.
+    # canonical stack과 기존 root 실행을 정확한 경로로 조회해 다른 checkout을 제외한다.
+    for directory in (ROOT, ROOT / "ops" / "compose"):
+        command = [
+            "docker", "ps", "-aq", "--filter",
+            f"label=com.docker.compose.project.working_dir={directory}",
+        ]
+        if service:
+            command += ["--filter", f"label=com.docker.compose.service={service}"]
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode == 0:
+            containers.extend(line.strip() for line in result.stdout.splitlines() if line.strip())
+    return list(dict.fromkeys(containers))
 
 
 def _raw_logs(service: str | None, *, tail: int, follow: bool) -> int:
