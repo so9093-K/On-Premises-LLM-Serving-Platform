@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import os
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from types import SimpleNamespace
-from pathlib import Path
 from typing import Any, Mapping
 
 import httpx
@@ -16,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from ..main_model.docker_backend import DockerMainModelBackend
 from ..configuration import load_yaml_mapping
+from ..runtime_controller_config import RuntimeControllerConfig, load_runtime_controller_config
 from ..gpu_budget import Participant, budget_snapshot, plan_activation
 from ..service_logging import service_logger
 from ..main_model.catalog import (
@@ -26,13 +24,11 @@ from ..main_model.catalog import (
 from ..main_model.control import MainModelManager, MainModelSwitchError, MainModelRuntimeBackend
 from ..main_model.state import MainModelStateError, MainModelStateStore
 from ..log_target_manifest import build_targets, write_manifest
-from ..platform_state import DEFAULT_PLATFORM_STATE_DIR, configured_platform_state_root
 from ..docker_scope import (
     compose_container_filter,
     require_compose_project,
     scoped_container_id,
 )
-from ..settings_parts.env import as_bool, is_default_secret
 from ..runtime_topology import load_runtime_topology
 from ..runtime_transition import plan_runtime_transition
 from ..runtime_transition_contract import is_valid_plan_digest
@@ -41,82 +37,6 @@ from ..runtime_executor import DockerRuntimeExecutor, RuntimeExecutor, gpu_reser
 _logger = service_logger("runtime_controller")
 
 # --------------------------------------------------------------------- config
-
-@dataclass(frozen=True)
-class RuntimeControllerConfig:
-    docker_socket: str
-    compose_project: str
-    config_root: Path
-    state_path: Path
-    boot_profile: str | None
-    profile_locked: bool
-    idempotency_ttl_seconds: str | None
-    internal_service_token: str
-    internal_service_auth_required: bool
-    gateway_internal_url: str
-    log_target_manifest_path: Path
-    log_target_refresh_seconds: float
-
-
-def _default_gateway_internal_url(config_root: Path) -> str:
-    services = load_yaml_mapping(config_root / "configs/services.yaml")["services"]
-    gateway = services["gateway"]
-    return f"http://{gateway['compose_service']}:{gateway['container_port']}"
-
-
-def load_runtime_controller_config(
-    environment: Mapping[str, str], *, source_path: Path | None = None
-) -> RuntimeControllerConfig:
-    """Docker import나 백그라운드 작업 시작 없이 Runtime Controller 설정을 해석한다."""
-    configured_root = Path(environment.get("APP_CONFIG_ROOT", "/app"))
-    using_local_config = not (configured_root / "configs/main_model_profiles.yaml").exists()
-    config_root = (source_path or Path(__file__)).resolve().parents[3] if using_local_config else configured_root
-    configured_state_root = configured_platform_state_root(environment)
-    if using_local_config and configured_state_root is None:
-        default_state_path = config_root / ".runtime/main-model/main-model-state.json"
-        default_log_target_manifest_path = config_root / ".runtime/log-targets/docker-containers.json"
-    else:
-        platform_state_root = configured_state_root or DEFAULT_PLATFORM_STATE_DIR
-        default_state_path = platform_state_root / "main-model-state.json"
-        default_log_target_manifest_path = platform_state_root / "log-targets/docker-containers.json"
-    # 인증 활성 여부는 토큰 문자열이 비었는지가 아니라 운영자가 선언한
-    # INTERNAL_SERVICE_AUTH_REQUIRED로 정한다. 빈 문자열을 곧 "인증 끔"으로 읽으면,
-    # private_network/strict처럼 내부 인증을 요구한 profile에서 토큰이 유실됐을 때
-    # Docker socket을 쥔 이 프로세스가 거부 대신 조용한 개방을 택하게 된다.
-    # 기본값이 False인 것은 의도다 -- 변수를 주입하지 않는 로컬 실행은 지금 동작을
-    # 그대로 유지해야 한다. Compose는 setup_env가 쓴 값을 항상 주입한다.
-    internal_service_token = environment.get("INTERNAL_SERVICE_TOKEN", "")
-    internal_service_auth_required = as_bool(
-        environment.get("INTERNAL_SERVICE_AUTH_REQUIRED"), False
-    )
-    if internal_service_auth_required and is_default_secret(internal_service_token):
-        raise RuntimeError(
-            "INTERNAL_SERVICE_TOKEN must be set to a non-default value when "
-            "INTERNAL_SERVICE_AUTH_REQUIRED=true. Initialize with `make up TARGET=<deployment-target>` or set a non-default token in the existing .env."
-        )
-    log_refresh_seconds = float(environment.get("LOG_TARGET_REFRESH_SECONDS", "15"))
-    if not math.isfinite(log_refresh_seconds) or log_refresh_seconds <= 0:
-        raise RuntimeError("LOG_TARGET_REFRESH_SECONDS must be a finite positive number")
-    return RuntimeControllerConfig(
-        docker_socket=environment.get("DOCKER_SOCKET", "/var/run/docker.sock"),
-        compose_project=environment.get("COMPOSE_PROJECT", ""),
-        config_root=config_root,
-        state_path=Path(environment.get("MAIN_MODEL_STATE_PATH", str(default_state_path))),
-        boot_profile=environment.get("MAIN_MODEL_BOOT_PROFILE") or None,
-        profile_locked=as_bool(environment.get("MAIN_MODEL_PROFILE_LOCKED"), False),
-        idempotency_ttl_seconds=environment.get("MAIN_MODEL_SWITCH_IDEMPOTENCY_TTL_SECONDS") or None,
-        internal_service_token=internal_service_token,
-        internal_service_auth_required=internal_service_auth_required,
-        gateway_internal_url=environment.get("GATEWAY_INTERNAL_URL") or _default_gateway_internal_url(config_root),
-        log_target_manifest_path=Path(
-            environment.get(
-                "LOG_TARGET_MANIFEST_PATH",
-                str(default_log_target_manifest_path),
-            )
-        ),
-        log_target_refresh_seconds=log_refresh_seconds,
-    )
-
 
 def create_runtime_controller_app(
     config: RuntimeControllerConfig | None = None,

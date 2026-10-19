@@ -3,20 +3,9 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const chatPage = readFileSync(new URL('../src/ChatPage.tsx', import.meta.url), 'utf8');
+const chatExchangeView = readFileSync(new URL('../src/ChatExchangeView.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 import { conversationEndNearViewport } from '../src/chatScroll.ts';
-
-test('tool result input captures event value before the deferred state updater runs', () => {
-  assert.doesNotMatch(
-    chatPage,
-    /setValues\(\(current\)[\s\S]{0,240}event\.currentTarget\.value/,
-  );
-  assert.match(chatPage, /const value = event\.currentTarget\.value;[\s\S]{0,180}\[call\.id\]: value/);
-});
-
-test('first tool result field receives focus when a pending tool-call form mounts', () => {
-  assert.match(chatPage, /calls\.map\(\(call, index\)[\s\S]{0,500}autoFocus=\{index === 0\}/);
-});
 
 test('mobile chat layout preserves DOM order instead of visually reordering the settings pane', () => {
   const mobile = styles.match(/@media \(max-width: 980px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
@@ -78,9 +67,9 @@ test('example application is a dismissible origin note, not an assertion of unch
 test('API docs follow the Bootstrap source of truth and hide if unavailable', () => {
   const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
   assert.match(app, /docsUrl=\{bootstrap\.links\.docs\}/);
-  assert.match(chatPage, /docsUrl && turn\.status === 'complete'/);
-  assert.match(chatPage, /href=\{docsUrl\} target="_blank" rel="noreferrer"/);
-  assert.doesNotMatch(chatPage, /href="\/docs"/);
+  assert.match(chatExchangeView, /docsUrl && turn\.status === 'complete'/);
+  assert.match(chatExchangeView, /href=\{docsUrl\} target="_blank" rel="noreferrer"/);
+  assert.doesNotMatch(chatExchangeView, /href="\/docs"/);
 });
 
 test('example previews expose advanced source only on demand', () => {

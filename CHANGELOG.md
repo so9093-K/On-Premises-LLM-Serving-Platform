@@ -123,46 +123,6 @@
 
 - Runtime validation의 자동 endpoint resolution을 Compose 내부 service identity로 고정했다. 원격·후보 endpoint 검증은 명시적 `--*-base`/process override만 사용하며, internal model/runtime/Prometheus/exporter/Loki의 과거 host bind/port metadata는 제거한다. 기존 `.env`에 남은 해당 `*_BIND_ADDR`·`*_PORT` key는 configuration sync에서 삭제된다. Gateway/Grafana host publication과 app-only Gateway/Risk Signal Service host process port는 실제 consumer가 있어 유지한다. ([ADR-0043](docs/adr/0043-internal-runtime-validation-and-private-host-exposure.md), [ADR-0045](docs/adr/0045-host-exposure-invariant.md))
 
-### Fixed
-
-- Main Runtime의 Docker 시작 신원·Profile 관측 실패 시 검증되지 않은 기존 Gate 개방을 폐기한다. 관측 복구 후 동일 인스턴스·Profile 및 Canary 검증을 통과해야 요청을 다시 허용한다.
-- GPU Admission은 Docker `paused`·`restarting` 상태의 예약을 유지하고, 자원 해제를 확정할 수 없는 상태는 예산·전환 계획을 거부한다. 비실행 상태를 Start Plan의 성공 또는 No-op으로 취급하지 않는다.
-
-- Static Gateway는 선택한 Access Profile과 Grafana 공개 포트를 전달받아 Control Plane의 Grafana 탐색·요청 로그 링크를 제공한다. macOS Metal에서도 `make up`과 Playground가 같은 로컬 Grafana 주소를 안내한다.
-- macOS Metal의 Grafana 서비스 개요·요청 로그는 공통 지표와 조회를 유지하면서 실제로 Provision된 Dashboard 링크만 표시한다.
-
-- 다중 GPU 배치 계획은 같은 Runtime의 GPU별 퇴거 허용 여부나 우선순위가 충돌하면 입력을 거부한다. 한 GPU의 퇴거 판단으로 다른 GPU의 보호 정책을 우회해 Runtime 전체를 중지하지 않는다.
-
-- `EXPOSURE_MODE=master_open`, `EXPOSURE_AUDIENCE=local_only`에서 `make auth-doctor`가 host bind 주소를
-  읽다가 존재하지 않는 legacy 인자를 넘겨 `TypeError`로 죽던 문제를 수정했다.
-- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
-  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
-  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
-  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
-- Chat Completions와 Responses streaming이 여러 byte 글자를 transport chunk 경계에서
-  잃던 문제를 수정했다. 한글 한 글자의 byte가 두 chunk에 걸치면 그 글자가 응답에서
-  사라졌다("안녕하세요" → "녕하세요"). Gateway는 이제 chunk 사이에서 불완전한 byte를
-  이어 받아 upstream이 보낸 글자를 그대로 전달한다.
-- `make help`(인자 없는 `make`)가 명령 목록을 줄바꿈 대신 literal `\n`으로 이어
-  한 줄에 출력하던 문제를 수정했다.
-- lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
-  `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
-  수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
-- HTTP metric의 `route` label이 등록된 route template만 사용한다. 매칭되는 route가 없는
-  요청(`/.env`, `/wp-login.php` 같은 스캐너 요청)은 모두 `route="unmatched"` 하나로
-  집계되어, 임의 경로 요청이 Gateway 메모리와 Prometheus time series를 늘리지 않는다.
-- Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
-  않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
-  빠진 timestamp는 `—`로 표시된다.
-- Control Plane Console 활동 화면의 메인 런타임 진단 링크가 vLLM target에서 존재하지 않는
-  Dashboard(`main-runtime-health`)를 열던 문제를 수정했다. 링크는 runtime backend에 맞는 Dashboard
-  (vLLM은 서비스 개요, MLX는 메인 런타임 상태)를 연다.
-- runtime validation의 Grafana Dashboard catalog 검사가 full-stack이 mount하지 않는 Dashboard와 파일
-  이름을 기대값으로 써서 정상 스택도 실패로 보고하던 문제를 수정했다. 기대값은 full-stack Compose의
-  grafana volume이 mount하는 파일의 JSON uid다.
-
-### Changed
-
 - Risk Signal Service OpenAPI의 legacy `getRiskAdapterHealth` / `getRiskAdapterReadiness` / `getRiskAdapterMetrics` operationId를 canonical `getRiskSignalService*` 이름으로 정리했다. HTTP path, request/response schema와 인증 계약은 바뀌지 않지만 operationId를 client method 이름으로 사용하는 generated SDK는 재생성이 필요하다.
 - Smoke, live runtime validation과 Prompt preflight가 선언 topology의 `enabled`만 보지 않고 Deployment Target feature + Main resource variant의 effective topology를 사용한다. Prompt detector가 static target 또는 resource policy에서 unavailable이면 Kanana image/config 검증과 Prompt 전용 probe도 요구하지 않는다.
 - Generated artifact drift 검증은 실패 파일뿐 아니라 bounded unified diff를 함께 출력해 CI에서 source/generated 불일치를 바로 진단할 수 있다.
@@ -403,6 +363,42 @@
 - 12B(`gemma4-12b-unified-fp8`) 프로필의 `--max-model-len`/`--max-num-batched-tokens`를 20000 → 50000으로 올렸다. `--max-num-seqs`(2)·`--gpu-memory-utilization`(0.76)은 그대로 두고 실제 배포 서버에서 boot/health/`/metrics` 검증까지 완료했다. profiling이 커진 배치만큼 activation 메모리를 더 확보하면서 KV cache pool(`num_gpu_blocks`)이 20707→16638로 줄어, 엔진 VRAM 사용량은 오히려 35.2GiB→30.2GiB로 감소했다. ([ADR-0015](docs/adr/0015-main-llm-20k-o3-runtime-target.md))
 
 ### Fixed
+
+- Main Runtime의 Docker 시작 신원·Profile 관측 실패 시 검증되지 않은 기존 Gate 개방을 폐기한다. 관측 복구 후 동일 인스턴스·Profile 및 Canary 검증을 통과해야 요청을 다시 허용한다.
+- GPU Admission은 Docker `paused`·`restarting` 상태의 예약을 유지하고, 자원 해제를 확정할 수 없는 상태는 예산·전환 계획을 거부한다. 비실행 상태를 Start Plan의 성공 또는 No-op으로 취급하지 않는다.
+
+- Static Gateway는 선택한 Access Profile과 Grafana 공개 포트를 전달받아 Control Plane의 Grafana 탐색·요청 로그 링크를 제공한다. macOS Metal에서도 `make up`과 Playground가 같은 로컬 Grafana 주소를 안내한다.
+- macOS Metal의 Grafana 서비스 개요·요청 로그는 공통 지표와 조회를 유지하면서 실제로 Provision된 Dashboard 링크만 표시한다.
+
+- 다중 GPU 배치 계획은 같은 Runtime의 GPU별 퇴거 허용 여부나 우선순위가 충돌하면 입력을 거부한다. 한 GPU의 퇴거 판단으로 다른 GPU의 보호 정책을 우회해 Runtime 전체를 중지하지 않는다.
+
+- `EXPOSURE_MODE=master_open`, `EXPOSURE_AUDIENCE=local_only`에서 `make auth-doctor`가 host bind 주소를
+  읽다가 존재하지 않는 legacy 인자를 넘겨 `TypeError`로 죽던 문제를 수정했다.
+- `make up`의 runtime-profile `uv sync --no-group quality`가 Compose preflight에 필요한
+  Jinja2를 제거해 다음 단계의 `validate_vllm_compose.py` import가 결정적으로 실패하던
+  lifecycle 회귀를 수정했다. Jinja2는 이제 quality-only 도구가 아니라 platform runtime
+  dependency로 선언되어 첫 기동과 재기동 모두 preflight 전에 유지된다.
+- Chat Completions와 Responses streaming이 여러 byte 글자를 transport chunk 경계에서
+  잃던 문제를 수정했다. 한글 한 글자의 byte가 두 chunk에 걸치면 그 글자가 응답에서
+  사라졌다("안녕하세요" → "녕하세요"). Gateway는 이제 chunk 사이에서 불완전한 byte를
+  이어 받아 upstream이 보낸 글자를 그대로 전달한다.
+- `make help`(인자 없는 `make`)가 명령 목록을 줄바꿈 대신 literal `\n`으로 이어
+  한 줄에 출력하던 문제를 수정했다.
+- lifecycle 오류·안내 메시지가 더 이상 없는 `make compose-up`, `make sync-env`,
+  `make ready-local`, `make ready-full`, `make static-compose-config`를 가리키던 문제를
+  수정했다. 안내는 현재 public surface인 `make up`/`make status`를 가리킨다.
+- HTTP metric의 `route` label이 등록된 route template만 사용한다. 매칭되는 route가 없는
+  요청(`/.env`, `/wp-login.php` 같은 스캐너 요청)은 모두 `route="unmatched"` 하나로
+  집계되어, 임의 경로 요청이 Gateway 메모리와 Prometheus time series를 늘리지 않는다.
+- Control Plane Console의 한 화면에서 렌더링 오류가 나도 Console 전체가 빈 화면이 되지
+  않는다. 오류는 해당 화면 안에 안내로 표시되고 탐색과 다른 화면은 계속 동작한다. 잘못되거나
+  빠진 timestamp는 `—`로 표시된다.
+- Control Plane Console 활동 화면의 메인 런타임 진단 링크가 vLLM target에서 존재하지 않는
+  Dashboard(`main-runtime-health`)를 열던 문제를 수정했다. 링크는 runtime backend에 맞는 Dashboard
+  (vLLM은 서비스 개요, MLX는 메인 런타임 상태)를 연다.
+- runtime validation의 Grafana Dashboard catalog 검사가 full-stack이 mount하지 않는 Dashboard와 파일
+  이름을 기대값으로 써서 정상 스택도 실패로 보고하던 문제를 수정했다. 기대값은 full-stack Compose의
+  grafana volume이 mount하는 파일의 JSON uid다.
 
 - 기본 `main_only` Runtime Startup Profile에서 Embedding 계열을 의도적으로 `stopped`로 둔 상태인데도 `ready-full` smoke가 `/v1/embeddings`를 필수 probe처럼 호출해 `503 MODEL_UNAVAILABLE`로 정상 기동을 실패 처리하던 문제를 고쳤다. Smoke는 이제 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로 non-main probe 대상을 정한다. `stopped` 또는 resource-policy unavailable Runtime은 해당 Runtime 전용 probe를 건너뛰고, `active` Runtime은 계속 실제 inference 성공을 요구한다. `starting`, 상태 누락, 알 수 없는 상태는 silent skip하지 않고 fail-closed한다. Startup Profile은 초기 상태만 소유하며 기동 뒤 Runtime Control로 변경된 현재 상태가 readiness 판단에 반영된다.
 - `make up`이 deferred runtime 컨테이너 생성 단계에서 중단되던 문제를 고쳤다. `docker compose create`는 `--no-deps`를 받지 않아 Compose가 `unknown flag`로 즉시 실패했고, `set -e`가 걸린 `compose_up.sh`는 그 지점에서 멈춰 뒤따르는 config service 재생성과 fingerprint 상태 기록이 실행되지 않았다. 핵심 서비스는 이미 기동된 뒤라 운영자는 정상 동작하는 스택과 오류로 끝난 명령을 동시에 마주했다. deferred runtime은 `compose up --no-deps --no-start`로 생성되어 의존 서비스를 함께 올리지 않고 `Created` 상태로 남으며, lifecycle 명령은 선언한 단계를 끝까지 수행한다.

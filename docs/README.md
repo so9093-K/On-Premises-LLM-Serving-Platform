@@ -1,199 +1,48 @@
-# On-Premises LLM Serving Platform
+# 기술 문서
 
-AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·검증, 자동화 경계, 배포, 관측성, 장애 대응 및 변경 절차를 정리합니다.
+프로젝트의 구조·설정·API·운영 계약을 확인하는 문서 목차입니다. 처음 실행하거나 Console을 사용하려면 가이드부터 시작하세요.
 
 ## 가이드
 
-| 목적 | 시작할 문서 |
+| 작업 | 문서 |
 |---|---|
-| 내 환경에서 설치하고 첫 응답 확인 | [빠른 시작](guides/getting-started.md) |
-| Console·모델·GPU 운영과 오류 복구 | [사용자 가이드](guides/user-guide.md) |
-| 외부 지역에서 관리자·팀원 VPN 원격 접속 | [원격 접근 가이드](guides/remote-access.md) |
-| 외부 애플리케이션에서 API·SDK 사용 | [API 연동 가이드](guides/api-integration.md) |
-| 이 저장소의 코드 수정·검증·기여 | [개발자 가이드](guides/developer-guide.md) |
+| 설치와 첫 모델 응답 | [빠른 시작](guides/getting-started.md) |
+| Control Plane 운영·복구 | [사용자 가이드](guides/user-guide.md) |
+| 개인·팀 VPN 접속 | [원격 접속](guides/remote-access.md) |
+| 애플리케이션 API 연동 | [API 연동](guides/api-integration.md) |
+| 코드 수정·검증·기여 | [개발자 가이드](guides/developer-guide.md) |
 
-[가이드 목차](guides/README.md)에서 작업별 시작 문서를 확인할 수 있습니다.
-아래 기술 문서는 설정·API·운영 계약의 상세 기준을 유지합니다.
+## 플랫폼·요청 계약
 
-프로젝트의 사용자-facing 이름과 안정 식별자 구분은 [표준 용어](reference/terminology.md)에서 확인합니다. 외부 API의 요청·응답 형식과 사용 예시는 [API 인터페이스](reference/api_reference.md)에서, OpenAI SDK로 바꿔 부를 때 무엇이 같고 무엇이 다른지는 [OpenAI 호환 범위](reference/openai_compatibility.md)에서, `/docs`·`/openapi.json`의 운영 경계는 [API 문서 화면 Reference](reference/api_docs_reference.md)에서 확인할 수 있습니다. 현재 vLLM pin에 공개된 upstream advisory가 이 플랫폼의 Gateway/Exposure 경계에서 실제로 도달 가능한지는 [vLLM 보안 노출 경계](reference/vllm_security_posture.md)에서 확인합니다.
+| 주제 | 문서 |
+|---|---|
+| 플랫폼 소개 | [프로젝트 개요](01_overview.md) |
+| 요청 처리 | [요청 흐름](02_request_flow.md) |
+| 서비스 경계 | [시스템 구성](03_system_components.md) |
+| 환경과 실행 방식 | [실행 환경](04_runtime_modes.md) |
+| 설정·정책의 소유권 | [설정 Source of Truth](05_configuration.md) |
+| 모델 전환·GPU 정책 | [모델 운영](06_model_operations.md) |
 
-Control Plane의 실제 화면별 운영 흐름과 UX 기준은 [운영자 작업 중심 UX](reference/control_plane_operator_ux.md)를 참고합니다.
-Playground의 미디어 공유 Request Receipt, 원본 HTTP 재현, 스트리밍 ZIP64 및 SDK 기반 애플리케이션 예제는 [프로젝트 연동 가이드](reference/playground_integration.md)를 참고합니다.
+## 개발·배포·운영
 
-이미지 분석·OCR·시스템 프롬프트·임베딩의 실제 실행은 [GIF 데모](reference/feature_demos.md)에서 볼 수 있습니다.
+| 주제 | 문서 |
+|---|---|
+| 로컬 개발·빌드 | [개발 환경](07_local_dev_build.md) |
+| 테스트 범위·검증 | [테스트와 검증](08_testing_validation.md) |
+| 자동화 책임 | [CI 경계](09_cicd.md) |
+| 배포 방식 | [배포](10_deployment.md) |
+| 지표·로그·Grafana | [관측성](11_observability.md) |
+| 장애·복구 | [운영 관리](12_operations.md) |
+| 변경별 소유권·영향 | [변경 가이드](13_change_guide.md) |
 
-## 목차
+## 참고 자료
 
-### [1. 프로젝트 개요](01_overview.md)
+[API Reference](reference/api_reference.md) · [OpenAI 호환성](reference/openai_compatibility.md) · [표준 용어](reference/terminology.md) · [API 문서 화면](reference/api_docs_reference.md)
 
-- 프로젝트 배경
-- 전체 시스템 구조
-- 주요 서비스와 역할
-- 제공 기능
-- 실행 및 운영 범위
+[Control Plane UX](reference/control_plane_operator_ux.md) · [Playground 요청 재현](reference/playground_integration.md) · [기능 데모](reference/feature_demos.md)
 
-### [2. 요청 처리 흐름](02_request_flow.md)
-
-- 공통 요청 처리
-- 기능별 요청 흐름
-- 요청 검증과 오류 처리
-- 외부·내부 서비스 연결
-- 인증과 권한
-
-### [3. 시스템 구성](03_system_components.md)
-
-- 전체 시스템 구성
-- 외부 요청 처리
-- 모델 실행 구조
-- 임베딩·검색·위험 탐지
-- 서비스 연결 관계
-- 모니터링 구성
-- 구성 요소별 책임
-
-### [4. 실행 환경과 모드](04_runtime_modes.md)
-
-- 실행 환경 구성
-- 로컬 및 전체 실행 모드
-- 서비스 연결과 네트워크
-- 외부 공개 범위
-- 시작 순서와 준비 상태
-- GPU 기반 모델 실행
-
-### [5. 설정 체계와 Source of Truth](05_configuration.md)
-
-- 설정 구조
-- 서비스 및 모델 설정
-- GPU 자원 설정
-- 네트워크 및 접근 설정
-- 환경별 설정 적용
-- 설정 생성과 검증
-- 변경 영향
-
-### [6. 모델 운영](06_model_operations.md)
-
-- 모델 상태 확인
-- 모델 선택과 전환
-- GPU 자원 확인
-- 모델 시작과 중지
-- 전환 결과 확인
-- 실패 복구
-- 실행 정보와 지원 기능
-
-### [7. 로컬 개발과 빌드](07_local_dev_build.md)
-
-- 개발 환경 준비
-- 로컬 실행
-- 전체 서비스 실행
-- 애플리케이션 이미지 빌드
-- 모델 실행 이미지 빌드
-- 배포 패키지 생성
-- 초기화 및 재빌드
-
-### [8. 테스트와 검증](08_testing_validation.md)
-
-- 정적 검증
-- 자동화 테스트
-- 로컬 실행 검증
-- 전체 서비스 검증
-- 대표 API 확인
-- 실제 모델 실행 검증
-- 변경 유형별 검증 범위
-
-### [9. 자동화 경계](09_cicd.md)
-
-- 현재 GitHub application·contract 검증
-- 검증·빌드·publish·배포의 책임 구분
-- Provider-neutral build·deploy 진입점
-- Image builder와 GPU runtime의 자원 경계
-- 미래 자동화 추가 원칙
-
-### [10. 배포](10_deployment.md)
-
-- 배포 방식
-- 배포 입력과 준비
-- 변경 서비스 적용
-- 모델 실행 환경 적용
-- 배포 완료 확인
-- 실패 복구
-- 배포 버전 관리
-
-### [11. 관측성](11_observability.md)
-
-- 모니터링 구성
-- 서비스 상태와 요청 지표
-- 모델 실행 상태
-- GPU 및 컨테이너 자원
-- 요청 로그와 오류 추적
-- Dashboard
-- 배포 후 상태 확인
-
-### [12. 운영 관리 및 장애 대응](12_operations.md)
-
-- 운영 상태 점검
-- 요청 오류 확인
-- 응답 지연과 GPU 문제
-- 모델 전환 문제
-- 배포 후 이상 상태
-- 로그·인증·노출 설정 확인
-- 복구 후 정상 상태 확인
-- 주요 운영 명령
-
-### [13. 변경 가이드](13_change_guide.md)
-
-- 변경 작업 흐름
-- API 및 애플리케이션 변경
-- 설정 변경
-- 모델 구성 변경
-- 모델 실행 환경 변경
-- 네트워크 구성 변경
-- 모니터링 변경
-- 자동화 및 배포 변경
-- 변경 후 검증과 문서 반영
-
-### [API 인터페이스](reference/api_reference.md)
-
-- 공통 요청 규칙과 인증
-- 모델 목록과 대화 생성
-- 임베딩과 검색
-- 위험 탐지
-- 상태 확인과 운영 API
-- 오류 코드와 사용 예시
-- API 기준 명세
-
-### [OpenAI 호환 범위](reference/openai_compatibility.md)
-
-- 요청 파라미터별 표준·좁힘·확장 분류
-- 거부하는 OpenAI 파라미터와 이유
-- 응답 메시지 필드
-- 계약 스키마에서 생성하는 문서다
-
-### [표준 용어](reference/terminology.md)
-
-- Canonical 사용자-facing 용어
-- 안정 API·service·env 식별자와 표시명 구분
-- 식별자 변경 원칙
-
-### [vLLM 보안 노출 경계](reference/vllm_security_posture.md)
-
-- 현재 vLLM pin에 대한 request-surface advisory reachability
-- Gateway가 차단·제한하는 입력과 direct runtime bypass 경계
-- Gateway 경유 public surface와 Compose-internal raw runtime의 보안 경계
-- engine upgrade 전에 유지해야 할 regression invariant
-
-### [vLLM execution boundary 재평가](reference/vllm_execution_boundary.md)
-
-- vLLM 0.30.0 Docker 기준선, stock image·patch 필요 범위
-- supporting Runtime Sleep/Wake와 native Main Runtime spike 실측
-- Docker 유지 결정과 재평가 조건
-
-### [부록](appendix.md)
-
-- 용어 요약
-- 서비스와 포트
-- 주요 명령
-- Source of Truth
-- 주요 Repository 경로
+[vLLM 보안 노출 경계](reference/vllm_security_posture.md) · [vLLM 실행 경계](reference/vllm_execution_boundary.md) · [부록](appendix.md)
 
 ## 문서 관리
 
-API, 운영 절차, 배포 방식처럼 사용 방법이 바뀌면 관련 문서도 함께 갱신한다. 현재 설정과 실제 실행 상태는 문서가 아니라 설정 파일과 실행 환경에서 확인한다.
+현재 설정·API의 실제 소유권은 [설정](05_configuration.md)과 [변경 가이드](13_change_guide.md)를 따릅니다. 문서는 정책을 중복 정의하지 않으며, 아키텍처 결정은 [ADR](adr/README.md), 기여 원칙은 [CONTRIBUTING](../CONTRIBUTING.md)이 소유합니다.

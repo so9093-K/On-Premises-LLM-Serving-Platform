@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# 새 PR 커밋이 도착하면 이전 검증만 취소한다. main 검증과 CI Gate는 유지한다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   app-contract:
     name: App and contracts (${{ matrix.os }})
@@ -67,11 +72,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24.20.0"
+          node-version-file: ui/control-plane/.nvmrc
           cache: npm
           cache-dependency-path: ui/control-plane/package-lock.json
       - name: Pin npm toolchain
-        run: npm install --global npm@11.19.0
+        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Check Control Plane source and generated Console
         id: console_validation
         run: make console-check
@@ -129,12 +134,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24.20.0"
+          node-version-file: ui/control-plane/.nvmrc
           cache: npm
           cache-dependency-path: ui/control-plane/package-lock.json
       - name: Pin npm and install frontend
         run: |
-          npm install --global npm@11.19.0
+          npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
           npm --prefix ui/control-plane ci
       - name: Install pinned browser runner
         run: |
