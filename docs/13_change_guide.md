@@ -67,7 +67,7 @@ Runtime 적용 / 배포
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
 | 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | `make validate` + effective Compose |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
-| 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/`, `scripts/validation/run_test.sh` | GitHub app·contract 검증과 provider-neutral build·local lifecycle·검증 결과 진입점 | `make check` + 변경한 진입점 확인 |
+| 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/`, `scripts/validation/run_test.sh` | GitHub 품질 검증 명령과 provider-neutral build·local lifecycle | `make check` + 변경한 진입점 확인 |
 
 ---
 
