@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from urllib.request import urlopen
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 URL = "http://127.0.0.1:4173/admin/console/"
 SCREENSHOTS = Path(os.environ.get("UX_SCREENSHOTS", "/tmp/operator-ux-browser"))
@@ -404,7 +404,7 @@ def run_tool_result_roundtrip(browser, width, height):
     form = page.locator(".chat-tool-result-form")
     form.wait_for()
     result_input = form.locator("textarea").first
-    assert result_input.evaluate("(el) => document.activeElement === el"), "Tool result must receive focus"
+    expect(result_input).to_be_focused(timeout=3000)
     assert page.get_by_label("메시지").is_disabled(), "Pending result blocks unrelated turns"
     assert len(requests) == 1, "Model tool calls are not executed automatically"
     result_input.fill('{"temp":18}')
