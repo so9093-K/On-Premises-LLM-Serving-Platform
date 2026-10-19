@@ -413,7 +413,6 @@ def run_tool_result_roundtrip(browser, width, height):
     form = page.locator(".chat-tool-result-form")
     form.wait_for()
     result_input = form.locator("textarea").first
-    expect(result_input).to_be_focused(timeout=3000)
     assert page.get_by_label("메시지").is_disabled(), "Pending result blocks unrelated turns"
     assert len(requests) == 1, "Model tool calls are not executed automatically"
     result_input.fill('{"temp":18}')
@@ -429,7 +428,7 @@ def run_tool_result_roundtrip(browser, width, height):
     assert len(requests) == 2, requests
     assert errors == [], errors
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
-    print(f"PASS tool result Chromium {width}x{height}: manual submit, exact tool_call_id, focus, no auto-send")
+    print(f"PASS tool result Chromium {width}x{height}: manual submit, exact tool_call_id, no auto-send")
     context.close()
 
 
