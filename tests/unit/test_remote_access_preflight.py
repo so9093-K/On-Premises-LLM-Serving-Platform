@@ -12,6 +12,8 @@ from scripts.access.remote_access import main, preflight
 def write_env(tmp_path: Path, **overrides: str) -> Path:
     values = {
         "ACCESS_PROFILE": "edge",
+        "AUTH_MODE": "strict",
+        "EXPOSURE_AUDIENCE": "local_only",
         "GATEWAY_BIND_ADDR": "127.0.0.1",
         "GRAFANA_BIND_ADDR": "127.0.0.1",
         "GATEWAY_PORT": "9400",
@@ -32,6 +34,8 @@ def test_edge_loopback_and_separate_keys_allow_preflight(tmp_path):
 
 @pytest.mark.parametrize(("name", "value"), [
     ("ACCESS_PROFILE", "private"),
+    ("AUTH_MODE", "local_open"),
+    ("EXPOSURE_AUDIENCE", "private_lan"),
     ("GATEWAY_BIND_ADDR", "0.0.0.0"),
     ("GRAFANA_BIND_ADDR", "0.0.0.0"),
     ("GATEWAY_PORT", "9401"),
@@ -67,3 +71,12 @@ def test_plan_is_read_only_and_does_not_disclose_keys(monkeypatch, tmp_path, cap
     assert "api-only-long-secret" not in output
     assert "admin-only-long-secret" not in output
     assert "tailscale serve reset" in output  # 사용 금지 안내에만 등장한다.
+
+def test_missing_grafana_bind_or_normalized_duplicate_key_fails(tmp_path):
+    path = write_env(tmp_path)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("GRAFANA_BIND_ADDR=127.0.0.1\n", ""),
+        encoding="utf-8",
+    )
+    assert preflight(path)
+    assert preflight(write_env(tmp_path, API_KEYS="api-only-long-secret, admin-only-long-secret"))

@@ -125,8 +125,8 @@ def test_api_only_forwards_allowed_routes_with_api_key(proxy, path, method):
     "/v1/%6dodels", "/v1/chat%2fcompletions", "/v1/models%2f..%2fadmin",
 ])
 def test_other_or_encoded_paths_are_denied_even_with_admin_key(proxy, path):
-    status, _ = request(proxy, path, key="demo-public-api-key")
-    assert status != 200
+    status, _ = request(proxy, path, key="admin-only-key")
+    assert status == 404
 
 
 @pytest.mark.parametrize(("path", "method"), [

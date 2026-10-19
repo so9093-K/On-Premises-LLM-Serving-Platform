@@ -27,9 +27,13 @@ def preflight(env_file: Path) -> list[str]:
     errors: list[str] = []
     if values.get("ACCESS_PROFILE") != "edge":
         errors.append("ACCESS=edge를 명시적으로 적용해야 합니다.")
+    if values.get("AUTH_MODE") != "strict":
+        errors.append("Auth Profile이 strict여야 합니다.")
+    if values.get("EXPOSURE_AUDIENCE") != "local_only":
+        errors.append("Network Audience가 local_only여야 합니다.")
     if values.get("GATEWAY_BIND_ADDR") != "127.0.0.1":
         errors.append("Gateway가 127.0.0.1에만 바인딩돼야 합니다.")
-    if "GRAFANA_BIND_ADDR" in values and values["GRAFANA_BIND_ADDR"] != "127.0.0.1":
+    if values.get("GRAFANA_BIND_ADDR") != "127.0.0.1":
         errors.append("Grafana가 127.0.0.1에만 바인딩돼야 합니다.")
     if values.get("GATEWAY_PORT", str(PORT)) != str(PORT):
         errors.append("제공된 Nginx 설정은 Gateway 9400번 포트만 지원합니다.")
@@ -41,8 +45,8 @@ def preflight(env_file: Path) -> list[str]:
         secrets = [key.strip() for key in values.get(name, "").split(",")]
         if not secrets or any(is_default_secret(key) for key in secrets):
             errors.append(f"{name}에 생성된 비기본 키가 필요합니다.")
-    api = set(values.get("API_KEYS", "").split(","))
-    admin = set(values.get("ADMIN_API_KEYS", "").split(","))
+    api = {key.strip() for key in values.get("API_KEYS", "").split(",") if key.strip()}
+    admin = {key.strip() for key in values.get("ADMIN_API_KEYS", "").split(",") if key.strip()}
     if api & admin:
         errors.append("일반 API Key와 관리자 Key는 공유하면 안 됩니다.")
     return errors
