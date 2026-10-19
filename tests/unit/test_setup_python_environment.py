@@ -43,7 +43,7 @@ def test_make_up_preflight_dependencies_survive_runtime_sync() -> None:
     # 버전 pin의 정확한 숫자는 pyproject.toml이 소유한다.
     def names(requirements: list[str]) -> set[str]:
         return {
-            re.split(r"[\\s\\[<>=!~;]", item.strip(), maxsplit=1)[0].lower()
+            re.split(r"[\s\[<>=!~;]", item.strip(), maxsplit=1)[0].lower()
             for item in requirements
         }
 
