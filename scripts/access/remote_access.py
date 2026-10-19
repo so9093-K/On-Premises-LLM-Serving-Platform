@@ -43,6 +43,10 @@ def preflight(env_file: Path) -> list[str]:
     admin = {key.strip() for key in values.get("ADMIN_API_KEYS", "").split(",") if key.strip()}
     if api & admin:
         errors.append("일반 API Key와 관리자 Key는 공유하면 안 됩니다.")
+    for singular, allowed in (("API_KEY", api), ("ADMIN_API_KEY", admin)):
+        alias = values.get(singular, "").strip()
+        if alias and (is_default_secret(alias) or alias not in allowed):
+            errors.append(f"{singular}는 활성 키 목록과 일치해야 합니다.")
     return errors
 
 

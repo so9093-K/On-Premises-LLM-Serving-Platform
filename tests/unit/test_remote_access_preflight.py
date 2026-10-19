@@ -15,7 +15,9 @@ def write_env(tmp_path: Path, **overrides: str) -> Path:
         **access_profile_env_values("edge"),
         "GATEWAY_PORT": "9400",
         "API_KEYS": "api-only-long-secret",
+        "API_KEY": "api-only-long-secret",
         "ADMIN_API_KEYS": "admin-only-long-secret",
+        "ADMIN_API_KEY": "admin-only-long-secret",
         "INTERNAL_SERVICE_TOKEN": "internal-only-long-secret",
     }
     values.update(overrides)
@@ -44,6 +46,8 @@ def test_edge_loopback_and_separate_keys_allow_preflight(tmp_path):
     ("API_KEYS", "change-me"),
     ("ADMIN_API_KEYS", "change-me"),
     ("ADMIN_API_KEYS", "api-only-long-secret"),
+    ("API_KEY", "retired-team-api-key"),
+    ("ADMIN_API_KEY", "retired-admin-key"),
 ])
 def test_remote_access_fails_closed_for_unsafe_env(tmp_path, name, value):
     assert preflight(write_env(tmp_path, **{name: value}))
