@@ -35,7 +35,7 @@ curl --fail-with-body "$GATEWAY_URL/v1/models" "${AUTH[@]}"
 
 ![API 목록·Schema·테스트 요청을 제공하는 Scalar의 기존 화면](../../assets/screenshots/scalar_api_reference.jpg)
 
-*API 문서 화면*
+*API 문서 화면 (이전 UI)*
 
 **성공 기준:** 200 응답과 사용할 모델의 입력·요청 제한을 확인합니다.
 **실패 시:** 접속 불가는 주소·네트워크, 401은 사용자 API Key와 접근 설정을 운영자에게 확인합니다.
