@@ -275,6 +275,13 @@ def run_audio_example(browser, width, height):
         # 구현 문자열이 아니라 모바일 실제 앵커와 이동 대상을 확인한다.
         expect(page.locator("#chat-model-settings")).to_have_count(1)
         expect(page.locator("#chat-input")).to_have_count(1)
+        # 모바일에서 설정 패널이 채팅 본문보다 먼저 배치되면 입력 흐름을 가린다.
+        main_bounds = page.locator(".chat-main").bounding_box()
+        settings_bounds = page.locator(".chat-side").bounding_box()
+        assert main_bounds is not None and settings_bounds is not None
+        assert settings_bounds["y"] >= main_bounds["y"] + main_bounds["height"] - 1, (
+            "Mobile request settings must follow the conversation and composer"
+        )
         page.get_by_role("link", name="요청 설정 ↓").click()
         page.wait_for_function("() => location.hash === '#chat-model-settings'")
         page.get_by_role("link", name="대화 입력으로 돌아가기 ↑").click()

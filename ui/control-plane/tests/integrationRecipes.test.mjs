@@ -38,7 +38,7 @@ test('Python SDK integration keeps standard fields and forwards provider extensi
     '        result.choices = [types.SimpleNamespace(message=message)]',
     '        return result',
   ].join('\n'));
-  await run('python3', ['client_openai.py'], {
+  await run(process.env.PYTHON_BIN || 'python3', ['client_openai.py'], {
     cwd: dir, env: { ...process.env, CAPTURE_FILE: join(dir, 'captured.json') },
   });
   const captured = JSON.parse(await readFile(join(dir, 'captured.json'), 'utf8'));
