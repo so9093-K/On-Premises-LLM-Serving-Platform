@@ -204,7 +204,7 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
 
       {budget ? (
         <Card>
-          <CardTitle>정책상 GPU 예약 예산</CardTitle>
+          <CardTitle>GPU 예약 현황</CardTitle>
           <CardBody>
             <div className="gpu-budget-summary">
               <strong>{formatPercent(budget.used)} 예약</strong>

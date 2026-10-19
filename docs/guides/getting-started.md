@@ -1,8 +1,7 @@
-# 빠른 시작: 내 환경에서 첫 응답 받기
+# 빠른 시작
 
-**목표:** 환경을 선택하고 플랫폼을 실행해 Playground에서 실제 응답을 받습니다.
 
-**사전 조건:** 저장소를 내려받은 호스트에서 작업합니다. 아래 명령은 저장소 루트 기준이며
+**준비:** 저장소를 내려받은 호스트에서 작업합니다. 아래 명령은 저장소 루트 기준이며
 Python·uv·Docker, 모델 접근 권한과 선택한 프로필에 충분한 메모리가 필요합니다.
 이미 운영 중인 설치에서는 기존 `.env`와 모델 상태를 기준으로 동작합니다.
 
@@ -105,7 +104,7 @@ make up TARGET=linux-nvidia-static MAIN_URL='http://<gateway에서-접근가능�
 [사용자 가이드](user-guide.md#access-and-auth)의 접근 범위 절차를 따르세요.
 기존 설치의 접근 범위 변경은 계획 검토와 `CONFIRM=access`가 필요할 수 있습니다.
 
-## 3. 완료 확인
+## 3. 실행 상태 확인
 
 `make up`이 종료 코드 0으로 끝나고 `ready`, Console/API docs 주소와 다음 명령을 출력하는지 봅니다.
 그다음 다음 명령을 실행합니다.
@@ -120,7 +119,7 @@ make status
 
 ![캐시를 재사용한 실제 make up 완료 출력과 중지된 Embedding 주의 항목](../../assets/screenshots/guides/startup-output.png)
 
-*2026-10-19 실제 stdout/stderr 발췌를 렌더링한 이미지. 새 설치의 다운로드 기록이 아닌 기존 캐시 재기동입니다.*
+*플랫폼 시작·상태 출력 (기존 캐시 재기동)*
 
 이 실행에서는 Main이 `ACTIVE / running`이고, Embedding 2종은 `STOPPED / created`,
 Prompt Injection Detector는 `UNAVAILABLE / policy`입니다. `Platform READY`여도
@@ -131,9 +130,9 @@ dependency의 주의 항목이 있으면 `make status`는 종료 코드 1을 반
 
 ![Main Model·Runtime 상태와 운영 작업 진입점을 보여주는 운영 개요](../../assets/screenshots/showcase/overview.png)
 
-*2026-10-15 Linux/NVIDIA 실제 화면. 현재 UI는 최근 요청 지표와 빠른 작업의 배치가 다를 수 있습니다.*
+*운영 개요*
 
-## 4. 인증과 첫 Playground 요청
+## 4. Playground 첫 요청
 
 1. Console에서 관리자 인증이 요구되면 운영자가 발급한 **Admin Key**를 입력합니다.
    `ACCESS=local`의 기본 설정에서는 인증 화면이 없을 수 있습니다.
@@ -144,17 +143,17 @@ dependency의 주의 항목이 있으면 `make status`는 종료 코드 1을 반
 
 ![한국어 요약 예제를 선택하고 입력 적용 버튼을 확인하는 현재 Playground](../../assets/screenshots/guides/playground-before.png)
 
-*2026-10-19 실제 UI. 예제를 선택한 단계이며, 아직 추론하지 않았습니다.*
+*Playground · 예제 선택*
 
 ![예제를 적용하고 실제 모델 응답을 받은 Playground](../../assets/screenshots/guides/playground-after.png)
 
-*같은 날 실제 E4B 응답. 지연·토큰·문구는 한 요청의 결과입니다. [촬영 조건](../../assets/screenshots/guides/README.md)을 참고하세요.*
+*Playground · 모델 응답*
 
 **성공 기준:** 실제 응답이 도착하고 오류나 미완료 경고 없이 종료됩니다.
 정확한 문구와 지연은 모델·입력·장비에 따라 달라집니다. 다음은 [사용자 가이드](user-guide.md)의
 모델·GPU 운영 또는 [API 연동](api-integration.md)으로 진행하세요.
 
-## 5. 실패하면
+## 5. 문제 해결
 
 ```bash
 make status

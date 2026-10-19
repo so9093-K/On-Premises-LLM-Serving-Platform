@@ -1,9 +1,9 @@
-# VPN 기반 개인·팀원 원격 접근
+# 원격 접속 가이드
 
 이 절차는 Linux GPU 서버 한 대에 이미 실행 중인 플랫폼을 **Tailnet 내부에서만** 제공한다.
 개인 도메인이나 공인 포트포워딩이 필요하지 않다. 일반 인터넷 사용자에게 공개하는 절차가 아니다.
 
-## 1. 실제 보안 경계
+## 1. 접근 경계
 
 | 계층 | 소유자 | 역할 |
 |---|---|---|
@@ -18,7 +18,7 @@
 Gateway도 Tailnet 사용자별 Role·Quota를 제공하지 않는다. 팀원에게 Admin Key를 배포하지 않는다.
 사내망의 다른 계정이 기존 Tailscale allow-all 정책으로 관리자 포트에 접근할 수 없도록 Tailnet 전체 정책을 검토해야 한다.
 
-## 2. 설치 전 환경 확인
+## 2. 설치 준비
 
 - Linux 서버에 기존 `make up`이 준비돼 있고 Gateway가 동작해야 한다.
 - `make up ACCESS=edge`는 기존 설정 변경 계획만 보여 준다.
@@ -44,7 +44,7 @@ make status
 이 결과는 `.env` 설정만 검사하며 **실제로 실행 중인 Gateway의 bind 상태, Tailscale 정책 적용 여부를 증명하지 않는다.**
 이 도구는 키·Tailnet 상태를 변경하지 않는다.
 
-## 3. 팀원 API 제한 Proxy
+## 3. 팀원 API Proxy
 
 서버에 Nginx를 설치한다(예: Ubuntu `sudo apt-get install nginx`).
 설정을 검토한 뒤 Nginx의 `http` 컨텍스트에서 로드되는 경로로 복사한다.
@@ -75,7 +75,7 @@ Proxy만 기동한 후 먼저 로컬에서 다음 조건을 확인한다.
 - `127.0.0.1:9400`과 `127.0.0.1:9480`은 LAN 인터페이스에 수신하지 않는다.
 - 팀원 진입점에서 `/v1/*` 전체를 포괄 허용하지 않는다.
 
-## 4. Tailscale 사용자·기기·Grants
+## 4. Tailnet 접근 정책
 
 운영자가 Tailscale을 설치하고 `tailscale up`으로 서버를 Tailnet에 등록한다.
 Tailnet Admin Console의 Policy Editor에서
@@ -92,7 +92,7 @@ Tailnet Admin Console의 Policy Editor에서
 [공식 Policy 문법](https://tailscale.com/docs/reference/syntax/policy-file) ·
 [Grants](https://tailscale.com/docs/reference/syntax/grants)
 
-## 5. 두 HTTPS 진입점 활성화
+## 5. HTTPS 접속
 
 Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 **기존 Serve 및 Funnel 설정을 먼저 확인하고, 충돌이 없을 때만** 아래 명령을 실행한다.
@@ -113,7 +113,7 @@ tailscale serve status
 관리자: `https://<실제-서버-tailnet-이름>/admin/console/` (443)
 팀원: `https://<실제-서버-tailnet-이름>:8443/v1/models`
 
-## 6. 실제 보안 검증과 Offboarding
+## 6. 접근 검증·권한 철회
 
 서로 다른 **관리자 기기와 일반 팀원 기기**에서 검증한다.
 
@@ -155,7 +155,7 @@ tailscale serve status
 Nginx 또는 Tailscale 설치·설정 변경은 기존 `make down`이나 `make reset`이 소유하지 않는다.
 Nginx의 예제 Config 제거/재적용은 OS 운영자가 명시적으로 수행한다.
 
-## 8. 검증 근거와 적용 범위
+## 8. 검증 범위
 
 `make check`는 API/Auth/Compose와 설정 계약을 확인한다. Linux CI는 실제
 Nginx로 허용·거부·인코딩 경로를 검증한다. Tailnet 그룹 초대/태그 부여/정책

@@ -107,6 +107,8 @@
 
 ### Changed
 
+- 사용자 가이드·README의 진입 순서와 화면 설명을 작업 중심으로 간결하게 정리한다. 촬영·검증 이력은 기존 화면 기록에 유지하고, Control Plane은 `edge`를 인터넷 자동 공개가 아닌 TLS 프록시 경유로 표시한다. 운영 상태와 GPU 정책의 구분은 그대로 유지한다.
+
 - Playground에서 모델 선택과 Capability를 예제 앞에 배치하고 예제 카드·입력 미리보기·고급 설정을 간결하게 재구성한다. 예제 적용 상태는 입력창 근처에서 확인하며 모델 변경 시 기존 대화·첨부·요청 설정 영향을 명시적으로 검토하고 새 모델과 호환되지 않는 첨부·Tool Calling 이력은 명시적인 대화 초기화 없이 이관하지 않으며 대상 모델의 숫자 제한에 맞지 않는 설정은 확인 후 초기화한다. 완료된 응답에서 Bootstrap에 선언된 API 문서가 활성화된 경우에만 이동할 수 있다.
 
 - Linux NVIDIA managed vLLM Runtime의 compile cache를 런타임별·Compose project별 named volume에 보관한다. 일반 down/up과 Main profile replace/rollback 후에도 cache가 유지되며 Hugging Face 모델 cache와 별도로 관리된다. 기존 `.env` 변경은 필요 없고 다음 컨테이너 재생성부터 적용된다. CUDA cache hit와 startup 개선 여부는 동일 GPU/profile 실측으로 판단한다.

@@ -148,7 +148,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : { label: '조회된 주의 항목 없음', color: 'grey' as const, description: '' };
+      : { label: '조회 결과 · 주의 없음', color: 'grey' as const, description: '' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,

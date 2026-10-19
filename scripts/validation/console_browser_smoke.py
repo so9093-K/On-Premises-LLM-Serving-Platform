@@ -170,11 +170,11 @@ def run_one(browser, width, height):
     install_routes(page, state)
     page.goto(URL, wait_until="domcontentloaded")
     page.get_by_text("최근 요청 지표를 조회하지 못했습니다.").wait_for()
-    assert page.get_by_text("조회된 주의 항목 없음").count() == 0, "Failed traffic must not look fully observed"
+    assert page.get_by_text("조회 결과 · 주의 없음").count() == 0, "Failed traffic must not look fully observed"
     page.screenshot(path=str(SCREENSHOTS / f"overview-failed-{width}.png"), full_page=True)
     state["traffic_failure"] = False
     page.get_by_role("button", name="새로고침").click()
-    page.get_by_text("조회된 주의 항목 없음").wait_for()
+    page.get_by_text("조회 결과 · 주의 없음").wait_for()
     assert page.get_by_text("24건").count() > 0
     page.screenshot(path=str(SCREENSHOTS / f"overview-recovered-{width}.png"), full_page=True)
     page.get_by_role("link", name="설정", exact=True).click()

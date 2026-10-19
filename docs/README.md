@@ -1,8 +1,8 @@
-# AI Model Serving Platform
+# On-Premises LLM Serving Platform
 
 AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·검증, 자동화 경계, 배포, 관측성, 장애 대응 및 변경 절차를 정리합니다.
 
-## 처음 사용하는 분
+## 가이드
 
 | 목적 | 시작할 문서 |
 |---|---|
@@ -12,7 +12,7 @@ AI Model Serving Platform의 구조와 요청 처리, Runtime 운영, 개발·�
 | 외부 애플리케이션에서 API·SDK 사용 | [API 연동 가이드](guides/api-integration.md) |
 | 이 저장소의 코드 수정·검증·기여 | [개발자 가이드](guides/developer-guide.md) |
 
-[가이드 목차와 화면의 해석 범위](guides/README.md)에서 독자별 완료 기준을 확인할 수 있습니다.
+[가이드 목차](guides/README.md)에서 작업별 시작 문서를 확인할 수 있습니다.
 아래 기술 문서는 설정·API·운영 계약의 상세 기준을 유지합니다.
 
 프로젝트의 사용자-facing 이름과 안정 식별자 구분은 [표준 용어](reference/terminology.md)에서 확인합니다. 외부 API의 요청·응답 형식과 사용 예시는 [API 인터페이스](reference/api_reference.md)에서, OpenAI SDK로 바꿔 부를 때 무엇이 같고 무엇이 다른지는 [OpenAI 호환 범위](reference/openai_compatibility.md)에서, `/docs`·`/openapi.json`의 운영 경계는 [API 문서 화면 Reference](reference/api_docs_reference.md)에서 확인할 수 있습니다. 현재 vLLM pin에 공개된 upstream advisory가 이 플랫폼의 Gateway/Exposure 경계에서 실제로 도달 가능한지는 [vLLM 보안 노출 경계](reference/vllm_security_posture.md)에서 확인합니다.
