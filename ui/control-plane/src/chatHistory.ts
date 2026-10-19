@@ -11,7 +11,7 @@ export function exchangeIncludedInHistory(exchange: Exchange): boolean {
   return turn.content !== '';
 }
 
-function toolResultsResolveSource(source: Exchange, candidate: Exchange): boolean {
+export function toolResultsResolveSource(source: Exchange, candidate: Exchange): boolean {
   if (candidate.id <= source.id || !exchangeIncludedInHistory(candidate)) return false;
   const callIds = new Set(source.assistant.toolCalls.map((call) => call.id));
   const results = candidate.toolResults ?? [];
