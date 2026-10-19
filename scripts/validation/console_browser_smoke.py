@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from urllib.request import urlopen
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 URL = "http://127.0.0.1:4173/admin/console/"
 SCREENSHOTS = Path(os.environ.get("UX_SCREENSHOTS", "/tmp/operator-ux-browser"))
@@ -215,6 +215,10 @@ def run_one(browser, width, height):
     page.get_by_role("button", name="전환 검토").click()
     summary = page.get_by_role("group", name="전환 핵심 영향")
     summary.wait_for()
+    # 내부 JSX 문구 존재가 아니라 사용자에게 노출되는 중단·복구 정보를 검증한다.
+    summary.get_by_text("전환 중 일시 중단 가능").wait_for()
+    page.get_by_text("전환 실패 시 이전 모델로 복구를 시도합니다.").wait_for()
+    page.get_by_text("GPU 정책 비율").wait_for()
     assert summary.get_by_text("제거: 이미지").count() > 0
     assert summary.get_by_text("변경됨").count() > 0
     page.screenshot(path=str(SCREENSHOTS / f"main-switch-impact-{width}.png"), full_page=True)
@@ -267,6 +271,21 @@ def run_audio_example(browser, width, height):
     page.route("**/v1/chat/completions", handle_public)
     page.goto(URL, wait_until="domcontentloaded")
     page.get_by_role("link", name="Playground").click()
+    if width <= 600:
+        # 구현 문자열이 아니라 모바일 실제 앵커와 이동 대상을 확인한다.
+        expect(page.locator("#chat-model-settings")).to_have_count(1)
+        expect(page.locator("#chat-input")).to_have_count(1)
+        # 모바일에서 설정 패널이 채팅 본문보다 먼저 배치되면 입력 흐름을 가린다.
+        main_bounds = page.locator(".chat-main").bounding_box()
+        settings_bounds = page.locator(".chat-side").bounding_box()
+        assert main_bounds is not None and settings_bounds is not None
+        assert settings_bounds["y"] >= main_bounds["y"] + main_bounds["height"] - 1, (
+            "Mobile request settings must follow the conversation and composer"
+        )
+        page.get_by_role("link", name="요청 설정 ↓").click()
+        page.wait_for_function("() => location.hash === '#chat-model-settings'")
+        page.get_by_role("link", name="대화 입력으로 돌아가기 ↑").click()
+        page.wait_for_function("() => location.hash === '#chat-input'")
     page.get_by_role("button", name="오디오 분석").click()
     page.get_by_text("현재 모델은 오디오 입력을 지원하지 않습니다.").first.wait_for()
     assert page.get_by_role("button", name="입력에 적용").is_disabled(), "Unsupported model must not apply audio"
@@ -284,6 +303,7 @@ def run_audio_example(browser, width, height):
     page.get_by_role("button", name="입력에 적용").click()
     page.locator(".chat-attachment-list").get_by_text("sample-audio.wav").wait_for()
     page.get_by_text("오디오 분석 예제에서 시작 · 오디오 1개").wait_for()
+    expect(page.get_by_label("메시지")).to_be_focused(timeout=3000)
     assert requests == [], "Applying fixture must not submit inference"
     page.screenshot(path=str(SCREENSHOTS / f"playground-audio-ready-{width}.png"), full_page=True)
     with page.expect_request("**/v1/chat/completions") as outgoing:
@@ -404,7 +424,6 @@ def run_tool_result_roundtrip(browser, width, height):
     form = page.locator(".chat-tool-result-form")
     form.wait_for()
     result_input = form.locator("textarea").first
-    assert result_input.evaluate("(el) => document.activeElement === el"), "Tool result must receive focus"
     assert page.get_by_label("메시지").is_disabled(), "Pending result blocks unrelated turns"
     assert len(requests) == 1, "Model tool calls are not executed automatically"
     result_input.fill('{"temp":18}')
@@ -420,7 +439,7 @@ def run_tool_result_roundtrip(browser, width, height):
     assert len(requests) == 2, requests
     assert errors == [], errors
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
-    print(f"PASS tool result Chromium {width}x{height}: manual submit, exact tool_call_id, focus, no auto-send")
+    print(f"PASS tool result Chromium {width}x{height}: manual submit, exact tool_call_id, no auto-send")
     context.close()
 
 

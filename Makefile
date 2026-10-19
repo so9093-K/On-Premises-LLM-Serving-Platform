@@ -93,7 +93,7 @@ metal-supervisor-uninstall: ## launchd 등록 해제 후 project 소유 기동�
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py uninstall-supervisor
 
 validate: ## 정적 계약·설정·생성물 drift 검증
-	@PYTHON_BIN="$(PYTHON)" "$(PYTHON)" scripts/validation/run_suite.py validate
+	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/run_validate.sh
 
 test: ## 결정론적 unit·contract 테스트
 	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/run_test.sh

@@ -52,18 +52,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y nginx
       - name: Check application and contracts
-        id: app_validation
-        run: make app-check
+        # 정적 Source/Artifact 검증은 Ubuntu에서 한 번, 동작·호환성 테스트는 두 OS에서 실행한다.
+        run: make ${{ matrix.os == 'ubuntu-24.04' && 'app-check' || 'test' }}
         env:
           REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
-      - name: Archive application validation results
-        if: ${{ always() && steps.app_validation.outcome != 'skipped' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: app-validation-${{ matrix.os }}
-          path: reports/validation/
-          if-no-files-found: error
-          retention-days: 7
   console:
     name: Control Plane frontend
     runs-on: ubuntu-24.04
@@ -78,16 +70,7 @@ jobs:
       - name: Pin npm toolchain
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Check Control Plane source and generated Console
-        id: console_validation
         run: make console-check
-      - name: Archive frontend validation results
-        if: ${{ always() && steps.console_validation.outcome != 'skipped' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: console-validation
-          path: reports/validation/
-          if-no-files-found: error
-          retention-days: 7
 
   platform-image:
     name: Platform image build and smoke
@@ -152,18 +135,11 @@ jobs:
         run: |
           (cd ui/control-plane && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/vite-preview.log 2>&1 &)
       - name: Verify actual Chromium workflows
-        id: browser_validation
-        run: /tmp/ux-playwright/bin/python scripts/validation/run_suite.py playwright
-      - name: Archive browser validation results
-        if: ${{ always() && steps.browser_validation.outcome != 'skipped' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: browser-validation
-          path: reports/validation/
-          if-no-files-found: error
-          retention-days: 7
-      - name: Archive diagnostic screenshots
-        if: always()
+        run: |
+          /tmp/ux-playwright/bin/python scripts/build/check_python.py --context playwright
+          /tmp/ux-playwright/bin/python scripts/validation/console_browser_smoke.py
+      - name: Archive diagnostic screenshots on failure
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: operator-ux-chromium

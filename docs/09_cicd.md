@@ -29,8 +29,8 @@ Docker build argument, runtime 기동 순서와 component rollback 정책을 wor
 
 GitHub의 검증 workflow는 다음 경계를 독립적으로 확인한다.
 
-- Ubuntu: Linux application·shell·contract 호환성
-- macOS: 로컬 개발 환경의 application·contract 호환성
+- Ubuntu: `make app-check`로 Linux application·정적 Source/Artifact·contract 호환성 검증
+- macOS: `make test`로 macOS/Python application·contract 호환성 검증 (정적 Source/Artifact 검증은 Ubuntu가 소유)
 - Control Plane: frontend source/type/test와 checked-in bundle drift
 - Platform image: `make build-image`로 Linux/amd64 Dockerfile build와 image 내부 app composition smoke
 

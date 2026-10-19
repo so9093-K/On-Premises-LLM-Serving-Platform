@@ -4,8 +4,10 @@
 
 Contributor가 저장소 전체 변경을 검증하는 canonical entrypoint는 `make check`다. 이 명령은
 `make app-check`(=`make validate` + `make test`)와 `make console-check`를 실행한다. Python
-application만 변경할 때는 `make app-check`를 사용할 수 있고, CI는 같은 두 하위 target을
-OS matrix와 frontend job으로 나눠 병렬 실행한다.
+application만 변경할 때는 `make app-check`를 사용할 수 있다. CI는 Ubuntu에서
+`make app-check`로 정적 검증과 pytest를 함께 실행하고, macOS에서는 동일한
+Source/Artifact 정적 검증을 중복 실행하지 않고 `make test`로 호환성을 확인한다.
+로컬 `make check`의 계약은 변경하지 않는다.
 
 프로젝트의 application 검증 흐름은 다음과 같다.
 
@@ -694,52 +696,19 @@ make logs RAW=1
 CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate로 사용한다.
 자동화와 배포의 책임 경계는 [9. 자동화 경계](./09_cicd.md), live failure 진단은 [11. 관측성과 장애 대응](./11_observability.md)에서 설명한다.
 
-## 8.7 공통 검증 결과와 CI 게시
+## 8.9 테스트 실행 결과와 실패 판정
 
-로컬/CI의 기존 `make validate`, `make test`, `npm run test:safety`는
-`scripts/validation/run_suite.py`를 통해 각각의 원래 검증기/러너를 실행한다.
-브라우저 CI도 같은 CLI의 `playwright` Suite로 Python Playwright Smoke를 호출한다.
-Control Plane Node 테스트는 기존에도 Python SDK 및 Bash Client 예제의 실제
-실행 확인을 포함하므로 Node만으로 완료되는 테스트 Suite가 아니다.
-공통 CLI를 호출하는 `npm run test:safety`는 Python 3 환경을 요구하며,
-Makefile이 지정한 `PYTHON_BIN`을 우선하고 없으면 `python3`를 사용한다.
-도구가 누락되면 성공으로 재분류하지 않는다.
-공통 CLI는 새로운 테스트 정의·재판정 엔진이 아니라, 원래 프로세스의 종료 코드와
-검증 결과를 일관되게 기록하는 개발자 도구다. 일반 `make check`의 검증 범위,
-CI Job 분리, Runtime 검증의 별도 경계는 유지된다.
+품질 명령은 별도 공통 결과 수집기를 통하지 않고 각 검증기를 직접 실행한다.
 
-| Suite | 실제 실행 주체 | JUnit 생성 단위 |
-|---|---|---|
-| `validate` | 기존 Shell 정적 Validator | 생성하지 않음(테스트 케이스가 아님) |
-| `pytest` | pytest/xdist | pytest 테스트 케이스 |
-| `node` | Node 내장 `node --test` | Node 테스트 케이스; Vitest 도입 없음 |
-| `playwright` | 기존 Python Playwright Smoke | 전체 Smoke 스크립트 1건(개별 Browser Assertion이 아님) |
+- `make validate`: 정적 Validator Shell 스크립트. 첫 단계에서 Python 호환성을 확인한다.
+- `make test`: Python 호환성 검사 후 pytest/xdist. `PYTEST_WORKERS=0`으로 직렬 실행할 수 있다.
+- `npm --prefix ui/control-plane run test:safety`: Node 내장 Test Runner. 일부 SDK 통합
+  예제는 실행 시 Python 3과 Bash를 사용한다.
+- Chromium CI: 고정 Playwright 환경에서 `console_browser_smoke.py` 직접 실행.
+  브라우저·모의 API의 화면 동작만 검사하며 GPU 실측은 아니다.
 
-산출물은 기본적으로 `reports/validation/<suite>/<run-id>/`에 생성된다.
-`VALIDATION_REPORT_DIR` 또는 `--output-root`로 위치를 변경할 수 있으며,
-Git에 추적하지 않는다. `manifest.json`은 실행 ID·Suite·Runner·알려진 Git Revision·
-시작/종료 시각·검증 범위·관측 가능한 러너 버전을, `summary.json`은 상태·종료 코드·테스트 수·
-JUnit 상대 경로·진단 종류를 기록한다. 테스트 Suite에는 `junit.xml`이 포함된다.
-CLI는 Secret, raw Prompt/Response, 전체 환경변수, subprocess stdout/stderr를
-이 파일에 복사하지 않는다. 다만 테스트 러너의 자체 Assertion/JUnit 출력에
-민감정보가 포함되지 않도록 테스트 데이터와 오류 메시지를 관리해야 한다.
-
-직접 호출된 CLI의 pytest·Node·Playwright Suite도 canonical `check_python.py`로
-Python 호환성을 먼저 확인한다. `validate`는 기존 `run_validate.sh`에서 검사하므로
-중복 실행하지 않는다. Node 테스트 파일이 0개면 Node의 기본 자동 탐색으로 넘기지 않고
-`execution_error`로 종료한다. Runner가 실행되지 못한 경우 `runner_exit_code`는 null이다.
-
-테스트 실패는 `test_failed`, 정적 검증 실패는 `validation_failed`, 실행 파일 부재·
-JUnit 손상·테스트 케이스 0건·JUnit의 개별 Suite 및 최상위 합계와 실제 케이스 불일치 등은 `execution_error`,
-시그널 종료·사용자 인터럽트는 `interrupted`로 구분한다. 원래 실행이 실패한
-경우 Exit Code를 그대로 반환하며, 시그널 종료는 128+시그널 번호로 변환한다.
-원래 실행이 성공해도 필수 JUnit 결과가 없거나 잘못됐으면 Exit Code 2로 실패한다.
-`summary.exit_code`는 공통 CLI의 최종 종료 코드이고 `summary.runner_exit_code`는
-원래 프로세스의 종료 코드다. Suite 결과 수집 실패는 절대 CI 성공으로 둔갑하지 않는다.
-
-GitHub Actions는 기존 Job Gate를 유지하면서 검증 단계가 실행된 경우 성공·실패와
-상관없이 표준 결과 Artifact를 게시한다. 결과 파일이 없으면 업로드도 실패하며,
-검증 단계 자체가 생략되면 추가적인 업로드 실패를 만들지 않는다.
-GitLab CI나 다른 CI도 동일한 CLI 종료 코드·출력 디렉터리를
-그대로 소비하면 되며, 이 저장소는 GitLab Pipeline을 별도로 배포하지 않는다.
-`make runtime-validate`의 Live GPU Report는 별도 실행 환경·계약에 남는다.
+각 Runner의 실패·실행 오류는 종료 코드로 CI Job을 실패시키고, 필수 `CI Gate`는
+모든 Job의 성공을 확인한다. 테스트 개수와 개별 실패 이유는 Runner의 표준 로그에서
+확인한다. 소비자가 없는 공통 `manifest.json`·`summary.json`·합성 JUnit 생성·업로드는
+유지하지 않는다. 브라우저 실패 시 화면 진단 스크린샷만 게시하며, Live GPU 결과는
+별도 `make runtime-validate`의 리포트가 소유한다.
