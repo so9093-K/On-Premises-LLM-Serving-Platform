@@ -6,6 +6,9 @@
 
 ### Added
 
+- 개인 관리자와 팀원에게 같은 GPU 서버를 비공개 원격 공유하기 위한 `ACCESS=edge` 기반의 Tailscale Serve/Grants 및 Loopback 전용 Nginx API Gateway 제한 Proxy 계약을 제공한다. 관리자 HTTPS와 팀원 HTTPS를 포트별로 분리하고, 팀원 API 진입점은 허용된 HTTP 메서드·경로만 전달한다. 서버와 Tailnet의 실제 적용·권한 철회는 운영자가 소유하며 인터넷 공개/Funnel은 활성화하지 않는다. ([ADR-0051](docs/adr/0051-private-remote-team-access.md))
+
+
 - 온보딩 가이드에 실제 재기동·관리자 인증·Playground 요청 전후·요청 ZIP 내보내기·Runtime 상태·API/SDK 실행 화면과 촬영 조건을 제공한다. 잘린 스트림의 브라우저 테스트 주입은 실제 GPU 장애와 구분한다. Main이 READY여도 중지된 dependency 때문에 `make status`가 주의 항목과 종료 코드 1을 반환할 수 있음을 안내한다.
 
 - RAW 로그 조회가 canonical Compose의 `ops/compose` working directory와 기존 root 실행을 모두 인식한다. 정확한 checkout·서비스 경계를 유지해 다른 저장소의 컨테이너 로그를 제외한다.

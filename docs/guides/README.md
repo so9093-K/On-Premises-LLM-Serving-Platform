@@ -7,6 +7,7 @@
 |---|---|---|
 | 내 환경에 설치하고 첫 응답 받기 | [빠른 시작](getting-started.md) | 서비스 준비 확인 후 Playground 응답 수신 |
 | 모델·GPU·설정을 운영하고 문제 해결 | [사용자 가이드](user-guide.md) | 상태 확인 → 영향 검토 → 실행 결과 → 별도 응답 검증 |
+| 다른 지역에서 관리자·팀원 접근 분리 | [원격 접근 가이드](remote-access.md) | VPN Grants·API 제한 Proxy·실제 허용/차단 검증 |
 | 내 서비스에서 API 호출하기 | [API 연동 가이드](api-integration.md) | 모델 조회, 일반·스트리밍 요청, SDK 또는 Playground 요청 재현 |
 | 프로젝트 코드 수정·기여 | [개발자 가이드](developer-guide.md) | 개발 환경 준비, 변경에 맞는 검증, PR 작성 |
 
