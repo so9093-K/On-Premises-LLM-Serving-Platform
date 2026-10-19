@@ -38,6 +38,8 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
         run: |
+          # Git diff 실패를 정상적인 부분 경로 목록으로 처리하지 않는다.
+          set -euo pipefail
           if [[ "${EVENT}" == "workflow_dispatch" ]]; then
             python3 scripts/validation/ci_impact.py --full --github-output "${GITHUB_OUTPUT}"
           else
@@ -84,8 +86,11 @@ jobs:
         run: |
           if [[ "${RUN_APP_TESTS}" == "true" ]]; then
             make app-check
-          else
+          elif [[ "${RUN_APP_TESTS}" == "false" ]]; then
             make validate
+          else
+            echo "Invalid application validation decision: ${RUN_APP_TESTS}" >&2
+            exit 1
           fi
       - name: Archive application validation results
         if: ${{ always() && steps.app_validation.outcome != 'skipped' }}
@@ -230,6 +235,8 @@ jobs:
         env:
           IMPACT_RESULT: ${{ needs.impact.result }}
           APP_CONTRACT_RESULT: ${{ needs.app-contract.result }}
+          APP_TESTS_REQUIRED: ${{ needs.impact.outputs.app_tests }}
+          MACOS_REQUIRED: ${{ needs.impact.outputs.macos }}
           CONSOLE_RESULT: ${{ needs.console.result }}
           CONSOLE_REQUIRED: ${{ needs.impact.outputs.console }}
           PLATFORM_IMAGE_RESULT: ${{ needs.platform-image.result }}
@@ -241,6 +248,15 @@ jobs:
         run: |
           if [[ "${IMPACT_RESULT}" != "success" || "${APP_CONTRACT_RESULT}" != "success" ]]; then
             echo "Impact selection and app validation must succeed." >&2
+            exit 1
+          fi
+          # 앱 테스트 판정 누락은 make validate 단독 실행으로 조용히 강등할 수 없다.
+          if [[ "${APP_TESTS_REQUIRED}" != "true" && "${APP_TESTS_REQUIRED}" != "false" ]]; then
+            echo "Missing application test decision." >&2
+            exit 1
+          fi
+          if [[ "${MACOS_REQUIRED}" != "${APP_TESTS_REQUIRED}" ]]; then
+            echo "Inconsistent macOS and application test decisions." >&2
             exit 1
           fi
           require_optional() {
