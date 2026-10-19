@@ -31,7 +31,9 @@ ADR-0039는 `make up`의 생명주기 수렴을 소유하며, Tailscale과 Nginx
 6. Nginx/Tailscale은 선택형 Host 운영 어댑터다. Compose 서비스 Registry와
    Host-published service 역할은 변경하지 않는다. `make up/down`이 외부 소프트웨어
    설치·삭제·기존 Serve 구성 초기화를 수행하지 않는다.
-7. 사전 점검 도구는 로컬 `.env`의 기본 보안 전제를 읽기 전용으로 검증하고
+7. 사전 점검 도구는 로컬 `.env`를 canonical Access Profile 정책과 대조하고
+   내부 서비스 인증·API 문서 노출·Loopback까지 읽기 전용으로 검증한다.
+   실제 실행 중인 서비스와 Tailnet 상태는 별도 검증한다.
    Tailscale·Nginx 변경 명령은 운영자가 명시적으로 선택하게 한다.
 8. 인터넷 공개를 위해 Funnel이나 공인 포트를 활성화하지 않는다. 공개 API 서비스의
    인증·요청량 보호·운영 경로 차단은 별도 정책 및 검증을 요구한다.

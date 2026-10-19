@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+from ai_model_serving.access_profile import access_profile_mismatches  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import parse_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import is_default_secret  # noqa: E402
 
@@ -24,23 +25,16 @@ def preflight(env_file: Path) -> list[str]:
     if result.errors:
         return ["설정 문법 오류: " + error for error in result.errors]
     values = result.values
-    errors: list[str] = []
-    if values.get("ACCESS_PROFILE") != "edge":
-        errors.append("ACCESS=edge를 명시적으로 적용해야 합니다.")
-    if values.get("AUTH_MODE") != "strict":
-        errors.append("Auth Profile이 strict여야 합니다.")
-    if values.get("EXPOSURE_AUDIENCE") != "local_only":
-        errors.append("Network Audience가 local_only여야 합니다.")
-    if values.get("GATEWAY_BIND_ADDR") != "127.0.0.1":
-        errors.append("Gateway가 127.0.0.1에만 바인딩돼야 합니다.")
-    if values.get("GRAFANA_BIND_ADDR") != "127.0.0.1":
-        errors.append("Grafana가 127.0.0.1에만 바인딩돼야 합니다.")
+    # 접근/인증 Profile의 최종 계약은 YAML에 소유권이 있다.
+    # API 문서, 내부 서비스 인증, 운영 경로 보안, Host bind도 함께 검증한다.
+    errors = [
+        "ACCESS=edge 정책 불일치: " + mismatch
+        for mismatch in access_profile_mismatches("edge", values)
+    ]
     if values.get("GATEWAY_PORT", str(PORT)) != str(PORT):
         errors.append("제공된 Nginx 설정은 Gateway 9400번 포트만 지원합니다.")
-    if values.get("API_KEY_REQUIRED") != "true":
-        errors.append("공개 API 인증을 활성화해야 합니다.")
-    if values.get("ADMIN_API_KEY_REQUIRED") != "true":
-        errors.append("Admin 인증을 활성화해야 합니다.")
+    if is_default_secret(values.get("INTERNAL_SERVICE_TOKEN", "")):
+        errors.append("내부 서비스 인증 토큰도 기본값일 수 없습니다.")
     for name in ("API_KEYS", "ADMIN_API_KEYS"):
         secrets = [key.strip() for key in values.get(name, "").split(",")]
         if not secrets or any(is_default_secret(key) for key in secrets):

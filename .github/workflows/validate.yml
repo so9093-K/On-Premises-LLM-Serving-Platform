@@ -49,6 +49,8 @@ jobs:
       - name: Check application and contracts
         id: app_validation
         run: make app-check
+        env:
+          REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
       - name: Archive application validation results
         if: ${{ always() && steps.app_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

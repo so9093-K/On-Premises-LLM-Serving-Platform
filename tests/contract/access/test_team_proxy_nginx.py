@@ -38,7 +38,18 @@ class StubGateway(BaseHTTPRequestHandler):
             self.send_response(401)
             self.end_headers()
             return
-        body = json.dumps({"path": self.path, "method": self.command, "auth": True}).encode()
+        body = json.dumps({
+            "path": self.path,
+            "method": self.command,
+            "auth": True,
+            "forwarded_identity": {
+                name: self.headers.get(name)
+                for name in (
+                    "X-Tailscale-User-Login", "X-Tailscale-User-Name",
+                    "X-Forwarded-For", "X-Real-IP", "Forwarded",
+                )
+            },
+        }).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -114,7 +125,9 @@ def request(base: str, path: str, method: str = "GET", key: str | None = None):
 def test_api_only_forwards_allowed_routes_with_api_key(proxy, path, method):
     status, body = request(proxy, path, method, "demo-public-api-key")
     assert status == 200
-    assert json.loads(body) == {"path": path, "method": method, "auth": True}
+    assert {key: json.loads(body)[key] for key in ("path", "method", "auth")} == {
+        "path": path, "method": method, "auth": True,
+    }
     assert request(proxy, path, method)[0] == 401
 
 
@@ -136,3 +149,26 @@ def test_other_or_encoded_paths_are_denied_even_with_admin_key(proxy, path):
 def test_unexpected_method_is_denied(proxy, path, method):
     status, _ = request(proxy, path, method, "demo-public-api-key")
     assert status == 405
+
+
+def test_client_identity_headers_are_removed_before_gateway(proxy):
+    headers = {
+        "Authorization": "Bearer demo-public-api-key",
+        "X-Tailscale-User-Login": "admin@example.com",
+        "X-Tailscale-User-Name": "Forged Admin",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Real-IP": "127.0.0.1",
+        "Forwarded": "for=127.0.0.1;proto=https",
+    }
+    req = Request(proxy + "/v1/models", headers=headers)
+    with urlopen(req, timeout=3) as response:
+        data = json.loads(response.read())
+    assert data["forwarded_identity"] == {
+        name: None for name in data["forwarded_identity"]
+    }
+
+
+def test_allowed_query_is_forwarded_without_path_reinterpretation(proxy):
+    status, body = request(proxy, "/v1/models?test-param=one", key="demo-public-api-key")
+    assert status == 200
+    assert json.loads(body)["path"] == "/v1/models?test-param=one"

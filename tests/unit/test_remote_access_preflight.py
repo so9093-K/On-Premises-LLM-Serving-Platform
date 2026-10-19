@@ -7,20 +7,16 @@ from pathlib import Path
 import pytest
 
 from scripts.access.remote_access import main, preflight
+from ai_model_serving.access_profile import access_profile_env_values
 
 
 def write_env(tmp_path: Path, **overrides: str) -> Path:
     values = {
-        "ACCESS_PROFILE": "edge",
-        "AUTH_MODE": "strict",
-        "EXPOSURE_AUDIENCE": "local_only",
-        "GATEWAY_BIND_ADDR": "127.0.0.1",
-        "GRAFANA_BIND_ADDR": "127.0.0.1",
+        **access_profile_env_values("edge"),
         "GATEWAY_PORT": "9400",
-        "API_KEY_REQUIRED": "true",
-        "ADMIN_API_KEY_REQUIRED": "true",
         "API_KEYS": "api-only-long-secret",
         "ADMIN_API_KEYS": "admin-only-long-secret",
+        "INTERNAL_SERVICE_TOKEN": "internal-only-long-secret",
     }
     values.update(overrides)
     path = tmp_path / ".env"
@@ -41,6 +37,10 @@ def test_edge_loopback_and_separate_keys_allow_preflight(tmp_path):
     ("GATEWAY_PORT", "9401"),
     ("API_KEY_REQUIRED", "false"),
     ("ADMIN_API_KEY_REQUIRED", "false"),
+    ("ADMIN_ENDPOINTS_INTERNAL_ONLY", "true"),
+    ("INTERNAL_SERVICE_AUTH_REQUIRED", "false"),
+    ("FASTAPI_DOCS_ENABLED", "true"),
+    ("INTERNAL_SERVICE_TOKEN", "change-me-internal"),
     ("API_KEYS", "change-me"),
     ("ADMIN_API_KEYS", "change-me"),
     ("ADMIN_API_KEYS", "api-only-long-secret"),

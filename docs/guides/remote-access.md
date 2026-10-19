@@ -33,12 +33,15 @@ make up ACCESS=edge
 # 표시된 설정 변경 내용을 검토한 뒤 운영자가 명시적으로 적용
 make up ACCESS=edge CONFIRM=access
 make status
-python3 scripts/access/remote_access.py preflight
-python3 scripts/access/remote_access.py plan
+./.venv/bin/python scripts/access/remote_access.py preflight
+./.venv/bin/python scripts/access/remote_access.py plan
 ```
 
-사전 점검은 기존 엄격한 dotenv parser를 사용하며, `edge`, Loopback, API/Admin 인증,
-키 분리, Gateway 포트가 예제 설정과 맞지 않으면 실패한다. **실제 Tailscale 정책 적용 여부를 증명하지는 않는다.**
+사전 점검은 기존 엄격한 dotenv parser와 canonical Access Profile 판정을 재사용하며,
+`edge`의 API 문서 노출 금지·내부 서비스 인증·Host Loopback·API/Admin 인증,
+키 분리, Gateway 포트가 예제 설정과 맞지 않으면 실패한다.
+`make up`이 준비한 `.venv`의 Python을 사용한다.
+이 결과는 `.env` 설정만 검사하며 **실제로 실행 중인 Gateway의 bind 상태, Tailscale 정책 적용 여부를 증명하지 않는다.**
 이 도구는 키·Tailnet 상태를 변경하지 않는다.
 
 ## 3. 팀원 API 제한 Proxy
@@ -81,6 +84,7 @@ Tailnet Admin Console의 Policy Editor에서
 1. `operator@example.com`과 `teammate@example.com`을 실제 계정으로 바꾼다.
 2. 서버는 관리자만 Tag를 부여할 수 있는 `tag:llm-server`로 등록한다.
 3. 관리자 그룹은 `443`과 `8443`에, 팀원 그룹은 `8443`에만 접근을 허용한다.
+   **두 그룹을 중복 배정하지 않는다.** 중복 소속이라면 관리자 허용이 우선 적용될 수 있다.
 4. 기존 모든 접근 허용 Grants/ACL 및 Subnet Router/Exit Node 경로가 이를 우회하지 않는지 검토한다.
 5. Policy Editor에서 `tests`가 통과해야 한다. ACL/Grants는 허용의 합집합이므로
    더 넓은 기존 규칙이 있으면 단순한 새 규칙 추가로 접근을 제한할 수 없다.
@@ -132,8 +136,13 @@ tailscale serve status
 
 ## 7. 상태·해제·복구
 
+`status` 명령은 Tailscale이 보고하는 상태를 **화면에 표시하는 조회 명령**이다.
+Serve 443/8443의 정확한 Target, Funnel 비활성, 실제 사용자별 Grants는
+운영자가 별도로 확인해야 한다. 명령의 종료 코드 0만으로 인터넷 비공개나 정책
+안전성을 확정하지 않는다.
+
 ```bash
-python3 scripts/access/remote_access.py status
+./.venv/bin/python scripts/access/remote_access.py status
 # 해당 두 Listener를 이 플랫폼 전용으로 구성한 경우에만 선택적으로 해제
 tailscale serve --https=8443 off
 tailscale serve --https=443 off
