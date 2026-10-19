@@ -15,51 +15,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  impact:
-    name: Select required validation
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      app_tests: ${{ steps.select.outputs.app_tests }}
-      macos: ${{ steps.select.outputs.macos }}
-      console: ${{ steps.select.outputs.console }}
-      browser: ${{ steps.select.outputs.browser }}
-      platform_image: ${{ steps.select.outputs.platform_image }}
-      loki: ${{ steps.select.outputs.loki }}
-      matrix: ${{ steps.select.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-      - name: Select checks from source changes
-        id: select
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
-        run: |
-          # Git diff 실패를 정상적인 부분 경로 목록으로 처리하지 않는다.
-          set -euo pipefail
-          if [[ "${EVENT}" == "workflow_dispatch" ]]; then
-            python3 scripts/validation/ci_impact.py --full --github-output "${GITHUB_OUTPUT}"
-          else
-            changed_paths="$(mktemp)"
-            trap 'rm -f "${changed_paths}"' EXIT
-            if git diff --no-renames --name-only -z "${BASE_SHA}" "${HEAD_SHA}" > "${changed_paths}"; then
-              python3 scripts/validation/ci_impact.py --github-output "${GITHUB_OUTPUT}" < "${changed_paths}"
-            else
-              echo "::warning::Unable to compare commits; running full validation."
-              python3 scripts/validation/ci_impact.py --full --github-output "${GITHUB_OUTPUT}"
-            fi
-          fi
   app-contract:
-    needs: impact
     name: App and contracts (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.impact.outputs.matrix) }}
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python_version: "3.12"
+          - os: macos-15
+            python_version: "3.13"
     steps:
       # 외부 action은 이 저장소의 다른 모든 외부 아티팩트와 같이 commit SHA로
       # 고정한다. 태그는 재지정될 수 있어 같은 커밋이 다른 코드로 빌드된다.
@@ -80,24 +47,16 @@ jobs:
       - name: Prepare developer environment
         run: make setup-dev PYTHON_BIN=python
       - name: Install Nginx for real remote API isolation tests
-        if: matrix.os == 'ubuntu-24.04' && needs.impact.outputs.app_tests == 'true'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y nginx
       - name: Check application and contracts
         id: app_validation
+        # 정적 Source/Artifact 검증은 Ubuntu에서 한 번, 동작·호환성 테스트는 두 OS에서 실행한다.
+        run: make ${{ matrix.os == 'ubuntu-24.04' && 'app-check' || 'test' }}
         env:
-          RUN_APP_TESTS: ${{ needs.impact.outputs.app_tests }}
-          REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && needs.impact.outputs.app_tests == 'true' && '1' || '0' }}
-        run: |
-          if [[ "${RUN_APP_TESTS}" == "true" ]]; then
-            make app-check
-          elif [[ "${RUN_APP_TESTS}" == "false" ]]; then
-            make validate
-          else
-            echo "Invalid application validation decision: ${RUN_APP_TESTS}" >&2
-            exit 1
-          fi
+          REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
       - name: Archive application validation results
         if: ${{ always() && steps.app_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -107,8 +66,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   console:
-    needs: impact
-    if: needs.impact.outputs.console == 'true'
     name: Control Plane frontend
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -134,8 +91,6 @@ jobs:
           retention-days: 7
 
   platform-image:
-    needs: impact
-    if: needs.impact.outputs.platform_image == 'true'
     name: Platform image build and smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -151,8 +106,6 @@ jobs:
         run: make build-image
 
   loki-query-smoke:
-    needs: impact
-    if: needs.impact.outputs.loki == 'true'
     name: Loki Runtime LogQL smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -175,8 +128,6 @@ jobs:
         run: docker logs loki-query-smoke --tail 120
 
   operator-browser:
-    needs: impact
-    if: needs.impact.outputs.browser == 'true'
     name: Chromium operator workflows (desktop/mobile)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -228,7 +179,6 @@ jobs:
     name: CI Gate
     if: ${{ always() }}
     needs:
-      - impact
       - app-contract
       - console
       - platform-image
@@ -237,51 +187,40 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require actual success or explicit skip
+      - name: Require validation jobs
         env:
-          IMPACT_RESULT: ${{ needs.impact.result }}
           APP_CONTRACT_RESULT: ${{ needs.app-contract.result }}
-          APP_TESTS_REQUIRED: ${{ needs.impact.outputs.app_tests }}
-          MACOS_REQUIRED: ${{ needs.impact.outputs.macos }}
           CONSOLE_RESULT: ${{ needs.console.result }}
-          CONSOLE_REQUIRED: ${{ needs.impact.outputs.console }}
           PLATFORM_IMAGE_RESULT: ${{ needs.platform-image.result }}
-          PLATFORM_IMAGE_REQUIRED: ${{ needs.impact.outputs.platform_image }}
-          LOKI_RESULT: ${{ needs.loki-query-smoke.result }}
-          LOKI_REQUIRED: ${{ needs.impact.outputs.loki }}
-          BROWSER_RESULT: ${{ needs.operator-browser.result }}
-          BROWSER_REQUIRED: ${{ needs.impact.outputs.browser }}
+          LOKI_QUERY_RESULT: ${{ needs.loki-query-smoke.result }}
+          OPERATOR_BROWSER_RESULT: ${{ needs.operator-browser.result }}
         run: |
-          if [[ "${IMPACT_RESULT}" != "success" || "${APP_CONTRACT_RESULT}" != "success" ]]; then
-            echo "Impact selection and app validation must succeed." >&2
+          printf 'app-contract: %s\n' "${APP_CONTRACT_RESULT}"
+          printf 'console: %s\n' "${CONSOLE_RESULT}"
+          printf 'platform-image: %s\n' "${PLATFORM_IMAGE_RESULT}"
+
+          if [[ "${APP_CONTRACT_RESULT}" != "success" ]]; then
+            echo "App and contracts did not succeed." >&2
             exit 1
           fi
-          # 앱 테스트 판정 누락은 make validate 단독 실행으로 조용히 강등할 수 없다.
-          if [[ "${APP_TESTS_REQUIRED}" != "true" && "${APP_TESTS_REQUIRED}" != "false" ]]; then
-            echo "Missing application test decision." >&2
+
+          if [[ "${CONSOLE_RESULT}" != "success" ]]; then
+            echo "Control Plane frontend did not succeed." >&2
             exit 1
           fi
-          if [[ "${MACOS_REQUIRED}" != "${APP_TESTS_REQUIRED}" ]]; then
-            echo "Inconsistent macOS and application test decisions." >&2
+
+          if [[ "${OPERATOR_BROWSER_RESULT}" != "success" ]]; then
+            echo "Chromium operator UX smoke did not succeed." >&2
             exit 1
           fi
-          require_optional() {
-            local name="$1" required="$2" result="$3" expected
-            if [[ "${required}" == "true" ]]; then
-              expected=success
-            elif [[ "${required}" == "false" ]]; then
-              expected=skipped
-            else
-              echo "Missing required-check decision: ${name}" >&2
-              return 1
-            fi
-            printf "%s required=%s result=%s\n" "${name}" "${required}" "${result}"
-            if [[ "${result}" != "${expected}" ]]; then
-              echo "${name}: expected ${expected}, got ${result}" >&2
-              return 1
-            fi
-          }
-          require_optional console "${CONSOLE_REQUIRED}" "${CONSOLE_RESULT}"
-          require_optional platform_image "${PLATFORM_IMAGE_REQUIRED}" "${PLATFORM_IMAGE_RESULT}"
-          require_optional loki "${LOKI_REQUIRED}" "${LOKI_RESULT}"
-          require_optional browser "${BROWSER_REQUIRED}" "${BROWSER_RESULT}"
+
+          if [[ "${LOKI_QUERY_RESULT}" != "success" ]]; then
+            echo "Loki Runtime LogQL smoke did not succeed." >&2
+            exit 1
+          fi
+
+          if [[ "${PLATFORM_IMAGE_RESULT}" != "success" ]]; then
+            echo "Platform image build and smoke did not succeed." >&2
+            exit 1
+          fi
+

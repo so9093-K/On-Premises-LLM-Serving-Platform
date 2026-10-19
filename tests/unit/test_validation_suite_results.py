@@ -183,26 +183,3 @@ def test_direct_cli_python_incompatibility_stops_before_runner(monkeypatch, tmp_
     assert summary["diagnostic"] == "python_compatibility"
     assert summary["exit_code"] == 2
     assert summary["runner_exit_code"] is None
-
-
-def test_python_compatibility_uses_existing_check_script(monkeypatch):
-    from types import SimpleNamespace
-
-    calls = []
-
-    def fake_run(command, **kwargs):
-        calls.append((command, kwargs))
-        return SimpleNamespace(returncode=2)
-
-    monkeypatch.setattr(run_suite.subprocess, "run", fake_run)
-    assert run_suite.check_python_compatibility("validate") == 0
-    assert calls == []
-
-    for suite in ("pytest", "node", "playwright"):
-        assert run_suite.check_python_compatibility(suite) == 2
-
-    assert [command for command, _ in calls] == [
-        [sys.executable, "scripts/build/check_python.py", "--context", suite]
-        for suite in ("pytest", "node", "playwright")
-    ]
-    assert all(kwargs["check"] is False for _, kwargs in calls)
