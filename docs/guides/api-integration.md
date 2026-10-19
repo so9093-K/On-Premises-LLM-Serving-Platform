@@ -111,6 +111,10 @@ client.close()
 검증했다고 간주하지 않습니다. 전송 바이트와 종료 검증은 아래 Exact Replay 경로를 사용하세요.
 확장 필드는 Python SDK의 `extra_body`로 전달하며, 모델이 공개하지 않은 옵션을 임의로 추가하지 않습니다.
 
+![가이드 cURL과 Python SDK 예제를 실행해 실제 모델 응답을 받은 출력](../../assets/screenshots/guides/api-sdk-output.png)
+
+*2026-10-19 Linux/NVIDIA 실행 결과를 렌더링한 이미지. 응답은 매번 다를 수 있으며 속도 비교 결과가 아닙니다.*
+
 <a id="replay"></a>
 
 ## 4. Playground에서 성공한 요청 가져오기
@@ -123,6 +127,11 @@ client.close()
 3. ZIP을 별도 작업 디렉터리에 풀고 `README.md`를 읽습니다. 원본 HTTP 재현은 `client.py`·`client.mjs`·`client.sh`,
    SDK 통합은 `client_openai.py`·`client_openai.mjs`입니다.
 4. 위와 같이 `GATEWAY_URL`과 필요한 `API_KEY`를 설정하고 한 가지 클라이언트를 실행합니다.
+
+![실제 전송한 요청의 코드·보안 안내와 ZIP 다운로드 버튼](../../assets/screenshots/guides/request-export.png)
+
+*2026-10-19 실제 응답의 내보내기 패널을 영역 캡처했습니다.
+다운로드한 ZIP으로 Python·Node.js·cURL 원본 재현과 Python SDK 실행을 확인했습니다.*
 
 ```bash
 python3 client.py
