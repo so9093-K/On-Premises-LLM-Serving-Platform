@@ -6,6 +6,8 @@
 
 ### Added
 
+- 설치·Console 운영·API 소비·저장소 기여를 구분하는 작업별 가이드를 제공한다. 기존 실제 화면의 촬영 조건과 최신 UI 차이를 안내하고, 접근 인증·Runtime 상태·요청 완료·Playground 재현을 성공 기준과 오류 조치로 연결한다. 기술 문서는 설정과 API 상세 계약의 기준을 유지한다.
+
 - 개발자 검증 경로에 CI 제공자와 무관한 실행 결과 계약을 제공한다. 기존 `make validate`·`make test` 및 Control Plane Node 테스트는 동일 러너를 유지하면서 실행 상태, 종료 코드, JUnit, Manifest, Summary를 생성한다. Chromium 운영 Smoke도 공통 결과 인터페이스로 기록하며 GitHub Actions는 기존 Gate를 유지한 채 실패 시에도 결과 Artifact를 게시한다. 실제 GPU Runtime 검증과 제품 Qualification은 별도 경계를 유지한다.
 
 - PR #234 후속 검증: 재부팅·시작·외부 재시작·전환·Rollback의 요청 Gate 개방은 실제 Profile 및 실행 인스턴스 검증을 요구한다. 다중 GPU Placement의 전역 퇴거 효과를 반영하고, 선행 Runtime 합산 예약량 초과를 비허용 Plan으로 처리한다. Resource Variant 정수형 파싱, 운영 Criticality 표시, 재검증 UX와 ADR-0050 운영 문서를 보완했다.
