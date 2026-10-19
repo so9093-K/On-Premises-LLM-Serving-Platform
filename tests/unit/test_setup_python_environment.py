@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import runpy
 import subprocess
 import sys
@@ -13,6 +14,14 @@ from scripts.build.setup_python_environment import build_sync_command
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _uv_requirement_fixture(root: Path) -> None:
+    # 실행 중인 프로젝트 버전이 아니라 Version Gate 자체의 의사결정을 검증한다.
+    (root / "pyproject.toml").write_text(
+        '[tool.uv]\nrequired-version = ">=0.12.11,<0.13"\n',
+        encoding="utf-8",
+    )
 
 
 def test_runtime_profile_excludes_quality_dependencies() -> None:
@@ -31,11 +40,15 @@ def test_runtime_profile_excludes_quality_dependencies() -> None:
 
 def test_make_up_preflight_dependencies_survive_runtime_sync() -> None:
     document = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    runtime_dependencies = set(document["project"]["dependencies"])
-    quality_dependencies = set(document["dependency-groups"]["quality"])
+    # 버전 pin의 정확한 숫자는 pyproject.toml이 소유한다.
+    def names(requirements: list[str]) -> set[str]:
+        return {
+            re.split(r"[\\s\\[<>=!~;]", item.strip(), maxsplit=1)[0].lower()
+            for item in requirements
+        }
 
-    assert "Jinja2==3.1.6" in runtime_dependencies
-    assert "Jinja2==3.1.6" not in quality_dependencies
+    assert "jinja2" in names(document["project"]["dependencies"])
+    assert "jinja2" not in names(document["dependency-groups"]["quality"])
 
 
 def test_development_profile_includes_quality_dependencies() -> None:
@@ -101,8 +114,9 @@ def test_runtime_bootstrap_failure_uses_platform_vocabulary(
     assert "[setup]" not in error
 
 
-def test_uv_version_specifier_matches_the_pyproject_contract() -> None:
-    specifier = setup_python_environment.required_uv_version(ROOT)
+def test_uv_version_specifier_accepts_supported_range(tmp_path: Path) -> None:
+    _uv_requirement_fixture(tmp_path)
+    specifier = setup_python_environment.required_uv_version(tmp_path)
 
     assert specifier == ">=0.12.11,<0.13"
     assert setup_python_environment.version_satisfies("0.12.11", specifier) is True
@@ -114,12 +128,13 @@ def test_uv_version_specifier_matches_the_pyproject_contract() -> None:
 
 
 def test_outdated_uv_fails_before_sync_with_an_install_hint(tmp_path: Path) -> None:
+    _uv_requirement_fixture(tmp_path)
     fake_uv = tmp_path / "uv"
     fake_uv.write_text("#!/bin/sh\necho 'uv 0.11.3 (abc 2026-01-01)'\n", encoding="utf-8")
     fake_uv.chmod(0o755)
 
     with pytest.raises(RuntimeError) as excinfo:
-        setup_python_environment.check_uv_version(str(fake_uv), ROOT)
+        setup_python_environment.check_uv_version(str(fake_uv), tmp_path)
 
     message = str(excinfo.value)
     assert "uv 0.11.3 does not match tool.uv.required-version '>=0.12.11,<0.13'" in message
@@ -128,8 +143,9 @@ def test_outdated_uv_fails_before_sync_with_an_install_hint(tmp_path: Path) -> N
 
 
 def test_matching_uv_passes_the_precheck(tmp_path: Path) -> None:
+    _uv_requirement_fixture(tmp_path)
     fake_uv = tmp_path / "uv"
     fake_uv.write_text("#!/bin/sh\necho 'uv 0.12.20'\n", encoding="utf-8")
     fake_uv.chmod(0o755)
 
-    setup_python_environment.check_uv_version(str(fake_uv), ROOT)
+    setup_python_environment.check_uv_version(str(fake_uv), tmp_path)
