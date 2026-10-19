@@ -43,8 +43,14 @@ jobs:
           if [[ "${EVENT}" == "workflow_dispatch" ]]; then
             python3 scripts/validation/ci_impact.py --full --github-output "${GITHUB_OUTPUT}"
           else
-            git diff --no-renames --name-only -z "${BASE_SHA}" "${HEAD_SHA}" |
-              python3 scripts/validation/ci_impact.py --github-output "${GITHUB_OUTPUT}"
+            changed_paths="$(mktemp)"
+            trap 'rm -f "${changed_paths}"' EXIT
+            if git diff --no-renames --name-only -z "${BASE_SHA}" "${HEAD_SHA}" > "${changed_paths}"; then
+              python3 scripts/validation/ci_impact.py --github-output "${GITHUB_OUTPUT}" < "${changed_paths}"
+            else
+              echo "::warning::Unable to compare commits; running full validation."
+              python3 scripts/validation/ci_impact.py --full --github-output "${GITHUB_OUTPUT}"
+            fi
           fi
   app-contract:
     needs: impact
