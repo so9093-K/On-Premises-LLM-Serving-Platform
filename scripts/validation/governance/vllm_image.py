@@ -20,6 +20,7 @@ _SECURITY_REVIEW_PATTERN = re.compile(
 _REQUIRED_MANIFEST_ENTRIES = {
     ".dockerignore",
     "ops/images/vllm-unified/Dockerfile",
+    "scripts/build/build_vllm_unified_image.sh",
 }
 
 
