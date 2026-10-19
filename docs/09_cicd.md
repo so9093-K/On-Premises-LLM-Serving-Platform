@@ -27,6 +27,22 @@ Docker build argument, runtime 기동 순서와 component rollback 정책을 wor
 
 ## 9.2 현재 검증 자동화
 
+GitHub Actions는 변경 영향 분류 결과를 받아 필요한 검증만 실행한다.
+`scripts/validation/ci_impact.py`는 문서·Python·Console·Loki 변경의 영향 범위를
+선택하며, 알 수 없는 경로와 CI 정책·도구 변경, 빈 diff, 수동 실행은 전체 검증한다.
+여러 종류의 변경은 필요한 Job의 합집합을 실행한다. 이 분류는 CI 외부에서도 같은
+명령으로 검증할 수 있고, 제품 소스의 새 Source of Truth를 도입하지 않는다.
+
+- 문서 전용: Ubuntu `make validate` (pytest, macOS, Node, Browser, Image, Loki 생략)
+- Python 코드: Ubuntu·macOS `make app-check`와 Platform image
+- Python 테스트: Ubuntu·macOS `make app-check`
+- Console 소스·생성 자산: `make console-check`, Chromium, Platform image
+- Console 테스트만 변경: `make console-check`
+- Loki 설정·Smoke: `make validate` 및 실제 Loki 쿼리 검사
+
+`CI Gate`는 분류 Job 성공과 필수 Job 성공을 검사하고, 명시적으로 제외된
+Job만 `skipped`를 허용한다. 실제 실행되지 않은 검증을 성공으로 계산하지 않는다.
+
 GitHub의 검증 workflow는 다음 경계를 독립적으로 확인한다.
 
 - Ubuntu: Linux application·shell·contract 호환성
@@ -84,8 +100,9 @@ SSH/Ansible/CI runner가 이 lifecycle을 다른 host에서 호출할 수는 있
 
 ## 9.4 자원 경계
 
-정적 검증과 unit/contract test는 GPU runtime을 시작하지 않는다. `make check` 안에서
-`validate`와 `test`는 순서대로 실행되며, OS matrix의 병렬 실행은 GPU VRAM과 무관하다.
+정적 검증과 unit/contract test는 GPU runtime을 시작하지 않는다. 로컬 `make check`는
+`validate`와 `test`를 순서대로 실행한다. CI는 변경 영향에 따라 Ubuntu만 실행하거나
+Ubuntu·macOS를 병렬 실행하며 GPU VRAM과 무관하다.
 
 향후 image publish·배포 자동화를 추가할 때는 다음 자원을 별도로 직렬화한다.
 
@@ -100,7 +117,8 @@ admission, prerequisite 순차 기동과 readiness/rollback 정책이 소유한�
 ## 9.5 미래 자동화 추가 원칙
 
 Platform image는 application source·lock·Dockerfile·runtime config가 하나의 배포 artifact로
-조립되는 경계라 PR에서 build와 container smoke를 required gate로 검증한다. 이 검증은
+조립되는 경계라 해당 배포 산출물에 영향을 주는 PR에서 build와 container smoke를 required gate로 검증한다.
+문서 또는 테스트만 바뀐 PR은 재빌드하지 않으며, 변경 범위가 불명확하면 전체 검증한다. 이 검증은
 `make build-image`를 그대로 호출하며 image publish나 운영 promotion 규칙을 소유하지 않는다.
 추가 자동화를 넣을 때는 어떤 장애를 막는지, artifact invalidation 범위, cold/warm build 비용,
 verification image와 release candidate의 구분을 먼저 확인한다.

@@ -4,8 +4,9 @@
 
 Contributor가 저장소 전체 변경을 검증하는 canonical entrypoint는 `make check`다. 이 명령은
 `make app-check`(=`make validate` + `make test`)와 `make console-check`를 실행한다. Python
-application만 변경할 때는 `make app-check`를 사용할 수 있고, CI는 같은 두 하위 target을
-OS matrix와 frontend job으로 나눠 병렬 실행한다.
+application만 변경할 때는 `make app-check`를 사용할 수 있다. CI는 변경 영향에 따라
+고비용 검증을 생략하되 알 수 없는 변경에는 전체 검증을 적용한다.
+로컬 canonical `make check`의 실행 범위는 변경하지 않는다.
 
 프로젝트의 application 검증 흐름은 다음과 같다.
 
@@ -489,6 +490,13 @@ Pin만 바꾸고 advisory reachability 재검토를 누락하면 정적 검증�
 Unified image build와 bounded runtime canary가 소유한다.
 
 이 표는 “모든 명령을 항상 실행하는 규칙”보다 **변경 영향에 맞는 검증 범위를 선택하는 기준**으로 사용한다.
+
+GitHub Actions는 `scripts/validation/ci_impact.py`를 통해 PR의 base와 merge head,
+또는 main push의 before와 현재 HEAD 간 변경 경로를 판단한다. 검증을
+분류할 수 없거나 검증 정책 자체가 바뀌는 경우에는 전체 Job을 실행한다.
+필수 `CI Gate`는 실행해야 할 검증의 성공과 생략 가능한 검증의
+`skipped`를 구별한다. 수동 Workflow 실행은 전체 검증이며, 실제
+GPU Runtime 검증은 운영 대상에서 별도로 수행한다.
 
 ---
 

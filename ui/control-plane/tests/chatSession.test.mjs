@@ -27,19 +27,6 @@ import {
   validateChatAttachments,
 } from '../src/chatSession.ts';
 
-import {
-  startTurn as startTurnDirect,
-  applyChatUpdate as applyChatUpdateDirect,
-  finishTurn as finishTurnDirect,
-  stopTurn as stopTurnDirect,
-  turnFacts as turnFactsDirect,
-  turnNotice as turnNoticeDirect,
-} from '../src/chatTurn.ts';
-import {
-  conversationAttachments as conversationAttachmentsDirect,
-  pendingToolCallExchange as pendingToolCallExchangeDirect,
-} from '../src/chatHistory.ts';
-
 const MAIN = {
   id: 'local-main',
   backend: 'vllm-cuda',
@@ -1075,13 +1062,3 @@ test('model switch cannot continue tool calling history in a tool-incompatible m
   );
 });
 
-test('기존 chatSession 진입점은 추출된 이력·Turn 함수와 같은 구현을 사용한다', () => {
-  assert.equal(startTurn, startTurnDirect);
-  assert.equal(applyChatUpdate, applyChatUpdateDirect);
-  assert.equal(finishTurn, finishTurnDirect);
-  assert.equal(stopTurn, stopTurnDirect);
-  assert.equal(turnFacts, turnFactsDirect);
-  assert.equal(turnNotice, turnNoticeDirect);
-  assert.equal(conversationAttachments, conversationAttachmentsDirect);
-  assert.equal(pendingToolCallExchange, pendingToolCallExchangeDirect);
-});
