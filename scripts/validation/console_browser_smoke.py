@@ -269,8 +269,8 @@ def run_audio_example(browser, width, height):
     page.get_by_role("link", name="Playground").click()
     if width <= 600:
         # 구현 문자열이 아니라 모바일 실제 앵커와 이동 대상을 확인한다.
-        assert page.locator("#chat-model-settings").count() == 1
-        assert page.locator("#chat-input").count() == 1
+        expect(page.locator("#chat-model-settings")).to_have_count(1)
+        expect(page.locator("#chat-input")).to_have_count(1)
         page.get_by_role("link", name="요청 설정 ↓").click()
         page.wait_for_function("() => location.hash === '#chat-model-settings'")
         page.get_by_role("link", name="대화 입력으로 돌아가기 ↑").click()
