@@ -379,9 +379,27 @@ def run_tool_result_roundtrip(browser, width, height):
     page.route("**/v1/chat/completions", handle_public)
     page.goto(URL, wait_until="domcontentloaded")
     page.get_by_role("link", name="Playground").click()
+
+    # 브라우저에서 실제 도구 정의를 저장해야 Gateway에 유효한 tools 요청이 간다.
+    settings = page.locator(".chat-settings")
+    if not settings.evaluate("(el) => el.open"):
+        settings.locator("summary").first.click()
+    tools_settings = page.locator(".chat-tool-settings")
+    tools_settings.locator("summary").first.click()
+    tools_settings.get_by_role("button", name="Function 추가").click()
+    tools_settings.get_by_label("Function 이름").fill("lookup")
+    schema = {"type": "object", "properties": {"q": {"type": "string"}}}
+    tools_settings.get_by_label("Parameters JSON Schema").fill(json.dumps(schema))
+
     page.get_by_label("메시지").fill("조회해주세요")
-    with page.expect_request("**/v1/chat/completions"):
+    with page.expect_request("**/v1/chat/completions") as first_outgoing:
         page.get_by_role("button", name="보내기").click()
+    first_body = first_outgoing.value.post_data_json
+    assert first_body["tools"] == [{
+        "type": "function",
+        "function": {"name": "lookup", "parameters": schema},
+    }], first_body
+    assert first_body["messages"] == [{"role": "user", "content": "조회해주세요"}]
 
     form = page.locator(".chat-tool-result-form")
     form.wait_for()
@@ -393,7 +411,9 @@ def run_tool_result_roundtrip(browser, width, height):
     assert len(requests) == 1, "Editing a result must not submit inference"
     with page.expect_request("**/v1/chat/completions") as outgoing:
         form.get_by_role("button", name="도구 결과 보내기").click()
-    messages = outgoing.value.post_data_json["messages"]
+    continuation = outgoing.value.post_data_json
+    assert continuation["tools"] == first_body["tools"], continuation
+    messages = continuation["messages"]
     assert [item["role"] for item in messages] == ["user", "assistant", "tool"], messages
     assert messages[-1] == {"role": "tool", "tool_call_id": "call_1", "content": '{"temp":18}'}
     page.get_by_text("처리 완료").wait_for()
