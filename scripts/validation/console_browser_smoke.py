@@ -370,7 +370,7 @@ def run_tool_result_roundtrip(browser, width, height):
             route.fulfill(
                 status=200,
                 content_type="text/event-stream",
-                body="data: " + json.dumps(chunk, ensure_ascii=False) + "\\n\\ndata: [DONE]\\n\\n",
+                body="data: " + json.dumps(chunk, ensure_ascii=False) + "\n\ndata: [DONE]\n\n",
             )
             return
         route.continue_()

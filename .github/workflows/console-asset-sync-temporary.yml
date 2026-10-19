@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   sync-console:
-    if: startsWith(github.event.head_commit.message, 'test(playground): 도구 결과의 사용자 제출 경계를 검증한다')
+    if: contains(github.event.head_commit.message, 'playground')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
