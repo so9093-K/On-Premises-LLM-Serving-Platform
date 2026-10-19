@@ -4,6 +4,8 @@
 
 Accepted
 
+- Decision 5의 수동 성능 측정 범위는 [ADR-0052](0052-manual-aiperf-measurement.md)가 후속 결정한다.
+
 - Supersedes: ADR-0026, ADR-0032, ADR-0033, ADR-0036 (파일은 삭제했다. 원문은 git history에 있다)
 - Partially supersedes: [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md) 6절,
   [ADR-0034](./0034-main-model-host-resource-variant.md) 4절,

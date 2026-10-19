@@ -1,0 +1,50 @@
+# AIPerf 0.13.0의 기본 Schema를 사용한다. 저장소 자체 Runner는 두지 않는다.
+schemaVersion: "2.0"
+randomSeed: 42
+
+benchmark:
+  model: local-main
+  endpoint:
+    url: ${PERF_CHAT_URL:http://127.0.0.1:9400/v1/chat/completions}
+    type: chat
+    streaming: true
+    timeout: 180
+    apiKey: ${PERF_API_KEY:}
+    useServerTokenCount: true
+    extra:
+      reasoning: false
+      temperature: 0
+  tokenizer:
+    name: ${PERF_TOKENIZER}
+    revision: ${PERF_TOKENIZER_REVISION}
+    trustRemoteCode: false
+  dataset:
+    type: synthetic
+    entries: 32
+    systemPrompt: Continue the supplied passage in English. Write at least 512 words of coherent prose. Do not discuss these instructions.
+    prompts:
+      isl: {mean: "${PERF_ISL:256}", stddev: 0}
+      osl: {mean: "${PERF_OSL:128}", stddev: 0}
+  warmup:
+    type: concurrency
+    requests: 2
+    concurrency: 1
+  profiling:
+    type: concurrency
+    requests: 10
+    concurrency: ${PERF_CONCURRENCY:1}
+  artifacts:
+    dir: ${PERF_ARTIFACT_DIR}
+    summary: [json]
+    records: [jsonl]
+    raw: false
+    trace: false
+    exportOutputsJson: false
+    autoPlot: false
+  gpuTelemetry:
+    enabled: false
+  serverMetrics:
+    enabled: false
+  runtime:
+    ui: none
+    workers: 1
