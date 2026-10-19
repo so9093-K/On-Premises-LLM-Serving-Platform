@@ -215,6 +215,10 @@ def run_one(browser, width, height):
     page.get_by_role("button", name="전환 검토").click()
     summary = page.get_by_role("group", name="전환 핵심 영향")
     summary.wait_for()
+    # 내부 JSX 문구 존재가 아니라 사용자에게 노출되는 중단·복구 정보를 검증한다.
+    summary.get_by_text("전환 중 일시 중단 가능").wait_for()
+    page.get_by_text("전환 실패 시 이전 모델로 복구를 시도합니다.").wait_for()
+    page.get_by_text("GPU 정책 비율").wait_for()
     assert summary.get_by_text("제거: 이미지").count() > 0
     assert summary.get_by_text("변경됨").count() > 0
     page.screenshot(path=str(SCREENSHOTS / f"main-switch-impact-{width}.png"), full_page=True)
