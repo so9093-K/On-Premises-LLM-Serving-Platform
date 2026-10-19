@@ -1,4 +1,4 @@
-# 개발자 가이드: 저장소 수정과 기여
+# 개발자 가이드
 
 이 가이드는 플랫폼 자체를 수정하는 기여자용입니다.
 플랫폼 API를 사용하는 서비스 개발은 [API 연동](api-integration.md), 설치·운영은
@@ -6,8 +6,7 @@
 
 ## 1. 개발 환경 준비
 
-**목표:** 모델 실행 없이 application·contract 검증을 시작합니다.
-**사전 조건:** Git, Python `>=3.12,<3.14`, [pyproject.toml](../../pyproject.toml)의 uv 허용 버전이 필요합니다.
+**준비:** Git, Python `>=3.12,<3.14`, [pyproject.toml](../../pyproject.toml)의 uv 허용 버전이 필요합니다.
 Console 작업에는 [package.json](../../ui/control-plane/package.json)의 고정 Node.js/npm도 필요합니다.
 
 ```bash
@@ -24,10 +23,9 @@ Python minor가 다른 기존 가상환경을 임의로 지우지 않으므로 �
 **성공 기준:** `.venv/bin/python --version`과 `.venv/bin/python -m pytest --version`이 동작합니다.
 **실패 시:** uv/Python 버전과 기존 가상환경 안내를 확인합니다. [개발 환경 상세](../07_local_dev_build.md)를 참고하세요.
 
-## 2. 수정 위치와 Source of Truth 찾기
+## 2. 코드·설정 소유권
 
-**목표:** 원본 정책과 생성물을 구분하고 변경 위치를 정합니다.
-**사전 조건:** 변경할 사용자 동작과 실패 의미를 한 문장으로 정리합니다.
+**준비:** 변경할 사용자 동작과 실패 의미를 한 문장으로 정리합니다.
 
 | 위치 | 책임 |
 |---|---|
@@ -61,10 +59,9 @@ make console-build
 모델의 `compatible`·`verified`, Gateway gate, 실제 Runtime readiness는 서로 다른 정보입니다.
 화면 예시는 [사용자 가이드](user-guide.md#runtime-states)를 참고하세요.
 
-## 3. 변경 범위에 맞는 검증
+## 3. 테스트·검증
 
-**목표:** 변경이 깨뜨릴 수 있는 동작을 가까운 계층에서 확인합니다.
-**사전 조건:** `make setup-dev` 완료. Console 검증에는 고정 Node/npm, Python·Bash가 필요합니다.
+**준비:** `make setup-dev` 완료. Console 검증에는 고정 Node/npm, Python·Bash가 필요합니다.
 
 | 변경 범위 | 실행 |
 |---|---|
@@ -87,10 +84,9 @@ Runner 종료 코드와 실패 항목을 먼저 읽으세요. 실제 GPU 결과�
 **실패 시:** 실패한 suite의 결과·원래 stderr를 확인합니다. 생성물 drift는 입력을 수정한 뒤 다시 생성합니다.
 검증 실패를 무시하거나 GPU 없이 통과한 테스트를 실제 추론 검증이라고 기록하지 않습니다.
 
-## 4. CI 결과와 PR 작성
+## 4. CI·PR
 
-**목표:** 리뷰어가 변경 뒤 계약과 검증 범위를 판단할 수 있게 합니다.
-**사전 조건:** 필요한 로컬 검증과 diff 검토를 마칩니다.
+**준비:** 필요한 로컬 검증과 diff 검토를 마칩니다.
 
 1. 키·로컬 `.env`·다운로드 요청 원문·민감 로그가 diff에 없는지 확인합니다.
 2. 사용자·운영자 영향은 [CHANGELOG](../../CHANGELOG.md)에 기록하고 관련 안내를 갱신합니다.

@@ -97,7 +97,7 @@ export function accessProfileLabel(profile: string): string {
   const labels: Record<string, string> = {
     local: '로컬',
     private: '사설망',
-    edge: '외부 공개',
+    edge: 'TLS 프록시 경유',
     'legacy/custom': '사용자 지정',
   };
   return labels[profile] ?? profile;

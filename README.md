@@ -2,15 +2,13 @@
 
 **Your models. Your infrastructure. One serving platform.**
 
-Run, serve, and operate AI models on your infrastructure.
-
-자체 인프라의 AI 모델 실행·API 연결·운영을 하나의 플랫폼에서.
+자체 인프라에서 AI 모델을 실행하고 API로 제공하며, 하나의 Control Plane에서 운영합니다.
 
 **OpenAI-compatible API · Model Lifecycle · GPU Resource Control · Observability**
 
 Linux/NVIDIA · Apple Silicon · Self-hosted — [환경별 지원 기능](#deployment-targets)
 
-[빠른 시작](docs/guides/getting-started.md) · [개인·팀 VPN 접속](docs/guides/remote-access.md) · [사용자 가이드](docs/guides/user-guide.md) · [API 연동](docs/guides/api-integration.md) · [개발자 가이드](docs/guides/developer-guide.md) · [전체 문서](docs/README.md)
+[빠른 시작](#quick-start) · [사용자 가이드](docs/guides/user-guide.md) · [원격 접속](docs/guides/remote-access.md) · [API 연동](docs/guides/api-integration.md) · [개발자 가이드](docs/guides/developer-guide.md)
 
 ## 01. 시스템 구성
 
@@ -28,68 +26,10 @@ Prompt Injection 탐지까지 지원합니다. PII·Secret 탐지는 static targ
 
 [시스템 구성](docs/03_system_components.md) · [설정과 Source of Truth](docs/05_configuration.md) · [OpenAI 호환 범위](docs/reference/openai_compatibility.md)
 
-## 02. Control Plane
-
-![모델·런타임 상태와 최근 요청을 보여주는 Control Plane 운영 개요](assets/screenshots/showcase/overview.png)
-
-*Linux/NVIDIA · Control Plane 운영 개요*
-
-### 서비스 운영
-
-**모델 상태 · 런타임 · 최근 요청 · 운영 작업**
-
-[운영 화면 안내](docs/reference/control_plane_operator_ux.md) · [런타임과 GPU](assets/screenshots/showcase/runtimes.png)
-
-### 모델 응답
-
-**Playground · API 응답 · 지연 시간 · 토큰 사용량**
-
-![Gemma 4 E4B의 Playground 응답과 요청 지표](assets/screenshots/showcase/playground.png)
-
-*Gemma 4 E4B · Playground 응답 및 요청 지표*
-
-[Playground와 운영 흐름](docs/reference/control_plane_operator_ux.md) · [실험한 요청을 개발 프로젝트에서 재현하기](docs/reference/playground_integration.md)
-
-### 모델 전환 영향
-
-**Linux/NVIDIA managed · 프로필 · 입력 기능 · GPU 정책 비교**
-
-![현재 E4B 프로필과 12B 후보의 모델 전환 영향 비교](assets/screenshots/showcase/model-review.png)
-
-*E4B → 12B 후보 · 전환 전 영향 검토*
-
-[모델 전환과 복구](docs/06_model_operations.md) · [설정](assets/screenshots/showcase/configuration.png) · [운영 활동](assets/screenshots/showcase/operations.png)
-
-## 03. 기능 데모
-
-**이미지 분석 · 그래프의 최대·최소 요청 수**
-
-![예시 그래프를 Playground에 첨부해 최대·최소값을 읽는 모델 응답 GIF](assets/demos/image-analysis.gif)
-
-[정지 화면](assets/demos/image-analysis-poster.png) · [입력 그래프](assets/demos/inputs/sample-chart.png)
-
-| 데모 | 기능 |
-|---|---|
-| [이미지 분석](docs/reference/feature_demos.md#image-analysis) | 그래프 값 분석 |
-| [이미지 텍스트 읽기 (OCR)](docs/reference/feature_demos.md#ocr) | 가상 주문서 정보 추출 |
-| [시스템 프롬프트 입력 사례](docs/reference/feature_demos.md#system-prompt) | 역할 변경 요구에 대한 모델 응답 |
-| [임베딩·문장 유사도](docs/reference/feature_demos.md#embedding) | API 실행 뷰어 · 벡터 생성과 검색 |
-
-[데모 입력·응답 및 촬영 정보](docs/reference/feature_demos.md) · [운영 화면 촬영 정보](assets/screenshots/showcase/README.md)
-
-## 04. Scalar API Reference
-
-**API 탐색 · 요청 Schema · cURL 예제 · Test Request**
-
-![Scalar API Reference에서 API 목록, 요청 Schema, cURL 예제와 테스트 요청을 보여주는 기존 화면](assets/screenshots/scalar_api_reference.jpg)
-
-*Scalar API Reference · 기존 화면 예시*
-
-[최신 API 문서](docs/reference/api_reference.md) · [문서 화면 안내](docs/reference/api_docs_reference.md) · [OpenAPI 계약](specs/openapi.gateway.yaml)
 
 <a id="quick-start"></a>
 
-## 05. 빠른 시작
+## 02. 빠른 시작
 
 **사전 준비:** [실행 환경](docs/04_runtime_modes.md) · GPU 메모리 · 모델 접근 권한
 
@@ -142,6 +82,62 @@ make down
 접근 범위는 `ACCESS=local|private|edge`, 최초 Main profile은 `MODEL=<profile-id>`로 선택합니다.
 접근 변경·진단·복구는 [운영 가이드](docs/12_operations.md)를 따릅니다. raw Model Runtime은 public API로 노출하지 않습니다.
 
+
+## 03. Control Plane
+
+![모델·런타임 상태와 최근 요청을 보여주는 Control Plane 운영 개요](assets/screenshots/showcase/overview.png)
+
+*Linux/NVIDIA · Control Plane 운영 개요*
+
+### 서비스 운영
+
+모델 상태, Runtime, 최근 요청, 운영 작업을 Control Plane에서 확인합니다.
+
+[운영 화면 안내](docs/reference/control_plane_operator_ux.md) · [런타임과 GPU](assets/screenshots/showcase/runtimes.png)
+
+### 모델 응답
+
+Playground에서 모델 응답을 확인하고 요청 코드를 내보낼 수 있습니다.
+
+![현재 Playground에서 한국어 요약 요청과 실제 모델 응답](assets/screenshots/guides/playground-after.png)
+
+*Playground · 모델 응답*
+
+[Playground 사용법](docs/guides/user-guide.md) · [요청 재현](docs/reference/playground_integration.md)
+
+### 모델 전환 영향
+
+모델 전환 전에 입력 기능과 GPU 리소스 정책의 변화를 확인합니다.
+
+![현재 E4B 프로필과 12B 후보의 모델 전환 영향 비교](assets/screenshots/showcase/model-review.png)
+
+*E4B → 12B 후보 · 전환 전 영향 검토*
+
+[모델 전환과 복구](docs/06_model_operations.md) · [설정](assets/screenshots/showcase/configuration.png) · [운영 활동](assets/screenshots/showcase/operations.png)
+
+## 04. 기능 데모
+
+**이미지 분석 · 그래프의 최대·최소 요청 수**
+
+![예시 그래프를 Playground에 첨부해 최대·최소값을 읽는 모델 응답 GIF](assets/demos/image-analysis.gif)
+
+[정지 화면](assets/demos/image-analysis-poster.png) · [입력 그래프](assets/demos/inputs/sample-chart.png)
+
+| 데모 | 기능 |
+|---|---|
+| [이미지 분석](docs/reference/feature_demos.md#image-analysis) | 그래프 값 분석 |
+| [이미지 텍스트 읽기 (OCR)](docs/reference/feature_demos.md#ocr) | 가상 주문서 정보 추출 |
+| [시스템 프롬프트 입력 사례](docs/reference/feature_demos.md#system-prompt) | 역할 변경 요구에 대한 모델 응답 |
+| [임베딩·문장 유사도](docs/reference/feature_demos.md#embedding) | API 실행 뷰어 · 벡터 생성과 검색 |
+
+[데모 입력·응답 및 촬영 정보](docs/reference/feature_demos.md) · [운영 화면 촬영 정보](assets/screenshots/showcase/README.md)
+
+## 05. API 문서
+
+실행 중인 Gateway의 Scalar 화면에서 API 목록과 요청 스키마를 확인할 수 있습니다. 문서 화면은 배포 설정에 따라 비활성화될 수 있습니다.
+
+[API 연동 가이드](docs/guides/api-integration.md) · [API Reference](docs/reference/api_reference.md) · [OpenAPI 계약](specs/openapi.gateway.yaml)
+
 <a id="deployment-targets"></a>
 
 ## 06. 배포 환경과 지원 기능
@@ -157,36 +153,15 @@ make down
 
 [Target 선언](configs/deployment_targets.yaml) · [모델과 resource variant](docs/06_model_operations.md) · [보안 노출 경계](docs/reference/vllm_security_posture.md)
 
-## 07. 문서 및 개발
+## 07. 문서
 
-| 목적 | 문서 |
-|---|---|
-| 전체 안내와 읽기 순서 | [문서 목차](docs/README.md) |
-| API·인증·요청 예제 | [API Reference](docs/reference/api_reference.md) |
-| 구성·설정·적용값 | [설정과 Source of Truth](docs/05_configuration.md) |
-| 모델·GPU·전환·복구 | [모델 운영](docs/06_model_operations.md) |
-| 지표·Grafana·로그 | [관측성](docs/11_observability.md) |
-| 배포·장애 대응 | [배포](docs/10_deployment.md) · [운영 관리](docs/12_operations.md) |
-| 개발·검증·기여 | [로컬 개발](docs/07_local_dev_build.md) · [테스트](docs/08_testing_validation.md) · [기여 안내](CONTRIBUTING.md) |
-| 변경 영역과 검증 범위 | [변경 가이드](docs/13_change_guide.md) |
+[가이드 목차](docs/guides/README.md) · [전체 기술 문서](docs/README.md) · [기여 안내](CONTRIBUTING.md)
 
-```bash
-make setup-dev
-make app-check   # Application 검증
-make check       # Control Plane source/build를 포함한 전체 변경 검증
-```
-
-실제 GPU 런타임 검증: [테스트와 검증](docs/08_testing_validation.md).
-코드 `src/` · UI `ui/` · 설정 `configs/` · 계약 `specs/` · 배포 `ops/`.
+설정과 Source of Truth, 모델 운영, 관측성 및 테스트 기준은 [기술 문서](docs/README.md)에서 확인할 수 있습니다.
 
 ## 버전과 변경 이력
 
 [버전](VERSION) · [변경 이력](CHANGELOG.md)
-
-## AI Assistance
-
-- **Codex (OpenAI)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
-- **Claude (Anthropic)** — AI-assisted 프로젝트 검토, 구현 및 검증 지원
 
 ## License
 

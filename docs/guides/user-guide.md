@@ -1,4 +1,4 @@
-# 사용자 가이드: 상태 확인부터 운영·복구까지
+# 사용자 가이드
 
 처음 설치한다면 [빠른 시작](getting-started.md)을 먼저 완료하세요.
 API를 연동하는 사용자는 [API 연동](api-integration.md), 저장소를 수정하는 개발자는
@@ -6,10 +6,9 @@ API를 연동하는 사용자는 [API 연동](api-integration.md), 저장소를 
 
 <a id="access-and-auth"></a>
 
-## 1. 접근 범위와 인증 확인
+## 1. 접근·인증
 
-**목표:** 접속 위치에 맞는 접근 범위와 키를 사용합니다.
-**사전 조건:** 운영자가 Gateway 주소와 사용자 권한을 안내해야 합니다.
+**준비:** 운영자가 Gateway 주소와 사용자 권한을 안내해야 합니다.
 
 | 접근 의도 | 선택 | 접속 경계 |
 |---|---|---|
@@ -38,17 +37,16 @@ edge 선택만으로 TLS proxy가 자동 설치되는 것은 아닙니다.
 
 ![키를 입력하기 전의 실제 관리자 인증 화면](../../assets/screenshots/guides/admin-auth.png)
 
-*2026-10-19 별도 인증 Gateway에서 촬영. 운영 `.env`의 인증 설정은 유지했고 키 입력 전 상태입니다.*
+*관리자 인증*
 
 **성공 기준:** Console을 열고 관리자 작업을 조회할 수 있으며 Playground의 공개 요청도 허용됩니다.
 키는 현재 브라우저 탭 메모리에 유지되어 새로고침하면 다시 입력해야 할 수 있습니다.
 **실패 시:** 401이면 사용하는 키의 종류와 현재 profile을 확인합니다. local에서 인증 화면이 없는 것은
 설정에 따른 동작입니다. 인증을 끄는 방식으로 오류를 우회하지 않습니다.
 
-## 2. 서비스 확인
+## 2. 서비스 상태
 
-**목표:** 요청을 보낼 준비가 되었는지 파악합니다.
-**사전 조건:** `make up` 완료 후 Console에 접속합니다.
+**준비:** `make up` 완료 후 Console에 접속합니다.
 
 1. **운영 개요**에서 메인 모델의 요청 상태와 Runtime 관측 상태를 확인합니다.
 2. 최근 요청 집계를 보고 오류가 있는지 살펴봅니다. 조회 실패와 모델 장애를 구분합니다.
@@ -56,17 +54,16 @@ edge 선택만으로 TLS proxy가 자동 설치되는 것은 아닙니다.
 
 ![메인 모델과 Runtime 상태를 읽는 운영 개요](../../assets/screenshots/showcase/overview.png)
 
-*기존 실제 화면(2026-10-15). 현재 UI의 지표·빠른 작업 위치는 최신 운영 UX를 따릅니다.*
+*운영 개요*
 
 **성공 기준:** 상태 확인과 별도 실제 응답이 모두 성공합니다.
 `healthy`, `gate open`, `compatible`, `qualified`는 서로 다른 정보입니다.
 “조회된 주의 항목 없음”을 추론 성공이나 무장애 보증으로 해석하지 않습니다.
 **실패 시:** [오류 복구](#recovery)에서 request ID와 최근 작업을 확인합니다.
 
-## 3. Playground 사용
+## 3. Playground
 
-**목표:** 지원되는 입력으로 실제 응답을 테스트하고 요청을 재현합니다.
-**사전 조건:** 현재 모델이 Chat을 지원하고 요청 Gate가 열려 있어야 합니다.
+**준비:** 현재 모델이 Chat을 지원하고 요청 Gate가 열려 있어야 합니다.
 
 1. 상단의 현재 모델과 입력 기능을 확인합니다.
 2. 예제를 골라 미리 보고 **입력에 적용**합니다. 기존 작성 내용의 교체 확인이 뜨면 검토합니다.
@@ -76,8 +73,7 @@ edge 선택만으로 TLS proxy가 자동 설치되는 것은 아닙니다.
 
 ![현재 Playground에서 한국어 요약 예제의 실제 응답 확인](../../assets/screenshots/guides/playground-after.png)
 
-*2026-10-19 실제 기록. 예제 선택·요청 내보내기 상세는 [Playground 예제](../reference/control_plane_playground_examples.md)와
-[요청 재현](../reference/playground_integration.md)을 참고합니다.*
+*Playground · 모델 응답*
 
 **성공 기준:** 응답이 정상 종료되고 전송 당시의 요청 정보를 확인할 수 있습니다.
 `STREAM_INCOMPLETE`이면 받은 일부 내용만 남은 것이므로 완전한 답변으로 사용하지 않습니다.
@@ -87,15 +83,13 @@ Tool 호출이 나오면 실제 함수 실행 결과를 수동으로 입력해 �
 
 <a id="runtime-states"></a>
 
-## 4. Runtime과 GPU 운영
+## 4. Runtime·GPU 관리
 
-**목표:** 필요한 Runtime을 자원 정책 안에서 실행하거나 중지합니다.
-**사전 조건:** Linux/NVIDIA managed target과 운영 권한이 필요합니다. Static Main은 외부 lifecycle을 따릅니다.
+**준비:** Linux/NVIDIA managed target과 운영 권한이 필요합니다. Static Main은 외부 lifecycle을 따릅니다.
 
 ![실행 중 Main·중지된 Embedding·정책상 제외된 탐지기를 구분하는 화면](../../assets/screenshots/guides/runtime-states.png)
 
-*2026-10-19 실제 상태. GPU 비율은 정책상 예약값이며 VRAM 실측이 아닙니다.
-이 캡처는 다른 target의 미지원 기능이나 GPU 장애 화면이 아닙니다.*
+*런타임 상태 및 GPU 예약 현황*
 
 | 관찰 상태 | 의미와 다음 행동 |
 |---|---|
@@ -112,10 +106,9 @@ Tool 호출이 나오면 실제 함수 실행 결과를 수동으로 입력해 �
 **실패 시:** budget 부족·기동 오류·검증 실패를 구분합니다. 실제 GPU 메모리는
 [Grafana 관측](../11_observability.md)으로 확인합니다. 상세 권위와 API는 [모델 운영](../06_model_operations.md)을 따릅니다.
 
-## 5. 메인 모델 변경
+## 5. 메인 모델 전환
 
-**목표:** 변경 영향을 확인하고 전환 후 새 모델의 응답을 검증합니다.
-**사전 조건:** managed target, 전환 가능한 profile, 적합한 resource policy와 운영 권한이 필요합니다.
+**준비:** managed target, 전환 가능한 profile, 적합한 resource policy와 운영 권한이 필요합니다.
 
 1. **메인 모델**에서 현재 profile과 후보의 입력 기능·토큰 한도·자원 정책을 비교합니다.
 2. **전환 검토**에서 중단 가능성과 기능 감소, 검증 상태를 읽습니다.
@@ -125,17 +118,16 @@ Tool 호출이 나오면 실제 함수 실행 결과를 수동으로 입력해 �
 
 ![E4B에서 12B 후보로 변경할 때의 실제 영향 검토 화면](../../assets/screenshots/showcase/model-review.png)
 
-*전환 전 검토 화면(2026-10-15). 이 캡처는 실제 12B 전환 성공 기록이 아닙니다.*
+*모델 전환 영향 검토 (전환 실행 전)*
 
 Runtime 시작·중지와 Configuration 변경은 Plan/Apply 계약을 사용합니다. Main Model 변경은
 전환 검토와 Main Model switch 계약을 따릅니다. 모두를 동일한 Plan API로 설명하지 않습니다.
 **성공 기준:** 활성/관측 profile과 Gate를 확인하고 새 모델의 응답까지 성공합니다.
 **실패 시:** 이전 모델로 복구했는지, Gate가 닫혔는지 확인하고 [모델 전환 복구](../06_model_operations.md)로 이동합니다.
 
-## 6. 설정 변경과 작업 기록
+## 6. 설정·운영 기록
 
-**목표:** 현재 값의 출처를 알고 변경 결과를 확인합니다.
-**사전 조건:** Console의 해당 항목이 편집 가능하며 운영 권한이 있어야 합니다.
+**준비:** Console의 해당 항목이 편집 가능하며 운영 권한이 있어야 합니다.
 
 1. **설정**에서 적용 값·출처·수정 가능 여부를 확인합니다.
 2. 편집 후 변경 검토에서 변경 전후 값·위험을 읽고 적용합니다.
@@ -144,7 +136,7 @@ Runtime 시작·중지와 Configuration 변경은 Plan/Apply 계약을 사용합
 
 ![실제 설정 변경과 검증 완료 기록](../../assets/screenshots/showcase/operations.png)
 
-*2026-10-15 촬영용 Gateway에서 수행한 실제 설정 변경 1건. 일반 추론 요청 로그나 모델 전환 성공 기록이 아닙니다.*
+*설정 변경 기록*
 
 **성공 기준:** 새 값과 동기화된 결과를 확인합니다.
 **실패 시:** stale plan이면 다시 검토합니다. 이전 값 복원도 새 변경이므로 검토 후 결과를 확인합니다.
@@ -152,10 +144,9 @@ Runtime 시작·중지와 Configuration 변경은 Plan/Apply 계약을 사용합
 
 <a id="recovery"></a>
 
-## 7. 오류 복구와 안전한 종료
+## 7. 오류 복구·종료
 
-**목표:** 원인을 좁히고 복구 후 실제 응답을 확인합니다.
-**사전 조건:** 오류 코드, request ID 또는 operation ID를 확보합니다.
+**준비:** 오류 코드, request ID 또는 operation ID를 확보합니다.
 
 ```bash
 make status
@@ -177,8 +168,7 @@ make logs
 
 ![의도적으로 잘린 스트림에 대해 부분 응답과 STREAM_INCOMPLETE를 표시하는 화면](../../assets/screenshots/guides/stream-incomplete-injected.png)
 
-*브라우저 테스트 주입 화면(2026-10-19). 실제 API 대신 `[DONE]` 없는 SSE를 반환했습니다.
-응답 내용·request ID·지연은 테스트 데이터이며 실제 GPU 장애·모델 응답·성능 측정이 아닙니다.*
+*스트림 중단 · 테스트 재현 화면*
 
 로그·설정을 공유하기 전에 키·입력 원문·내부 주소를 확인하세요.
 원인을 수정한 뒤 `make up` → `make status` → Playground/API 요청 순서로 복구를 확인합니다.

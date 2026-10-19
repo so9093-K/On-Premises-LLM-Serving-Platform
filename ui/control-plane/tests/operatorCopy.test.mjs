@@ -6,7 +6,7 @@ const source = (name) => readFileSync(new URL(`../src/${name}`, import.meta.url)
 
 test('overview uses concise operator status without blanket inference claims', () => {
   const overview = source('OverviewPage.tsx');
-  assert.match(overview, /조회된 주의 항목 없음/);
+  assert.match(overview, /조회 결과 · 주의 없음/);
   assert.match(overview, /Gateway API 요청 집계 · 재시작 시 초기화/);
   assert.match(overview, /trafficQuery\.isError/);
   assert.match(overview, /최근 요청 지표를 조회하지 못했습니다/);
@@ -36,4 +36,13 @@ test('configuration and activity present task information instead of internal so
   assert.match(source('OperationsPage.tsx'), /운영 변경 이력 · 추론 요청 로그와 구분/);
   assert.doesNotMatch(source('OperationsPage.tsx'), /원본 작업 기록은 각/);
   assert.match(source('RuntimePage.tsx'), /동시 실행 판단용 정책 비율/);
+});
+
+test('admin authentication and GPU reservation explain user action without changing the security meaning', () => {
+  const auth = source('App.tsx');
+  const runtimes = source('RuntimePage.tsx');
+  assert.match(auth, /관리자 키를 입력하세요/);
+  assert.match(auth, /현재 브라우저 탭에만 유지/);
+  assert.match(runtimes, /<CardTitle>GPU 예약 현황<\/CardTitle>/);
+  assert.match(runtimes, /실측 GPU 메모리가 아닌/);
 });

@@ -74,8 +74,8 @@ function AuthGate() {
         <CardTitle>관리자 인증</CardTitle>
         <CardBody>
           <p>
-            현재 접근 프로필은 관리자 Bearer 인증이 필요합니다. 키는 이 브라우저 탭의 메모리에만
-            유지되며 새로고침하면 사라집니다.
+            관리자 키를 입력하세요. 키는 현재 브라우저 탭에만 유지되며
+            새로고침하면 사라집니다.
           </p>
           <form className="auth-form" onSubmit={submit}>
             <label htmlFor="admin-key">관리자 키</label>

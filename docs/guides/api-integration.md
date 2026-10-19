@@ -1,14 +1,13 @@
-# API 연동 가이드: 첫 요청부터 Playground 재현까지
+# API 연동 가이드
 
 플랫폼 API를 소비하는 애플리케이션 개발자를 위한 절차입니다.
 플랫폼 설치는 [빠른 시작](getting-started.md), 저장소 수정은 [개발자 가이드](developer-guide.md)를 따릅니다.
 요청 필드·오류·지원 범위의 기준은 [API Reference](../reference/api_reference.md),
 [OpenAI 호환 범위](../reference/openai_compatibility.md), [OpenAPI](../../specs/openapi.gateway.yaml)입니다.
 
-## 1. Gateway 연결과 모델 조회
+## 1. Gateway 연결·모델 조회
 
-**목표:** 공개 Gateway에 연결하고 현재 모델이 허용하는 입력을 확인합니다.
-**사전 조건:** 운영자로부터 Gateway 주소와 필요한 경우 **사용자 API Key**를 받습니다.
+**준비:** 운영자로부터 Gateway 주소와 필요한 경우 **사용자 API Key**를 받습니다.
 아래 shell 예제는 Bash와 curl 7.76 이상을 사용합니다. Admin Key·내부 token·Hugging Face token은 사용하지 않습니다.
 
 ```bash
@@ -36,15 +35,14 @@ curl --fail-with-body "$GATEWAY_URL/v1/models" "${AUTH[@]}"
 
 ![API 목록·Schema·테스트 요청을 제공하는 Scalar의 기존 화면](../../assets/screenshots/scalar_api_reference.jpg)
 
-*기존 API 문서 화면 예시. 현재 API와 필드의 기준은 실행 중인 `/docs`·`/openapi.json`입니다.*
+*API 문서 화면*
 
 **성공 기준:** 200 응답과 사용할 모델의 입력·요청 제한을 확인합니다.
 **실패 시:** 접속 불가는 주소·네트워크, 401은 사용자 API Key와 접근 설정을 운영자에게 확인합니다.
 
-## 2. 첫 일반 요청과 Streaming
+## 2. 요청·스트리밍
 
-**목표:** 텍스트 응답과 스트리밍 완료를 각각 확인합니다.
-**사전 조건:** 위 주소·인증 설정, 준비된 Main Model이 필요합니다.
+**준비:** 위 주소·인증 설정, 준비된 Main Model이 필요합니다.
 
 공개용 짧은 입력으로 시작합니다. 임의의 실제 응답이나 응답 시간을 예시로 만들지 않습니다.
 
@@ -68,10 +66,9 @@ curl --fail-with-body --no-buffer "$GATEWAY_URL/v1/chat/completions" "${AUTH[@]}
 **실패 시:** HTTP 200으로 열린 SSE 안에서도 오류가 올 수 있습니다. curl의 종료 코드 0만으로
 성공을 판단하지 말고 오류 이벤트와 `[DONE]` 누락을 확인하세요. 애플리케이션 재현에는 아래 Exact Replay를 사용할 수 있습니다.
 
-## 3. OpenAI Python SDK로 연결
+## 3. OpenAI Python SDK
 
-**목표:** 기존 OpenAI SDK 호출을 로컬 Gateway로 연결합니다.
-**사전 조건:** 위 환경변수와 Python 환경이 필요합니다. 저장소의 `make setup-dev` 환경에는
+**준비:** 위 환경변수와 Python 환경이 필요합니다. 저장소의 `make setup-dev` 환경에는
 `pyproject.toml`에 고정된 SDK가 포함됩니다. 별도 프로젝트에서는 자체 가상환경에서 `pip install openai`를 실행합니다.
 
 다음을 `gateway_chat.py`로 저장해 해당 환경의 Python으로 실행합니다.
@@ -113,14 +110,13 @@ client.close()
 
 ![가이드 cURL과 Python SDK 예제를 실행해 실제 모델 응답을 받은 출력](../../assets/screenshots/guides/api-sdk-output.png)
 
-*2026-10-19 Linux/NVIDIA 실행 결과를 렌더링한 이미지. 응답은 매번 다를 수 있으며 속도 비교 결과가 아닙니다.*
+*API·SDK 호출 결과*
 
 <a id="replay"></a>
 
-## 4. Playground에서 성공한 요청 가져오기
+## 4. Playground 요청 재현
 
-**목표:** 화면에서 검증한 요청을 애플리케이션으로 가져옵니다.
-**사전 조건:** Playground에서 실제 요청을 한 번 보내고 결과를 확인합니다.
+**준비:** Playground에서 실제 요청을 한 번 보내고 결과를 확인합니다.
 
 1. 해당 응답의 **코드로 사용하기**를 엽니다.
 2. 요청 JSON과 코드 미리보기를 확인하고 **전체 예제 ZIP 받기**를 선택합니다.
@@ -130,8 +126,7 @@ client.close()
 
 ![실제 전송한 요청의 코드·보안 안내와 ZIP 다운로드 버튼](../../assets/screenshots/guides/request-export.png)
 
-*2026-10-19 실제 응답의 내보내기 패널을 영역 캡처했습니다.
-다운로드한 ZIP으로 Python·Node.js·cURL 원본 재현과 Python SDK 실행을 확인했습니다.*
+*Playground · 요청 내보내기*
 
 ```bash
 python3 client.py
@@ -146,7 +141,7 @@ ZIP에 인증 키는 자동 포함되지 않지만 프롬프트·대화 이력·
 다운로드 파일은 직접 보관·삭제하고 공유 전 내용을 검토하세요.
 대용량 파일의 저장 제한과 환경별 조건은 [요청 재현 Reference](../reference/playground_integration.md)가 소유합니다.
 
-## 5. 다음 기능과 오류 처리
+## 5. 추가 기능·오류 처리
 
 이미지·오디오·Tool·JSON Schema는 `/v1/models`의 현재 지원 범위에서만 사용합니다.
 이미지 분석·OCR·시스템 프롬프트·임베딩의 [실제 GIF](../reference/feature_demos.md)는

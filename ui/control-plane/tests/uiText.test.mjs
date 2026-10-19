@@ -5,6 +5,7 @@ import {
   capabilityPresentation,
   formatPercent,
   runtimeStateLabel,
+  accessProfileLabel,
 } from '../src/uiText.ts';
 
 test('capability presentation preserves semantic availability classes', () => {
@@ -34,4 +35,9 @@ test('container states from Docker never leak as raw English values', () => {
     assert.doesNotMatch(runtimeStateLabel(state), /^[a-z_]+$/);
   }
   assert.equal(runtimeStateLabel('error: connection refused'), '조회 실패');
+});
+
+test('edge access profile identifies TLS proxy boundary, not automatic public exposure', () => {
+  assert.equal(accessProfileLabel('edge'), 'TLS 프록시 경유');
+  assert.equal(accessProfileLabel('local'), '로컬');
 });

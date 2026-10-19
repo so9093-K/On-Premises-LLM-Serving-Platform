@@ -1,4 +1,4 @@
-# Control Plane 운영자 작업 중심 UX
+# Control Plane UX
 
 현재 Console은 **한국어 우선, deployment capability에 따른 접근 가능성, API/Runtime 소유권 보존**을 기준으로 구성한다.
 이 문서는 [ADR-0027](../adr/0027-control-plane-runtime-configuration-and-console-boundary.md),
