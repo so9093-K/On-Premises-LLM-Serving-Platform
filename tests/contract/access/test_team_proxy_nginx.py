@@ -65,7 +65,7 @@ def proxy(tmp_path_factory):
     (tmp / "team.conf").write_text(conf, encoding="utf-8")
     (tmp / "nginx.conf").write_text(
         f"worker_processes 1;\npid {tmp}/nginx.pid;\nerror_log {tmp}/error.log;\n"
-        f"events {{ worker_connections 128; }}\nhttp {{ include {tmp}/team.conf; }}\n",
+        f"events {{ worker_connections 128; }}\nhttp {{ access_log {tmp}/access.log; include {tmp}/team.conf; }}\n",
         encoding="utf-8",
     )
     test = subprocess.run(["nginx", "-t", "-p", str(tmp), "-c", str(tmp / "nginx.conf")],
