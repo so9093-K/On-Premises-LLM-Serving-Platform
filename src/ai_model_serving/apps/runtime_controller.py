@@ -4,7 +4,6 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from pathlib import Path
 from typing import Any, Mapping
 
 import httpx
