@@ -60,3 +60,16 @@ def test_runtime_controller_config_default_root_independent_of_app_module() -> N
     config = load_runtime_controller_config({"INTERNAL_SERVICE_AUTH_REQUIRED": "false"})
     assert (config.config_root / "configs" / "main_model_profiles.yaml").is_file()
     assert config.gateway_internal_url.startswith("http://gateway:")
+
+def test_runtime_controller_legacy_config_imports_keep_the_same_owner() -> None:
+    from ai_model_serving.apps.runtime_controller import (
+        RuntimeControllerConfig as legacy_type,
+        load_runtime_controller_config as legacy_loader,
+    )
+    from ai_model_serving.runtime_controller_config import (
+        RuntimeControllerConfig,
+        load_runtime_controller_config,
+    )
+
+    assert legacy_type is RuntimeControllerConfig
+    assert legacy_loader is load_runtime_controller_config
