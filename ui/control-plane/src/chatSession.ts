@@ -1,5 +1,5 @@
 import type { RequestReceipt } from './requestReceipt.ts';
-import { exchangeIncludedInHistory, toolResultsResolveSource, pendingToolCallExchange, conversationAttachments } from './chatHistory';
+import { exchangeIncludedInHistory, toolResultsResolveSource, pendingToolCallExchange, conversationAttachments } from './chatHistory.ts';
 export { pendingToolCallExchange, conversationAttachments };
 // 채팅 테스트 화면의 순수 로직. 요청 본문은 /v1/models가 광고한 request_parameters
 // 안에서만 만들고, 응답 누적과 지연 측정은 화면과 분리해 테스트한다.
