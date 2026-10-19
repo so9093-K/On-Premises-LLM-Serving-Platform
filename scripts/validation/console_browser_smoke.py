@@ -267,6 +267,14 @@ def run_audio_example(browser, width, height):
     page.route("**/v1/chat/completions", handle_public)
     page.goto(URL, wait_until="domcontentloaded")
     page.get_by_role("link", name="Playground").click()
+    if width <= 600:
+        # 구현 문자열이 아니라 모바일 실제 앵커와 이동 대상을 확인한다.
+        assert page.locator("#chat-model-settings").count() == 1
+        assert page.locator("#chat-input").count() == 1
+        page.get_by_role("link", name="요청 설정 ↓").click()
+        page.wait_for_function("() => location.hash === '#chat-model-settings'")
+        page.get_by_role("link", name="대화 입력으로 돌아가기 ↑").click()
+        page.wait_for_function("() => location.hash === '#chat-input'")
     page.get_by_role("button", name="오디오 분석").click()
     page.get_by_text("현재 모델은 오디오 입력을 지원하지 않습니다.").first.wait_for()
     assert page.get_by_role("button", name="입력에 적용").is_disabled(), "Unsupported model must not apply audio"
