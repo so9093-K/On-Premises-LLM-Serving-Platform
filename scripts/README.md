@@ -15,8 +15,6 @@ make logs
 make down
 ```
 
-외부 기기 접속 준비는 `make access PURPOSE=personal`, 팀원 API 공유는 `make access PURPOSE=team`으로 읽기 전용 계획을 본다. Host에서 관측되는 Serve·Tailscale 상태는 `make access-status PURPOSE=personal|team`으로 확인하며 외부 기기의 실제 접근과 Grants는 운영자가 따로 검증한다.
-
 이후 재기동은 `make up`만 사용한다. project-local state 초기화는 `make reset`,
 비싼 project-owned image/model cache와 volume까지 폐기할 때만 `make purge`를 사용한다.
 
