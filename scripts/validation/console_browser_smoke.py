@@ -99,6 +99,8 @@ def install_routes(page, state):
                 "time_to_first_chunk_seconds": {"samples": 24, "p50": .1, "p95": .3},
             })
         if path == "/admin/main-model":
+            if state.get("adaptive_status"):
+                return send(route, state["adaptive_status"])
             active = ({**profile, "active": True,
                        "resource_variant": "gpu-high",
                        "capabilities": {"deployed_input": ["text", "image"]},
@@ -462,6 +464,57 @@ def run_tool_result_roundtrip(browser, width, height):
 
 
 
+def run_adaptive_selection(browser, width, height):
+    """48GB 합성 관측으로 정책·CPU 실패·Gate 복구 표시를 확인한다."""
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda exception: errors.append(str(exception)))
+    bootstrap["deployment"]["features"] = ["chat", "model_switching"]
+    uuid = "GPU-00000000-0000-0000-0000-000000000001"
+    device = {
+        "index": 0, "uuid": uuid, "name": "NVIDIA RTX 6000 Ada Generation",
+        "pci_bus_id": "00000000:01:00.0", "compute_capability": "8.9",
+        "driver_version": "580.178.04", "total_mib": 49140, "free_mib": 300,
+    }
+    assignment = {key: value for key, value in device.items() if key not in {"index", "free_mib"}}
+    assignment.update(resource_variant=None, policy_source="memory_class")
+    selection = {
+        "mode": "automatic", "reason_code": "CPU_FALLBACK_PREPARATION_FAILED",
+        "gpu_condition": "GPU_MEMORY_PRESSURE", "gpu_assignment": assignment,
+        "cpu_retry_at": 1792497600,
+        "resources": {"gpus": [device], "ram_available_mib": 1024, "gpu_observation_error": None},
+    }
+    status = {
+        "public_model": "local-main", "gate": "closed", "runtime_state": "active",
+        "boot_profile": profile["id"], "profile_locked": True,
+        "active_profile": {**profile, "runtime_backend": "vllm-cuda"},
+        "last_operation": None, "runtime_image": "test-image", "observed_runtime": None,
+        "runtime_selection": selection,
+    }
+    state = {"active_profile": False, "adaptive_status": status}
+    install_routes(page, state)
+    page.goto(URL + "main-model", wait_until="domcontentloaded")
+    page.get_by_text("CPU 복구 준비 실패 · 새 요청 차단", exact=True).wait_for()
+    page.get_by_text("요청 상태: 새 요청 차단 중", exact=True).wait_for()
+    page.get_by_text("리소스 정책: Reference · 선택 근거: 전체 VRAM 용량", exact=True).wait_for()
+    assert page.get_by_text("CPU 재시도 가능 시각:", exact=False).count() == 1
+    assert page.get_by_text("GPU 상태: GPU 메모리 압력", exact=False).count() == 1
+    assert page.get_by_text("Compute Capability: 8.9", exact=False).count() == 1
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    page.screenshot(path=str(SCREENSHOTS / f"adaptive-synthetic-fallback-failed-{width}.png"), full_page=True)
+    selection.update(reason_code="GPU_SERVING", gpu_condition=None)
+    status["gate"] = "open"
+    device["free_mib"] = 4000
+    page.get_by_role("button", name="새로고침", exact=True).click()
+    page.get_by_text("GPU 서빙 중", exact=True).wait_for()
+    page.get_by_text("요청 상태: 수락 중", exact=True).wait_for()
+    assert page.get_by_text("CPU 재시도 가능 시각:", exact=False).count() == 0
+    assert errors == [], errors
+    print(f"PASS adaptive Chromium {width}x{height}: synthetic 48GB Reference, CPU failure, Gate recovery")
+    context.close()
+
+
 def main():
     for _ in range(40):
         try:
@@ -483,6 +536,8 @@ def main():
             run_audio_example(browser, 390, 844)
             run_tool_result_roundtrip(browser, 1440, 900)
             run_tool_result_roundtrip(browser, 390, 844)
+            run_adaptive_selection(browser, 1440, 900)
+            run_adaptive_selection(browser, 390, 844)
         finally:
             browser.close()
 

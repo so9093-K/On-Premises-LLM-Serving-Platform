@@ -568,7 +568,7 @@ def test_adaptive_replacement_uses_target_image_and_engine_limits(monkeypatch, p
     import json
     catalog,_,_ = load_adaptive_catalog(ROOT, {'VLLM_IMAGE':_SHARED_IMAGE})
     backend = DockerMainModelBackend('/var/run/docker.sock','own-project',gateway_url='http://gateway:9400')
-    backend.gpu_index = 2
+    backend.gpu_uuid = "GPU-00000000-0000-0000-0000-000000000002"
     backend._template = {'name':'own-main','config':{'Entrypoint':['wrong-engine'],'Env':['WRONG=1']},
                          'host_config':{'Binds':['/own/models:/models:ro'],'PortBindings':{}},'networking_config':{}}
     async def no_container(service):
@@ -595,6 +595,6 @@ def test_adaptive_replacement_uses_target_image_and_engine_limits(monkeypatch, p
         assert host['Memory'] == 4*1024**3
         assert host['PidsLimit'] == 256
     else:
-        assert host['DeviceRequests'] == [{'Driver':'nvidia','DeviceIDs':['2'],'Capabilities':[['gpu']]}]
+        assert host['DeviceRequests'] == [{'Driver':'nvidia','DeviceIDs':['GPU-00000000-0000-0000-0000-000000000002'],'Capabilities':[['gpu']]}]
         assert host['Memory'] == 0
         assert host['PidsLimit'] >= 2048

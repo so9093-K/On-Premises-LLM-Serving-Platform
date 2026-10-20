@@ -238,6 +238,7 @@ service_env_projections:
       - VLLM_IMAGE
       - LLAMA_CPP_IMAGE
       - MAIN_MODEL_RESOURCE_VARIANT
+      - ADAPTIVE_GPU_RESOURCE_POLICY
       - HF_TOKEN
       - HUGGING_FACE_HUB_TOKEN
 

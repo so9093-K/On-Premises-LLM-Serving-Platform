@@ -10,7 +10,7 @@ from dataclasses import asdict
 from typing import Awaitable, Callable
 
 from ..host_resource_probe import HostResourceSnapshot
-from .adaptive_backend import fitting_gpu
+from .adaptive_gpu import AdaptiveGpuPolicies
 from .control import MainModelManager, MainModelSwitchError
 
 _TERMINAL = {"completed", "failed", "rollback_failed"}
@@ -24,12 +24,12 @@ class AdaptiveMainModelControl:
         policy: dict,
         resources: Callable[[], Awaitable[HostResourceSnapshot]],
         *,
-        gpu_error: str | None = None,
+        gpu_policies: AdaptiveGpuPolicies,
     ):
         self.manager = manager
         self.policy = policy
         self.resources = resources
-        self.gpu_error = gpu_error
+        self.gpu_policies = gpu_policies
         self.mutation_lock = asyncio.Lock()
         for key in (
             "poll_interval_seconds",
@@ -121,34 +121,97 @@ class AdaptiveMainModelControl:
         cpu = profile.runtime_backend == "llama-cpp"
         if not cpu:
             # 실행 중인 GPU의 메모리는 자기 모델이 이미 사용한다. 시작 예약량과 비교하지 않는다.
-            gpu_index = runtime.get("gpu_device_index")
-            device = next((g for g in observed.gpus if g.index == gpu_index), None)
-            safe = (
-                healthy
-                and device is not None
-                and device.free_mib >= self.policy["gpu_pressure_free_mib"]
+            gpu_uuid = runtime.get("gpu_device_uuid")
+            device = next(
+                (
+                    g
+                    for g in observed.gpus
+                    if g.uuid == gpu_uuid and gpu_uuid is not None
+                ),
+                None,
             )
-            failures = 0 if safe else int(selection.get("failure_samples", 0)) + 1
-            self._record(
-                failure_samples=failures,
-                healthy_samples=0,
-                reason_code="GPU_SERVING" if safe else "GPU_HEALTH_OR_MEMORY_PRESSURE",
+            condition = (
+                "GPU_RUNTIME_UNHEALTHY"
+                if not healthy
+                else "GPU_OBSERVATION_UNAVAILABLE"
+                if observed.gpu_observation_error or device is None
+                else "GPU_MEMORY_PRESSURE"
+                if device.free_mib < self.policy["gpu_pressure_free_mib"]
+                else None
             )
-            if failures >= self.policy["failure_samples"]:
-                await self._switch_cpu(now, selection, "GPU_HEALTH_OR_MEMORY_PRESSURE")
-            elif healthy:
+            self._record(gpu_condition=condition)
+            if condition is not None:
+                # 압력·관측 실패 중에는 CPU 준비 실패나 재시도 유예가 Gate를 다시 열지 않는다.
+                self.manager.state_store.update(
+                    lambda state: state.update(gate="closed")
+                )
+                failures = int(selection.get("failure_samples", 0)) + 1
+                reason = condition
+                if (
+                    operation.get("status") in {"failed", "rollback_failed"}
+                    and operation.get("requested_profile") == self.policy["cpu_profile"]
+                ):
+                    reason = (
+                        "CPU_FALLBACK_PREPARATION_FAILED"
+                        if operation.get("stage") == "preparing"
+                        else "CPU_FALLBACK_FAILED"
+                    )
+                self._record(
+                    failure_samples=failures, healthy_samples=0, reason_code=reason
+                )
+                if failures >= self.policy["failure_samples"]:
+                    await self._switch_cpu(now, selection, reason)
+                return
+            if state.get("gate") != "open":
+                streak = int(selection.get("healthy_samples", 0)) + 1
+                self._record(
+                    healthy_samples=streak,
+                    failure_samples=0,
+                    reason_code="GPU_REVALIDATION_PENDING",
+                )
+                if streak < self.policy["recovery_samples"]:
+                    return
+            try:
+                # CPU 재시도 유예와 독립적으로 같은 GPU 인스턴스를 Canary 재검증한다.
                 await self.manager.reconcile_if_restarted()
+            except Exception:
+                self._record(healthy_samples=0, reason_code="GPU_REVALIDATION_FAILED")
+                return
+            if self.manager.state_store.read().get("gate") == "open":
+                self._record(
+                    failure_samples=0, healthy_samples=0, reason_code="GPU_SERVING"
+                )
+            else:
+                # 기존 재검증기는 Canary 실패를 내부에서 기록하고 유예할 수 있다.
+                self._record(healthy_samples=0, reason_code="GPU_REVALIDATION_FAILED")
             return
         if not healthy or state.get("gate") != "open":
             await self._switch_cpu(now, selection, "CPU_RUNTIME_UNAVAILABLE")
             return
         await self.manager.reconcile_if_restarted()
-        gpu = self.manager.catalog.profiles.get(self.policy["gpu_profile"])
-        fits = gpu is not None and fitting_gpu(observed, gpu, self.policy) is not None
-        streak = int(selection.get("healthy_samples", 0)) + 1 if fits else 0
-        reason = self.gpu_error or (
-            "GPU_RECOVERY_PENDING" if fits else "GPU_MEMORY_INSUFFICIENT"
+        candidate, blocked_reason = self.gpu_policies.choose(observed)
+        fits = candidate is not None and blocked_reason is None
+        candidate_view = (
+            {
+                **candidate.public_view(),
+                "admissible": fits,
+                "reason_code": blocked_reason,
+            }
+            if candidate
+            else None
         )
+        previous = selection.get("gpu_candidate") or {}
+        same_candidate = candidate_view is not None and all(
+            previous.get(key) == candidate_view.get(key)
+            for key in ("uuid", "resource_variant")
+        )
+        streak = (
+            (int(selection.get("healthy_samples", 0)) + 1 if same_candidate else 1)
+            if fits
+            else 0
+        )
+        self._record(gpu_candidate=candidate_view)
+        reason = "GPU_RECOVERY_PENDING" if fits else blocked_reason
         if observed.gpu_observation_error:
             reason = "GPU_OBSERVATION_UNAVAILABLE"
         if now < selection.get("gpu_retry_at", 0):
@@ -166,14 +229,20 @@ class AdaptiveMainModelControl:
                 healthy_samples=0,
                 last_activation_at=now,
             )
+            self.manager.catalog.profiles[candidate.profile.profile_id] = (
+                candidate.profile
+            )
+            self._record(gpu_assignment=candidate.public_view())
+            if hasattr(self.manager.backend, "bind_gpu"):
+                self.manager.backend.bind_gpu(candidate)
             self.manager.request_switch(
-                self.policy["gpu_profile"], confirm_unverified=True
+                candidate.profile.profile_id, confirm_unverified=True
             )
 
     async def _switch_cpu(self, now: float, selection: dict, reason: str) -> None:
         # 장애 상태를 기존 검증 결과로 계속 제공하지 않는다. 실제 교체는 Drain 뒤에만 한다.
         self.manager.state_store.update(lambda state: state.update(gate="closed"))
-        self._record(reason_code=reason, healthy_samples=0, failure_samples=0)
+        self._record(reason_code=reason, healthy_samples=0)
         if now < selection.get("cpu_retry_at", 0):
             return
         self._record(last_activation_at=now)

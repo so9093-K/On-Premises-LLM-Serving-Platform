@@ -76,3 +76,27 @@ GPU 실측 때는 기존 Main을 Gateway의 Plan/Apply 절차로 잠시 중지�
 긴 문맥과 모든 모델 조합의 Qualification을 뜻하지 않는다. `qualification=unverified`를
 유지한다. CPU와 GPU는 모델·지원 입력·한도가 다르며, 전환 중 새 요청은 일시 거부된다.
 VRAM 계산만으로 모델 적재 성공이나 다른 프로세스와의 미래 경합 부재를 보장하지 않는다.
+
+## 2026-10-20 후속 회귀와 RTX 6000 Ada 준비
+
+기준 `6db55cba95afef51d753d245a16fb39496a481fd` 뒤의 변경은 아래 결정론적 테스트로
+검증한다. 이 절의 메모리 압력·CPU 실패·48GB GPU 관측은 Fake Backend/합성 입력이다.
+위에 기록한 기존 4090 실측과 구분하며 **RTX 6000 Ada의 적재·추론 테스트는 수행하지 않았다.**
+
+- GPU 정상→여유 감소→CPU RAM Admission/Artifact 실패→기존 GPU·인스턴스 보존과 Gate 차단.
+  압력 중 Canary 재개방 금지, 압력 해소 후 연속 정상 관측·같은 GPU Canary로 Gate 복구.
+  CPU 재시도 시각이 아직 남아 있어도 GPU 복구를 막지 않는다.
+- 실제 엔진 비정상과 보수적 메모리 압력을 별도 사유로 유지한다. 여유 회복만으로 엔진
+  장애가 치유됐다고 간주하지 않으며 Canary 실패 시 Gate를 닫아 둔다.
+- 합성 24GB/48GB 관측에서 기존 Override/Reference command를 선택한다. 점유된 48GB는
+  Reference 후보를 유지하고 Admission을 차단한다. 제품명은 허용 목록으로 쓰지 않는다.
+- UUID·Compute Capability 유실과 하한 미달·Artifact/정책 오류를 구분한다. 여러 GPU의
+  여유·연속 관측을 합산하지 않는다. 명시적 운영자 선택을 자동 정책보다 우선한다.
+- 실행 직전 같은 UUID·정책을 재확인한다. 숫자 인덱스 변경은 UUID 할당을 바꾸지 않으며
+  같은 인덱스의 다른 UUID는 거부한다. 재시작 시 저장된 Variant를 먼저 복원한다.
+- 초기화/재검증 Canary 뒤에도 최신 관측과 할당 UUID·압력 조건을 검사한다. command의
+  리소스 인자까지 일치해야 같은 Adaptive GPU Profile로 식별한다.
+
+테스트 원본은 `tests/unit/test_adaptive_runtime.py`, `test_adaptive_gpu_policies.py`,
+`test_docker_main_model_backend.py`다. 실장비를 사용할 때의 절차와 미검증 범위는
+[GPU Host 준비](../guides/gpu-host-preparation.md)에 정리했다.

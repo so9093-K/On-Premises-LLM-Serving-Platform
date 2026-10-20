@@ -21,8 +21,24 @@ from tests.support.main_model import FakeBackend, _SHARED_IMAGE
 ROOT = Path(__file__).resolve().parents[2]
 CPU = "cpu-gguf-text"
 GPU = "gemma4-e4b-it"
-FREE = HostResourceSnapshot((GpuMemory(0, 24564, 23000),), 32000, None)
-BUSY = HostResourceSnapshot((GpuMemory(0, 24564, 300),), 32000, None)
+UUID = "GPU-00000000-0000-0000-0000-000000000001"
+FREE = HostResourceSnapshot(
+    (
+        GpuMemory(
+            0,
+            24564,
+            23000,
+            "NVIDIA GeForce RTX 4090",
+            UUID,
+            "00000000:01:00.0",
+            "8.9",
+            "580.178.04",
+        ),
+    ),
+    32000,
+    None,
+)
+BUSY = replace(FREE, gpus=(replace(FREE.gpus[0], free_mib=300),))
 UNKNOWN = HostResourceSnapshot((), 32000, "GPU_MEMORY_OBSERVATION_FAILED")
 
 
@@ -31,14 +47,17 @@ class Backend(FakeBackend):
         return {
             "status": "ready" if self.observed else "not_ready",
             "profile_id": self.observed,
-            "gpu_device_index": 0,
+            "gpu_device_uuid": UUID,
             "container_state": "running" if self.observed else "not_found",
+            "health": "healthy" if self.observed else None,
         }
 
 
 def fixture(tmp_path, *, snapshot=FREE, **backend_options):
-    catalog, policy, error = load_adaptive_catalog(ROOT, {"VLLM_IMAGE": _SHARED_IMAGE})
-    assert error is None
+    catalog, policy, gpu_policies = load_adaptive_catalog(
+        ROOT, {"VLLM_IMAGE": _SHARED_IMAGE}
+    )
+    assert gpu_policies.error is None
     backend = Backend(**backend_options)
     store = MainModelStateStore(tmp_path / "main.json", CPU)
     manager = MainModelManager(catalog, store, backend)
@@ -47,7 +66,9 @@ def fixture(tmp_path, *, snapshot=FREE, **backend_options):
     async def resources():
         return observations[0]
 
-    control = AdaptiveMainModelControl(manager, policy, resources)
+    control = AdaptiveMainModelControl(
+        manager, policy, resources, gpu_policies=gpu_policies
+    )
     return manager, control, backend, observations
 
 
@@ -94,7 +115,12 @@ def test_gpu_canary_failure_rolls_back_and_honors_durable_backoff(tmp_path):
         assert manager.snapshot()["gate"] == "open"
         await control.step(now=45)
         deadline = manager.state_store.read()["runtime_selection"]["gpu_retry_at"]
-        restarted = AdaptiveMainModelControl(manager, control.policy, control.resources)
+        restarted = AdaptiveMainModelControl(
+            manager,
+            control.policy,
+            control.resources,
+            gpu_policies=control.gpu_policies,
+        )
         for now in (60, 90, 100):
             await restarted.step(now=now)
         assert backend.replaced == [CPU, GPU, CPU]
@@ -122,7 +148,10 @@ def test_unknown_gpu_never_promotes_and_operator_stop_survives_restart(tmp_path)
         observations[0] = FREE
         reloaded = MainModelManager(manager.catalog, manager.state_store, backend)
         restarted = AdaptiveMainModelControl(
-            reloaded, control.policy, control.resources
+            reloaded,
+            control.policy,
+            control.resources,
+            gpu_policies=control.gpu_policies,
         )
         await reloaded.initialize()
         await restarted.step(now=100)
@@ -161,7 +190,17 @@ def test_gpu_admission_is_per_device_and_rejects_unknown(tmp_path):
     manager, control, _, _ = fixture(tmp_path)
     profile = manager.catalog.profiles[GPU]
     split = HostResourceSnapshot(
-        (GpuMemory(0, 24564, 12000), GpuMemory(1, 24564, 12000)), 32000, None
+        (
+            replace(FREE.gpus[0], free_mib=12000),
+            replace(
+                FREE.gpus[0],
+                index=1,
+                free_mib=12000,
+                uuid="GPU-00000000-0000-0000-0000-000000000002",
+            ),
+        ),
+        32000,
+        None,
     )
     assert fitting_gpu(split, profile, control.policy) is None
     assert (
@@ -362,3 +401,181 @@ def test_make_up_keeps_existing_main_and_explicit_stop(monkeypatch, capsys):
     cli.up_adaptive_target(target)
     assert calls == [("up", "-d", "--no-deps", "runtime-controller")]
     assert "Main is explicitly stopped" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "failure", ["CPU RAM admission blocked", "CPU artifact checksum mismatch"]
+)
+def test_failed_cpu_preparation_keeps_gpu_closed_until_pressure_recovers(
+    tmp_path, failure
+):
+    """압력 중 CPU 준비 실패는 GPU를 보존하고, 압력 해소 뒤 같은 인스턴스만 재검증한다."""
+
+    async def scenario():
+        manager, control, backend, observations = fixture(tmp_path)
+        await control.step(now=0)
+        await settle(manager)
+        for now in (5, 10, 40):
+            await control.step(now=now)
+        await settle(manager)
+        before = len(backend.validate_calls)
+        original_started_at = backend.started_at
+
+        async def unavailable_cpu(catalog, profile):
+            assert profile.profile_id == CPU
+            raise RuntimeError(failure)
+
+        backend.prepare = unavailable_cpu
+        observations[0] = BUSY
+        await control.step(now=45)
+        assert manager.snapshot()["gate"] == "closed"
+        await control.step(now=50)
+        op = await settle(manager)
+        assert op["status"] == "failed" and op["stage"] == "preparing"
+        assert failure in op["error"]
+        assert backend.replaced == [CPU, GPU]
+        for now in (55, 60):
+            await control.step(now=now)
+            assert manager.snapshot()["gate"] == "closed"
+        assert len(backend.validate_calls) == before
+        assert (
+            manager.state_store.read()["runtime_selection"]["reason_code"]
+            == "CPU_FALLBACK_PREPARATION_FAILED"
+        )
+        observations[0] = FREE
+        for now in (65, 70):
+            await control.step(now=now)
+            assert manager.snapshot()["gate"] == "closed"
+        await control.step(now=75)
+        assert manager.snapshot()["gate"] == "open"
+        assert backend.validate_calls[before:] == [GPU]
+        assert backend.started_at == original_started_at
+        assert backend.replaced == [CPU, GPU]
+        assert manager.state_store.read()["runtime_selection"]["cpu_retry_at"] > 75
+        await manager.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_runtime_failure_cannot_reopen_gate_from_memory_recovery_alone(tmp_path):
+    async def scenario():
+        manager, control, backend, observations = fixture(tmp_path)
+        await control.step(now=0)
+        await settle(manager)
+        for now in (5, 10, 40):
+            await control.step(now=now)
+        await settle(manager)
+        baseline = len(backend.validate_calls)
+        backend.observed = None
+        backend.fail_prepare = True
+        for now in (45, 50):
+            await control.step(now=now)
+        assert (await settle(manager))["stage"] == "preparing"
+        for now in (55, 60, 65):
+            await control.step(now=now)
+            assert manager.snapshot()["gate"] == "closed"
+        selection = manager.state_store.read()["runtime_selection"]
+        assert selection["gpu_condition"] == "GPU_RUNTIME_UNHEALTHY"
+        assert selection["reason_code"] == "CPU_FALLBACK_PREPARATION_FAILED"
+        assert backend.validate_calls[baseline:] == []
+        assert backend.replaced == [CPU, GPU]
+        await manager.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_cleared_pressure_still_requires_successful_gpu_canary(tmp_path):
+    async def scenario():
+        manager, control, backend, observations = fixture(tmp_path)
+        await control.step(now=0)
+        await settle(manager)
+        for now in (5, 10, 40):
+            await control.step(now=now)
+        await settle(manager)
+        backend.fail_prepare = True
+        observations[0] = BUSY
+        for now in (45, 50):
+            await control.step(now=now)
+        await settle(manager)
+        await control.step(now=55)
+        observations[0] = FREE
+        backend.fail_profile = GPU
+        baseline = len(backend.validate_calls)
+        for now in (60, 65, 70):
+            await control.step(now=now)
+        assert backend.validate_calls[baseline:] == [GPU]
+        assert manager.snapshot()["gate"] == "closed"
+        assert (
+            manager.state_store.read()["runtime_selection"]["reason_code"]
+            == "GPU_REVALIDATION_FAILED"
+        )
+        assert backend.replaced == [CPU, GPU]
+        await manager.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_gpu_recovery_samples_do_not_combine_different_devices(tmp_path):
+    async def scenario():
+        manager, control, backend, observations = fixture(tmp_path)
+        await control.step(now=0)
+        await settle(manager)
+        for now in (5, 10, 40, 45):
+            observations[0] = (
+                FREE
+                if now in (5, 40)
+                else replace(
+                    FREE,
+                    gpus=(
+                        replace(
+                            FREE.gpus[0],
+                            uuid="GPU-00000000-0000-0000-0000-000000000002",
+                        ),
+                    ),
+                )
+            )
+            await control.step(now=now)
+        assert backend.replaced == [CPU]
+        assert manager.state_store.read()["runtime_selection"]["healthy_samples"] == 1
+        await manager.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_adaptive_status_schema_covers_candidate_assignment_and_failed_fallback(
+    tmp_path,
+):
+    from jsonschema import Draft202012Validator
+    from ai_model_serving.openapi_contracts import load_contract_schema
+
+    async def scenario():
+        manager, control, backend, observations = fixture(tmp_path)
+        validator = Draft202012Validator(
+            load_contract_schema("main_model_status_response.schema.json")
+        )
+
+        async def check():
+            status = await manager.observed_snapshot()
+            status["runtime_selection"] = manager.state_store.read()[
+                "runtime_selection"
+            ]
+            validator.validate(status)
+
+        await control.step(now=0)
+        await settle(manager)
+        await control.step(now=5)
+        await check()
+        for now in (10, 40):
+            await control.step(now=now)
+        await settle(manager)
+        await check()
+        backend.fail_prepare = True
+        observations[0] = BUSY
+        for now in (45, 50):
+            await control.step(now=now)
+        await settle(manager)
+        await control.step(now=55)
+        await check()
+        await manager.aclose()
+
+    asyncio.run(scenario())

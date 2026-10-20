@@ -6,6 +6,8 @@
 
 ### Changed
 
+- Adaptive CPU 복구 준비가 실패하면 기존 GPU를 보존하고 압력·장애 중 요청 차단을 유지한다. 압력 해소 뒤 안정 관측과 동일 GPU Canary 성공으로 요청을 재개한다. GPU 정책은 전체 VRAM으로 선택하고 UUID로 할당하며 관측값·정책·선택 근거를 Console에 구분해 표시한다. 기존 숫자 인덱스 Adaptive 상태는 CPU 복구 후 새 UUID Admission을 요구한다. RTX 6000 Ada는 합성 관측 기반 준비 범위이며 실장비 미검증이다. ([GPU Host 준비](docs/guides/gpu-host-preparation.md))
+
 - 관리형 Linux 배포는 모델 image·캐시 준비 전에 Core를 기동한다. 추론 준비 실패 시 운영 UI와 로컬 Risk를 유지하고 `/ready`는 실제 모델 준비 실패를 보고한다.
 
 - Scalar API 문서의 API 제목·요청 예시·오류 설명을 한국어 중심으로 정리하고 모델 조회·추론 API를 먼저 탐색하도록 구성했다. GPU 정책 예약과 실측 메모리, 전환 작업의 상태와 단계를 구분하며 모바일 표의 가로 스크롤과 개발용·외부 연결 메뉴 노출을 정리했다.

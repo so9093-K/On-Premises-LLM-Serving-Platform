@@ -251,6 +251,36 @@
                   "free_mib": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "uuid": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pci_bus_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "compute_capability": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "driver_version": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 }
               }
@@ -263,6 +293,161 @@
               "minimum": 0
             },
             "gpu_observation_error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "gpu_condition": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "GPU_RUNTIME_UNHEALTHY",
+            "GPU_OBSERVATION_UNAVAILABLE",
+            "GPU_MEMORY_PRESSURE",
+            null
+          ]
+        },
+        "gpu_assignment": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "uuid",
+            "name",
+            "pci_bus_id",
+            "compute_capability",
+            "driver_version",
+            "total_mib",
+            "resource_variant",
+            "policy_source"
+          ],
+          "properties": {
+            "uuid": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pci_bus_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "compute_capability": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "driver_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total_mib": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "resource_variant": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policy_source": {
+              "type": "string",
+              "enum": [
+                "operator",
+                "memory_class"
+              ]
+            }
+          }
+        },
+        "gpu_candidate": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "uuid",
+            "name",
+            "pci_bus_id",
+            "compute_capability",
+            "driver_version",
+            "total_mib",
+            "resource_variant",
+            "policy_source",
+            "admissible",
+            "reason_code"
+          ],
+          "properties": {
+            "uuid": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pci_bus_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "compute_capability": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "driver_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "total_mib": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "resource_variant": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policy_source": {
+              "type": "string",
+              "enum": [
+                "operator",
+                "memory_class"
+              ]
+            },
+            "admissible": {
+              "type": "boolean"
+            },
+            "reason_code": {
               "type": [
                 "string",
                 "null"

@@ -27,19 +27,35 @@ Core 운영 기능의 생존과 추론 준비 상태는 서로 다른 계약이�
   응답 Canary → 상태 Commit을 사용한다. 교체 실패는 이전 Profile을 재생성·재검증한
   뒤 Gate를 연다. 양쪽 검증이 실패하면 Gate를 닫고 Core에서 상태를 진단한다.
   재시작 복구도 Adaptive에서는 Drain을 생략하지 않는다.
-- 자원 관측 서비스는 NVIDIA utility 권한으로 GPU별 free/total VRAM을 읽는다.
+- 자원 관측 서비스는 NVIDIA utility 권한의 `nvidia-smi`로 GPU별 free/total VRAM과
+  제품명·UUID·PCI Bus·Compute Capability·Driver를 읽는다. 별도 NVML Python 의존성은 두지 않는다.
   Socket·Host Port·모델 실행 권한은 없다. Controller는 고정 내부 endpoint의
   인증된 최신 관측만 사용하며, 관측 불가는 충분한 GPU 자원으로 해석하지 않는다.
 - GPU 시작은 장치별 최소 전체 VRAM과 `ceil(total × Profile 예약 비율) + 여유분`을
   만족해야 한다. 여러 GPU의 여유를 합산하거나 다른 프로젝트를 퇴거시키지 않는다.
   실행 중에는 자기 모델이 이미 예약한 메모리를 시작 요구량과 재비교하지 않는다.
   낮은 잔여 VRAM·엔진 장애·관측 실패가 연속되면 CPU로 복구한다.
+- GPU 제품명은 관측 정보다. 정책은 전체 VRAM·최소 Compute Capability를 기준으로 고르고,
+  여유 VRAM은 그 정책의 Admission에만 사용한다. 48GB급은 기존 Reference,
+  24GB급은 기존 `rtx4090-24gb`를 재사용하며 여유가 적다고 같은 장치의 정책을 축소하지 않는다.
+  Adaptive 전용 명시적 정책 → 기존 명시적 Variant → 자동 선택 순으로 운영자 결정을 보존한다.
+  Artifact·정책·호환성·식별 실패는 별도 사유로 보고하며 정책 오류를 Reference로 대체하지 않는다.
+- 연속 복귀 관측은 같은 UUID·Variant여야 한다. GPU 할당 UUID와 정책은 기존 Main 상태에
+  보존하고 Docker DeviceRequests를 UUID로 고정한다. 준비·교체 직전 새 관측도 같은 장치를
+  요구한다. 재시작은 저장된 정책 복원 뒤 실제 command/image·장치·Canary를 확인한다.
+  숫자 인덱스만 있던 이전 Adaptive 상태는 검증을 승계하지 않고 CPU 복구 뒤 다시 선택한다.
+- 압력·관측 실패·엔진 장애의 첫 관측은 Gate를 닫고, 연속 실패는 CPU 교체를 결정한다.
+  CPU 준비 실패 시 이전 GPU 컨테이너는 유지하되 위험 조건이 남으면 요청을 재개하지 않는다.
+  엔진 정상·자원 압력 해소가 연속 관측되면 CPU 재시도 유예와 독립적으로 동일 GPU의
+  Canary를 재검증한다. 검증 성공 시에만 Gate를 열며, 단순 Health나 여유 증가로 열지 않는다.
+  초기화·Rollback 재검증도 최신 UUID·자원 압력 검사를 통과해야 한다.
 - GPU 복귀는 연속 안정 관측과 최소 CPU 체류 시간을 요구한다. 실패 재시도 시각은
   Main 상태에 함께 영속화한다. 임계값·주기는 `configs/adaptive_main_model_profiles.yaml`이
   소유한다. 실제 적재 성공은 VRAM 계산이 아니라 Canary가 판정한다.
 - 자동 모드의 수동 Profile 전환은 잠근다. 운영자의 Main 중지/시작은 기존 Plan Digest
   검토 경로를 사용하며, 중지 의도는 재시작 후에도 유지한다. Drain 실패 시 중지를 강행하지 않는다.
-- Control Plane은 활성 엔진·자동 선택 이유·실측 여유 메모리·재시도 시각을 표시한다.
+- Control Plane은 활성 엔진·자동 선택 이유·GPU 식별·실측 여유 메모리·리소스 정책과
+  선택 근거·재시도 시각을 표시한다.
   GPU 예약 비율은 정책값이며 실측 사용량과 구분한다. 공개 모델·입력·파라미터 한도는
   검증된 활성 Profile을 따르고 Gate가 닫히면 Adaptive Main을 목록에서 제외한다.
 
@@ -62,3 +78,4 @@ Native 프로세스 감독이나 별도 Router·전환 Journal을 추가하는 �
 - [ADR-0053](0053-model-optional-deployment-and-cpu-static-serving.md)
 - [모델 운영](../06_model_operations.md)
 - [자동 Runtime 운영](../guides/adaptive-runtime.md)
+- [GPU Host 준비와 실장비 검증 경계](../guides/gpu-host-preparation.md)

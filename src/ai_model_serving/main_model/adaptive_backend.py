@@ -10,8 +10,19 @@ from typing import Awaitable, Callable
 
 import httpx
 
-from ..host_resource_probe import GpuMemory, HostResourceSnapshot, available_memory_mib
+from ..host_resource_probe import (
+    GpuMemory,
+    HostResourceSnapshot,
+    available_memory_mib,
+    gpu_from_mapping,
+)
 from .catalog import MainModelCatalog, MainModelProfile
+from .adaptive_gpu import (
+    AdaptiveGpuPolicies,
+    GpuAssignment,
+    compute_capability,
+    device_fits,
+)
 from .cpu import prepare_cpu_model
 from .docker_backend import DockerMainModelBackend
 
@@ -41,18 +52,11 @@ class AdaptiveResourceReader:
                 raise ValueError("stale resource observation")
             gpus = []
             for row in data["gpus"]:
-                index, total, free = (
-                    row[k] for k in ("index", "total_mib", "free_mib")
-                )
-                if (
-                    any(type(v) is not int for v in (index, total, free))
-                    or index < 0
-                    or total <= 0
-                    or not 0 <= free <= total
-                ):
-                    raise ValueError("invalid GPU observation")
-                gpus.append(GpuMemory(index, total, free))
-            if len({g.index for g in gpus}) != len(gpus):
+                gpus.append(gpu_from_mapping(row))
+            uuids = [g.uuid for g in gpus if g.uuid is not None]
+            if len({g.index for g in gpus}) != len(gpus) or len(set(uuids)) != len(
+                uuids
+            ):
                 raise ValueError("ambiguous GPU observation")
             ram = data["ram_available_mib"]
             if ram is not None and (type(ram) is not int or ram < 0):
@@ -72,21 +76,11 @@ def fitting_gpu(
     snapshot: HostResourceSnapshot, profile: MainModelProfile, policy: dict
 ) -> GpuMemory | None:
     """장치별 여유와 프로필 예약량을 검사하며 GPU 간 여유를 합산하지 않는다."""
-    if (
-        snapshot.gpu_observation_error
-        or not 0 < profile.vram_fraction <= policy["gpu_budget_ceiling"]
-    ):
+    if snapshot.gpu_observation_error:
         return None
-    for gpu in snapshot.gpus:
-        required = math.ceil(gpu.total_mib * profile.vram_fraction) + int(
-            policy["gpu_start_margin_mib"]
-        )
-        if (
-            gpu.total_mib >= int(policy["gpu_minimum_total_mib"])
-            and gpu.free_mib >= required
-        ):
-            return gpu
-    return None
+    return next(
+        (gpu for gpu in snapshot.gpus if device_fits(gpu, profile, policy)), None
+    )
 
 
 class AdaptiveDockerBackend(DockerMainModelBackend):
@@ -97,6 +91,7 @@ class AdaptiveDockerBackend(DockerMainModelBackend):
         cpu_cache_dir: Path,
         resource_reader: Callable[[], Awaitable[HostResourceSnapshot]],
         selection_policy: dict,
+        gpu_policies: AdaptiveGpuPolicies,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -104,14 +99,67 @@ class AdaptiveDockerBackend(DockerMainModelBackend):
         self.cpu_cache_dir = cpu_cache_dir
         self.resource_reader = resource_reader
         self.selection_policy = selection_policy
-        self.gpu_index: int | None = None
+        self.gpu_policies = gpu_policies
+        self.gpu_assignment: GpuAssignment | None = None
+        self.gpu_uuid: str | None = None
+
+    def bind_gpu(self, assignment: GpuAssignment) -> None:
+        self.gpu_assignment = assignment
+        self.gpu_uuid = assignment.device.uuid
 
     async def _admit_gpu(self, profile: MainModelProfile) -> None:
         observed = await self.resource_reader()
-        device = fitting_gpu(observed, profile, self.selection_policy)
-        if device is None:
+        assignment = self.gpu_assignment
+        if (
+            assignment is None
+            or assignment.profile.command != profile.command
+            or assignment.profile.image != profile.image
+        ):
+            raise RuntimeError("GPU_ASSIGNMENT_UNAVAILABLE")
+        device = next(
+            (g for g in observed.gpus if g.uuid == assignment.device.uuid), None
+        )
+        if observed.gpu_observation_error or device is None:
+            raise RuntimeError("GPU_IDENTITY_UNAVAILABLE")
+        # 후보 UUID와 자원 정책을 고정하며 다른 장치나 작은 정책으로 조용히 옮기지 않는다.
+        capability = self.gpu_policies.minimum_compute
+        current_compute = compute_capability(device.compute_capability)
+        if current_compute is None or current_compute < capability:
+            raise RuntimeError("GPU_COMPATIBILITY_UNSUPPORTED")
+        if not device_fits(device, profile, self.selection_policy):
             raise RuntimeError("GPU_MEMORY_ADMISSION_BLOCKED")
-        self.gpu_index = device.index
+        if not self.gpu_policies.explicit:
+            rule = next(
+                (
+                    r
+                    for r in self.gpu_policies.rules
+                    if device.total_mib >= r["minimum_total_mib"]
+                ),
+                None,
+            )
+            if rule is None or rule["resource_variant"] != profile.resource_variant:
+                raise RuntimeError("GPU_RESOURCE_POLICY_CHANGED")
+        self.gpu_uuid = device.uuid
+
+    async def validate(
+        self, catalog: MainModelCatalog, profile: MainModelProfile
+    ) -> None:
+        await super().validate(catalog, profile)
+        if profile.runtime_backend == "llama-cpp":
+            return
+        snapshot = await self.resource_reader()
+        runtime = await self.observe_runtime(catalog)
+        device = next(
+            (g for g in snapshot.gpus if g.uuid == runtime.get("gpu_device_uuid")), None
+        )
+        if (
+            snapshot.gpu_observation_error
+            or device is None
+            or self.gpu_assignment is None
+            or device.uuid != self.gpu_assignment.device.uuid
+            or device.free_mib < self.selection_policy["gpu_pressure_free_mib"]
+        ):
+            raise RuntimeError("GPU_REVALIDATION_RESOURCE_UNSAFE")
 
     async def prepare(
         self, catalog: MainModelCatalog, profile: MainModelProfile

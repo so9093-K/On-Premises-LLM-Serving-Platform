@@ -39,14 +39,21 @@ Console `http://127.0.0.1:9400/admin/console/`의 **메인 모델 → 자동 CPU
 | GPU 이미지 준비 필요 · CPU 사용 | GPU image 고정값과 빌드 로그를 확인하고 `make up`을 재실행합니다. |
 | GPU 적재 및 응답 검증 중 | 새 요청은 503입니다. 기존 요청을 Drain한 뒤 실제 모델 응답을 검증합니다. |
 | GPU 재시도 대기 · CPU 사용 | 실패 작업 기록을 확인합니다. 재시도 가능 시각 전에는 다시 시도하지 않습니다. |
+| CPU 복구 준비 실패 · 새 요청 차단 | RAM Admission·Artifact 오류를 확인합니다. 교체 전 실패이면 기존 GPU는 유지되지만 압력·장애 중 요청은 받지 않습니다. |
+| GPU 안정성 확인 중 · 새 요청 차단 | 압력 해소와 엔진 정상이 연속 관측돼야 같은 GPU를 Canary 재검증합니다. |
+| GPU 응답 재검증 미완료 · 새 요청 차단 | 메모리 여유만으로 요청을 재개하지 않습니다. Canary 오류와 재검증 로그를 확인합니다. |
 | 운영자가 중지함 | 런타임 화면에서 Main 시작 Plan을 검토·적용해야 재개합니다. |
 
 기본 정책은 5초 관측, GPU 복귀 3회 연속 관측·최소 CPU 체류 30초, 장애 2회 연속 관측,
-실패 재시도 60초입니다. GPU 시작 조건은 최소 전체 23,500 MiB,
-`ceil(전체 VRAM × 활성 GPU Profile 예약 비율) + 512 MiB` 여유입니다.
+실패 재시도 60초입니다. GPU 정책은 전체 VRAM 45,000 MiB 이상에서 기존 Reference,
+23,500 MiB 이상부터 그 미만에서는 기존 `rtx4090-24gb` Override를 자동 선택합니다.
+실행하려면 유효한 UUID·최소 Compute Capability와
+`ceil(전체 VRAM × 선택한 Profile 예약 비율) + 512 MiB` 여유가 필요합니다.
 실행 중 512 MiB 미만의 잔여 VRAM은 CPU 복구 조건입니다. 이 수치는 모델 크기의
 보편적 추정이나 모든 GPU의 호환성 보증이 아닙니다. 정책 원본은
 [Adaptive Catalog](../../configs/adaptive_main_model_profiles.yaml)입니다.
+운영자 Override 우선순위·장치 교체·재시작·48GB급 준비 절차는
+[GPU Host 준비](gpu-host-preparation.md)를 확인하세요. 제품명은 실행 허용 목록이 아닙니다.
 
 ## 요청과 기능 변화
 
@@ -55,6 +62,13 @@ Console `http://127.0.0.1:9400/admin/console/`의 **메인 모델 → 자동 CPU
 Drain을 기다립니다. Drain 실패 시 엔진을 해체하지 않습니다. 교체·Canary 실패 시
 이전 엔진을 재검증하여 복구하며 양쪽 실패 시 Gate를 닫고 Core를 유지합니다.
 전환은 중단 없는 동시 서빙이 아닙니다.
+
+GPU 메모리 압력·관측 실패·실제 엔진 장애에서는 첫 관측에 새 요청을 차단합니다.
+연속 실패 기준은 CPU로 교체할 시점을 정합니다. CPU RAM Admission이나 Artifact 준비가
+실패하면 교체 전의 GPU 컨테이너를 유지하지만 위험 조건이 남은 동안 Gate를 다시 열지 않습니다.
+실제 엔진 장애와 자원 압력은 별도 사유로 표시합니다. 압력이 해소되고 같은 GPU의 정상 상태가
+연속 관측되면 CPU 재시도 유예와 독립적으로 Canary를 수행해 성공 시에만 Gate를 엽니다.
+이 복구는 컨테이너 재생성이나 진행 중 요청의 재전송을 요구하지 않습니다.
 
 CPU는 Qwen3 0.6B, 텍스트·Chat·Responses·SSE, 문맥 2,048·출력 최대 256 tokens입니다.
 GPU는 Gemma E4B의 기존 Profile 정책을 따릅니다. 같은 `local-main`이라도 모델·답변·지원

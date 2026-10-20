@@ -30,7 +30,7 @@ def create_adaptive_controller_app(
     env = dict(os.environ if environment is None else environment)
     config = load_runtime_controller_config(env)
     require_compose_project(config.compose_project)
-    catalog, policy, gpu_error = load_adaptive_catalog(config.config_root, env)
+    catalog, policy, gpu_policies = load_adaptive_catalog(config.config_root, env)
     ceiling = policy["gpu_budget_ceiling"]
     if not 0 < ceiling <= 1:
         raise ValueError("GPU budget ceiling must be in (0, 1]")
@@ -50,6 +50,7 @@ def create_adaptive_controller_app(
         cpu_cache_dir=Path("/models"),
         resource_reader=reader,
         selection_policy=policy,
+        gpu_policies=gpu_policies,
     )
     store = MainModelStateStore(config.state_path, catalog.default_profile)
     try:
@@ -60,8 +61,17 @@ def create_adaptive_controller_app(
     if persisted is not None and persisted not in catalog.profiles:
         # GPU Artifact 설정 유실 시 이전 검증을 광고하지 않고 CPU를 다시 검증한다.
         store.update(lambda state: state.update(active_profile=None, gate="closed"))
+    assignment = gpu_policies.restore(
+        (store.read().get("runtime_selection") or {}).get("gpu_assignment")
+    )
+    if assignment is not None:
+        catalog.profiles[assignment.profile.profile_id] = assignment.profile
+        if hasattr(engine, "bind_gpu"):
+            engine.bind_gpu(assignment)
     manager = MainModelManager(catalog, store, engine)
-    control = AdaptiveMainModelControl(manager, policy, reader, gpu_error=gpu_error)
+    control = AdaptiveMainModelControl(
+        manager, policy, reader, gpu_policies=gpu_policies
+    )
 
     async def authenticate(authorization: str | None = Header(default=None)):
         if config.internal_service_auth_required and not hmac.compare_digest(

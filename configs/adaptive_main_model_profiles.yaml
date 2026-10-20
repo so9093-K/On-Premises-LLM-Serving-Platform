@@ -18,7 +18,13 @@ runtime:
 selection:
   cpu_profile: cpu-gguf-text
   gpu_profile: gemma4-e4b-it
-  gpu_resource_variant: rtx4090-24gb
+  # 제품명은 관측 정보이며 정책은 전체 VRAM과 Capability로 선택한다.
+  gpu_minimum_compute_capability: "8.0"
+  gpu_resource_policies:
+    - minimum_total_mib: 45000
+      resource_variant: null
+    - minimum_total_mib: 23500
+      resource_variant: rtx4090-24gb
   # E4B의 검증된 자원 정책에 대한 보수적 시작 조건이다. 적재 성공은 Canary로 확인한다.
   gpu_minimum_total_mib: 23500
   gpu_start_margin_mib: 512
