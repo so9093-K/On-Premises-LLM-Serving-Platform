@@ -3,6 +3,36 @@
 이 절차는 Linux GPU 서버 한 대에 이미 실행 중인 플랫폼을 **Tailnet 내부에서만** 제공한다.
 개인 도메인이나 공인 포트포워딩이 필요하지 않다. 일반 인터넷 사용자에게 공개하는 절차가 아니다.
 
+## 먼저: 접속 목적 선택
+
+아래 명령은 **읽기 전용 설정 계획**만 표시하고 Tailscale/Nginx/방화벽을 설치·변경하지 않는다.
+플랫폼을 처음 설치할 때는 먼저 [빠른 시작](getting-started.md)으로 `make up`을 완료한다.
+
+| 목적 | 서버에서 실행할 명령 | 접속 대상 |
+|---|---|---|
+| **내 기기에서 관리자 접속** | `make access PURPOSE=personal` | 관리자 Control Plane · HTTPS 443 |
+| **팀원에게 모델 API 공유** | `make access PURPOSE=team` | 팀원 API · HTTPS 8443 |
+
+- 개인 접속에는 **Nginx와 8443이 필요하지 않다.**
+- 두 경우 모두 기존 Access Profile의 인증·Loopback 조건과 Tailscale 접근 정책을 확인해야 한다.
+- `ACCESS=edge`는 **Host의 Loopback+인증 정책**이지 Tailscale 설치·설정 완료를 의미하지 않는다.
+- 적용 후 `make access-status PURPOSE=personal` 또는 `PURPOSE=team`으로 서버 내부 관측을 조회한다. `make status`의 `READY`는 **모델 준비 상태**이지 외부 접속 성공이 아니다.
+- 표시된 Tailnet URL은 **접속 주소 후보**일 뿐이다. 실제 외부 기기에서 HTTPS, 관리자/일반 API Key, Grants, 비허용 경로 차단, Funnel 비공개를 직접 확인해야 최종 완료다.
+
+### 개인 접속 최소 흐름 (Linux Host)
+
+1. 플랫폼을 준비한 후 `make access PURPOSE=personal`을 실행해 요구 사항과 현재 설정을 확인한다.
+2. Access Profile 변경이 필요하면 `make up ACCESS=edge`로 계획을 검토하고 `make up ACCESS=edge CONFIRM=access`로 명시적으로 적용한다. 키는 운영자 Secret 관리 정책으로 준비한다.
+3. 서버와 접속할 기기에 Tailscale을 설치·로그인하고, Tailnet 관리자가 **관리자만 443에 접근하도록** 기존 전체 Grants/ACL과 함께 검토한다.
+4. 기존 Serve/Funnel 구성을 확인한 후, 충돌이 없을 때만 서버에 `tailscale serve --bg --https=443 http://127.0.0.1:9400`을 적용한다.
+5. `make access-status PURPOSE=personal`로 서버가 관측한 내용을 확인하고, 별도 기기에서 실제 `https://<server-tailnet-name>/admin/console/` 접속을 검사한다.
+
+팀원에게 API를 공유할 때만 아래 **3~6절의 Nginx 8443·Grants 분리 절차**를 추가한다.
+
+이 안내와 Host adapter는 **Linux GPU 서버에서 검증된 경계**다. macOS 호스트의 실제 Tailscale 설치·권한·서비스 재시작 특성은 별도 검증이 필요하며, Mac 지원 완료로 표시하지 않는다.
+
+---
+
 ## 1. 접근 경계
 
 | 계층 | 소유자 | 역할 |
@@ -44,7 +74,7 @@ make status
 이 결과는 `.env` 설정만 검사하며 **실제로 실행 중인 Gateway의 bind 상태, Tailscale 정책 적용 여부를 증명하지 않는다.**
 이 도구는 키·Tailnet 상태를 변경하지 않는다.
 
-## 3. 팀원 API Proxy
+## 3. 팀원 API Proxy (팀원 공유 시에만)
 
 서버에 Nginx를 설치한다(예: Ubuntu `sudo apt-get install nginx`).
 설정을 검토한 뒤 Nginx의 `http` 컨텍스트에서 로드되는 경로로 복사한다.
@@ -92,7 +122,7 @@ Tailnet Admin Console의 Policy Editor에서
 [공식 Policy 문법](https://tailscale.com/docs/reference/syntax/policy-file) ·
 [Grants](https://tailscale.com/docs/reference/syntax/grants)
 
-## 5. HTTPS 접속
+## 5. HTTPS 접속 (관리자 기본 / 팀원 확장)
 
 Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 **기존 Serve 및 Funnel 설정을 먼저 확인하고, 충돌이 없을 때만** 아래 명령을 실행한다.
@@ -101,6 +131,7 @@ Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 tailscale serve status
 tailscale funnel status
 tailscale serve --bg --https=443 http://127.0.0.1:9400
+# 팀원 API 공유를 별도로 선택한 경우에만 아래 명령 추가
 tailscale serve --bg --https=8443 http://127.0.0.1:9480
 tailscale serve status
 ```
