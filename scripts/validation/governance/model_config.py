@@ -82,7 +82,11 @@ def validate_deployment_targets() -> None:
         target = load_deployment_target(ROOT / 'configs/deployment_targets.yaml', str(target_id))
         if target.implementation_status == 'planned' and target_id == default_target:
             raise SystemExit('a planned deployment target cannot be the default')
-        load_main_serving_catalog(ROOT / target.main_profile_catalog)
+        if target.supports("chat"):
+            # Main Model이 없는 Core Target에는 Serving Profile이 필요하지 않다.
+            if target.main_profile_catalog is None:
+                raise SystemExit(f"deployment target {target_id!r} requires main_profile_catalog")
+            load_main_serving_catalog(ROOT / target.main_profile_catalog)
         # Console은 runs_monitoring_stack으로 Grafana 링크를 보인다. compose와 어긋나면
         # 없는 Grafana를 가리키거나 있는 것을 숨긴다. dynamic target은 full-stack compose를 쓴다.
         compose_files = raw_target.get('compose_files') or ['ops/compose/full-stack.private-network.yaml']
