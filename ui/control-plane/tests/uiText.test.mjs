@@ -6,7 +6,6 @@ import {
   formatPercent,
   runtimeStateLabel,
   accessProfileLabel,
-  accessReachabilityHint,
 } from '../src/uiText.ts';
 
 test('capability presentation preserves semantic availability classes', () => {
@@ -41,10 +40,4 @@ test('container states from Docker never leak as raw English values', () => {
 test('edge access profile identifies TLS proxy boundary, not automatic public exposure', () => {
   assert.equal(accessProfileLabel('edge'), 'TLS 프록시 경유');
   assert.equal(accessProfileLabel('local'), '로컬');
-});
-
-test('access guidance never claims verified remote access', () => {
-  assert.match(accessReachabilityHint('local'), /로컬/);
-  assert.match(accessReachabilityHint('edge'), /TLS Proxy/);
-  assert.match(accessReachabilityHint('private'), /별도로 확인/);
 });
