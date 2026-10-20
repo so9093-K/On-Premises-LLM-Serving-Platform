@@ -658,6 +658,11 @@ def create_runtime_controller_app(
                 # 운영자에게 먼저 무엇을 stop해야 하는지 알려준다. (여기서는 auto-evict를 하지
                 # 않는다: profile 변경은 의도적인 행위이므로, 공간 확보는 명시적인 단계여야 한다.)
                 if target_profile is not None:
+                    # 사전 판단과 동일하게 기술·명시적 리소스 정책을 먼저 확인한다.
+                    # 확실히 거부할 요청에서 Docker GPU 관측을 수행하지 않는다.
+                    policy_error = context._main_model_manager.switch_policy_error(profile_id)
+                    if policy_error is not None:
+                        raise policy_error
                     await _admit_profile_switch_or_raise(target_profile.vram_fraction)
                 outcome = context._main_model_manager.request_switch(
                     profile_id,
