@@ -110,7 +110,7 @@ def test_team_plan_includes_api_only_proxy(monkeypatch, tmp_path, capsys):
 def test_unconfigured_plan_shows_safe_access_migration(monkeypatch, tmp_path, capsys):
     path = write_env(tmp_path, ACCESS_PROFILE="local")
     monkeypatch.setattr(sys, "argv", ["remote_access.py", "plan", "--env-file", str(path)])
-    assert main() == 2
+    assert main() == 0
     text = capsys.readouterr().out
     assert "make up ACCESS=edge CONFIRM=access" in text
     assert "조치 필요" in text
@@ -163,3 +163,26 @@ def test_serve_mapping_must_match_port_and_backend():
     text = "https://node.example.ts.net:8443\n|-- / proxy http://127.0.0.1:9480\n"
     assert _serve_proxy_observed(text, 8443, "http://127.0.0.1:9480")
     assert not _serve_proxy_observed(text, 443, "http://127.0.0.1:9400")
+
+
+def test_status_requires_observed_serve_mapping_and_warns_on_funnel(monkeypatch, tmp_path, capsys):
+    from subprocess import CompletedProcess
+    from scripts.access import remote_access
+
+    path = write_env(tmp_path)
+    def fake_command(*args):
+        if args == ("status", "--json"):
+            return CompletedProcess(args, 0, '{"BackendState":"Running"}')
+        if args == ("serve", "status"):
+            return CompletedProcess(args, 0, "https://node.example.ts.net:8443\n|-- / proxy http://127.0.0.1:9480\n")
+        if args == ("funnel", "status"):
+            return CompletedProcess(args, 0, "https://public.example.ts.net\n")
+        raise AssertionError(args)
+    monkeypatch.setattr(remote_access, "_tailscale_command", fake_command)
+    monkeypatch.setattr(sys, "argv", ["remote_access.py", "status", "--env-file", str(path)])
+    assert main() == 1
+    result = capsys.readouterr().out
+    assert "Serve HTTPS 443" in result
+    assert "확인 필요" in result
+    assert "Funnel: 공개 URL" in result
+    assert "미검증" in result
