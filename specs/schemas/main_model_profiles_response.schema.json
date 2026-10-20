@@ -17,7 +17,8 @@
           {
             "type": "object",
             "required": [
-              "active"
+              "active",
+              "switch_preflight"
             ]
           }
         ]
