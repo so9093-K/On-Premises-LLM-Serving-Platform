@@ -8,6 +8,7 @@ import httpx
 from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
 from ai_model_serving.gpu_budget import Participant
 from ai_model_serving.main_model.switch_preflight import project_switch_preflight
+from ai_model_serving.main_model.control import MainModelSwitchError
 
 
 def _preflight(*, fraction: float, participants: list[Participant] | None, blocked: str | None = None, active: bool = False, switching: bool = False):
@@ -147,3 +148,39 @@ def test_slow_docker_observation_returns_unknown_within_controller_read_timeout(
     assert candidates
     assert all(p["switch_preflight"]["status"] in {"unknown", "blocked"} for p in candidates)
     assert not any(p["switch_preflight"]["status"] == "fits" for p in candidates)
+
+
+def test_switch_request_rejects_policy_before_observing_gpu(tmp_path, monkeypatch):
+    # 사전 판단은 정책 거부로 표시하는데 실제 POST가 먼저 Docker 오류로
+    # 거부한다면 같은 모델에 서로 다른 이유를 광고하게 된다.
+    monkeypatch.setenv("MAIN_MODEL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "")
+    monkeypatch.setenv("COMPOSE_PROJECT", "test-platform")
+    app = create_runtime_controller_app()
+    controller = app.state.controller
+    candidate = next(iter(controller._catalog.profiles))
+
+    def blocked(_profile_id):
+        return MainModelSwitchError(
+            "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED",
+            "selected resource policy missing",
+            status_code=422,
+        )
+
+    monkeypatch.setattr(controller._main_model_manager, "switch_policy_error", blocked)
+
+    class MustNotObserve:
+        async def status(self, _service):
+            raise AssertionError("거부되는 프로필은 Docker GPU를 조회하지 않아야 한다")
+
+    monkeypatch.setattr(controller, "_executor", lambda: MustNotObserve())
+
+    async def request_switch():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test",
+        ) as client:
+            return await client.post("/main-model/switch", json={"profile": candidate})
+
+    response = asyncio.run(request_switch())
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED"
