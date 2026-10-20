@@ -46,6 +46,17 @@ def test_cpu_model_artifact_is_immutable() -> None:
     assert "@sha256:" in images["images"]["llama_cpp"]["default"]
 
 
+def test_cpu_control_mode_is_accepted_in_public_schemas() -> None:
+    bootstrap = yaml.safe_load(
+        (ROOT / "specs/schemas/control_plane_bootstrap_response.schema.json").read_text(encoding="utf-8")
+    )
+    envelope = yaml.safe_load(
+        (ROOT / "specs/schemas/serving_envelope_response.schema.json").read_text(encoding="utf-8")
+    )
+    assert "managed_cpu" in bootstrap["properties"]["deployment"]["properties"]["control_mode"]["enum"]
+    assert "managed_cpu" in envelope["properties"]["control_mode"]["enum"]
+
+
 def test_cpu_model_prepare_checks_cached_bytes(tmp_path) -> None:
     spec = importlib.util.spec_from_file_location(
         "cpu_artifact_prepare", ROOT / "scripts/models/prepare_cpu_model.py"

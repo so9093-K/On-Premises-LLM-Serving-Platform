@@ -26,6 +26,9 @@ export function t(key: UiTextKey, locale: UiLocale = DEFAULT_UI_LOCALE): string 
 
 export function deploymentTargetLabel(target: string, fallback: string): string {
   const labels: Record<string, string> = {
+    'linux-core': 'Linux · 기본 서비스',
+    'linux-cpu-managed': 'Linux · CPU 모델 관리형',
+    'linux-cpu-static': 'Linux · 외부 CPU 모델',
     'linux-nvidia-dynamic': 'Linux + NVIDIA · 플랫폼 관리형',
     'linux-nvidia-static': 'Linux + NVIDIA · 외부 메인 런타임',
     'macos-metal-static': 'macOS + Metal · 외부 메인 런타임',
@@ -42,6 +45,7 @@ export function lifecycleOwnerLabel(owner: string): string {
 export function controlModeLabel(mode: string): string {
   if (mode === 'runtime_controller') return '플랫폼 런타임 제어';
   if (mode === 'static') return '외부 관리';
+  if (mode === 'managed_cpu') return '플랫폼 CPU Runtime 관리';
   return mode;
 }
 
