@@ -103,10 +103,11 @@ def _public_models_from_registry(
     # active Profile snapshot으로 다시 덮어쓴다.
     projected_serving = dict(model_serving)
     projected_models = dict(model_serving.get("models", {}))
-    main_llm = dict(projected_models.get("main_llm", {}))
-    main_llm["max_output_tokens"] = default_main_model_gateway_policy["max_output_tokens"]
-    main_llm["request_parameter_policy"] = default_main_model_gateway_policy["request_parameter_policy"]
-    projected_models["main_llm"] = main_llm
+    if deployment_target.supports("chat"):
+        main_llm = dict(projected_models.get("main_llm", {}))
+        main_llm["max_output_tokens"] = default_main_model_gateway_policy["max_output_tokens"]
+        main_llm["request_parameter_policy"] = default_main_model_gateway_policy["request_parameter_policy"]
+        projected_models["main_llm"] = main_llm
     projected_serving["models"] = projected_models
     registry = ModelRegistry(model_catalog, projected_serving)
     issues = registry.alignment_issues()
@@ -317,28 +318,30 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             f"{deployment_target.implementation_status} and cannot be started"
         )
     model_catalog = load_yaml_mapping(project_root / "configs" / "model_catalog.yaml")
-    # Model-less target는 공개 Chat 계약이 없다. 공통 schema 생성에 쓰는 기본
-    # profile 정책만 내부적으로 읽고 Main runtime/service는 투영하지 않는다.
-    main_catalog_path = (
-        project_root / (deployment_target.main_profile_catalog or "configs/main_model_profiles.yaml")
-    ).resolve()
-    try:
-        main_catalog_path.relative_to(project_root.resolve())
-    except ValueError as exc:
-        raise RuntimeError("deployment target main_profile_catalog escapes the project root") from exc
-    main_model_catalog = load_main_serving_catalog(main_catalog_path)
+    main_model_catalog = None
+    main_catalog_path = project_root
     static_main_profile = ""
-    selected_main_profile = main_model_catalog.default_profile
-    if deployment_target.control_mode == "static":
-        static_main_profile = _env("MAIN_MODEL_STATIC_PROFILE", "").strip()
-        if not static_main_profile:
-            raise RuntimeError("MAIN_MODEL_STATIC_PROFILE is required for a static deployment target")
-        if static_main_profile not in main_model_catalog.profiles:
-            allowed = ", ".join(sorted(main_model_catalog.profiles))
-            raise RuntimeError(
-                f"unknown MAIN_MODEL_STATIC_PROFILE {static_main_profile!r}; allowed: {allowed}"
-            )
-        selected_main_profile = static_main_profile
+    selected_main_profile = ""
+    if deployment_target.supports("chat"):
+        if deployment_target.main_profile_catalog is None:
+            raise RuntimeError("Chat target requires main_profile_catalog")
+        main_catalog_path = (project_root / deployment_target.main_profile_catalog).resolve()
+        try:
+            main_catalog_path.relative_to(project_root.resolve())
+        except ValueError as exc:
+            raise RuntimeError("deployment target main_profile_catalog escapes the project root") from exc
+        main_model_catalog = load_main_serving_catalog(main_catalog_path)
+        selected_main_profile = main_model_catalog.default_profile
+        if deployment_target.control_mode == "static":
+            static_main_profile = _env("MAIN_MODEL_STATIC_PROFILE", "").strip()
+            if not static_main_profile:
+                raise RuntimeError("MAIN_MODEL_STATIC_PROFILE is required for a static deployment target")
+            if static_main_profile not in main_model_catalog.profiles:
+                allowed = ", ".join(sorted(main_model_catalog.profiles))
+                raise RuntimeError(
+                    f"unknown MAIN_MODEL_STATIC_PROFILE {static_main_profile!r}; allowed: {allowed}"
+                )
+            selected_main_profile = static_main_profile
     version = (project_root / "VERSION").read_text(encoding="utf-8").strip()
 
     security_cfg = model_serving.get("security", {})
@@ -426,7 +429,10 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         operational_limits=operational_limits,
         enabled_service_keys=frozenset(enabled_service_keys),
     )
-    selected_gateway_policy = main_model_catalog.profiles[selected_main_profile].gateway_policy
+    selected_gateway_policy = (
+        main_model_catalog.profiles[selected_main_profile].gateway_policy
+        if main_model_catalog is not None else {}
+    )
     if deployment_target.control_mode == "static" and "max_concurrency" in selected_gateway_policy:
         max_concurrency = int(selected_gateway_policy["max_concurrency"])
         if max_concurrency < 1:
@@ -544,7 +550,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         main_model_profile_policies=tuple(
             dict(profile.gateway_policy) for profile in main_model_catalog.profiles.values()
         ) if deployment_target.supports("model_switching") else (
-            dict(selected_gateway_policy),
+            (dict(selected_gateway_policy),) if deployment_target.supports("chat") else ()
         ),
         embedding_profiles=embedding_profiles,
         default_embedding_model=(

@@ -31,6 +31,18 @@ def test_cpu_static_target_has_explicit_external_lifecycle() -> None:
     assert catalog.profiles[catalog.default_profile].qualification["status"] == "unverified"
 
 
+def test_core_settings_do_not_require_main_profile(monkeypatch) -> None:
+    from ai_model_serving.settings import load_settings
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-core")
+    monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
+    settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-core-env")
+    assert "main_llm" not in settings.runtime_endpoints
+    assert "main_llm" not in settings.required_runtime_keys
+    assert settings.public_models == ()
+    assert settings.risk_signal_service_endpoint is not None
+
+
 def test_gpu_target_retains_existing_model_contract() -> None:
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", "linux-nvidia-dynamic")
     assert target.supports("chat")
