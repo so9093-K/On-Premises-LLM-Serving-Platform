@@ -115,3 +115,35 @@ def test_profiles_endpoint_reports_gpu_observation_failure_without_allowing_swit
         if not profile["active"] and profile["compatibility"]["status"] != "incompatible":
             assert profile["switch_preflight"]["status"] == "unknown"
             assert profile["switch_preflight"]["available_fraction"] is None
+
+
+def test_slow_docker_observation_returns_unknown_within_controller_read_timeout(
+    tmp_path, monkeypatch,
+):
+    # 내부 Controller 응답 제한(5초)을 넘기기 전에 실패한 GPU 관측을
+    # 실행 가능으로 오인하지 않고 정상적인 unknown 응답으로 전달한다.
+    monkeypatch.setenv("MAIN_MODEL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "")
+    monkeypatch.setenv("COMPOSE_PROJECT", "test-platform")
+    app = create_runtime_controller_app()
+    controller = app.state.controller
+
+    class SlowExecutor:
+        async def status(self, _service):
+            await asyncio.sleep(30)
+            raise AssertionError("관측 지연은 사전 판단 제한 시간에 의해 취소돼야 한다")
+
+    monkeypatch.setattr(controller, "_executor", lambda: SlowExecutor())
+
+    async def fetch_profiles():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test",
+        ) as client:
+            return await client.get("/main-model/profiles")
+
+    response = asyncio.run(asyncio.wait_for(fetch_profiles(), timeout=4.5))
+    assert response.status_code == 200
+    candidates = [p for p in response.json()["profiles"] if not p["active"]]
+    assert candidates
+    assert all(p["switch_preflight"]["status"] in {"unknown", "blocked"} for p in candidates)
+    assert not any(p["switch_preflight"]["status"] == "fits" for p in candidates)
