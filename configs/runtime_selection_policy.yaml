@@ -1,0 +1,10 @@
+# 최초 설정의 CPU/GPU 후보 선택 기준. 이 값은 모델 Compatibility/Qualification이 아니다.
+# GPU 사용률 대신 사용 가능한 실제 VRAM을 확인한다.
+version: 1
+startup:
+  gpu_min_total_vram_mib: 20480
+  gpu_min_free_vram_mib: 19000
+  cpu_min_available_ram_mib: 1536
+  preferred_cpu_target: linux-cpu-managed
+  no_inference_target: linux-core
+  preferred_gpu_target: linux-nvidia-dynamic
