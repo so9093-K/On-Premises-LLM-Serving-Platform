@@ -71,6 +71,12 @@ test('GPU 사전 판단의 부정 상태를 전환 불가로 유지한다', () =
   });
   assert.equal(mainModelProfileSwitchable(blocked), false);
   assert.equal(mainModelPreflightView(blocked).label, '리소스 정책 불일치');
+  const switching = profile('compatible', 'verified', {
+    switch_preflight: { status: 'blocked', reason_code: 'MODEL_SWITCH_IN_PROGRESS', required_fraction: null, available_fraction: null, ceiling_fraction: null, stop: [] },
+  });
+  assert.equal(mainModelPreflightView(switching).label, '전환 진행 중');
+  assert.equal(mainModelProfileSwitchable(switching), false);
+  assert.throws(() => mainModelSwitchRequest(switching, true));
   assert.throws(() => mainModelSwitchRequest(blocked, true));
   for (const status of ['needs_stop', 'infeasible', 'unknown']) {
     const target = profile('compatible', 'verified', {
