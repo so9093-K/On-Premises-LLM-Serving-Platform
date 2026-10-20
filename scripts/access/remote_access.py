@@ -15,7 +15,6 @@ from ai_model_serving.settings_parts.dotenv_parser import parse_env_file  # noqa
 from ai_model_serving.settings_parts.env import is_default_secret  # noqa: E402
 
 PORT = 9400
-TEAM_PORT = 9480
 
 
 def preflight(env_file: Path) -> list[str]:
@@ -52,7 +51,7 @@ def preflight(env_file: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tailscale 비공개 원격 접근 사전 검증")
-    parser.add_argument("command", choices=("preflight", "plan", "status"))
+    parser.add_argument("command", choices=("preflight", "status"))
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     args = parser.parse_args()
 
@@ -74,16 +73,6 @@ def main() -> int:
             print("[원격 접근 사전 점검 실패] " + issue, file=sys.stderr)
         return 2
     print("ACCESS=edge, Loopback, API/Admin 인증 및 키 분리: 확인")
-    if args.command == "plan":
-        print("다음 명령은 안내만 하며 자동 실행하지 않습니다.")
-        print("1. Tailnet 전체 기본 허용 규칙을 제거하고 그룹·포트별 Grants를 적용·테스트합니다.")
-        print("2. sudo nginx -t && sudo systemctl reload nginx")
-        print("3. tailscale serve status  # 기존 설정을 먼저 확인합니다.")
-        print("4. tailscale funnel status # 공개 인터넷 노출이 없어야 합니다.")
-        print("5. tailscale serve --bg --https=443 http://127.0.0.1:9400")
-        print("6. tailscale serve --bg --https=8443 http://127.0.0.1:9480")
-        print("해제: tailscale serve --https=8443 off / tailscale serve --https=443 off")
-        print("tailscale serve reset, tailscale funnel 명령은 사용하지 않습니다.")
     return 0
 
 

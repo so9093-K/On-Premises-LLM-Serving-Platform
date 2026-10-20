@@ -1,12 +1,14 @@
 # 가이드 목차
 
-설치·운영, API 연동, 개발 작업에 맞는 가이드를 선택하세요.
+**외부 사용자는 서버 설치 명령 없이** 전달받은 접속 주소와 인증 정보로 이용합니다. 역할별로 필요한 가이드를 선택하세요.
 
 | 작업 | 가이드 |
 |---|---|
 | 설치 및 첫 모델 응답 | [빠른 시작](getting-started.md) |
 | 모델·Runtime·GPU 운영 및 복구 | [사용자 가이드](user-guide.md) |
-| 개인·팀원 VPN 접속 및 접근 격리 | [원격 접속 가이드](remote-access.md) |
+| 외부 관리자의 브라우저 접속 | [Control Plane 접속](remote-access.md#external-admin) |
+| 외부 팀원·앱의 HTTPS API 호출 | [외부 API 접속](api-integration.md#remote-api) |
+| 서버 운영자의 Tailscale·Nginx·권한 구성 | [원격 접속 Host 구성](remote-access.md#operator-setup) |
 | 애플리케이션 API·SDK 연동 | [API 연동 가이드](api-integration.md) |
 | 저장소 코드 수정·테스트·기여 | [개발자 가이드](developer-guide.md) |
 

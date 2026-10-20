@@ -6,9 +6,18 @@
 
 [빠른 시작](#quick-start) · [사용자 가이드](docs/guides/user-guide.md) · [API 연동](docs/guides/api-integration.md) · [원격 접속](docs/guides/remote-access.md) · [개발자 가이드](docs/guides/developer-guide.md)
 
+## 외부에서 이용하기 (서버 설치 불필요)
+
+서버 운영자가 이미 LLM 플랫폼과 Tailnet 접근을 준비했다면, **이 저장소를 내려받거나 서버의 `make` 명령을 실행하지 않습니다.**
+
+- **외부 관리자:** 본인의 기기에서 Tailscale에 연결한 뒤 운영자가 알려 준 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 열고 Admin Key로 인증합니다. [외부 관리자 접속](docs/guides/remote-access.md#external-admin)
+- **외부 API 사용자:** Tailscale 연결 후 운영자가 전달한 HTTPS 8443 **API Base URL**과 **사용자 API Key**로 SDK 또는 **허용된 모델 API 경로**로 요청합니다. 팀원 진입점은 `GET /v1/models`, `POST /v1/chat/completions`·`/v1/responses`·`/v1/embeddings`만 전달합니다. 팀원 API에서는 관리자 Console을 제공하지 않습니다. [외부 API 연동](docs/guides/api-integration.md#remote-api)
+
+URL과 권한은 운영자가 실제 Tailnet에서 확인해 전달합니다. 이 절차는 일반 인터넷 공개가 아니며, 인증 키를 URL에 포함하지 않습니다. 원격 접속 **Host 구성 절차는 현재 Ubuntu/Linux 기준**입니다. macOS를 접속하는 사용자 기기로 이용하는 것과 macOS를 원격 접속 서버로 운영하는 것은 다르며, **macOS Host의 동일한 원격 접속 구성은 아직 실환경 검증되지 않았습니다.** 자세한 범위와 해제 절차는 [원격 접속 가이드](docs/guides/remote-access.md)를 확인하세요.
+
 <a id="quick-start"></a>
 
-## 빠른 시작
+## 빠른 시작 (서버 설치자)
 
 Git, Python·uv, Docker 및 해당 환경의 모델 실행 자원이 필요합니다. [환경별 설치 조건](docs/guides/getting-started.md)
 
@@ -31,7 +40,7 @@ make up TARGET=macos-metal-static ACCESS=local
 
 모델 접근 승인·`HF_TOKEN`·GPU 메모리 및 Resource Variant 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 참고하세요.
 
-실행 후 `make status`로 준비 상태를 확인하고 출력된 주소로 접속합니다.
+실행 후 `make status`로 플랫폼 준비 상태를 확인합니다. **다른 기기에서의 접근 가능 여부는 별도 검증**해야 합니다.
 
 - **Control Plane:** `http://127.0.0.1:9400/admin/console/`
 - **Gateway:** `http://127.0.0.1:9400`
@@ -48,7 +57,7 @@ curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
   }'
 ```
 
-인증이 활성화된 경우 사용자 API Key가 필요합니다. `ACCESS=local`은 동일 호스트의 Loopback 접속이며, 원격 접속은 [별도 안내](docs/guides/remote-access.md)를 따릅니다.
+인증이 활성화된 경우 사용자 API Key가 필요합니다. `ACCESS=local`은 동일 호스트의 Loopback 접속입니다. **서버 운영자만** 기존 `make up ACCESS=edge`의 계획·승인 계약과 [원격 접속 Host 구성](docs/guides/remote-access.md#operator-setup)을 사용합니다. `make status`는 플랫폼 준비 상태이며 실제 외부 기기의 네트워크 접근 성공 여부는 별도로 확인해야 합니다.
 
 ```bash
 make up

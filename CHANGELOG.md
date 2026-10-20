@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 비공개 원격 접속 안내를 외부 관리자·API 사용자·Ubuntu/Linux Host 운영자별로 정리하고, macOS Host의 미검증 범위와 프로젝트 소유 Serve/Nginx·Grants·키의 선택적 해제 절차를 명시했다. 사용하지 않는 원격 접속 `plan` 하위명령은 제거하되 읽기 전용 `preflight`·`status`와 기존 `make up/status` 운영 계약은 유지한다.
+
 ### Added
 
 - 독립된 AIPerf 0.13.0 환경과 공통 Streaming Chat Workload로 수동 성능 측정을 제공한다. macOS 초기 실측과 Ubuntu/NVIDIA의 단일·긴 입력·동시 요청·Admission 한도 초과 Queue 실험은 장비별 조건과 서버 토큰 수로 해석한다. AIPerf 완료 표시와 SSE 무결성을 구분하고, 공개 합성 입력의 native RAW 진단으로 종료·usage를 확인한다. 일반 CI·Qualification·성능 Gate와 분리한다. ([ADR-0052](docs/adr/0052-manual-aiperf-measurement.md))
