@@ -336,6 +336,9 @@ def build_router(
                 "criticality": (main_participant or {}).get("criticality", "primary_user_path"),
                 "gate": main_model.get("gate"),
                 "active_profile": active_profile.get("id"),
+                "runtime_backend": active_profile.get("runtime_backend"),
+                "display_name": active_profile.get("display_name"),
+                "upstream_model_id": active_profile.get("upstream_model_id"),
             })
         body: dict[str, Any] = {
             "runtimes": runtimes,

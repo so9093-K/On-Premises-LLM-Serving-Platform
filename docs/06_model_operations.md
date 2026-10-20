@@ -664,3 +664,23 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 [자동 Runtime 운영](guides/adaptive-runtime.md)을 따른다. 자동 전환도 이 문서의
 Main Gate·Drain·Canary·Rollback을 사용한다. 정책 결정은
 [ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)에 기록한다.
+
+## GPU Dynamic에서 CPU 모델 수동 선택
+
+`linux-nvidia-dynamic`의 **메인 모델 → 사용 가능한 프로필**에서 CPU 또는 GPU 후보를
+선택해 전환 영향을 검토하고 적용합니다. CPU 후보는 관리형 Qwen GGUF이며 실제 신원과
+한도는 Catalog와 화면의 활성 Profile을 확인합니다. CPU 선택은 자동 전환을 켜지 않습니다.
+선택한 Profile은 기존 Main 상태에 저장되고 재시작 뒤에도 유지됩니다.
+
+CPU 준비는 RAM·Artifact 무결성·고정 image를 확인합니다. 준비 실패이면 기존 GPU가
+요청을 계속 처리하고, 교체에 들어가면 Gate·Drain·Canary·Rollback 계약을 따릅니다.
+GPU로 돌아갈 때는 GPU 후보를 다시 검토·적용해야 하며 기존 GPU Admission이 필요합니다.
+CPU를 쓴다고 GPU 예산이나 보조 Runtime 기동 정책을 우회하지 않습니다.
+
+기존 배포는 `make up`으로 새 Platform image·Controller와 Main의 CPU cache mount를
+반영한 뒤 사용합니다. `/v1/models`에서 실제 모델명·`backend`·`context_window`·지원 입력과
+`max_tokens` 한도를 다시 읽으세요. Scalar의 CPU 상태 응답은 사용 방법을 위한 예시입니다.
+외부 `linux-cpu-static`은 실제 모델의 준비·실행을 서버 운영자가 소유합니다.
+
+결정과 검증 경계는 [ADR-0055](adr/0055-manual-cpu-profile-in-gpu-dynamic.md)와
+[검증 기록](resources/manual_cpu_model_validation.md)을 참고하세요.

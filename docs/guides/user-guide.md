@@ -135,3 +135,17 @@ make logs
 Host 운영자는 필요하면 `make logs SERVICE=gateway RAW=1 TAIL=100`으로 Gateway 로그를 확인하세요. 로그를 공유하기 전 키·프롬프트 원문·내부 주소를 제거합니다.
 
 Host 운영자가 원인을 해결한 뒤 **`make up` → `make status` → 실제 Playground/API 응답**으로 복구를 검증합니다. 일반 종료는 `make down`이며 Reset/Purge는 [운영 관리](../12_operations.md)를 참고하세요.
+
+## GPU Dynamic의 CPU 모델 선택
+
+1. **메인 모델**에서 CPU/GPU 수동 선택 안내와 모델 후보의 실제 체크포인트·실행 방식을 확인합니다.
+2. CPU 후보의 **전환 검토**를 열고 지원 입력·문맥·최대 출력 한도 변경을 확인합니다.
+3. 미검증 프로필 확인 후 적용합니다. 준비 단계의 RAM·모델·image 실패는 기존 GPU를 유지합니다.
+   교체 단계부터는 새 요청을 일시 거부하고 진행 중 요청 종료와 실제 응답 검증을 기다립니다.
+4. 완료 후 현재 모델 상태와 Playground의 CPU 엔진·모델명·토큰 한도를 확인합니다.
+5. GPU가 필요하면 GPU 후보를 다시 검토·적용합니다. 수동 선택에서는 자동으로 GPU로 돌아가지 않습니다.
+
+CPU 실행이 GPU 제품의 미지원 판정을 뜻하지 않습니다. 자동 CPU/GPU 선택은 별도
+`linux-adaptive`의 운영 모드이며, 보조 Runtime의 시작과 기능 노출은 현재 배포 정책을 따릅니다.
+설치된 UI에 CPU 후보가 없다면 서버 운영자가 `make up`으로 새 Platform·Controller·CPU cache mount를
+반영했는지 확인하세요. 외부 CPU Runtime의 실제 GGUF 모델은 서버 운영자가 관리합니다.

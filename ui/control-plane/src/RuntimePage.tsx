@@ -19,7 +19,7 @@ import {
 } from './runtimeSafety';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { gpuCapacityDashboardUrl } from './activityDiagnostics';
-import { formatFraction, formatPercent, gpuBudgetAccessibilityLabel, runtimeStateLabel, t, yesNoLabel } from './uiText';
+import { formatFraction, formatPercent, gpuBudgetAccessibilityLabel, modelRuntimeLabel, runtimeStateLabel, t, yesNoLabel } from './uiText';
 
 type DesiredState = 'active' | 'stopped';
 type RuntimeTopologyItem = NonNullable<RuntimeListResponse['topology']>[number];
@@ -273,11 +273,12 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
                 <tr key={runtime.service_key}>
                   <td>
                     <strong>{runtimeDisplayName(runtime.service_key)}</strong>
+                    {runtime.runtime_backend ? <small>{modelRuntimeLabel(runtime.runtime_backend)} · {runtime.display_name ?? runtime.upstream_model_id}</small> : null}
                     <small><code>{runtime.service_key}</code>{runtime.active_profile ? ` · ${runtime.active_profile}` : ''}</small>
                   </td>
                   <td><Label>{runtimeStateLabel(runtime.state)}</Label></td>
                   <td>{runtimeStateLabel(runtime.container_status)}</td>
-                  <td>{formatPercent(runtime.vram_fraction)}</td>
+                  <td>{runtime.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(runtime.vram_fraction)}</td>
                   <td>{criticalityLabel(runtime.criticality)}</td>
                   <td className="runtime-actions">
                     {starting ? (

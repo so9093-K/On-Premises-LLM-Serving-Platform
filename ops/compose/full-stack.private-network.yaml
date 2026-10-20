@@ -38,8 +38,8 @@ services:
     depends_on:
       risk-signal-service:
         condition: service_healthy
-      main-llm-vllm:
-        condition: service_healthy
+      # Main이 준비되지 않아도 운영 UI에서 CPU 복구 후보를 선택할 수 있어야 한다.
+      # 추론 준비 상태는 /ready와 요청 Gate가 소유한다.
       # runtime-controller는 의도적으로 Gateway의 Compose hard dependency가 아니다.
       # Main Model control 경로는 controller unavailable을 요청 단위 오류로 처리하고,
       # embeddings/risk 경로는 controller를 사용하지 않는다. controller가 crash-loop해도
@@ -106,6 +106,7 @@ services:
       VLLM_CACHE_ROOT: /root/.cache/vllm
     volumes:
     - main-vllm-cache:/root/.cache/vllm
+    - ../../.runtime/cpu-models:/models:ro
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     - ../../configs:/app/configs:ro
     healthcheck:
@@ -446,6 +447,7 @@ services:
       # Optional explicit resource-policy override. Empty means the profile's
       # reference policy; a new GPU product name alone does not require a variant.
       MAIN_MODEL_RESOURCE_VARIANT: ${MAIN_MODEL_RESOURCE_VARIANT:-}
+      LLAMA_CPP_IMAGE: ${LLAMA_CPP_IMAGE:-}
       HF_TOKEN: ${HF_TOKEN:-}
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
@@ -456,6 +458,7 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock:ro
     - ../../.runtime/main-model:/var/lib/ai-model-serving
     - ../../.runtime/log-targets:/var/lib/ai-model-serving/log-targets
+    - ../../.runtime/cpu-models:/models
     - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface
     - ../../configs:/app/configs:ro
     expose:

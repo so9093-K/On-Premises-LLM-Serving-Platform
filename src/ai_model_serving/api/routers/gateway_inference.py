@@ -286,6 +286,19 @@ def build_router(
             if isinstance(active_snapshot, dict):
                 active_modalities = _active_input_modalities(active_snapshot) or active_modalities
                 active_policy = _active_gateway_policy(active_snapshot) or active_policy
+            active = (active_snapshot or {}).get("active_profile")
+            for item in items:
+                if item.get("id") != settings.runtime("main_llm").model:
+                    continue
+                # Controller를 관측할 수 없을 때 이전 모델 신원을 현재처럼 표시하지 않는다.
+                for key in ("display_name", "upstream_model_id"):
+                    item.pop(key, None)
+                if isinstance(active, dict):
+                    for key in ("display_name", "upstream_model_id"):
+                        if isinstance(active.get(key), str) and active[key]:
+                            item[key] = active[key]
+                    if active.get("runtime_backend"):
+                        item["backend"] = active["runtime_backend"]
             if settings.deployment_target.adaptive:
                 active = (active_snapshot or {}).get("active_profile")
                 if not isinstance(active, dict) or active_snapshot.get("gate") != "open":
@@ -299,6 +312,9 @@ def build_router(
             if item.get("id") == main_model_id:
                 item["input_modalities"] = list(active_modalities)
                 if active_policy:
+                    context = active_policy.get("request_limits", {}).get("max_model_len")
+                    if context:
+                        item["context_window"] = int(context)
                     item["capabilities"] = _active_main_capabilities(
                         item.get("capabilities", []), active_modalities, active_policy
                     )

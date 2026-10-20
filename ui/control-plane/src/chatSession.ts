@@ -11,6 +11,9 @@ import type { ChatUsage } from './chatStream';
 type ParameterSpec = Record<string, unknown>;
 
 export type PublicModel = {
+  display_name?: string;
+  upstream_model_id?: string;
+  context_window?: number;
   id: string;
   backend: string;
   capabilities: readonly string[];

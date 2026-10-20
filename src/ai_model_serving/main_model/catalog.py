@@ -365,6 +365,13 @@ def load_main_model_catalog(
     for profile_id, item in profiles_raw.items():
         if not isinstance(item, dict):
             raise MainModelConfigurationError(f"profile {profile_id} must be an object")
+        if "catalog" in item:
+            # 실행 가능한 외부 Catalog 참조는 고정 CPU 계약 한 종만 허용한다.
+            if item != {"catalog": "configs/cpu_main_model_profiles.yaml"} or profile_id != "cpu-gguf-text":
+                raise MainModelConfigurationError("unsupported runtime profile catalog reference")
+            from .cpu_catalog import load_cpu_profile
+            profiles[str(profile_id)] = load_cpu_profile(path.resolve().parent.parent, str(profile_id), int(runtime["container_port"]), env or {})
+            continue
         revision = str(item.get("revision", ""))
         if not _REVISION_RE.fullmatch(revision):
             raise MainModelConfigurationError(f"profile {profile_id} revision must be a 40-char commit")
@@ -518,6 +525,10 @@ def load_main_model_catalog(
         )
     if default_profile not in profiles:
         raise MainModelConfigurationError("default_profile must reference a configured profile")
+    if any(p.runtime_backend == "llama-cpp" for p in profiles.values()):
+        from ..configuration import load_yaml_mapping
+        artifact = load_yaml_mapping(path.resolve().parent.parent / "configs/cpu_model_artifact.yaml")
+        runtime = {**runtime, "cpu_memory_limit_bytes": int(artifact["runtime"]["memory_limit_mib"]) * 1024 * 1024}
     return MainModelCatalog(
         public_model, default_profile, dict(runtime), profiles, resource_variant
     )

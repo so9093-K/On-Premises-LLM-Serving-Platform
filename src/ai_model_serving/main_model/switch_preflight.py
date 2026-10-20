@@ -34,6 +34,8 @@ def project_switch_preflight(
         return {**base, "status": "blocked", "reason_code": policy_error_code}
     if switch_in_progress:
         return {**base, "status": "blocked", "reason_code": "MODEL_SWITCH_IN_PROGRESS"}
+    if target_fraction == 0:
+        return {**base, "status": "fits", "reason_code": None, "required_fraction": 0}
     if participants is None:
         return base
 

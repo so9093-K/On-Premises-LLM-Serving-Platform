@@ -92,6 +92,7 @@ def models_tag_summary(settings: AppSettings) -> str:
 def models_operation_detail(settings: AppSettings) -> str:
     """공개 모델 조회에서 확인할 필드와 활성 프로필의 관계를 설명한다."""
     return (
+        "`display_name`·`upstream_model_id`·`backend`는 메인 모델의 신원과 실행 엔진, `context_window`는 문맥 토큰 한도입니다. "
         "`request_parameters`는 모델별 허용 파라미터와 범위(`min`, `max`, `max_items`, `allowed`)를, "
         "`request_limits`는 입력 종류별 개수·크기 한도를 반환합니다. 요청 예시의 값은 Gateway 기본값과 다를 수 있습니다.\n\n"
         "`local-main`은 활성 메인 모델 프로필의 공개 이름입니다. 프로필 전환 후 입력 종류·토큰 한도·허용 파라미터가 "
@@ -299,6 +300,10 @@ def _runtime_control_tag_description(settings: AppSettings) -> str:
         "예를 들어 검증 실패 후 복구에 성공해도 `status=failed`, `stage=validating`이 남을 수 있습니다. "
         "`status=rollback_failed`이면 수동 복구가 필요합니다.",
     ]
+    if settings.deployment_target.adaptive:
+        lines += ["", "이 배포는 자동 CPU/GPU 선택을 사용하므로 수동 Profile 전환은 잠겨 있습니다. Main 시작·중지로 자동 선택을 재개·중단하세요."]
+    elif any(p[0] == "cpu-gguf-text" for p in settings.main_model_profile_summaries):
+        lines += ["", "CPU 모델도 같은 전환 API에서 선택합니다. CPU 준비는 RAM·Artifact·고정 image를 검사하며 GPU 예약을 요구하지 않습니다. 준비 실패는 기존 엔진을 유지하고, 교체 단계의 실패는 이전 엔진을 재검증하여 복구합니다. 전환 후 실제 모델·기능·한도를 다시 조회하세요."]
     return "\n".join(lines)
 
 
@@ -392,6 +397,38 @@ def _auth_section(settings: AppSettings) -> str:
     return "\n".join(lines)
 
 
+def _main_runtime_description(settings: AppSettings) -> str:
+    """설정된 실행 모드와 선택 후보를 설명하며 현재 활성 상태와 구분한다."""
+    target = settings.deployment_target
+    if not target.supports("chat"):
+        return ""
+    lines = ["## 메인 모델 실행", ""]
+    if target.adaptive:
+        lines.append("CPU/GPU 자동 선택 모드입니다. 아래 모델은 자동 전환 후보이며 수동 Profile 전환은 잠겨 있습니다. 현재 엔진·선택 이유·요청 상태는 `GET /admin/main-model`에서 확인하세요.")
+    elif target.supports("model_switching"):
+        lines.append("수동 모델 선택 모드입니다. GPU 모델과 CPU 모델을 `POST /admin/main-model/switch`로 선택할 수 있습니다. CPU 자동 복구는 활성화되지 않으며, 선택한 모델은 재시작 뒤에도 유지됩니다.")
+    elif target.control_mode == "managed_cpu":
+        lines.append("플랫폼 관리형 CPU 모드입니다. 고정 GGUF 모델을 llama.cpp로 실행합니다. 현재 준비 상태는 `/ready`에서 확인하세요.")
+    elif target.runtime_backend == "llama-cpp":
+        lines.append("외부 CPU Runtime 모드입니다. 실제 GGUF 모델은 서버 운영자가 지정합니다. 플랫폼의 관리형 Qwen 모델이 실행 중이라고 가정하지 마세요.")
+    else:
+        lines.append("외부 메인 Runtime 모드입니다. 모델 실행·변경은 서버 운영자가 관리합니다.")
+    candidates = list(zip(settings.main_model_profile_summaries, settings.main_model_profile_policies))
+    if candidates:
+        lines += ["", "| 모델 후보 | 실행 방식 | 입력 | 문맥 / 최대 출력 토큰 |", "|---|---|---|---|"]
+        for (profile_id, name, _), policy in candidates:
+            limits = policy.get("request_limits", {})
+            engine = "CPU · llama.cpp" if profile_id == "cpu-gguf-text" else "Apple Silicon · MLX" if target.runtime_backend == "mlx" else "GPU · vLLM"
+            lines.append(f"| {name} | {engine} | {_codes(limits.get('input_modalities'))} | {_number(limits.get('max_model_len'))} / {_number(policy.get('max_output_tokens'))} |")
+    elif target.control_mode == "managed_cpu":
+        for model in settings.public_models:
+            if model['id'] == settings.runtime('main_llm').model:
+                policy = settings.default_main_model_gateway_policy
+                lines += ["", f"모델: **{model.get('display_name', model['id'])}** · `{model.get('upstream_model_id', '')}`", "", f"텍스트 입력 · 문맥 {_number(policy.get('request_limits', {}).get('max_model_len'))} / 최대 출력 {_number(policy.get('max_output_tokens'))} tokens · Chat / Responses / SSE"]
+    lines += ["", "공개 이름은 `local-main`을 유지합니다. 실제 모델·입력·한도는 전환 후 `GET /v1/models`의 `display_name`, `upstream_model_id`, `backend`, `context_window`, `request_parameters`를 다시 확인하세요."]
+    return "\n".join(lines)
+
+
 def gateway_description(settings: AppSettings) -> str:
     """API 첫 호출과 배포별 인증 안내를 제공한다."""
     if not settings.feature_enabled("chat"):
@@ -402,8 +439,17 @@ def gateway_description(settings: AppSettings) -> str:
             + _auth_section(settings)
         )
     auth = '  -H "Authorization: Bearer $API_KEY" \\\n' if settings.security.api_key_required else ''
-    return f"""모델 응답 생성·텍스트 임베딩·문서 관련도 평가·위험 신호 탐지를 제공하는 Gateway API입니다.
+    features = ["모델 응답 생성"]
+    if settings.feature_enabled("embeddings"):
+        features.append("텍스트 임베딩")
+    if settings.feature_enabled("retrieval"):
+        features.append("문서 관련도 평가")
+    if settings.feature_enabled("risk"):
+        features.append("위험 신호 탐지")
+    return f"""{'·'.join(features)}를 제공하는 Gateway API입니다.
 현재 모델별 지원 기능과 요청 한도는 `GET /v1/models`에서 확인하세요.
+
+{_main_runtime_description(settings)}
 
 ## 첫 호출
 

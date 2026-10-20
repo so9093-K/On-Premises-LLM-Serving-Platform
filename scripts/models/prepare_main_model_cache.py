@@ -43,6 +43,10 @@ def main(argv: list[str] | None = None) -> int:
     except KeyError as exc:
         raise SystemExit(f"unknown main-model profile: {args.profile}") from exc
     env = read_env_values(args.env_file)
+    if profile.runtime_backend == "llama-cpp":
+        from ai_model_serving.main_model.cpu import prepare_cpu_model
+        prepare_cpu_model(config_root=args.catalog.resolve().parent.parent)
+        return 0
     hf_home = resolve_compose_relative_path(
         env.get("HF_CACHE_DIR", "./model_cache/huggingface"),
         args.compose_file,

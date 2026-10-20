@@ -515,6 +515,59 @@ def run_adaptive_selection(browser, width, height):
     context.close()
 
 
+def run_manual_cpu_selection(browser, width, height):
+    """합성 API로 CPU 후보 검토·미검증 확인·수동 적용을 검증한다."""
+    from urllib.parse import urlsplit
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda exception: errors.append(str(exception)))
+    bootstrap["deployment"]["features"] = ["chat", "model_switching"]
+    state = {"active_profile": True, "cpu": False}
+    install_routes(page, state)
+    gpu = {**profile, "runtime_backend": "vllm-cuda", "upstream_model_id": "example/gpu-model"}
+    cpu = {**profile, "id": "cpu-gguf-text", "display_name": "CPU 테스트 모델",
+           "upstream_model_id": "example/cpu-model", "runtime_backend": "llama-cpp",
+           "vram_fraction": 0, "qualification": {"status": "unverified"},
+           "gateway_policy": {"request_limits": {"max_model_len": 2048}, "max_output_tokens": 256},
+           "switch_preflight": {"status": "fits", "reason_code": None, "required_fraction": 0, "available_fraction": None, "ceiling_fraction": None, "stop": []}}
+    operation_id = "00000000-0000-4000-8000-000000000001"
+    def handle(route):
+        path = urlsplit(route.request.url).path
+        if path == "/admin/main-model/profiles":
+            return send(route, {"profiles": [{**gpu, "active": not state["cpu"]}, {**cpu, "active": state["cpu"]}]})
+        if path == "/admin/main-model":
+            return send(route, {"public_model": "local-main", "active_profile": cpu if state["cpu"] else gpu,
+                "gate": "open", "runtime_state": "active", "profile_locked": False, "boot_profile": gpu["id"], "last_operation": None, "observed_runtime": None})
+        if path == "/admin/main-model/switch":
+            body = route.request.post_data_json
+            assert body["profile"] == "cpu-gguf-text" and body["confirm_unverified"] is True
+            state["cpu"] = True
+            return send(route, {"operation_id": operation_id, "status": "pending", "reused": False}, 202)
+        if path == "/admin/main-model/operations/" + operation_id:
+            return send(route, {"id": operation_id, "status": "completed", "stage": "completed", "requested_profile": cpu["id"], "previous_profile": gpu["id"], "created_at": 1, "updated_at": 2})
+        route.fallback()
+    page.route("**/admin/main-model**", handle)
+    page.goto(URL + "main-model", wait_until="domcontentloaded")
+    page.get_by_text("CPU/GPU 수동 선택", exact=False).wait_for()
+    row = page.get_by_role("row").filter(has_text="CPU 테스트 모델")
+    row.get_by_text("CPU 선택 가능", exact=True).wait_for()
+    row.get_by_text("해당 없음", exact=True).wait_for()
+    row.get_by_role("button", name="전환 검토", exact=True).click()
+    page.get_by_text("CPU 실행 전 준비 · CPU 선택 가능", exact=False).wait_for()
+    apply = page.get_by_role("button", name="전환 요청", exact=True)
+    assert apply.is_disabled()
+    page.get_by_role("checkbox").check()
+    apply.click()
+    row.get_by_text("현재 사용 중", exact=True).wait_for()
+    assert state["cpu"]
+    assert errors == [], errors
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    page.screenshot(path=str(SCREENSHOTS / f"manual-cpu-synthetic-selected-{width}.png"), full_page=True)
+    print(f"PASS manual CPU Chromium {width}x{height}: candidate, RAM preparation, explicit confirmation, selected model")
+    context.close()
+
+
 def main():
     for _ in range(40):
         try:
@@ -538,6 +591,8 @@ def main():
             run_tool_result_roundtrip(browser, 390, 844)
             run_adaptive_selection(browser, 1440, 900)
             run_adaptive_selection(browser, 390, 844)
+            run_manual_cpu_selection(browser, 1440, 900)
+            run_manual_cpu_selection(browser, 390, 844)
         finally:
             browser.close()
 

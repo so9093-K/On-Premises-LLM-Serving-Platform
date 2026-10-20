@@ -24,6 +24,9 @@ _CONFIG_FILES = (
     "model_serving.yaml",
     "model_catalog.yaml",
     "main_model_profiles.yaml",
+    "cpu_main_model_profiles.yaml",
+    "cpu_model_artifact.yaml",
+    "recommended_images.yaml",
     "deployment_targets.yaml",
     "runtime_topology.yaml",
     "services.yaml",
@@ -180,6 +183,8 @@ def test_load_settings_reads_local_dotenv_without_overriding_exported_values(tmp
     shutil.copy(repo / "configs" / "model_serving.yaml", root / "configs" / "model_serving.yaml")
     shutil.copy(repo / "configs" / "model_catalog.yaml", root / "configs" / "model_catalog.yaml")
     shutil.copy(repo / "configs" / "main_model_profiles.yaml", root / "configs" / "main_model_profiles.yaml")
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(repo / "configs" / name, root / "configs" / name)
     shutil.copy(repo / "configs" / "deployment_targets.yaml", root / "configs" / "deployment_targets.yaml")
     shutil.copy(repo / "configs" / "runtime_topology.yaml", root / "configs" / "runtime_topology.yaml")
     shutil.copy(repo / "configs" / "services.yaml", root / "configs" / "services.yaml")
@@ -225,6 +230,8 @@ def test_load_settings_ignores_local_dotenv_when_app_env_is_explicitly_non_local
     shutil.copy(repo / "configs" / "model_serving.yaml", root / "configs" / "model_serving.yaml")
     shutil.copy(repo / "configs" / "model_catalog.yaml", root / "configs" / "model_catalog.yaml")
     shutil.copy(repo / "configs" / "main_model_profiles.yaml", root / "configs" / "main_model_profiles.yaml")
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(repo / "configs" / name, root / "configs" / name)
     shutil.copy(repo / "configs" / "deployment_targets.yaml", root / "configs" / "deployment_targets.yaml")
     shutil.copy(repo / "configs" / "runtime_topology.yaml", root / "configs" / "runtime_topology.yaml")
     shutil.copy(repo / "configs" / "services.yaml", root / "configs" / "services.yaml")
@@ -266,6 +273,8 @@ def test_load_settings_uses_serving_runtime_defaults(tmp_path):
     shutil.copy(repo / "configs" / "model_serving.yaml", root / "configs" / "model_serving.yaml")
     shutil.copy(repo / "configs" / "model_catalog.yaml", root / "configs" / "model_catalog.yaml")
     shutil.copy(repo / "configs" / "main_model_profiles.yaml", root / "configs" / "main_model_profiles.yaml")
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(repo / "configs" / name, root / "configs" / name)
     shutil.copy(repo / "configs" / "deployment_targets.yaml", root / "configs" / "deployment_targets.yaml")
     shutil.copy(repo / "configs" / "runtime_topology.yaml", root / "configs" / "runtime_topology.yaml")
     shutil.copy(repo / "configs" / "services.yaml", root / "configs" / "services.yaml")
@@ -321,6 +330,8 @@ def test_load_settings_rejects_invalid_or_missing_required_model_configuration(t
     shutil.copy(repo / "configs" / "model_serving.yaml", root / "configs" / "model_serving.yaml")
     shutil.copy(repo / "configs" / "model_catalog.yaml", root / "configs" / "model_catalog.yaml")
     shutil.copy(repo / "configs" / "main_model_profiles.yaml", root / "configs" / "main_model_profiles.yaml")
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(repo / "configs" / name, root / "configs" / name)
     shutil.copy(repo / "configs" / "deployment_targets.yaml", root / "configs" / "deployment_targets.yaml")
     shutil.copy(repo / "configs" / "runtime_topology.yaml", root / "configs" / "runtime_topology.yaml")
     shutil.copy(repo / "configs" / "services.yaml", root / "configs" / "services.yaml")

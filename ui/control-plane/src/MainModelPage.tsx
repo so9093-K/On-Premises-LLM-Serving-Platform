@@ -26,7 +26,7 @@ import {
   mainModelResourcePolicyLabel,
   mainModelSwitchRequest,
 } from './mainModelSafety';
-import { formatPercent, runtimeStateLabel, t } from './uiText';
+import { formatPercent, modelRuntimeLabel, runtimeStateLabel, t } from './uiText';
 
 type MainModelPageProps = {
   token: string | null;
@@ -281,6 +281,11 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Button>
       </div>
 
+      {!selection && profiles.some(profile => profile.runtime_backend === "llama-cpp") ? (
+        <Alert isInline variant="info" title="CPU/GPU 수동 선택">
+          아래 프로필에서 CPU 또는 GPU 모델의 전환 영향을 검토하고 적용할 수 있습니다. 선택한 모델은 재시작 뒤에도 유지됩니다. 자동 전환은 사용하지 않습니다.
+        </Alert>
+      ) : null}
       {selection ? (
         <Card>
           <CardTitle>자동 CPU/GPU 선택</CardTitle>
@@ -336,7 +341,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         <summary>호환성 · 검증 · GPU 리소스</summary>
         <p>
           GPU 실행 가능성과 프로필 검증 상태는 서로 다른 정보입니다. 직접 검증하지 않았다는 이유만으로
-          GPU가 지원되지 않는 것으로 판단하지 않으며, 호환성·GPU 리소스 판단·런타임 검증을 함께 사용합니다.
+          실행 엔진이 지원되지 않는 것으로 판단하지 않으며, 호환성·자원 판단·런타임 검증을 함께 사용합니다.
           리소스 variant는 기준 정책이 맞지 않을 때만 사용하는 명시적 override입니다.
         </p>
       </details>
@@ -347,6 +352,9 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
           <dl className="facts">
             <dt>공개 모델 이름</dt><dd>{status.public_model}</dd>
             <dt>현재 프로필</dt><dd>{active?.display_name ?? '—'}{active ? ` (${active.id})` : ''}</dd>
+            <dt>실제 모델</dt><dd>{active?.upstream_model_id ?? '—'}</dd>
+            <dt>실행 방식</dt><dd>{modelRuntimeLabel(active?.runtime_backend)}</dd>
+            <dt>문맥 / 최대 출력 토큰</dt><dd>{active ? formatTokenLimits(mainModelTokenLimits(active)) : '—'}</dd>
             <dt>리소스 정책</dt><dd>{active ? mainModelResourcePolicyLabel(active) : '—'}</dd>
             <dt>요청 상태</dt><dd><Label color={status.gate === 'open' ? 'green' : 'orange'}>{runtimeStateLabel(status.gate)}</Label></dd>
             <dt>런타임 상태</dt><dd>{runtimeStateLabel(status.runtime_state)}</dd>
@@ -372,13 +380,13 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                   const preflight = mainModelPreflightView(profile);
                   return (
                     <tr key={profile.id}>
-                      <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code></td>
+                      <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code><br />{modelRuntimeLabel(profile.runtime_backend)}<br /><small>{profile.upstream_model_id}</small></td>
                       <td><Label color={compatibilityVariant(profile.compatibility.status)}>{compatibilityLabel(profile.compatibility.status)}</Label></td>
                       <td><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></td>
                       <td>{mainModelResourcePolicyLabel(profile)}</td>
                       <td>{inputList(profile.capabilities.deployed_input)}</td>
                       <td>{formatTokenLimits(mainModelTokenLimits(profile))}</td>
-                      <td>{formatPercent(profile.vram_fraction)}</td>
+                      <td>{profile.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(profile.vram_fraction)}</td>
                       <td><Label color={preflight.color}>{preflight.label}</Label></td>
                       <td>
                         {profile.active ? (
@@ -479,8 +487,8 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                       </tr>
                       <tr>
                         <td><strong>GPU 정책 비율</strong></td>
-                        <td>{formatPercent(active.vram_fraction)}</td>
-                        <td>{formatPercent(reviewProfile.vram_fraction)}</td>
+                        <td>{active.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(active.vram_fraction)}</td>
+                        <td>{reviewProfile.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(reviewProfile.vram_fraction)}</td>
                         <td>{vramImpactLabel(switchImpact.vramFractionDelta)}</td>
                       </tr>
                     </tbody>
@@ -504,7 +512,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
             <Alert
               isInline
               variant={reviewProfile.switch_preflight?.status === 'fits' ? 'info' : 'warning'}
-              title={`GPU 실행 전 판단 · ${mainModelPreflightView(reviewProfile).label}`}
+              title={`${reviewProfile.runtime_backend === "llama-cpp" ? "CPU 실행 전 준비" : "GPU 실행 전 판단"} · ${mainModelPreflightView(reviewProfile).label}`}
             >
               <p>{mainModelPreflightView(reviewProfile).description}</p>
               {reviewProfile.switch_preflight?.required_fraction != null
@@ -535,7 +543,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
             {requiresConfirmation ? (
               <Alert isInline variant="warning" title="미검증 프로필 확인이 필요합니다.">
-                <p>이 확인은 현재 GPU가 미지원이라는 의미가 아닙니다. 이 프로필이 아직 실제 장비에서 검증 완료로 표시되지 않았음을 확인하는 절차입니다.</p>
+                <p>이 확인은 실행 장비가 미지원이라는 의미가 아닙니다. 이 프로필이 아직 실제 장비에서 검증 완료로 표시되지 않았음을 확인하는 절차입니다.</p>
                 <label>
                   <input
                     type="checkbox"

@@ -1,3 +1,4 @@
+import { modelRuntimeLabel } from './uiText';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
@@ -40,7 +41,9 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
   return (
     <div className="chat-model-context">
       {showIdentity ? <strong>{model.id}</strong> : null}
-      <code>{model.backend}</code>
+      <span>{model.display_name ?? model.id} · {modelRuntimeLabel(model.backend)}</span>
+      {model.upstream_model_id ? <small>{model.upstream_model_id}</small> : null}
+      {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} tokens · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '—')} tokens</small> : null}
       {features.length > 0 ? (
         <div className="chat-feature-list" aria-label="지원 기능">
           {features.map((feature) => <span className="chat-feature" key={feature}>{feature}</span>)}
