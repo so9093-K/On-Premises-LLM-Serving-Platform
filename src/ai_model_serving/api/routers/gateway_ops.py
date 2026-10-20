@@ -102,7 +102,7 @@ async def _readiness(
             clients.main_llm,
             "models",
             evaluator=(
-                lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
+                (lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model))
                 if settings.deployment_target.control_mode == "managed_cpu"
                 else None
             ),
