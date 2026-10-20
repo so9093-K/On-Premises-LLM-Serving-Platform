@@ -22,7 +22,7 @@ read -r -s -p '사용자 API Key: ' API_KEY
 printf '\n'
 export API_KEY
 AUTH=(-H "Authorization: Bearer $API_KEY")
-curl --fail-with-body "$GATEWAY_URL/v1/models" "`{AUTH[@]}"
+curl --fail-with-body "$GATEWAY_URL/v1/models" "${AUTH[@]}"
 ```
 
 위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings 경로만 제공하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
