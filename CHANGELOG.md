@@ -12,6 +12,9 @@
 
 ### Added
 
+- `linux-cpu-managed`는 고정된 GGUF 모델 Revision·SHA-256을 검사하고 CPU-only llama.cpp Runtime을 프로젝트 Compose가 자동 실행하는 별도 Target이다. 기존 외부 `linux-cpu-static`의 운영권한은 유지한다.
+
+
 - GPU 자원 없이 기본 서비스를 운영하는 `linux-core` Target과 외부 llama.cpp CPU Runtime을 연결하는 `linux-cpu-static` Target을 제공한다. Core Target은 Main Model Profile 없이 Gateway·Control Plane·PII/Secret Risk를 실행한다. CPU Static Target은 실제 엔진·가중치를 운영자가 준비하고, 실환경 검증 전까지 unverified다. 자동 CPU/GPU Fallback은 제공하지 않는다. ([ADR-0053](docs/adr/0053-model-optional-deployment-and-cpu-static-serving.md))
 
 

@@ -70,7 +70,7 @@ def _static_main_engine_projection(
             "backend": "llama-cpp",
             "gpu_layers": 0,
             "context_size": context_size,
-            "lifecycle": "external",
+            "lifecycle": deployment_target.lifecycle_owner,
         }, None
 
     if deployment_target.runtime_backend == "mlx-vlm":

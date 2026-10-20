@@ -39,6 +39,18 @@ make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.interna
 `configs/cpu_main_model_profiles.yaml`의 Text Chat·Streaming Profile은 아직 실환경 검증 전입니다.
 GPU 자원 부족 시 자동 Fallback이나 Target 전환은 지원하지 않습니다.
 
+**Linux / 관리형 CPU 모델 (llama.cpp)**
+
+```bash
+make up TARGET=linux-cpu-managed ACCESS=local
+```
+
+플랫폼이 고정된 Qwen3 0.6B GGUF를 다운로드하고 SHA-256으로 검증한 뒤
+CPU-only llama.cpp 컨테이너를 실행합니다. GPU나 CUDA는 필요하지 않습니다.
+모델 최초 다운로드에는 네트워크 연결과 충분한 RAM·디스크 여유가 필요합니다.
+GPU 모델에서의 자동 전환은 아직 수행하지 않으며, 서버 실추론 Qualification 전까지
+`unverified`로 유지합니다.
+
 **Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
 
 ```bash

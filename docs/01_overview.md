@@ -50,6 +50,7 @@ Deployment capability의 Source of Truth는 `configs/deployment_targets.yaml`이
 | Target | Runtime backend | Lifecycle owner | Control mode | 상태 | 주요 기능 |
 |---|---|---|---|---|---|
 | `linux-core` | none | External (no model) | `static` | Implemented / Unverified | Gateway, Control Plane, PII/Secret Risk (no inference) |
+| `linux-cpu-managed` | `llama-cpp` | Platform Compose | `managed_cpu` | Implemented / Unverified | CPU-only Text Chat, PII/Secret Risk |
 | `linux-cpu-static` | `llama-cpp` | External | `static` | Implemented / Unverified | Text Chat/Responses, PII/Secret Risk (external CPU Server) |
 | `linux-nvidia-dynamic` | `vllm-cuda` | Platform | `runtime_controller` | Implemented / Verified | Chat, Embedding, Retrieval, Risk(PII/Secret/Prompt), Runtime Control, Main Model switching, GPU admission |
 | `linux-nvidia-static` | `vllm-cuda` | External | `static` | Implemented / Unverified | Chat, Risk(PII/Secret) |

@@ -61,7 +61,7 @@ sys.path.insert(0, "src")
 from pathlib import Path
 from ai_model_serving.deployment_target import load_deployment_target
 target = load_deployment_target(Path("configs/deployment_targets.yaml"), sys.argv[1])
-if target.control_mode != "static":
+if not target.static_serving:
     raise SystemExit(f"DEPLOYMENT_TARGET {target.target_id!r} is not a static target")
 print("\n".join(target.compose_files))
 ' "$DEPLOYMENT_TARGET")

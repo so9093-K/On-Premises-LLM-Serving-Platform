@@ -21,6 +21,10 @@ Risk 기능은 독립적으로 운영할 수 있어야 한다. 기존 app-only�
 - `linux-cpu-static`은 외부 CPU-only llama.cpp 서버에 Gateway를 연결한다.
   모델 가중치·엔진 버전·리소스 적합성·Runtime 감독은 외부 운영자가 소유한다.
   실환경 검증 전 CPU 프로필은 `qualification=unverified`다.
+- `linux-cpu-managed`는 `managed_cpu`의 별도 Lifecycle 경계에서 플랫폼
+  Compose가 CPU llama.cpp Server를 소유한다. 정적 Gateway Routing을 재사용하되
+  외부 Static Target과 관리 주체는 구분한다. Image Digest와 모델 Revision·SHA-256을
+  검증하며, CPU Runtime에 Docker Socket을 노출하지 않는다.
 - 기존 GPU Dynamic Target의 Main 준비, GPU Admission과 strict readiness는 유지한다.
   GPU 시작 실패를 CPU/Core 성공으로 조용히 전환하지 않는다.
 
