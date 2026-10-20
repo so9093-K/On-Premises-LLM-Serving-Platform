@@ -39,14 +39,6 @@ try {
       fs.readFile(path.join(candidate, relative)),
     ]);
     if (!expected.equals(actual)) {
-      // 임시 CI 검증: GitHub 로그의 비밀값 마스킹으로 생성 JS가 바뀌지 않게 hex를 사용한다.
-      if (relative.startsWith('assets/index-') && relative.endsWith('.js')) {
-        const raw = actual.toString('utf8');
-        for (let i = 0; i < raw.length; i += 3500) {
-          const hex = Buffer.from(JSON.stringify(raw.slice(i, i + 3500)), 'utf8').toString('hex');
-          console.log('ARTGEN_JSHEX:' + Math.floor(i / 3500) + ':' + hex);
-        }
-      }
       throw new Error(`generated Console artifact drift: ${relative}`);
     }
   }
