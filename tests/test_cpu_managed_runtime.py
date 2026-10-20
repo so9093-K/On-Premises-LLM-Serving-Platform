@@ -103,6 +103,20 @@ def test_cpu_control_mode_is_accepted_in_public_schemas() -> None:
     assert "managed_cpu" in envelope["properties"]["control_mode"]["enum"]
 
 
+def test_managed_cpu_readiness_requires_the_expected_model_identity() -> None:
+    from ai_model_serving.api.routers.gateway_ops import _managed_cpu_model_readiness
+
+    assert _managed_cpu_model_readiness(
+        {"data": [{"id": "local-main"}]}, "local-main"
+    ) == ("ready", None)
+    assert _managed_cpu_model_readiness(
+        {"data": [{"id": "unrelated-model"}]}, "local-main"
+    ) == ("not_ready", "CPU_MODEL_ID_MISMATCH")
+    assert _managed_cpu_model_readiness({"data": []}, "local-main") == (
+        "not_ready", "CPU_MODEL_ID_MISMATCH"
+    )
+
+
 def test_managed_cpu_model_listing_tracks_runtime_availability(monkeypatch) -> None:
     from fastapi.testclient import TestClient
     from ai_model_serving.apps.gateway import create_gateway_app
