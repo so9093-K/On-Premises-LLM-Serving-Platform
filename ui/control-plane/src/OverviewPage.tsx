@@ -436,7 +436,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <dl className="facts">
             <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
             <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
-            <dt>실행 방식</dt><dd>{modelRuntimeLabel(bootstrap.deployment.runtime_backend)}</dd>
+            <dt>메인 모델 운영 모드</dt><dd>{bootstrap.deployment.target === "linux-nvidia-dynamic" ? "CPU/GPU 수동 선택" : modelRuntimeLabel(bootstrap.deployment.runtime_backend)}</dd>
             <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
             <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
             <dt>구현·검증</dt>
