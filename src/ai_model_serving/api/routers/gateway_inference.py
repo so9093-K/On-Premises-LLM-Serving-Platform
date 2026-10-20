@@ -255,7 +255,9 @@ def build_router(
                     isinstance(observed, dict)
                     and isinstance(observed.get("data"), list)
                     and any(
-                        isinstance(model, dict) and model.get("id") == active_model_id
+                        isinstance(model, dict)
+                        and model.get("id") == active_model_id
+                        and model.get("meta", {}) is not None
                         for model in observed["data"]
                     )
                 )

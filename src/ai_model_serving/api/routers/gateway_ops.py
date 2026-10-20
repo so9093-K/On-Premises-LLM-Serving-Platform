@@ -46,7 +46,10 @@ def _managed_cpu_model_readiness(body: dict[str, Any], expected: str) -> tuple[s
     """Runtime이 HTTP 200을 반환해도 다른 GGUF를 적재했다면 준비 완료가 아니다."""
     models = body.get("data")
     if isinstance(models, list) and any(
-        isinstance(item, dict) and item.get("id") == expected for item in models
+        isinstance(item, dict)
+        and item.get("id") == expected
+        and item.get("meta", {}) is not None
+        for item in models
     ):
         return READY, None
     return NOT_READY, "CPU_MODEL_ID_MISMATCH"

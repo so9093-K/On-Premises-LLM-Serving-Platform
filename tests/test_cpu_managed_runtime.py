@@ -112,6 +112,9 @@ def test_managed_cpu_readiness_requires_the_expected_model_identity() -> None:
     assert _managed_cpu_model_readiness(
         {"data": [{"id": "unrelated-model"}]}, "local-main"
     ) == ("not_ready", "CPU_MODEL_ID_MISMATCH")
+    assert _managed_cpu_model_readiness(
+        {"data": [{"id": "local-main", "meta": None}]}, "local-main"
+    ) == ("not_ready", "CPU_MODEL_ID_MISMATCH")
     assert _managed_cpu_model_readiness({"data": []}, "local-main") == (
         "not_ready", "CPU_MODEL_ID_MISMATCH"
     )
@@ -128,18 +131,22 @@ def test_managed_cpu_model_listing_tracks_runtime_availability(monkeypatch) -> N
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "cpu-gguf-text")
     settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-cpu-model-env")
     app = create_gateway_app(settings)
-    observations = [None, "wrong-model", "local-main"]
+    observations = [None, "wrong-model", "loading", "local-main"]
 
     async def observed_models(self, path, *, headers=None):
         assert path == "models"
         selected = observations.pop(0)
         if selected is None:
             raise ServiceError("MODEL_UNAVAILABLE", "CPU model is loading")
-        return {"object": "list", "data": [{"id": selected}]}
+        return {
+            "object": "list",
+            "data": [{"id": "local-main", "meta": None}] if selected == "loading"
+                    else [{"id": selected}],
+        }
 
     monkeypatch.setattr(RuntimeClient, "probe_json", observed_models)
     with TestClient(app) as client:
-        for expected in ([], [], ["local-main"]):
+        for expected in ([], [], [], ["local-main"]):
             response = client.get("/v1/models")
             assert response.status_code == 200
             available = [item["id"] for item in response.json()["data"]]
