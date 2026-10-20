@@ -116,6 +116,8 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 
 | Target | 모델 실행 | 지원 기능 | 운영 주체 |
 |---|---|---|---|
+| `linux-core` | 없음 | Gateway·Control Plane·PII/Secret Risk | 기본 서비스만 실행 |
+| `linux-cpu-static` | 외부 llama.cpp CPU Runtime | Text Chat·Responses, PII·Secret Risk | 외부 모델 서버 · 미검증 |
 | `linux-nvidia-dynamic` | vLLM | Chat·Responses, Embedding·Retrieval, Risk | 플랫폼 관리 · 모델 전환·GPU 제어 |
 | `linux-nvidia-static` | 외부 vLLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
 | `macos-metal-static` | MLX-VLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |

@@ -43,6 +43,40 @@ def test_core_settings_do_not_require_main_profile(monkeypatch) -> None:
     assert settings.risk_signal_service_endpoint is not None
 
 
+def test_core_gateway_does_not_advertise_or_serve_missing_model(monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    from ai_model_serving.apps.gateway import create_gateway_app
+    from ai_model_serving.settings import load_settings
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-core")
+    monkeypatch.delenv("MAIN_MODEL_STATIC_PROFILE", raising=False)
+    settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-core-env")
+    app = create_gateway_app(settings)
+    with TestClient(app) as client:
+        listing = client.get("/v1/models")
+        assert listing.status_code == 200
+        assert listing.json() == {"object": "list", "data": []}
+        result = client.post("/v1/chat/completions", json={
+            "model": "local-main",
+            "messages": [{"role": "user", "content": "안녕하세요"}],
+            "max_tokens": 4,
+        })
+        assert result.status_code == 503
+        assert result.json()["error"]["code"] == "MODEL_UNAVAILABLE"
+
+
+def test_cpu_static_profile_loads_without_gpu(monkeypatch) -> None:
+    from ai_model_serving.settings import load_settings
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-cpu-static")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "cpu-gguf-text")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://127.0.0.1:8080/v1")
+    settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-cpu-env")
+    assert settings.static_main_engine_policy["gpu_layers"] == 0
+    assert settings.runtime("main_llm").max_concurrency == 1
+    assert any(item["id"] == "local-main" for item in settings.public_models)
+
+
 def test_gpu_target_retains_existing_model_contract() -> None:
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", "linux-nvidia-dynamic")
     assert target.supports("chat")

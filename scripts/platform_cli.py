@@ -115,7 +115,9 @@ def suggested_target() -> tuple[str, str] | None:
     if sys.platform == "darwin" and platform.machine().lower() in ("arm64", "aarch64"):
         return "macos-metal-static", "Apple Silicon detected"
     if sys.platform.startswith("linux") and shutil.which("nvidia-smi"):
-        return "linux-nvidia-dynamic", "NVIDIA driver detected"
+        return "linux-nvidia-dynamic", "nvidia-smi available; model compatibility and free VRAM not checked"
+    if sys.platform.startswith("linux"):
+        return "linux-core", "Linux host; model/GPU resources are not required"
     return None
 
 
