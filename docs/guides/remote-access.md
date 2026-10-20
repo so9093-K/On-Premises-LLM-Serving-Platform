@@ -118,16 +118,24 @@ Proxy만 기동한 후 먼저 로컬에서 다음 조건을 확인한다.
 ## 4. Tailnet 접근 정책
 
 운영자가 Tailscale을 설치하고 `tailscale up`으로 서버를 Tailnet에 등록한다.
-Tailnet Admin Console의 Policy Editor에서
-[정책 예제](../../ops/access/tailnet-policy.example.hujson)를 **실제 조직의 기존 Tailnet 전체 정책과 병합 검토**한다.
+Tailscale Serve의 HTTPS를 사용하려면 **Tailnet HTTPS 인증서 기능이 활성화되어야** 한다.
+기능이 꺼져 있으면 Serve가 안내하는 관리자 동의 절차를 완료한 뒤 설정을 확인한다.
 
-1. `operator@example.com`과 `teammate@example.com`을 실제 계정으로 바꾼다.
-2. 서버는 관리자만 Tag를 부여할 수 있는 `tag:llm-server`로 등록한다.
-3. 관리자 그룹은 `443`과 `8443`에, 팀원 그룹은 `8443`에만 접근을 허용한다.
-   **두 그룹을 중복 배정하지 않는다.** 중복 소속이라면 관리자 허용이 우선 적용될 수 있다.
-4. 기존 모든 접근 허용 Grants/ACL 및 Subnet Router/Exit Node 경로가 이를 우회하지 않는지 검토한다.
-5. Policy Editor에서 `tests`가 통과해야 한다. ACL/Grants는 허용의 합집합이므로
-   더 넓은 기존 규칙이 있으면 단순한 새 규칙 추가로 접근을 제한할 수 없다.
+Tailnet Admin Console의 Policy Editor에서 기존 Grants/ACL 전체를 확인한다.
+[정책 예제](../../ops/access/tailnet-policy.example.hujson)는 **팀원 API까지 공유하는 경우의 예제**이며,
+개인 관리자 접속에 필요하지 않은 8443 권한을 그대로 복사해서는 안 된다.
+
+1. 서버는 관리자만 Tag를 부여할 수 있는 `tag:llm-server`로 등록한다.
+2. **개인 관리자만 접속:** 해당 관리자에게 서버의 `tcp:443`만 허용한다.
+   팀원 그룹·`tcp:8443` 허용 규칙과 Nginx는 필요하지 않다.
+3. **팀원 API까지 공유:** 예제의 `operator@example.com`과 `teammate@example.com`을
+   실제 계정으로 바꾸고, 관리자 그룹에 `tcp:443`·`tcp:8443`,
+   팀원 그룹에는 `tcp:8443`만 허용한다. **두 그룹을 중복 배정하지 않는다.**
+4. 어느 경우든 기존 허용 Grants/ACL 및 Subnet Router/Exit Node 경로가
+   의도한 포트 제한을 우회하지 않는지 검토한다.
+5. 실제로 적용할 전체 정책에 대한 Policy Editor `tests`를 통과시킨다.
+   기존 허용 규칙까지 합산하므로 규칙을 추가하는 것만으로 접근이 제한되지는 않는다.
+   팀원 공유 시에는 팀원 계정에서 `tcp:443` 거부도 확인한다.
 
 [공식 Policy 문법](https://tailscale.com/docs/reference/syntax/policy-file) ·
 [Grants](https://tailscale.com/docs/reference/syntax/grants)
