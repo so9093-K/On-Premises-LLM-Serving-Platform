@@ -1,51 +1,40 @@
 # On-Premises LLM Serving Platform
 
-자체 인프라의 AI 모델을 **OpenAI 호환 API**로 제공하고 **Control Plane**에서 운영하는 플랫폼입니다.
+자체 인프라에서 AI 모델을 **OpenAI 호환 API**로 제공하고 **Control Plane**에서 운영하는 플랫폼입니다. 모델 상태와 요청을 확인하고, 지원되는 환경에서는 모델 전환과 GPU 자원을 관리합니다.
 
 **Self-hosted · Linux/NVIDIA · Apple Silicon**
 
-[빠른 시작](#quick-start) · [사용자 가이드](docs/guides/user-guide.md) · [API 연동](docs/guides/api-integration.md) · [원격 접속](docs/guides/remote-access.md) · [개발자 가이드](docs/guides/developer-guide.md)
-
-## 외부에서 이용하기 (서버 설치 불필요)
-
-서버 운영자가 이미 LLM 플랫폼과 Tailnet 접근을 준비했다면, **이 저장소를 내려받거나 서버의 `make` 명령을 실행하지 않습니다.**
-
-- **외부 관리자:** 본인의 기기에서 Tailscale에 연결한 뒤 운영자가 알려 준 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 열고 Admin Key로 인증합니다. [외부 관리자 접속](docs/guides/remote-access.md#external-admin)
-- **외부 API 사용자:** Tailscale 연결 후 운영자가 전달한 HTTPS 8443 **API Base URL**과 **사용자 API Key**로 SDK 또는 **허용된 모델 API 경로**로 요청합니다. 팀원 진입점은 `GET /v1/models`, `POST /v1/chat/completions`·`/v1/responses`·`/v1/embeddings`만 전달합니다. 팀원 API에서는 관리자 Console을 제공하지 않습니다. [외부 API 연동](docs/guides/api-integration.md#remote-api)
-
-URL과 권한은 운영자가 실제 Tailnet에서 확인해 전달합니다. 이 절차는 일반 인터넷 공개가 아니며, 인증 키를 URL에 포함하지 않습니다. 원격 접속 **Host 구성 절차는 현재 Ubuntu/Linux 기준**입니다. macOS를 접속하는 사용자 기기로 이용하는 것과 macOS를 원격 접속 서버로 운영하는 것은 다르며, **macOS Host의 동일한 원격 접속 구성은 아직 실환경 검증되지 않았습니다.** 자세한 범위와 해제 절차는 [원격 접속 가이드](docs/guides/remote-access.md)를 확인하세요.
+[빠른 시작](#quick-start) · [배포 환경](#deployment-targets) · [역할별 이용 안내](#usage-guides) · [개발자 가이드](docs/guides/developer-guide.md)
 
 <a id="quick-start"></a>
 
-## 빠른 시작 (서버 설치자)
+## 빠른 시작
 
-Git, Python·uv, Docker 및 해당 환경의 모델 실행 자원이 필요합니다. [환경별 설치 조건](docs/guides/getting-started.md)
+Git, Python·uv, Docker와 해당 환경의 모델 실행 자원이 필요합니다. 설치 조건은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
 
 ```bash
 git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 ```
 
-**Linux / NVIDIA** — vLLM Runtime 및 GPU 관리
+**Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
 
 ```bash
 make up TARGET=linux-nvidia-dynamic ACCESS=local
 ```
 
-**Apple Silicon** — 외부에서 관리하는 MLX-VLM Main Runtime
+**macOS / Apple Silicon** — 별도로 관리하는 MLX-VLM Main Runtime
 
 ```bash
 make up TARGET=macos-metal-static ACCESS=local
 ```
 
-모델 접근 승인·`HF_TOKEN`·GPU 메모리 및 Resource Variant 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 참고하세요.
-
-실행 후 `make status`로 플랫폼 준비 상태를 확인합니다. **다른 기기에서의 접근 가능 여부는 별도 검증**해야 합니다.
+실행 후 `make status`로 준비 상태를 확인합니다. `ACCESS=local`은 같은 Host의 Loopback 접속입니다.
 
 - **Control Plane:** `http://127.0.0.1:9400/admin/console/`
 - **Gateway:** `http://127.0.0.1:9400`
 
-모델 요청이 준비된 경우, 로컬 기본 인증 설정에서 다음과 같이 호출할 수 있습니다.
+모델이 준비됐다면 로컬 기본 인증 설정에서 API를 호출할 수 있습니다.
 
 ```bash
 curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
@@ -57,14 +46,7 @@ curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
   }'
 ```
 
-인증이 활성화된 경우 사용자 API Key가 필요합니다. `ACCESS=local`은 동일 호스트의 Loopback 접속입니다. **서버 운영자만** 기존 `make up ACCESS=edge`의 계획·승인 계약과 [원격 접속 Host 구성](docs/guides/remote-access.md#operator-setup)을 사용합니다. `make status`는 플랫폼 준비 상태이며 실제 외부 기기의 네트워크 접근 성공 여부는 별도로 확인해야 합니다.
-
-```bash
-make up
-make status
-make logs
-make down
-```
+인증이 활성화된 환경에서는 사용자 API Key가 필요합니다. 일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 모델 접근 승인, `HF_TOKEN`, GPU 자원 설정은 [설치 가이드](docs/guides/getting-started.md)를 참고하세요.
 
 ## 시스템 구성
 
@@ -117,6 +99,18 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 | `macos-metal-static` | MLX-VLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
 
 기능별 지원·검증 상태와 모델 자원 조건은 [Deployment Target](configs/deployment_targets.yaml) 및 [모델 운영](docs/06_model_operations.md)을 참고하세요.
+
+<a id="usage-guides"></a>
+
+## 역할별 이용 안내
+
+이미 구성된 플랫폼에 **외부 기기에서 접속하는 사용자**는 저장소 설치나 서버의 `make` 명령이 필요하지 않습니다. 운영자가 전달한 실제 주소와 권한을 사용합니다.
+
+- **외부 관리자:** 승인된 Tailnet에서 Control Plane에 접속하고 Admin Key로 인증합니다. [관리자 접속 가이드](docs/guides/remote-access.md#external-admin)
+- **외부 API 사용자:** 운영자가 제공하는 API Base URL과 사용자 API Key로 모델을 호출합니다. [API 연동 가이드](docs/guides/api-integration.md#remote-api)
+- **서버 운영자:** 원격 접속이 필요한 경우 `ACCESS=edge`와 별도 Tailscale·Nginx 설정을 검토합니다. [Host 설정·해제 가이드](docs/guides/remote-access.md#operator-setup)
+
+원격 접속은 **일반 인터넷 공개가 아닌 선택적 Tailnet 접속**입니다. Host 설정 가이드는 Ubuntu/Linux 기준이며 macOS Host의 동일한 원격 구성은 아직 실환경 검증되지 않았습니다.
 
 ## 문서
 
