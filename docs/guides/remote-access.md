@@ -229,6 +229,7 @@ tailscale serve status
 ```bash
 # 이 플랫폼 전용 설정임을 확인한 뒤, 기존 백업을 덮어쓰지 않고 비활성화
 if sudo test ! -e /etc/nginx/llm-team-api.conf.disabled &&
+   sudo test ! -L /etc/nginx/llm-team-api.conf.disabled &&
    sudo mv -- /etc/nginx/conf.d/llm-team-api.conf /etc/nginx/llm-team-api.conf.disabled; then
   sudo nginx -t && sudo systemctl reload nginx
 else
