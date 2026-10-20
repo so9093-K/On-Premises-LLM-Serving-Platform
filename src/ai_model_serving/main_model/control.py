@@ -516,6 +516,11 @@ class MainModelManager:
             return prior
         return None
 
+    def switch_in_progress(self) -> bool:
+        """완료되지 않은 전환이 있다면 후보의 즉시 실행 가능성을 광고하지 않는다."""
+        current = self.state_store.read().get("last_operation")
+        return current is not None and current.get("status") not in _TERMINAL_STATES
+
     def switch_policy_error(
         self, profile_id: str, *, boot_reconcile: bool = False
     ) -> MainModelSwitchError | None:
