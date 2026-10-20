@@ -13,10 +13,10 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status access access-status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev
 
-PUBLIC_TARGETS := up status access access-status down logs reset purge
+PUBLIC_TARGETS := up status down logs reset purge
 QUALITY_TARGETS := check
 PLATFORM_CLI := "$(CURDIR)/.venv/bin/python" scripts/platform_cli.py
 PLATFORM_TARGET_ARG = $(if $(TARGET),--target "$(TARGET)",)
@@ -32,12 +32,6 @@ up: ## 필요한 준비를 수렴한 뒤 플랫폼을 사용 가능 상태로 �
 status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
 	@if [[ ! -x "$(CURDIR)/.venv/bin/python" ]]; then echo "Platform UNCONFIGURED"; echo "First run: make up TARGET=<deployment-target>"; exit 1; fi
 	@$(PLATFORM_CLI) status $(PLATFORM_TARGET_ARG)
-
-access: ## 원격 접속 목적별 준비 계획 (PURPOSE=personal|team, 외부 설정 자동 변경 없음)
-	@"$(PYTHON)" scripts/access/remote_access.py plan --purpose "$(or $(PURPOSE),personal)"
-
-access-status: ## 원격 접속 Host 상태 조회 (PURPOSE=personal|team; 최종 외부 검증 아님)
-	@"$(PYTHON)" scripts/access/remote_access.py status --purpose "$(or $(PURPOSE),personal)"
 
 down: ## 이 checkout이 소유한 실행 리소스를 안전하게 정지한다
 	@if [[ -x "$(CURDIR)/.venv/bin/python" ]]; then $(PLATFORM_CLI) down $(PLATFORM_TARGET_ARG); else bash scripts/ops/down_all.sh; fi
