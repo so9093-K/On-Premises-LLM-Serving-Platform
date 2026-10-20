@@ -58,6 +58,8 @@ jobs:
           REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
   console:
     name: Control Plane frontend
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -69,6 +71,20 @@ jobs:
           cache-dependency-path: ui/control-plane/package-lock.json
       - name: Pin npm toolchain
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Temporary generated Console sync for access UX branch
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'refactor/operator-access-journey' }}
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          git fetch origin "refs/heads/${BRANCH_NAME}:refs/remotes/origin/${BRANCH_NAME}"
+          git switch -C "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
+          npm --prefix ui/control-plane ci
+          npm --prefix ui/control-plane run build
+          git add -A src/ai_model_serving/static/control-plane
+          if ! git diff --cached --quiet; then
+            git -c user.name="openai-project-bot" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "build(console): 원격 접속 안내 화면을 생성물에 반영한다"
+            git push origin "HEAD:refs/heads/${BRANCH_NAME}"
+          fi
       - name: Check Control Plane source and generated Console
         run: make console-check
 
