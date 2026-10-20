@@ -29,9 +29,15 @@ Tool lock SHA-256: `53a0dbfe604d8dfdcedee3851b3be067b5aa6ded23ccf95b435593b79f06
 
 ## 완료된 실행
 
-아래 네 실행은 각 10건, HTTP/Stream 오류 0%, 완료 상태이며 Warmup 2건은 별도 Phase다.
+아래 네 실행은 각 10건, **AIPerf가 보고한** 오류율 0%·완료 상태이며 Warmup 2건은 별도 Phase다.
 각 측정 레코드의 요청 ID 10개를 Gateway 완료 로그와 연결해 Queue 대기와 토큰 usage를
 확인했다. TTFO는 reasoning false인 이 표본에서 TTFT와 같았다.
+
+`request_latency`(아래 E2E)는 마지막 콘텐츠 Chunk까지의 Client 지연이다.
+finish·usage·`[DONE]` 수신 완료 시간은 아니다. 당시 `raw: false`였으므로 클라이언트
+원본 SSE에서 요청별 `[DONE]`를 확인했다는 근거로 이 표를 사용하지 않는다.
+AIPerf 0.13.0의 완료·usage 누락 판정 한계와 수동 원본 확인 절차는
+[공통 측정 절차](../../ops/perf/README.md#실패와-비교)를 따른다.
 
 | 실행 | 실제 입력 tokens | 실제 출력 tokens | TTFT 평균 ms | ITL 추정 평균 ms | E2E 평균 ms | 전체 출력 tokens/s | Gateway Queue 평균 ms |
 |---|---:|---:|---:|---:|---:|---:|---:|

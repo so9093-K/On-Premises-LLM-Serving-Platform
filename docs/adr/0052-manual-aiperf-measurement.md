@@ -29,7 +29,8 @@ PR #244는 소비자가 없는 공통 Runner와 합성 Result Manifest를 제거
    현재 한도 1을 넘는 Backpressure 관측이며 동시 실행 지원의 선언이 아니다.
 4. Client TTFT·TTFO·ITL 추정값·E2E·Throughput과 Runtime 측정값은 별개다.
    MTP Chunk와 per-chunk usage의 한계, Native 최근 요청 Peak Memory의 의미를
-   측정 기록에 명시한다.
+   측정 기록에 명시한다. 고정 AIPerf의 `request_latency`는 마지막 콘텐츠까지이며
+   finish·usage·DONE 수신 완료까지를 측정하지 않는다.
 5. 결과는 AIPerf 고유 JSON/CSV/JSONL과 로그를 그대로 사용하며 `reports/perf/`를
    Git에서 제외한다. 자체 Runner·Parser·Result Schema·Baseline·Promotion·SLO·
    Release Gate를 두지 않는다. 도구 실패와 유효한 측정의 성능 차이는 별도 상태다.
@@ -40,6 +41,11 @@ PR #244는 소비자가 없는 공통 Runner와 합성 Result Manifest를 제거
    NVIDIA 설치·Runtime·성능 검증을 대신하지 않는다.
 8. 모델/GPU·Runtime·입출력·전원·부하 등 비교 조건이 다르면 직접적인 회귀 판정을
    하지 않는다. Qualification 선언은 기존 Runtime 기능 검증과 Maintainer 책임을 유지한다.
+9. AIPerf의 실행 완료·오류율과 SSE 무결성은 별도다. 0.13.0은 finish·DONE 또는 usage
+   누락을 자동 실패로 처리하지 않을 수 있다. Client 완료를 직접 검증하는 수동 진단은
+   공개 합성 입력에 한해 도구의 native RAW Export를 명시적으로 선택하고 요청별
+   원본·usage·Gateway 로그를 대조한다. 기본 RAW/Trace 설정은 비활성화하고,
+   원본이 없는 과거 실행을 나중에 Client 완료 검증으로 승격하지 않는다.
 
 ## Consequences
 
@@ -58,5 +64,6 @@ AIPerf를 실행하며, 부하 실험 중 응답 지연과 Queue가 증가할 �
 
 - [수동 측정 절차](../../ops/perf/README.md)
 - [macOS 실측 기록](../resources/macos_aiperf_measurement.md)
+- [Ubuntu/NVIDIA 실측 기록](../resources/linux_aiperf_measurement.md)
 - [테스트와 검증](../08_testing_validation.md)
 - ADR-0039, ADR-0042, ADR-0050

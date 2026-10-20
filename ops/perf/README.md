@@ -4,9 +4,10 @@
 독립된 측정 도구 환경과 공통 Workload만 소유한다. 플랫폼 기동은 `make up`,
 성능 해석은 실제 장비에서 얻은 AIPerf 결과와 운영 지표가 각각 담당한다.
 
-현재 실제 검증 범위는 **Apple Silicon / macos-metal-static**이다.
-Linux x86_64는 같은 도구 lock의 해석 대상이지만 Ubuntu/NVIDIA 설치·추론·성능은
-이 PR에서 실측하지 않았다. 두 OS의 지원 완료나 성능 동등성을 의미하지 않는다.
+장비별 검증 범위는 [Mac 초기 기록](../../docs/resources/macos_aiperf_measurement.md)과
+[Ubuntu/NVIDIA 기록](../../docs/resources/linux_aiperf_measurement.md)을 따른다.
+Mac의 Long/Queue 반복과 동일 입력 c1 기준은 아직 완료하지 않았다.
+도구 설치·lock 해석·일반 CI·각 장비의 실측을 서로 대신하는 근거로 사용하지 않는다.
 `make check`, Qualification 선언, Release Gate에 성능 측정을 추가하지 않는다.
 설계 경계는 [ADR-0052](../../docs/adr/0052-manual-aiperf-measurement.md),
 Mac 실측은 [측정 기록](../../docs/resources/macos_aiperf_measurement.md)을 따른다.
@@ -21,10 +22,36 @@ lock이 해석되는 것과 그 환경의 실제 설치·측정 성공은 별개
 UV_PROJECT_ENVIRONMENT="$PWD/.runtime/perf/venv" \
   uv sync --locked --project ops/perf --python 3.13.12
 .runtime/perf/venv/bin/aiperf --version
+```
 
+### 실행 중인 Target 확인
+
+이미 설정된 `.env`의 Target을 확인하고 해당 절차만 실행한다. 아래 Mac 명령으로
+Linux 배포의 Target을 바꾸지 않는다. 모델·자원 정책 변경은 성능 도구가 소유하지 않는다.
+
+Mac:
+
+```bash
 make metal-doctor
 make up TARGET=macos-metal-static ACCESS=local
 make status
+```
+
+Ubuntu/NVIDIA managed:
+
+```bash
+make up TARGET=linux-nvidia-dynamic ACCESS=local
+make status
+make runtime-validate
+```
+
+`runtime-validate`는 전체 기능 검증이다. 중지한 Embedding 때문에 실패할 수 있으므로
+Main 성능 결과와 분리해서 실패 항목을 확인한다. 기능 검증에 보조 Runtime을 시작했다면
+영향을 검토한 Plan/Apply로 원래 상태를 복원한 후 측정한다. 측정 중 Runtime 구성을 바꾸지 않는다.
+
+두 Target 모두 다음 정보를 확인한다. 인증된 배포는 사용자 API와 Admin 조회에 각각 맞는 키를 사용한다.
+
+```bash
 curl --fail http://127.0.0.1:9400/ready
 curl --fail http://127.0.0.1:9400/admin/serving-envelope
 curl --fail http://127.0.0.1:9400/v1/models
@@ -34,12 +61,34 @@ curl --fail http://127.0.0.1:9400/v1/models
 해당 공개 API Key를 사용하고, Admin 정보 조회는 별도의 관리자 권한을 사용한다.
 아래 기본 절차는 `ACCESS=local`에서 검증했다.
 
-현재 Mac profile의 캐시된 Tokenizer ID와 Revision을 읽는다. 모델 가중치를
+### Tokenizer와 캐시
+
+Mac 기본 profile의 캐시된 Tokenizer ID와 Revision을 읽는다. 모델 가중치를
 측정 도구에 다시 설치하거나 Tokenizer를 `local-main`이라는 공개 별칭으로 추측하지 않는다.
 
 ```bash
 export PERF_TOKENIZER="$(.venv/bin/python -c 'import yaml; c=yaml.safe_load(open("configs/macos_mlx_runtime.yaml")); print(c["profiles"][c["default_profile"]]["model_id"])')"
 export PERF_TOKENIZER_REVISION="$(.venv/bin/python -c 'import yaml; c=yaml.safe_load(open("configs/macos_mlx_runtime.yaml")); print(c["profiles"][c["default_profile"]]["revision"])')"
+```
+
+Mac도 실제 `/admin/main-model`의 활성 모델·Revision이 위 기본 profile과 같은지 확인한다.
+Linux는 catalog 기본값 대신 **실제 활성 profile**에서 읽는다. 아래는 인증이 없는 loopback 예제다.
+인증된 설치에서는 앞 단계의 Admin 권한으로 같은 JSON을 받아 사용한다.
+
+```bash
+mkdir -p reports/perf/linux-local/setup
+curl --fail http://127.0.0.1:9400/admin/main-model \
+  --output reports/perf/linux-local/setup/main-model.json
+export PERF_TOKENIZER="$(.venv/bin/python -c 'import json; print(json.load(open("reports/perf/linux-local/setup/main-model.json"))["active_profile"]["upstream_model_id"])')"
+export PERF_TOKENIZER_REVISION="$(.venv/bin/python -c 'import json; print(json.load(open("reports/perf/linux-local/setup/main-model.json"))["active_profile"]["revision"])')"
+export HF_HOME="$(.venv/bin/python scripts/models/resolve_hf_cache_dir.py)"
+```
+
+`HF_HOME`은 실제 Runtime의 host cache mount와 대조한다. Compose의 상대 `HF_CACHE_DIR`는
+Compose 파일 디렉터리 기준이다. AIPerf의 기본 사용자 cache에 모델이 있다고 가정하지 않는다.
+이제 두 Target 공통으로 다음을 설정한다.
+
+```bash
 export HF_HUB_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 export PERF_CHAT_URL=http://127.0.0.1:9400/v1/chat/completions
@@ -56,6 +105,7 @@ export PERF_CHAT_URL=http://127.0.0.1:9400/v1/chat/completions
 고정 System Prompt, seed 42, temperature 0, reasoning false, Worker 1개,
 요청 2건의 워밍업 + 측정 10건, pooled 연결을 모든 시나리오에서 동일하게 사용한다.
 워밍업의 별도 Phase는 AIPerf의 측정 통계에서 제외된다.
+seed 42는 도구의 입력 생성 seed다. 모델 요청의 `seed`를 지정하거나 모델 출력의 동일성을 보장하는 값이 아니다.
 
 | 이름 | 합성 User 입력 목표 | 출력 상한 | 클라이언트 동시성 | Mac 해석 |
 |---|---:|---:|---:|---|
@@ -64,22 +114,26 @@ export PERF_CHAT_URL=http://127.0.0.1:9400/v1/chat/completions
 | Concurrent Chat 기준 | 512 tokens | 256 tokens | 1 | 현재 Admission 한도의 정상 부하 |
 | Concurrent Chat Queue | 512 tokens | 256 tokens | 2 | 같은 입력으로 한도 1을 넘는 별도 실험 |
 
+Linux에서는 `/admin/serving-envelope`의 실제 Admission과 engine policy를 읽어 선택한다.
+예를 들어 한도 4인 구성에서 c1·c2·c4는 한도 안의 부하이고 c8은 별도 Queue 실험이다.
+Mac의 c2 해석을 모든 Target에 그대로 적용하지 않는다.
+
 입력 목표는 합성 User 문장의 길이다. System Prompt·Chat Template를 포함한
 실제 `usage.prompt_tokens`는 더 길 수 있다. 출력은 **상한**이며 강제 길이가 아니다.
 현재 MLX profile에 없는 `ignore_eos`·`min_tokens`를 넣어 길이를 강제하지 않는다.
 결과의 실제 입력·출력 토큰 분포와 오류·중단 상태를 반드시 함께 읽는다.
 
 ```bash
-export PERF_ARTIFACT_DIR="$PWD/reports/perf/mac-local/short-r1"
+export PERF_ARTIFACT_DIR="$PWD/reports/perf/local/short-r1"
 .runtime/perf/venv/bin/aiperf config validate --config-file ops/perf/chat.yaml
 .runtime/perf/venv/bin/aiperf profile --config ops/perf/chat.yaml
 
 PERF_ISL=4096 PERF_OSL=256 PERF_CONCURRENCY=1 \
-  PERF_ARTIFACT_DIR="$PWD/reports/perf/mac-local/long-r1" \
+  PERF_ARTIFACT_DIR="$PWD/reports/perf/local/long-r1" \
   .runtime/perf/venv/bin/aiperf profile --config ops/perf/chat.yaml
 
 PERF_ISL=512 PERF_OSL=256 PERF_CONCURRENCY=2 \
-  PERF_ARTIFACT_DIR="$PWD/reports/perf/mac-local/queue-c2-r1" \
+  PERF_ARTIFACT_DIR="$PWD/reports/perf/local/queue-c2-r1" \
   .runtime/perf/venv/bin/aiperf profile --config ops/perf/chat.yaml
 ```
 
@@ -105,7 +159,7 @@ Concurrent Chat의 정상 기준도 `PERF_ISL=512 PERF_OSL=256 PERF_CONCURRENCY=
 | `time_to_first_output_token` | 첫 일반 Output까지. Reasoning을 켜면 TTFT와 다를 수 있다. 현재 Workload는 reasoning false다. |
 | `inter_token_latency` | AIPerf 0.13.0의 요청별 `(E2E-TTFT)/(실제 출력 토큰-첫 Chunk 토큰)` 추정값. per-chunk usage가 없으면 첫 Chunk를 1 token으로 가정한다. MTP가 여러 token을 묶어 보내므로 물리적인 token 간격으로 해석하지 않는다. |
 | `inter_chunk_latency` | 실제 수신 Chunk 사이 간격. 위 ITL/TPOT 추정값과 구분한다. |
-| `request_latency` | 요청 완료까지의 Client E2E. Warmup·Tokenizer 준비·CLI 시작 시간은 별도다. |
+| `request_latency` | 요청 시작부터 **마지막 비어 있지 않은 콘텐츠 Chunk**까지. 이후 finish·usage·`[DONE]` 수신까지의 시간이 아니며 정상 종료를 증명하지 않는다. Warmup·Tokenizer 준비·CLI 시작 시간도 별도다. |
 | `output_token_throughput` | 관측 구간 전체의 실제 출력 tokens/sec. 단일 사용자 Decode 속도와 다르다. |
 | `output_token_throughput_per_user` | 요청별 ITL 역수 추정값. Native MLX의 `decode_tok_s`와 별도로 해석한다. |
 | `usage_*`, `input_sequence_length`, `output_sequence_length` | `useServerTokenCount`로 받은 서버 토큰 수. usage가 누락되면 Client Tokenizer 수로 조용히 대체하지 않는다. |
@@ -140,6 +194,56 @@ Mac 성능 측정을 대신하지 않는다.
 `request_error_rate`, `error_summary` 및 누락된 usage를 확인한다. 설치·설정·Tokenizer
 실패, 잘린 Stream, Timeout·HTTP 오류가 있는 실행은 정상 성능 비교 대상에서 제외한다.
 유효한 반복 실행에서 지연이 늘어난 경우는 실행 실패와 구분하며 자동 차단하지 않는다.
+
+**AIPerf 0.13.0의 완료 표시는 SSE 무결성 검증이 아니다.** 로컬 오류 주입에서
+finish reason·`[DONE]`가 없는 응답도 `is_complete=true`·오류율 0으로 보고했고,
+usage 누락도 종료 코드 0이었다. `useServerTokenCount`는 누락 시 토큰 수를 비워 두며
+이를 자동 실패로 바꾸지 않는다. `event: error`는 오류로 처리했다.
+이 시험은 도구의 동작 확인이며 실제 모델 측정값이 아니다.
+
+### 클라이언트 종료를 직접 확인할 때
+
+별도 Runner를 만들지 않고 AIPerf의 원본 SSE Export를 사용한다. 아래 옵션은
+**공개 합성 입력만으로 수행하는 명시적 진단**에 사용한다. 기본 YAML의 `raw: false`는 유지한다.
+
+```bash
+umask 077
+export PERF_ARTIFACT_DIR="$PWD/reports/perf/local/short-raw-r1"
+.runtime/perf/venv/bin/aiperf profile --config ops/perf/chat.yaml --export-level raw
+```
+
+`profile_export_raw.jsonl`은 요청·응답을 포함하므로 로컬에서만 확인하고 공유 전에 검토한다.
+`profile_export.jsonl`의 `metadata.x_request_id`로 Gateway 완료 로그도 대조한다.
+아래는 고정 버전의 원본 JSON 필드를 읽는 수동 확인 예제다. 시간을 재측정하거나
+독자 Result Schema·성능 판정을 생성하지 않는다.
+
+```python
+import json
+import os
+from collections import Counter
+from pathlib import Path
+
+phases = Counter()
+path = Path(os.environ["PERF_ARTIFACT_DIR"]) / "profile_export_raw.jsonl"
+for line in path.open():
+    row = json.loads(line)
+    packets = [p for r in row["responses"] for p in r["packets"]]
+    data = [p["value"] for p in packets if p["name"] == "data"]
+    chunks = [json.loads(value) for value in data if value != "[DONE]"]
+    assert row["status"] == 200 and not row["metadata"]["was_cancelled"]
+    assert "[DONE]" in data
+    assert not any(p["name"] == "event" and p["value"] == "error" for p in packets)
+    assert not any("error" in chunk for chunk in chunks)
+    assert any(c.get("finish_reason") in ("stop", "length") for chunk in chunks for c in chunk.get("choices", []))
+    assert any(isinstance(chunk.get("usage"), dict) and chunk["usage"].get("prompt_tokens", 0) > 0 and chunk["usage"].get("completion_tokens", 0) > 0 for chunk in chunks)
+    phases[row["metadata"]["phase_kind"]] += 1
+print(dict(phases))
+```
+
+이 Workload에서는 Warmup 2건·profiling 10건과 원본 Summary의 건수를 대조한다.
+원본이 없는 실행에서는 클라이언트의 `[DONE]`를 직접 확인했다고 주장하지 않는다.
+Gateway의 `stream_status=completed`도 상류 EOF와 명시적 DONE의 동일성을 보장하지 않으므로,
+클라이언트 원본을 대신하지 않는다.
 
 모델/Tokenizer와 Revision, Target·장비·OS·전원, Runtime·MTP·동시성/Admission,
 입출력 분포, seed·System Prompt·Reasoning·Warmup·Cache, Tool/lock 버전과 관측 조건이
