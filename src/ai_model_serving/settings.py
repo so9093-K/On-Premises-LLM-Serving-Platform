@@ -58,6 +58,21 @@ def _static_main_engine_projection(
         profile = catalog.profiles[profile_id]
         return profile.engine_policy(), profile.resource_variant
 
+    if deployment_target.runtime_backend == "llama-cpp":
+        document = load_yaml_mapping(catalog_path)
+        runtime = document.get("runtime")
+        if not isinstance(runtime, dict) or runtime.get("gpu_layers") != 0:
+            raise RuntimeError("CPU llama.cpp target requires runtime.gpu_layers=0")
+        context_size = runtime.get("context_size")
+        if not isinstance(context_size, int) or context_size < 256:
+            raise RuntimeError("CPU llama.cpp runtime.context_size must be >= 256")
+        return {
+            "backend": "llama-cpp",
+            "gpu_layers": 0,
+            "context_size": context_size,
+            "lifecycle": "external",
+        }, None
+
     if deployment_target.runtime_backend == "mlx-vlm":
         document = load_yaml_mapping(catalog_path)
         runtime = document.get("runtime")

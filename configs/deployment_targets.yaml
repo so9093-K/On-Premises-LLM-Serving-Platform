@@ -26,6 +26,30 @@ targets:
       model_switching: false
       gpu_admission: false
 
+  linux-cpu-static:
+    display_name: Linux — External llama.cpp CPU Runtime
+    platform: linux
+    runtime_backend: llama-cpp
+    runs_monitoring_stack: false
+    main_profile_catalog: configs/cpu_main_model_profiles.yaml
+    control_mode: static
+    lifecycle_owner: external
+    internal_service_token_required: true
+    implementation_status: implemented
+    qualification_status: unverified
+    compose_files:
+      - ops/compose/static-main.external-runtime.yaml
+      - ops/compose/overrides/static.local-risk.yaml
+    features:
+      chat: true
+      embeddings: false
+      retrieval: false
+      risk: true
+      prompt_detection: false
+      runtime_control: false
+      model_switching: false
+      gpu_admission: false
+
   linux-nvidia-dynamic:
     display_name: Linux + NVIDIA — Managed Runtimes
     platform: linux

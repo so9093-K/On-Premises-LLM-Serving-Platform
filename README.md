@@ -28,6 +28,17 @@ Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. `/r
 `MODEL_UNAVAILABLE`로 거부합니다. GPU가 존재해도 자원이 부족하면 이 구성을
 사용할 수 있습니다. GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
 
+**Linux / CPU 추론 (외부 llama.cpp Server 필요)**
+
+```bash
+make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
+```
+
+먼저 CPU-only `llama-server`를 실행하고, Gateway가 위 주소에 접근할 수 있게 구성해야 합니다.
+모델은 운영자가 다운로드·검증하며 Gateway는 외부 Runtime의 lifecycle을 소유하지 않습니다.
+`configs/cpu_main_model_profiles.yaml`의 Text Chat·Streaming Profile은 아직 실환경 검증 전입니다.
+GPU 자원 부족 시 자동 Fallback이나 Target 전환은 지원하지 않습니다.
+
 **Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
 
 ```bash

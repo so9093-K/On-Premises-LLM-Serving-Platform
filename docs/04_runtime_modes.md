@@ -10,6 +10,32 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 실행 환경의 기능 집합은 `configs/deployment_targets.yaml`의 `DEPLOYMENT_TARGET`이 결정한다.
 `static`은 macOS의 별칭이 아니며 Linux CUDA runtime도 static으로 연결할 수 있다.
 
+### CPU Static (llama.cpp)
+
+`linux-cpu-static`은 운영자가 별도 CPU-only `llama-server`와 GGUF 모델을
+준비한 뒤 Gateway가 해당 OpenAI-compatible endpoint에 연결하는 정적 Target이다.
+모델 다운로드·Runtime supervision·CPU RAM 적합성은 외부 운영자가 소유한다.
+실제 CPU 추론 품질 및 기능은 아직 Qualification을 완료하지 않았다.
+
+예를 들어 사전 준비된 모델로 호스트에서 다음처럼 실행한다.
+
+```bash
+llama-server -m /secure/models/local-main.gguf \
+  --alias local-main --ctx-size 2048 \
+  --n-gpu-layers 0 --host 0.0.0.0 --port 8080
+make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
+make status
+```
+
+Docker bridge가 호스트 Runtime에 접속하도록 0.0.0.0을 사용한 예시다.
+이 포트는 공개 인터넷에 노출하면 안 되므로 방화벽 또는 전용 사설
+인터페이스로 접근을 제한해야 한다. 실제 Runtime artifact, 바이너리 및 모델
+파일은 각각 독립적으로 버전과 해시를 검증해야 한다.
+
+별도 `linux-core`는 모델 없이 Gateway·Control Plane·PII/Secret Risk Service만
+실행한다. GPU가 있지만 VRAM이 부족한 호스트에서도 명시적으로 이 Target을
+선택할 수 있다. GPU 실패 시 자동 Target 변경·Fallback은 제공하지 않는다.
+
 ### static main
 
 static target에서는 Main runtime을 별도 process 또는 별도 supervisor가 기동·감시한다.
