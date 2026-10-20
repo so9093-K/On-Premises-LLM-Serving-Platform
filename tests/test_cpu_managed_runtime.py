@@ -103,6 +103,35 @@ def test_cpu_control_mode_is_accepted_in_public_schemas() -> None:
     assert "managed_cpu" in envelope["properties"]["control_mode"]["enum"]
 
 
+def test_managed_cpu_model_listing_tracks_runtime_availability(monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    from ai_model_serving.apps.gateway import create_gateway_app
+    from ai_model_serving.errors import ServiceError
+    from ai_model_serving.settings import load_settings
+    from ai_model_serving.upstream import RuntimeClient
+
+    monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-cpu-managed")
+    monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "cpu-gguf-text")
+    settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-cpu-model-env")
+    app = create_gateway_app(settings)
+    observations = [None, "wrong-model", "local-main"]
+
+    async def observed_models(self, path, *, headers=None):
+        assert path == "models"
+        selected = observations.pop(0)
+        if selected is None:
+            raise ServiceError("MODEL_UNAVAILABLE", "CPU model is loading")
+        return {"object": "list", "data": [{"id": selected}]}
+
+    monkeypatch.setattr(RuntimeClient, "probe_json", observed_models)
+    with TestClient(app) as client:
+        for expected in ([], [], ["local-main"]):
+            response = client.get("/v1/models")
+            assert response.status_code == 200
+            available = [item["id"] for item in response.json()["data"]]
+            assert available == expected
+
+
 def test_cpu_model_prepare_rechecks_ram_even_with_valid_cache(tmp_path, monkeypatch) -> None:
     spec = importlib.util.spec_from_file_location(
         "cpu_artifact_prepare_admission", ROOT / "scripts/models/prepare_cpu_model.py"
