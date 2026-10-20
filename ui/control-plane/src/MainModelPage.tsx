@@ -235,6 +235,28 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const active = status.active_profile;
   const observed = status.observed_runtime;
   const locked = status.profile_locked;
+  const selection = status.runtime_selection;
+  const selectionReasons: Record<string, string> = {
+    STARTING_CPU: "CPU 준비 중", CPU_BOOTSTRAP: "CPU 준비 중", CPU_RUNTIME_UNAVAILABLE: "CPU 복구 중",
+    GPU_SERVING: "GPU 서빙 중", GPU_RECOVERY_PENDING: "GPU 자원 안정성 확인 중",
+    GPU_MEMORY_INSUFFICIENT: "GPU 여유 메모리 부족 · CPU 사용",
+    GPU_OBSERVATION_UNAVAILABLE: "GPU 자원 관측 불가", GPU_ARTIFACT_UNAVAILABLE: "GPU 이미지 준비 필요 · CPU 사용",
+    GPU_FAILURE_BACKOFF: "GPU 재시도 대기 · CPU 사용", GPU_RECOVERY_VALIDATION: "GPU 적재 및 응답 검증 중",
+    GPU_HEALTH_OR_MEMORY_PRESSURE: "GPU 장애 또는 메모리 부족 · CPU 복구", OPERATOR_STOPPED: "운영자가 중지함",
+    RUNTIME_OBSERVATION_UNAVAILABLE: "런타임 관측 불가",
+    GPU_MEMORY_PRESSURE: "GPU 메모리 압력 · 새 요청 차단",
+    GPU_RUNTIME_UNHEALTHY: "GPU 런타임 장애 · 새 요청 차단",
+    CPU_FALLBACK_PREPARATION_FAILED: "CPU 복구 준비 실패 · 새 요청 차단",
+    CPU_FALLBACK_FAILED: "CPU 복구 실패 · 새 요청 차단",
+    GPU_REVALIDATION_PENDING: "GPU 안정성 확인 중 · 새 요청 차단",
+    GPU_REVALIDATION_FAILED: "GPU 응답 재검증 미완료 · 새 요청 차단",
+    GPU_IDENTITY_UNAVAILABLE: "GPU 장치 식별 불가 · CPU 사용",
+    GPU_COMPATIBILITY_UNKNOWN: "GPU Compute Capability 확인 필요 · CPU 사용",
+    GPU_COMPATIBILITY_UNSUPPORTED: "GPU Compute Capability 조건 미충족 · CPU 사용",
+    GPU_RESOURCE_POLICY_UNAVAILABLE: "GPU 리소스 정책 확인 필요 · CPU 사용",
+  };
+  const gpuPolicy = active?.runtime_backend === "vllm-cuda"
+    ? selection?.gpu_assignment : selection?.gpu_candidate;
   const requiresConfirmation = reviewProfile ? mainModelProfileRequiresConfirmation(reviewProfile) : false;
   const switchImpact = reviewProfile && active
     ? mainModelProfileImpact(active, reviewProfile)
@@ -259,7 +281,34 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Button>
       </div>
 
-      {locked ? (
+      {selection ? (
+        <Card>
+          <CardTitle>자동 CPU/GPU 선택</CardTitle>
+          <CardBody>
+            <p>활성 프로필: {active?.runtime_backend === "llama-cpp" ? "CPU · llama.cpp" : active?.runtime_backend === "vllm-cuda" ? "GPU · vLLM" : "준비 중"}</p>
+            <p>{selectionReasons[selection.reason_code] ?? selection.reason_code}</p>
+            <p>요청 상태: {status.gate === "open" ? "수락 중" : "새 요청 차단 중"}</p>
+            {selection.observed_at ? <p>마지막 자원 관측: {new Date(selection.observed_at * 1000).toLocaleString()}</p> : null}
+            <p>전환 중에는 새 요청이 일시 거부됩니다. 진행 중인 요청이 끝난 뒤 모델을 교체하고 응답 검증에 성공하면 다시 요청을 받습니다.</p>
+            {selection.resources?.gpus.map(gpu => (
+              <div key={gpu.uuid ?? gpu.index} style={{ overflowWrap: "anywhere" }}>
+                <p>GPU {gpu.index}: {gpu.name ?? "제품명 확인 불가"} · 실측 여유 {gpu.free_mib.toLocaleString()} / 전체 {gpu.total_mib.toLocaleString()} MiB</p>
+                <p>UUID: {gpu.uuid ?? "확인 불가"} · PCI: {gpu.pci_bus_id ?? "확인 불가"} · Compute Capability: {gpu.compute_capability ?? "확인 불가"} · Driver: {gpu.driver_version ?? "확인 불가"}</p>
+              </div>
+            ))}
+            {gpuPolicy ? (
+              <div style={{ overflowWrap: "anywhere" }}>
+                <p>{active?.runtime_backend === "vllm-cuda" ? "할당 GPU" : "후보 GPU"}: {gpuPolicy.name ?? "제품명 확인 불가"} · {gpuPolicy.uuid}</p>
+                <p>리소스 정책: {gpuPolicy.resource_variant ?? "Reference"} · 선택 근거: {gpuPolicy.policy_source === "operator" ? "운영자 지정" : "전체 VRAM 용량"}</p>
+              </div>
+            ) : null}
+            {selection.gpu_condition && selection.reason_code.startsWith("CPU_FALLBACK_") ? <p>GPU 상태: {selectionReasons[selection.gpu_condition] ?? selection.gpu_condition}</p> : null}
+            {selection.gpu_retry_at && selection.reason_code === "GPU_FAILURE_BACKOFF" ? <p>GPU 재시도 가능 시각: {new Date(selection.gpu_retry_at * 1000).toLocaleString()}</p> : null}
+            {selection.cpu_retry_at && status.gate === "closed" && selection.reason_code.startsWith("CPU_FALLBACK_") ? <p>CPU 재시도 가능 시각: {new Date(selection.cpu_retry_at * 1000).toLocaleString()}</p> : null}
+            <p>자동 선택을 중단하거나 재개하려면 <Link to="/runtimes">런타임</Link>에서 메인 모델을 중지하거나 시작하세요.</p>
+          </CardBody>
+        </Card>
+      ) : locked ? (
         <Alert isInline variant="warning" title="이 배포에서는 메인 모델 전환이 잠겨 있습니다.">
           상태와 프로필 정보는 조회할 수 있지만 Console에서 전환을 시작할 수 없습니다.
         </Alert>

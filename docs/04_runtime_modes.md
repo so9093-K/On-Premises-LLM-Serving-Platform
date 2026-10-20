@@ -10,6 +10,57 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 실행 환경의 기능 집합은 `configs/deployment_targets.yaml`의 `DEPLOYMENT_TARGET`이 결정한다.
 `static`은 macOS의 별칭이 아니며 Linux CUDA runtime도 static으로 연결할 수 있다.
 
+### CPU Managed (llama.cpp)
+
+`linux-cpu-managed`는 플랫폼 Compose가 CPU-only llama.cpp 서버를
+시작·중지·재시작하는 Deployment Target이다. 모델은
+`configs/cpu_model_artifact.yaml`에서 선언한 Qwen3 0.6B GGUF를
+고정 Revision과 SHA-256으로 다운로드·검증한 뒤 Cache에 보존한다.
+Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
+적용하고, Runtime은 CPU/GPU 혼합 Offloading을 활성화하지 않는다.
+CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인한다.
+모델 준비 실패 시 선택한 CPU Managed Target이 성공한 것으로 처리되지
+않으며, 기본 서비스를 따로 유지하려면 명시적으로 `linux-core`로
+새로 배포해야 한다. 자동 Fallback은 별도로 구현해야 한다.
+
+```bash
+make up TARGET=linux-cpu-managed ACCESS=local
+make cpu-runtime-validate
+make status
+```
+
+설치 시 후보를 자동 선택하고 싶다면 **최초 실행에서만**
+`make up TARGET=auto ACCESS=local`을 사용한다. GPU VRAM이 충분해도
+실제 모델 호환성/적재 성공이 보증되지 않으며, 이 명령은
+기존 운영 중 Target을 자동 교체하지 않는다. 실행 중 자동 CPU↔GPU
+Fallback 및 GPU 복귀는 아직 구현하지 않았다.
+
+### CPU Static (llama.cpp)
+
+`linux-cpu-static`은 운영자가 별도 CPU-only `llama-server`와 GGUF 모델을
+준비한 뒤 Gateway가 해당 OpenAI-compatible endpoint에 연결하는 정적 Target이다.
+모델 다운로드·Runtime supervision·CPU RAM 적합성은 외부 운영자가 소유한다.
+실제 CPU 추론 품질 및 기능은 아직 Qualification을 완료하지 않았다.
+
+예를 들어 사전 준비된 모델로 호스트에서 다음처럼 실행한다.
+
+```bash
+llama-server -m /secure/models/local-main.gguf \
+  --alias local-main --ctx-size 2048 \
+  --n-gpu-layers 0 --host 0.0.0.0 --port 8080
+make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
+make status
+```
+
+Docker bridge가 호스트 Runtime에 접속하도록 0.0.0.0을 사용한 예시다.
+이 포트는 공개 인터넷에 노출하면 안 되므로 방화벽 또는 전용 사설
+인터페이스로 접근을 제한해야 한다. 실제 Runtime artifact, 바이너리 및 모델
+파일은 각각 독립적으로 버전과 해시를 검증해야 한다.
+
+별도 `linux-core`는 모델 없이 Gateway·Control Plane·PII/Secret Risk Service만
+실행한다. GPU가 있지만 VRAM이 부족한 호스트에서도 명시적으로 이 Target을
+선택할 수 있다. GPU 실패 시 자동 Target 변경·Fallback은 제공하지 않는다.
+
 ### static main
 
 static target에서는 Main runtime을 별도 process 또는 별도 supervisor가 기동·감시한다.

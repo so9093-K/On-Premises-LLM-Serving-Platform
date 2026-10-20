@@ -86,6 +86,10 @@ def repository_managed_image_keys() -> frozenset[str]:
 def deployment_target_values(target_id: str, main_profile: str | None = None) -> dict[str, str]:
     """Project the selected target into the env fields its runtime path consumes."""
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", target_id)
+    if not target.supports("chat"):
+        if main_profile is not None:
+            raise ValueError(f"deployment target {target_id!r} has no Main Model profile")
+        return {"DEPLOYMENT_TARGET": target.target_id}
     catalog = read_yaml(ROOT / target.main_profile_catalog)
     profiles = catalog.get("profiles")
     selected_profile = main_profile or str(catalog.get("default_profile", ""))
@@ -96,7 +100,7 @@ def deployment_target_values(target_id: str, main_profile: str | None = None) ->
             f"allowed: {allowed}"
         )
     values = {"DEPLOYMENT_TARGET": target.target_id}
-    if target.control_mode == "static":
+    if target.static_serving:
         values["MAIN_MODEL_STATIC_PROFILE"] = selected_profile
     else:
         values["MAIN_MODEL_BOOT_PROFILE"] = selected_profile
@@ -127,9 +131,15 @@ def sync_deployment_target(
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", target_id)
     profile_key = (
         "MAIN_MODEL_STATIC_PROFILE"
-        if target.control_mode == "static"
+        if target.static_serving
         else "MAIN_MODEL_BOOT_PROFILE"
     )
+    if not target.supports("chat"):
+        if main_profile is not None or main_base_url is not None:
+            raise ValueError(f"deployment target {target_id!r} has no Main Model endpoint")
+        existing["DEPLOYMENT_TARGET"] = target_id
+        write_env(lines, existing, env_path)
+        return
     selected_profile = main_profile or existing.get(profile_key) or None
     try:
         projected = deployment_target_values(target_id, selected_profile)

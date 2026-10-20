@@ -17,6 +17,52 @@ git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 ```
 
+**Linux / 기본 서비스 (GPU 및 모델 불필요)**
+
+```bash
+make up TARGET=linux-core ACCESS=local
+```
+
+Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. `/ready`는
+활성 모델 대신 Core 서비스의 준비 상태를 검사하며, Chat/Responses 요청은
+`MODEL_UNAVAILABLE`로 거부합니다. GPU가 존재해도 자원이 부족하면 이 구성을
+사용할 수 있습니다. GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
+
+**Linux / CPU 추론 (외부 llama.cpp Server 필요)**
+
+```bash
+make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
+```
+
+먼저 CPU-only `llama-server`를 실행하고, Gateway가 위 주소에 접근할 수 있게 구성해야 합니다.
+모델은 운영자가 다운로드·검증하며 Gateway는 외부 Runtime의 lifecycle을 소유하지 않습니다.
+`configs/cpu_main_model_profiles.yaml`의 Text Chat·Streaming Profile은 아직 실환경 검증 전입니다.
+GPU 자원 부족 시 자동 Fallback이나 Target 전환은 지원하지 않습니다.
+
+**Linux / 자동 CPU·GPU 운영**
+
+```bash
+make up TARGET=auto ACCESS=local
+```
+
+처음 실행하는 Linux에서는 `linux-adaptive`를 선택합니다. Core를 먼저 시작하고,
+고정 CPU 모델로 서빙한 뒤 GPU 자원이 안정적으로 확보되면 실제 GPU 모델 적재와
+응답을 검증하여 전환합니다. GPU 장애·메모리 부족 시 CPU 복구를 시도합니다.
+전환 중에는 신규 요청이 일시 거부되고, CPU에서는 텍스트와 축소된 한도를 제공합니다.
+기존 `.env`의 Target은 유지합니다. [자동 Runtime 운영 가이드](docs/guides/adaptive-runtime.md)
+
+**Linux / 관리형 CPU 모델 (llama.cpp)**
+
+```bash
+make up TARGET=linux-cpu-managed ACCESS=local
+```
+
+플랫폼이 고정된 Qwen3 0.6B GGUF를 다운로드하고 SHA-256으로 검증한 뒤
+CPU-only llama.cpp 컨테이너를 실행합니다. GPU나 CUDA는 필요하지 않습니다.
+모델 최초 다운로드에는 네트워크 연결과 충분한 RAM·디스크 여유가 필요합니다.
+GPU 모델에서의 자동 전환은 아직 수행하지 않으며, 서버 실추론 Qualification 전까지
+`unverified`로 유지합니다.
+
 **Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
 
 ```bash
@@ -94,6 +140,8 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 
 | Target | 모델 실행 | 지원 기능 | 운영 주체 |
 |---|---|---|---|
+| `linux-core` | 없음 | Gateway·Control Plane·PII/Secret Risk | 기본 서비스만 실행 |
+| `linux-cpu-static` | 외부 llama.cpp CPU Runtime | Text Chat·Responses, PII·Secret Risk | 외부 모델 서버 · 미검증 |
 | `linux-nvidia-dynamic` | vLLM | Chat·Responses, Embedding·Retrieval, Risk | 플랫폼 관리 · 모델 전환·GPU 제어 |
 | `linux-nvidia-static` | 외부 vLLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
 | `macos-metal-static` | MLX-VLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |

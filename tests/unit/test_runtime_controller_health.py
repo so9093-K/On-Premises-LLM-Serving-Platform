@@ -229,3 +229,13 @@ def test_runtime_controller_refuses_to_start_when_declared_internal_auth_has_no_
     assert admitted.internal_service_token == "real-internal-token"
 
 
+
+@pytest.mark.parametrize('gate,runtime_state', [('open','active'),('closed','stopped')])
+def test_health_recovers_after_verified_main_or_operator_stop(tmp_path, monkeypatch, gate, runtime_state):
+    """초기 검증 실패가 후속 복구·운영자 중지 이후에도 영구 장애로 남지 않는다."""
+    controller = _load_runtime_controller(tmp_path, monkeypatch)
+    controller._initialization_error = 'runtime identity changed during verification'
+    controller._initialized.set()
+    controller._state_store.update(lambda state:state.update(gate=gate,runtime_state=runtime_state))
+    assert asyncio.run(controller.health()) == {'status':'ok'}
+    assert controller._initialization_error is None

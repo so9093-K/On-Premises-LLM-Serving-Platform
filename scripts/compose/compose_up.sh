@@ -39,6 +39,14 @@ if [[ ! -f "$PROM_SECRET" || ! -s "$PROM_SECRET" ]]; then
   exit 2
 fi
 
+if [[ "${1:-}" == "--core-only" ]]; then
+  PLATFORM_IMAGE_EFFECTIVE="${PLATFORM_IMAGE:-$(_env_value PLATFORM_IMAGE)}"
+  ensure_gateway_runtime_dir "$GATEWAY_RUNTIME_DIR_RELPATH" "$PLATFORM_IMAGE_EFFECTIVE"
+  ensure_platform_runtime_dir "$REQUEST_EVENT_LOG_DIR_RELPATH" "$PLATFORM_IMAGE_EFFECTIVE"
+  compose_context_run up -d --no-deps risk-signal-service gateway
+  exit 0
+fi
+
 echo "[compose-up] resolving persisted main-model boot profile"
 MAIN_MODEL_BOOT_PROFILE="$(
   "$PYTHON_BIN" scripts/models/render_main_model_boot_override.py \

@@ -657,3 +657,10 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 | Gateway Admin API | `src/ai_model_serving/api/routers/gateway_runtime_control.py` | Runtime / Main Model Admin API 제공 |
 
 설정 구조와 적용 방식은 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 설명한다.
+
+## 자동 CPU/GPU Main 운영
+
+`linux-adaptive`의 후보 선택·복구·중지 의도와 기능 변화는
+[자동 Runtime 운영](guides/adaptive-runtime.md)을 따른다. 자동 전환도 이 문서의
+Main Gate·Drain·Canary·Rollback을 사용한다. 정책 결정은
+[ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)에 기록한다.

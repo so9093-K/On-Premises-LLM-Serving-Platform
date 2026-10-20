@@ -41,7 +41,7 @@ def _static_main_engine_projection(
     resource_variant: str | None,
 ) -> tuple[dict[str, Any], str | None]:
     """Resolve capacity-relevant engine policy for externally managed static Main runtimes."""
-    if deployment_target.control_mode != "static":
+    if not deployment_target.static_serving or not deployment_target.supports("chat"):
         return {}, None
 
     if deployment_target.runtime_backend == "vllm-cuda":
@@ -57,6 +57,21 @@ def _static_main_engine_projection(
         )
         profile = catalog.profiles[profile_id]
         return profile.engine_policy(), profile.resource_variant
+
+    if deployment_target.runtime_backend == "llama-cpp":
+        document = load_yaml_mapping(catalog_path)
+        runtime = document.get("runtime")
+        if not isinstance(runtime, dict) or runtime.get("gpu_layers") != 0:
+            raise RuntimeError("CPU llama.cpp target requires runtime.gpu_layers=0")
+        context_size = runtime.get("context_size")
+        if not isinstance(context_size, int) or context_size < 256:
+            raise RuntimeError("CPU llama.cpp runtime.context_size must be >= 256")
+        return {
+            "backend": "llama-cpp",
+            "gpu_layers": 0,
+            "context_size": context_size,
+            "lifecycle": deployment_target.lifecycle_owner,
+        }, None
 
     if deployment_target.runtime_backend == "mlx-vlm":
         document = load_yaml_mapping(catalog_path)
@@ -88,17 +103,21 @@ def _public_models_from_registry(
     # active Profile snapshot으로 다시 덮어쓴다.
     projected_serving = dict(model_serving)
     projected_models = dict(model_serving.get("models", {}))
-    main_llm = dict(projected_models.get("main_llm", {}))
-    main_llm["max_output_tokens"] = default_main_model_gateway_policy["max_output_tokens"]
-    main_llm["request_parameter_policy"] = default_main_model_gateway_policy["request_parameter_policy"]
-    projected_models["main_llm"] = main_llm
+    if deployment_target.supports("chat"):
+        main_llm = dict(projected_models.get("main_llm", {}))
+        main_llm["max_output_tokens"] = default_main_model_gateway_policy["max_output_tokens"]
+        main_llm["request_parameter_policy"] = default_main_model_gateway_policy["request_parameter_policy"]
+        projected_models["main_llm"] = main_llm
     projected_serving["models"] = projected_models
     registry = ModelRegistry(model_catalog, projected_serving)
     issues = registry.alignment_issues()
     if issues:
         details = "; ".join(f"{issue.code}: {issue.message}" for issue in issues)
         raise RuntimeError(f"Model registry and serving config are not aligned: {details}")
-    enabled_ids = {str(model_serving["models"]["main_llm"]["served_model_name"])}
+    enabled_ids = (
+        {str(model_serving["models"]["main_llm"]["served_model_name"])}
+        if deployment_target.supports("chat") else set()
+    )
     if deployment_target.supports("embeddings"):
         enabled_ids.update(str(item) for item in model_serving.get("embedding_profiles", {}))
     if deployment_target.supports("risk"):
@@ -299,24 +318,30 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             f"{deployment_target.implementation_status} and cannot be started"
         )
     model_catalog = load_yaml_mapping(project_root / "configs" / "model_catalog.yaml")
-    main_catalog_path = (project_root / deployment_target.main_profile_catalog).resolve()
-    try:
-        main_catalog_path.relative_to(project_root.resolve())
-    except ValueError as exc:
-        raise RuntimeError("deployment target main_profile_catalog escapes the project root") from exc
-    main_model_catalog = load_main_serving_catalog(main_catalog_path)
+    main_model_catalog = None
+    main_catalog_path = project_root
     static_main_profile = ""
-    selected_main_profile = main_model_catalog.default_profile
-    if deployment_target.control_mode == "static":
-        static_main_profile = _env("MAIN_MODEL_STATIC_PROFILE", "").strip()
-        if not static_main_profile:
-            raise RuntimeError("MAIN_MODEL_STATIC_PROFILE is required for a static deployment target")
-        if static_main_profile not in main_model_catalog.profiles:
-            allowed = ", ".join(sorted(main_model_catalog.profiles))
-            raise RuntimeError(
-                f"unknown MAIN_MODEL_STATIC_PROFILE {static_main_profile!r}; allowed: {allowed}"
-            )
-        selected_main_profile = static_main_profile
+    selected_main_profile = ""
+    if deployment_target.supports("chat"):
+        if deployment_target.main_profile_catalog is None:
+            raise RuntimeError("Chat target requires main_profile_catalog")
+        main_catalog_path = (project_root / deployment_target.main_profile_catalog).resolve()
+        try:
+            main_catalog_path.relative_to(project_root.resolve())
+        except ValueError as exc:
+            raise RuntimeError("deployment target main_profile_catalog escapes the project root") from exc
+        main_model_catalog = load_main_serving_catalog(main_catalog_path)
+        selected_main_profile = main_model_catalog.default_profile
+        if deployment_target.static_serving:
+            static_main_profile = _env("MAIN_MODEL_STATIC_PROFILE", "").strip()
+            if not static_main_profile:
+                raise RuntimeError("MAIN_MODEL_STATIC_PROFILE is required for a static deployment target")
+            if static_main_profile not in main_model_catalog.profiles:
+                allowed = ", ".join(sorted(main_model_catalog.profiles))
+                raise RuntimeError(
+                    f"unknown MAIN_MODEL_STATIC_PROFILE {static_main_profile!r}; allowed: {allowed}"
+                )
+            selected_main_profile = static_main_profile
     version = (project_root / "VERSION").read_text(encoding="utf-8").strip()
 
     security_cfg = model_serving.get("security", {})
@@ -359,7 +384,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     enabled_service_keys = runtime_topology.runtime_keys_for_features(
         deployment_target.features
     )
-    if "main_llm" not in enabled_service_keys:
+    if deployment_target.supports("chat") and "main_llm" not in enabled_service_keys:
         raise RuntimeError(
             f"deployment target {deployment_target.target_id!r} does not project main_llm"
         )
@@ -404,8 +429,11 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         operational_limits=operational_limits,
         enabled_service_keys=frozenset(enabled_service_keys),
     )
-    selected_gateway_policy = main_model_catalog.profiles[selected_main_profile].gateway_policy
-    if deployment_target.control_mode == "static" and "max_concurrency" in selected_gateway_policy:
+    selected_gateway_policy = (
+        main_model_catalog.profiles[selected_main_profile].gateway_policy
+        if main_model_catalog is not None else {}
+    )
+    if (deployment_target.static_serving or deployment_target.adaptive) and "max_concurrency" in selected_gateway_policy:
         max_concurrency = int(selected_gateway_policy["max_concurrency"])
         if max_concurrency < 1:
             raise RuntimeError("static main profile max_concurrency must be at least 1")
@@ -444,7 +472,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         else ()
     )
     aggregate_detector_order = _aggregate_order(risk_signal_service_cfg, risk_detectors)
-    main_llm = runtime_endpoints["main_llm"]
+    main_llm = runtime_endpoints.get("main_llm")
     # timeout budget에는 vLLM detector만 반영된다; local detector는 in-process로 실행된다.
     risk_detector_endpoints = tuple(
         runtime_endpoints[detector.service_key]
@@ -458,7 +486,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     )
 
     risk_signal_service_execution = str(risk_signal_service_cfg.get("aggregate", {}).get("execution", risk_signal_service_cfg.get("aggregate_execution", "sequential")))
-    if deployment_target.supports("risk"):
+    if deployment_target.supports("risk") and main_llm is not None:
         validate_timeout_budget(
             gateway_timeout_seconds=gateway_timeout_seconds,
             risk_signal_service_timeout_seconds=risk_signal_service_timeout_seconds,
@@ -466,6 +494,8 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             risk_detectors=risk_detector_endpoints,
             risk_signal_service_execution=risk_signal_service_execution,
         )
+    elif deployment_target.supports("risk") and gateway_timeout_seconds < risk_signal_service_timeout_seconds:
+        raise RuntimeError("REQUEST_TIMEOUT_SECONDS must cover RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS.")
 
     risk_input_policy = risk_signal_service_cfg.get("input_policy", {})
     detector_windows = [endpoint.max_model_len for endpoint in risk_detector_endpoints]
@@ -503,7 +533,11 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         runtime_endpoints=runtime_endpoints,
         required_runtime_keys=required_runtime_keys,
         runtime_service_ids={
-            key: binding.service_id
+            key: (
+                "cpu_main_llama"
+                if key == "main_llm" and deployment_target.control_mode == "managed_cpu"
+                else binding.service_id
+            )
             for key, binding in runtime_topology.bindings_by_key.items()
         },
         runtime_topology_status=runtime_topology_status,
@@ -520,7 +554,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         main_model_profile_policies=tuple(
             dict(profile.gateway_policy) for profile in main_model_catalog.profiles.values()
         ) if deployment_target.supports("model_switching") else (
-            dict(selected_gateway_policy),
+            (dict(selected_gateway_policy),) if deployment_target.supports("chat") else ()
         ),
         embedding_profiles=embedding_profiles,
         default_embedding_model=(

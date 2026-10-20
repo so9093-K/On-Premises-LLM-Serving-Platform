@@ -14,7 +14,7 @@ AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
 .PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
-.PHONY: setup-dev doctor-dev
+.PHONY: setup-dev doctor-dev cpu-runtime-validate
 
 PUBLIC_TARGETS := up status down logs reset purge
 QUALITY_TARGETS := check
@@ -76,6 +76,9 @@ help:
 	done
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local
+
+cpu-runtime-validate: ## 실제 GPU 없는 Linux에서 CPU llama.cpp Chat/Streaming Smoke
+	@"$(PYTHON)" scripts/validation/smoke_cpu_runtime.py $(if $(BASE_URL),--base-url "$(BASE_URL)",)
 
 metal-doctor: ## Apple Silicon과 고정 MLX runtime 설정 확인
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py doctor

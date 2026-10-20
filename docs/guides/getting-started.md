@@ -16,13 +16,15 @@ cd On-Premises-LLM-Serving-Platform
 
 | 내 환경 | 선택할 Target | 먼저 준비할 것 | 모델 실행·제어 |
 |---|---|---|---|
+| Linux · CPU/GPU 자동 선택 | `linux-adaptive` 또는 최초 `auto` | Python 3.12–3.13, uv, Docker, CPU 여유 RAM 4 GiB 이상; GPU 사용 시 Driver·Toolkit·모델 권한 | [CPU 복구·GPU 복귀](adaptive-runtime.md) |
 | Linux amd64 + NVIDIA | `linux-nvidia-dynamic` | Python 3.12–3.13, uv, Docker, NVIDIA driver·Container Toolkit, Bash 4+ | 플랫폼이 vLLM lifecycle과 GPU admission 관리 |
 | Apple Silicon | `macos-metal-static` | Python 3.13.12, uv, Docker, 모델에 충분한 unified memory | native MLX-VLM, Main lifecycle은 외부 관리 |
 | Linux + 이미 실행 중인 외부 Main | `linux-nvidia-static` | Python 3.12–3.13, uv, Docker, 접근 가능한 Main endpoint와 맞는 profile | Main lifecycle은 외부 관리; target qualification은 `unverified` |
 
 전체 기능과 선언은 [Deployment Target](../../configs/deployment_targets.yaml)이 소유합니다.
 기본 Chat/Responses와 PII·Secret Risk를 공통 제공하고,
-Embedding·Retrieval·Prompt Injection Detector·Console 모델/Runtime 제어는 managed target의 범위입니다.
+Embedding·Retrieval·모델 기반 Prompt Injection Detector는 `linux-nvidia-dynamic`의 범위입니다.
+Adaptive는 Main 자동 선택과 로컬 Risk를 제공합니다.
 리소스 정책에 따라 일부 supporting Runtime은 제외될 수 있습니다.
 
 Linux에서는 다음으로 장치와 Docker 접근을 먼저 확인합니다.

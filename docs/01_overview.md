@@ -49,6 +49,9 @@ Deployment capability의 Source of Truth는 `configs/deployment_targets.yaml`이
 
 | Target | Runtime backend | Lifecycle owner | Control mode | 상태 | 주요 기능 |
 |---|---|---|---|---|---|
+| `linux-core` | none | External (no model) | `static` | Implemented / Unverified | Gateway, Control Plane, PII/Secret Risk (no inference) |
+| `linux-cpu-managed` | `llama-cpp` | Platform Compose | `managed_cpu` | Implemented / Unverified | CPU-only Text Chat, PII/Secret Risk |
+| `linux-cpu-static` | `llama-cpp` | External | `static` | Implemented / Unverified | Text Chat/Responses, PII/Secret Risk (external CPU Server) |
 | `linux-nvidia-dynamic` | `vllm-cuda` | Platform | `runtime_controller` | Implemented / Verified | Chat, Embedding, Retrieval, Risk(PII/Secret/Prompt), Runtime Control, Main Model switching, GPU admission |
 | `linux-nvidia-static` | `vllm-cuda` | External | `static` | Implemented / Unverified | Chat, Risk(PII/Secret) |
 | `macos-metal-static` | `mlx-vlm` | External | `static` | Implemented / Verified | Chat, Risk(PII/Secret) |
@@ -149,7 +152,8 @@ Runtime lifecycle은 backend 이름이나 운영체제에서 추론하지 않는
 
 | Target contract | 의미 |
 |---|---|
-| `control_mode=runtime_controller` / `lifecycle_owner=platform` | Platform이 runtime mutation과 reconciliation을 소유 |
+| `control_mode=runtime_controller` / `lifecycle_owner=platform` | Platform이 GPU runtime mutation과 reconciliation을 소유 |
+| `control_mode=managed_cpu` / `lifecycle_owner=platform` | Platform Compose가 CPU 모델 실행과 재시작을 소유하며 GPU Controller 제어 API와 분리 |
 | `control_mode=static` / `lifecycle_owner=external` | 외부/native runtime이 lifecycle을 소유하고 Gateway는 고정 endpoint 사용 |
 
 따라서 Linux/NVIDIA와 macOS/Metal의 차이는 core/secondary가 아니라

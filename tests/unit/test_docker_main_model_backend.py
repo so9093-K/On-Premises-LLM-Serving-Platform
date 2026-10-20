@@ -559,3 +559,42 @@ def test_validate_raises_when_image_canary_returns_http_error(monkeypatch):
         raise AssertionError("expected HTTPStatusError")
     except httpx.HTTPStatusError:
         pass
+
+@pytest.mark.parametrize('profile_id', ['cpu-gguf-text', 'gemma4-e4b-it'])
+def test_adaptive_replacement_uses_target_image_and_engine_limits(monkeypatch, profile_id):
+    """CPU/GPU 엔진 전환 시 장치·메모리·Entrypoint·프로세스 제한을 함께 교체한다."""
+    from ai_model_serving.main_model.adaptive_catalog import load_adaptive_catalog
+    from tests.support.main_model import _SHARED_IMAGE
+    import json
+    catalog,_,_ = load_adaptive_catalog(ROOT, {'VLLM_IMAGE':_SHARED_IMAGE})
+    backend = DockerMainModelBackend('/var/run/docker.sock','own-project',gateway_url='http://gateway:9400')
+    backend.gpu_uuid = "GPU-00000000-0000-0000-0000-000000000002"
+    backend._template = {'name':'own-main','config':{'Entrypoint':['wrong-engine'],'Env':['WRONG=1']},
+                         'host_config':{'Binds':['/own/models:/models:ro'],'PortBindings':{}},'networking_config':{}}
+    async def no_container(service):
+        return None
+    async def image(reference):
+        return {'Config':{'Entrypoint':['target-engine'],'Env':['PATH=/engine/bin'],'User':'','WorkingDir':'/app'}}
+    payloads = []
+    async def handler(request):
+        if request.url.path == '/containers/create':
+            payloads.append(json.loads(request.content))
+            return httpx.Response(201,json={'Id':'new'})
+        return httpx.Response(204)
+    monkeypatch.setattr(backend,'_container_id',no_container)
+    monkeypatch.setattr(backend,'_inspect_image',image)
+    monkeypatch.setattr(backend,'_client',lambda:httpx.AsyncClient(transport=httpx.MockTransport(handler),base_url='http://docker'))
+    asyncio.run(backend.replace(catalog,catalog.profiles[profile_id]))
+    payload = payloads[0]
+    assert payload['Entrypoint'] == ['target-engine']
+    assert 'WRONG=1' not in payload['Env']
+    host = payload['HostConfig']
+    assert host['PortBindings'] == {}
+    if profile_id == 'cpu-gguf-text':
+        assert host['DeviceRequests'] == []
+        assert host['Memory'] == 4*1024**3
+        assert host['PidsLimit'] == 256
+    else:
+        assert host['DeviceRequests'] == [{'Driver':'nvidia','DeviceIDs':['GPU-00000000-0000-0000-0000-000000000002'],'Capabilities':[['gpu']]}]
+        assert host['Memory'] == 0
+        assert host['PidsLimit'] >= 2048

@@ -10,7 +10,6 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 import time
@@ -26,6 +25,9 @@ if str(ROOT / "src") not in sys.path:
 
 from ai_model_serving.deployment_target import DeploymentTarget, load_deployment_target  # noqa: E402
 from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
+from ai_model_serving.host_resource_probe import (  # noqa: E402
+    read_host_resource_snapshot,
+)
 from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_mismatches,
     access_profile_names,
@@ -97,6 +99,17 @@ def _env_values() -> dict[str, str]:
 def _target(explicit: str | None, *, require_env: bool = True) -> DeploymentTarget:
     values = _env_values() if ENV_PATH.is_file() else {}
     configured = values.get("DEPLOYMENT_TARGET")
+    if explicit == "auto":
+        # 기존 배포는 자동 재선택하지 않는다. 최초 make up만 실행 후보를 고른다.
+        if configured:
+            return load_deployment_target(TARGETS_PATH, configured)
+        if require_env:
+            raise RuntimeError("TARGET=auto is only supported for first make up")
+        candidate = suggested_target()
+        if candidate is None:
+            raise RuntimeError("automatic target selection is not supported on this host")
+        explicit = candidate[0]
+        print(f"[platform] initial target: {explicit} ({candidate[1]})")
     if explicit and configured and explicit != configured:
         raise RuntimeError(
             f"requested target {explicit!r} differs from .env target {configured!r}; "
@@ -114,8 +127,8 @@ def suggested_target() -> tuple[str, str] | None:
     """Suggest a target from what this host can run. Selection stays explicit."""
     if sys.platform == "darwin" and platform.machine().lower() in ("arm64", "aarch64"):
         return "macos-metal-static", "Apple Silicon detected"
-    if sys.platform.startswith("linux") and shutil.which("nvidia-smi"):
-        return "linux-nvidia-dynamic", "NVIDIA driver detected"
+    if sys.platform.startswith("linux"):
+        return "linux-adaptive", "Core starts independently; CPU/GPU selection is managed continuously"
     return None
 
 
@@ -128,7 +141,7 @@ def first_run_guidance() -> str:
         notes: list[str] = []
         if target.qualification_status != "verified":
             notes.append(target.qualification_status)
-        if target.control_mode == "static" and not target.gateway_runtime_host:
+        if target.static_serving and target.supports("chat") and not target.gateway_runtime_host:
             notes.append("also needs MAIN_URL=http(s)://<main-runtime>")
         if suggestion is not None and suggestion[0] == target_id:
             notes.append(f"suggested: {suggestion[1]}")
@@ -140,7 +153,7 @@ def first_run_guidance() -> str:
 
 
 def _main_profile(target: DeploymentTarget, values: dict[str, str]) -> str:
-    key = "MAIN_MODEL_STATIC_PROFILE" if target.control_mode == "static" else "MAIN_MODEL_BOOT_PROFILE"
+    key = "MAIN_MODEL_STATIC_PROFILE" if target.static_serving else "MAIN_MODEL_BOOT_PROFILE"
     profile = values.get(key, "")
     if not profile:
         raise RuntimeError(f"{key} is missing from .env; rerun make up for target {target.target_id}")
@@ -182,6 +195,9 @@ def _gateway_base_url(values: dict[str, str]) -> str:
 
 def _gateway_probe(values: dict[str, str], path: str) -> tuple[str, bool]:
     url = f"{_gateway_base_url(values)}{path}"
+    if path == "/ready":
+        status, _ = _gateway_json(values, path, admin=True)
+        return url, status == 200
     try:
         with urllib.request.urlopen(url, timeout=3) as response:
             return url, response.status == 200
@@ -256,7 +272,7 @@ def setup_target(
             command += ["--main-model-base-url", main_base_url]
         if access_profile:
             command += ["--access-profile", access_profile]
-        if target.control_mode == "static" and not target.gateway_runtime_host and not main_base_url:
+        if target.static_serving and target.supports("chat") and not target.gateway_runtime_host and not main_base_url:
             raise RuntimeError(
                 f"static target {target.target_id!r} needs MAIN_URL=http(s)://... on first make up"
             )
@@ -333,10 +349,10 @@ def _local_image_matches_source(image: str) -> bool:
     )
 
 
-def ensure_target_artifacts(target: DeploymentTarget) -> None:
+def ensure_target_artifacts(target: DeploymentTarget, *, include_runtime: bool = True) -> None:
     values = _env_values()
     refs: list[tuple[str, str]] = [("Platform image", values.get("PLATFORM_IMAGE", ""))]
-    if target.controllable:
+    if target.controllable and include_runtime:
         refs.append(("Unified vLLM image", values.get("VLLM_IMAGE", "")))
 
     stale = False
@@ -350,18 +366,24 @@ def ensure_target_artifacts(target: DeploymentTarget) -> None:
         stale = True
 
     if stale:
-        build_target(target)
+        if include_runtime:
+            build_target(target)
+        else:
+            build_target(target, include_runtime=False)
     else:
         print(f"[platform] ✓ Build artifacts: target={target.target_id}")
 
 
-def build_target(target: DeploymentTarget, *, no_cache: bool = False) -> None:
+def build_target(target: DeploymentTarget, *, no_cache: bool = False,
+                 include_runtime: bool = True, include_platform: bool = True) -> None:
     values = _env_values()
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     built: list[str] = []
     external: list[str] = []
     platform_image = values.get("PLATFORM_IMAGE", "")
-    if _registry_digest(platform_image):
+    if not include_platform:
+        pass
+    elif _registry_digest(platform_image):
         external.append("platform")
         print(f"[platform] preserving external Platform image: {platform_image}")
     else:
@@ -385,7 +407,7 @@ def build_target(target: DeploymentTarget, *, no_cache: bool = False) -> None:
             )
             print(f"[platform] pinned local Platform image: PLATFORM_IMAGE={new_image_id}")
 
-    if target.controllable:
+    if target.controllable and include_runtime:
         image = values.get("VLLM_IMAGE", "")
         if _registry_digest(image):
             external.append("vllm-unified")
@@ -427,6 +449,9 @@ def prepare_target(target: DeploymentTarget) -> None:
             "scripts/runtime/macos_mlx_runtime.py",
             "prepare",
         )
+    elif target.control_mode == "managed_cpu":
+        _run_step("Preparing pinned CPU GGUF model",
+            sys.executable, "scripts/models/prepare_cpu_model.py")
     elif target.controllable:
         profile = _main_profile(target, values)
         _run_step(
@@ -438,9 +463,64 @@ def prepare_target(target: DeploymentTarget) -> None:
             "--env-file",
             DEFAULT_ENV_FILENAME,
         )
-    else:
+    elif target.supports("chat"):
         print("[platform] external Main runtime is not built or downloaded by this target")
+    else:
+        print("[platform] no model runtime required for this target")
     print(f"[platform] model inputs ready: target={target.target_id}")
+
+
+def _static_compose(target: DeploymentTarget, label: str, *arguments: str) -> None:
+    _run_step(label, "bash", "scripts/compose/static_main_compose.sh", *arguments,
+              env={**os.environ, "DEPLOYMENT_TARGET": target.target_id})
+
+
+def start_core(target: DeploymentTarget) -> None:
+    """모델 Artifact 준비 전에 운영 화면과 로컬 Risk 경로를 기동한다."""
+    if target.static_serving or target.adaptive:
+        _static_compose(target, "Starting Core services", "up", "-d", "--no-deps", "risk-signal-service", "gateway")
+    else:
+        _run_step("Starting Core services", "bash", "scripts/compose/compose_up.sh", "--core-only")
+    url = _wait_for_gateway(_env_values(), "/health")
+    print(f"[platform] Core available: {url}; model readiness is checked separately")
+
+
+def up_adaptive_target(target: DeploymentTarget) -> None:
+    """Compose는 최초 템플릿만 생성하고 이후 Main 교체는 Controller가 소유한다."""
+    # ps는 created/exited 컨테이너도 포함한다. 재실행으로 서빙 중인 GPU를 CPU로 덮어쓰지 않는다.
+    values = _env_values()
+    project = os.environ.get("STATIC_COMPOSE_PROJECT_NAME", "ai-model-serving-static")
+    existing = subprocess.run([
+        "docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}",
+        "--filter", "label=com.docker.compose.service=main-llm-vllm",
+    ], cwd=ROOT, check=True, text=True, capture_output=True)
+    if not existing.stdout.strip():
+        _static_compose(target, "Creating CPU runtime template", "create", "main-llm-vllm")
+    _static_compose(target, "Starting automatic runtime control", "up", "-d", "--no-deps", "runtime-controller")
+    if read_host_resource_snapshot().gpus:
+        try:
+            # GPU 이미지 준비 실패는 CPU 서빙과 Core 생존의 실패로 전파하지 않는다.
+            build_target(target, include_platform=False)
+            _static_compose(target, "Loading GPU artifact policy", "up", "-d", "--no-deps", "runtime-controller")
+            _static_compose(target, "Starting GPU resource observation", "--profile", "gpu-observation", "up", "-d", "--no-deps", "resource-observer")
+        except (OSError, RuntimeError, subprocess.CalledProcessError):
+            print("[platform] GPU preparation unavailable; Core and CPU runtime control remain running")
+    values = _env_values()
+    deadline = time.monotonic() + 300
+    while True:
+        code, model = _gateway_json(values, "/admin/main-model", admin=True)
+        if code == 200 and model and model.get("runtime_state") == "stopped":
+            print("[platform] Core available; Main is explicitly stopped. Resume it from the Console Runtime page.")
+            _print_next_steps(values)
+            return
+        url, ready = _gateway_probe(values, "/ready")
+        if ready:
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Core remains running; Main serving readiness timed out at {url}")
+        time.sleep(1)
+    print(f"[platform] ready: target={target.target_id} gateway={url}")
+    _print_next_steps(values)
 
 
 def up_target(target: DeploymentTarget) -> None:
@@ -468,7 +548,7 @@ def up_target(target: DeploymentTarget) -> None:
         )
         metal_started_here = status.returncode != 0
     try:
-        if target.control_mode == "static":
+        if target.static_serving:
             process_env = {**os.environ, "DEPLOYMENT_TARGET": target.target_id}
             _run_step(
                 "Starting platform services",
@@ -481,7 +561,10 @@ def up_target(target: DeploymentTarget) -> None:
         else:
             _run_step("Starting platform services", "bash", "scripts/compose/compose_up.sh")
             _run_step("Verifying serving readiness", "bash", "scripts/ops/ready_full.sh")
-        url = _wait_for_gateway(values, "/ready")
+        url = _wait_for_gateway(
+            values, "/ready",
+            timeout=180 if target.control_mode == "managed_cpu" else 60,
+        )
     except (OSError, RuntimeError, subprocess.CalledProcessError):
         if metal_started_here:
             subprocess.run(
@@ -535,8 +618,17 @@ def reconcile_up_target(
 
     values = _env_values()
     if values.get("BUILD_PROFILE") != "local":
-        ensure_target_artifacts(target)
-        prepare_target(target)
+        if target.controllable or target.control_mode == "managed_cpu":
+            ensure_target_artifacts(target, include_runtime=False)
+            start_core(target)
+            if target.adaptive:
+                up_adaptive_target(target)
+                return
+            ensure_target_artifacts(target)
+            prepare_target(target)
+        else:
+            ensure_target_artifacts(target)
+            prepare_target(target)
     up_target(target)
 
 
@@ -548,7 +640,7 @@ def down_target(target: DeploymentTarget) -> None:
         return
     compose_error: subprocess.CalledProcessError | None = None
     try:
-        if target.control_mode == "static":
+        if target.static_serving or target.adaptive:
             process_env = {**os.environ, "DEPLOYMENT_TARGET": target.target_id}
             _run_step(
                 "Stopping platform services",

@@ -4,6 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 source scripts/lib/gateway_runtime_state.sh
+COMPOSE_ACTION=""
+for argument in "$@"; do
+  case "$argument" in
+    up|create|down|start|stop|restart|rm|pause|unpause|config|ps|logs)
+      COMPOSE_ACTION="$argument"
+      break
+      ;;
+  esac
+done
 
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
 ENV_FILE="${ENV_FILE:-.env}"
@@ -15,7 +24,7 @@ GATEWAY_RUNTIME_ENV_FILE="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspa
 RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE="${RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE:-$ROOT/.runtime/env/${DEPLOYMENT_TARGET}-risk-signal-service.env}"
 RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE")"
 
-if [[ "${1:-}" == "down" && -f "$GATEWAY_RUNTIME_ENV_FILE" ]]; then
+if [[ "$COMPOSE_ACTION" == "down" && -f "$GATEWAY_RUNTIME_ENV_FILE" ]]; then
     # Compose는 down에서도 선언된 env_file 경로를 파싱한다. 이전 버전에서 기동한
     # project에는 Risk projection이 없을 수 있으므로 빈 파일만 보장하고, 다음 up에서
     # canonical projection으로 반드시 덮어쓴다.
@@ -61,7 +70,7 @@ sys.path.insert(0, "src")
 from pathlib import Path
 from ai_model_serving.deployment_target import load_deployment_target
 target = load_deployment_target(Path("configs/deployment_targets.yaml"), sys.argv[1])
-if target.control_mode != "static":
+if not target.static_serving and not target.adaptive:
     raise SystemExit(f"DEPLOYMENT_TARGET {target.target_id!r} is not a static target")
 print("\n".join(target.compose_files))
 ' "$DEPLOYMENT_TARGET")
@@ -71,13 +80,48 @@ if [[ ${#COMPOSE_FILES[@]} -eq 0 ]]; then
   exit 2
 fi
 
+case "$COMPOSE_ACTION" in
+  up|create|down|start|stop|restart|rm|pause|unpause)
+    source scripts/lib/compose_context.sh
+    COMPOSE_FILE_ABS="$ROOT/${COMPOSE_FILE_PATHS[0]}"
+    COMPOSE_PROJECT_NAME_EFFECTIVE="$STATIC_COMPOSE_PROJECT_NAME"
+    compose_context_assert_mutation_safe
+    ;;
+esac
+
+# 자동 배포와 CPU 명령의 입력은 사용자 env가 아니라 Catalog에서 계산한다.
+if [[ "$DEPLOYMENT_TARGET" == "linux-cpu-managed" || "$DEPLOYMENT_TARGET" == "linux-adaptive" ]]; then
+  CPU_MAIN_COMMAND="$(PYTHONPATH="$ROOT/src" "$PYTHON_BIN" -c '
+import shlex,sys
+from pathlib import Path
+from ai_model_serving.main_model.cpu import cpu_runtime_command
+port = 9401 if sys.argv[1] == "linux-adaptive" else None
+print(shlex.join(cpu_runtime_command(Path.cwd(), port=port)))
+' "$DEPLOYMENT_TARGET")"
+  CPU_MEMORY_LIMIT_BYTES="$("$PYTHON_BIN" -c 'import yaml; print(int(yaml.safe_load(open("configs/cpu_model_artifact.yaml"))["runtime"]["memory_limit_mib"])*1024*1024)')"
+  export CPU_MAIN_COMMAND CPU_MEMORY_LIMIT_BYTES
+fi
+if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" ]]; then
+  ADAPTIVE_CONTROLLER_ENV_FILE="$ROOT/.runtime/env/linux-adaptive-controller.env"
+  HOST_RESOURCE_OBSERVER_ENV_FILE="$ROOT/.runtime/env/linux-adaptive-resource-observer.env"
+  export ADAPTIVE_CONTROLLER_ENV_FILE HOST_RESOURCE_OBSERVER_ENV_FILE STATIC_COMPOSE_PROJECT_NAME
+  if [[ "$COMPOSE_ACTION" == "down" ]]; then
+    for projection in "$ADAPTIVE_CONTROLLER_ENV_FILE" "$HOST_RESOURCE_OBSERVER_ENV_FILE"; do
+      if [[ ! -e "$projection" ]]; then install -m 0600 /dev/null "$projection"; fi
+    done
+  else
+    "$PYTHON_BIN" scripts/config/render_service_env.py --target "$DEPLOYMENT_TARGET" --service runtime_controller --source-env "$ENV_FILE_ABS" --output "$ADAPTIVE_CONTROLLER_ENV_FILE"
+    "$PYTHON_BIN" scripts/config/render_service_env.py --target "$DEPLOYMENT_TARGET" --service host_resource_observer --source-env "$ENV_FILE_ABS" --output "$HOST_RESOURCE_OBSERVER_ENV_FILE"
+  fi
+fi
+
 # 어떤 secret 파일이 필요한지는 Compose 정의가 소유한다. secret 이름이나 경로를
 # 여기 다시 적으면 Compose가 바뀔 때 조용히 어긋난다.
 #
 # `down`은 secret 내용을 읽지 않고 파일이 없어도 성공하므로 정지 경로는 건드리지
 # 않는다 -- 여기서 placeholder를 만들면 그 값이 남아 다음 기동의 bearer token으로
 # 쓰이고 scrape가 조용히 401이 된다.
-if [[ "${1:-}" != "down" ]]; then
+if [[ "$COMPOSE_ACTION" != "down" ]]; then
   REQUIRED_SECRET_FILES=()
   while IFS= read -r secret_file; do
     [[ -n "$secret_file" ]] || continue
@@ -108,7 +152,7 @@ for name in sys.argv[1:]:
   done
 fi
 
-if [[ "${1:-}" == "up" ]]; then
+if [[ "$COMPOSE_ACTION" == "up" ]]; then
   PLATFORM_IMAGE_EFFECTIVE="${PLATFORM_IMAGE:-$("$PYTHON_BIN" scripts/env/env_get.py --env-file "$ENV_FILE_ABS" PLATFORM_IMAGE)}"
   if ! ensure_gateway_runtime_dir "$GATEWAY_RUNTIME_DIR_RELPATH" "$PLATFORM_IMAGE_EFFECTIVE"; then
     echo "[static-compose] gateway runtime state directory is not usable" >&2
@@ -119,7 +163,12 @@ if [[ "${1:-}" == "up" ]]; then
     exit 2
   fi
 fi
+COMPOSE_PROFILE_ARGS=()
+if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" && "$COMPOSE_ACTION" == "down" ]]; then
+  COMPOSE_PROFILE_ARGS=(--profile gpu-observation)
+fi
 exec docker compose \
+  "${COMPOSE_PROFILE_ARGS[@]}" \
   --project-name "$STATIC_COMPOSE_PROJECT_NAME" \
   "${COMPOSE_FILES[@]}" \
   --env-file "$ENV_FILE_ABS" \

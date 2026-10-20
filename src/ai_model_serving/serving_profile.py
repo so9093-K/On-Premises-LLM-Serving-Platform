@@ -29,12 +29,15 @@ class MainServingCatalog:
     profiles: dict[str, MainServingProfile]
 
 
-def load_main_serving_catalog(path: Path) -> MainServingCatalog:
+def load_main_serving_catalog(path: Path, *, _visited: tuple[Path, ...] = ()) -> MainServingCatalog:
     """Runtime Profile Catalog에서 API Serving 계약에 필요한 정보만 투영한다.
 
     Docker 이미지·실행 명령·GPU 필드는 이 객체에 포함하지 않는다.
     전체 Runtime Catalog는 계속 Runtime Controller의 Main Model 제어 경계에서 로드한다.
     """
+    path = path.resolve()
+    if path in _visited:
+        raise RuntimeError("cyclic Main Model catalog reference")
     document = load_yaml_mapping(path)
     public_model = str(document.get("public_model", ""))
     default_profile = str(document.get("default_profile", ""))
@@ -46,6 +49,19 @@ def load_main_serving_catalog(path: Path) -> MainServingCatalog:
     for profile_id, raw in raw_profiles.items():
         if not isinstance(raw, dict):
             raise RuntimeError(f"main serving profile {profile_id!r} must be a mapping")
+        if "catalog" in raw:
+            reference = Path(str(raw["catalog"]))
+            if set(raw) != {"catalog"} or reference.is_absolute() or ".." in reference.parts:
+                raise RuntimeError("referenced profile must declare only a safe catalog path")
+            root = path.parent.parent
+            resolved = (root / reference).resolve()
+            if not resolved.is_relative_to(root):
+                raise RuntimeError("referenced profile catalog escapes project root")
+            source = load_main_serving_catalog(resolved, _visited=(*_visited, path))
+            if source.public_model != public_model or profile_id not in source.profiles:
+                raise RuntimeError("referenced profile identity differs from its source catalog")
+            profiles[str(profile_id)] = source.profiles[profile_id]
+            continue
         policy = raw.get("gateway_policy")
         if not isinstance(policy, dict):
             raise RuntimeError(f"main serving profile {profile_id!r} must declare gateway_policy")

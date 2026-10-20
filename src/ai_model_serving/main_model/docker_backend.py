@@ -11,6 +11,7 @@ import httpx
 from ..contracts.chat_response import validate_chat_response
 from ..docker_scope import compose_container_filter, scoped_container_id
 from ..errors import ServiceError
+from ..host_resource_probe import valid_gpu_uuid
 from .catalog import MainModelCatalog, MainModelProfile
 from ..media_samples import TINY_JPEG_1X1_B64, TINY_M4A_AAC_B64, TINY_MP4_VIDEO_B64
 from .cache import default_hf_hub_cache_dir, prepare_model_snapshot
@@ -191,6 +192,12 @@ class DockerMainModelBackend:
         config = inspected.get("Config", {})
         command = list(config.get("Cmd") or [])
         image = config.get("Image")
+        if catalog.runtime.get("adaptive"):
+            return next((profile.profile_id for profile in catalog.profiles.values()
+                         if image == profile.image and command == list(profile.command)), None)
+        for profile in catalog.profiles.values():
+            if profile.runtime_backend == "llama-cpp" and image == profile.image and command == list(profile.command):
+                return profile.profile_id
 
         def command_value(flag: str) -> str | None:
             if flag not in command:
@@ -257,6 +264,16 @@ class DockerMainModelBackend:
             status = "unavailable"
         else:
             status = "unknown"
+        profile_id = self._profile_from_inspected(catalog, inspected)
+        backend = catalog.profiles[profile_id].runtime_backend if profile_id else "vllm-cuda"
+        device_uuid = None
+        if catalog.runtime.get("adaptive"):
+            requests = inspected.get("HostConfig", {}).get("DeviceRequests") or []
+            if len(requests) == 1:
+                ids = requests[0].get("DeviceIDs") or []
+                if len(ids) == 1:
+                    if valid_gpu_uuid(ids[0]):
+                        device_uuid = ids[0]
         return {
             "status": status,
             "container_state": container_state,
@@ -265,7 +282,9 @@ class DockerMainModelBackend:
             "image_ref": image_ref,
             "image_id": image_id,
             "image_digest": image_digest,
-            "runtime_engine": {"name": "vllm", "version": vllm_version},
+            "runtime_engine": {"name": "llama-cpp" if backend == "llama-cpp" else "vllm",
+                               "version": None if backend == "llama-cpp" else vllm_version},
+            **({"gpu_device_uuid": device_uuid} if catalog.runtime.get("adaptive") else {}),
             "error": None,
         }
 
@@ -397,6 +416,12 @@ class DockerMainModelBackend:
         )
 
     async def replace(self, catalog: MainModelCatalog, profile: MainModelProfile) -> None:
+        image_config = None
+        if catalog.runtime.get("adaptive"):
+            # 이미지나 장치 선택 오류는 기존 컨테이너 해체 전에 확인한다.
+            image_config = (await self._inspect_image(profile.image))["Config"]
+            if profile.runtime_backend != "llama-cpp" and getattr(self, "gpu_uuid", None) is None:
+                raise RuntimeError("GPU device admission is required before replacement")
         service = str(catalog.runtime["compose_service"])
         container_id = await self._container_id(service)
         if container_id is not None:
@@ -425,6 +450,28 @@ class DockerMainModelBackend:
         payload["Cmd"] = list(profile.command)
         payload["HostConfig"] = copy.deepcopy(self._template["host_config"])
         payload["NetworkingConfig"] = copy.deepcopy(self._template["networking_config"])
+        if catalog.runtime.get("adaptive"):
+            # 서로 다른 엔진의 이미지 기본값을 이전 컨테이너에서 상속하지 않는다.
+            config = image_config
+            for key in ("Entrypoint", "User", "WorkingDir"):
+                payload[key] = copy.deepcopy(config.get(key) or ("" if key != "Entrypoint" else []))
+            payload["Env"] = list(config.get("Env") or []) + [
+                "HF_HOME=/root/.cache/huggingface", "HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1",
+            ]
+            cpu = profile.runtime_backend == "llama-cpp"
+            host = payload["HostConfig"]
+            host["DeviceRequests"] = [] if cpu else [{"Driver": "nvidia", "DeviceIDs": [str(self.gpu_uuid)], "Capabilities": [["gpu"]]}]
+            host["Memory"] = int(catalog.runtime["cpu_memory_limit_bytes"]) if cpu else 0
+            host["MemorySwap"] = host["Memory"] if cpu else 0
+            host["PidsLimit"] = 256 if cpu else 2048
+            host["ShmSize"] = 64 * 1024 * 1024 if cpu else 2 * 1024 * 1024 * 1024
+            if not cpu:
+                payload["Env"] += ["NVIDIA_DRIVER_CAPABILITIES=compute,utility", "CUDA_VISIBLE_DEVICES=0"]
+            port = int(catalog.runtime["container_port"])
+            payload["Healthcheck"] = {
+                "Test": ["CMD", "python3", "-c", f"import urllib.request; urllib.request.urlopen('http://127.0.0.1:{port}/health',timeout=2)"],
+                "Interval": 5_000_000_000, "Timeout": 3_000_000_000, "Retries": 3,
+            }
         async with self._client() as client:
             created = await client.post(
                 "/containers/create",
@@ -464,6 +511,11 @@ class DockerMainModelBackend:
         async with httpx.AsyncClient(timeout=_RUNTIME_HTTP_TIMEOUT) as client:
             models = await client.get(base + str(catalog.runtime["models_path"]))
             models.raise_for_status()
+            if profile.runtime_backend == "llama-cpp" and not any(
+                row.get("id") == catalog.public_model and isinstance(row.get("meta"), dict)
+                for row in models.json().get("data", []) if isinstance(row, dict)
+            ):
+                raise RuntimeError("CPU model identity or loaded metadata could not be verified")
             ids = {row.get("id") for row in models.json().get("data", [])}
             if catalog.public_model not in ids:
                 raise RuntimeError(f"{catalog.public_model} missing from /v1/models")

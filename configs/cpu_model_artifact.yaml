@@ -1,0 +1,12 @@
+# 모델 자동 준비는 허용된 GGUF 한 종을 고정 Revision 및 Digest로 검증한다.
+version: 1
+model:
+  repo_id: Qwen/Qwen3-0.6B-GGUF
+  revision: 1208e45d782fe18602c5eaf10e5758d5b0f24c03
+  filename: Qwen3-0.6B-Q4_K_M.gguf
+  sha256: b0638f08417a2d3c8652760462eb5407c6e30173cf9608ad0820757a281eea0e
+  license: apache-2.0
+runtime:
+  minimum_available_ram_mib: 4096
+  memory_limit_mib: 4096
+  minimum_free_disk_mib: 2048

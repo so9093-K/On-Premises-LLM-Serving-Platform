@@ -535,6 +535,14 @@ def create_runtime_controller_app(
         # gate는 닫힌 채로 있다(Gateway는 local-main에 대해 fail closed된다). 오직
         # *확정적인* reconciliation 실패만 unhealthy로 노출된다.
         if context._initialized.is_set() and context._initialization_error:
+            state = context._state_store.read()
+            if context.COMPOSE_PROJECT and (
+                state.get("gate") == "open" or state.get("runtime_state") == "stopped"
+            ):
+                # 초기 실패 뒤 Main 재검증 또는 명시적 중지가 수렴했으면 과거 오류가
+                # Controller를 영구 unhealthy로 남기지 않는다. Gate의 개방 권위는 Manager다.
+                context._initialization_error = None
+                return {"status": "ok"}
             raise HTTPException(503, detail=f"main model reconciliation failed: {context._initialization_error}")
         return {"status": "ok"}
 

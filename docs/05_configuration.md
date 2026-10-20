@@ -58,6 +58,7 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 | MLX Python dependency | `runtimes/mlx/pyproject.toml`, `runtimes/mlx/uv.lock` | 독립 native runtime 직접 의존성과 Darwin arm64 해석 결과 |
 | Deployment target/profile binding | `configs/deployment_targets.yaml` | target별 backend, lifecycle owner, 기능 집합, Main profile catalog와 static Compose 파일 목록 |
 | GPU resource budget | `configs/gpu_budgets.yaml` | runtime별 GPU budget과 admission 기준 정의 |
+| Adaptive Main 자동 선택 | `configs/adaptive_main_model_profiles.yaml` | 전체 VRAM별 기존 GPU 정책 선택, Capability 하한, 안정 관측·압력·재시도 기준 정의 |
 | Service / port registry | `configs/services.yaml` | Compose service 이름, container/host port, bind env와 host-boundary service role 정의 |
 | Runtime Startup Profile | `configs/deploy_profiles.yaml` | `make up`의 full-stack 기동에서 어떤 non-main Model Runtime을 deferred 상태로 둘지 정의 |
 | Runtime lifecycle topology | `configs/runtime_topology.yaml` | feature/required/controllable binding과 Main resource-policy composition constraint 정의 |
@@ -146,6 +147,12 @@ repository `.env` 자동 로딩은 local / test / development 환경에 적용�
 ---
 
 ## 5.4 모델과 Runtime 설정
+
+`linux-adaptive`는 `ADAPTIVE_GPU_RESOURCE_POLICY`의 명시적 `reference`/Variant를 먼저 사용합니다.
+값이 `auto` 또는 빈 값이면 기존 `MAIN_MODEL_RESOURCE_VARIANT`의 명시적 선택을 유지하고,
+그 값도 비었을 때 전체 VRAM으로 자동 선택합니다. 이 설정은 다른 Target의 선택을 바꾸지 않습니다.
+실행 중인 UUID·정책은 기존 Main 상태가 보존하며 새 설정은 다음 CPU→GPU 선택부터 적용합니다.
+실측과 정책의 구분, 이전 상태의 복구는 [GPU Host 준비](guides/gpu-host-preparation.md)를 참고하세요.
 
 모델 관련 설정은 세 파일의 역할을 구분해서 본다.
 

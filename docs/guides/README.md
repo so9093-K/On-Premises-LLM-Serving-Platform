@@ -19,3 +19,6 @@
 화면별 촬영 환경과 검증 범위는 [가이드 화면 기록](../../assets/screenshots/guides/README.md), [Showcase 화면 기록](../../assets/screenshots/showcase/README.md)에 보존합니다. 화면에 표시되는 모델·GPU 상태와 수치는 사용 중인 환경에 따라 달라질 수 있습니다.
 
 현재 기능 및 사용 방법은 [Control Plane UX](../reference/control_plane_operator_ux.md)와 [Playground 예제](../reference/control_plane_playground_examples.md)를 참고하세요.
+
+- [자동 CPU/GPU Runtime 운영](adaptive-runtime.md): Core 기동, CPU 복구, GPU 복귀, 요청 보호와 중지 의도.
+- [GPU Host 준비](gpu-host-preparation.md): GPU 식별, 24GB/48GB 정책 선택, UUID 할당과 향후 실장비 검증 절차.

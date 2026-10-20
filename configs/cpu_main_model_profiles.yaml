@@ -1,0 +1,32 @@
+# CPU-only llama.cpp의 공통 Serving 계약. 실행·Artifact 소유권은 Deployment Target이 정한다.
+version: 1
+public_model: local-main
+default_profile: cpu-gguf-text
+
+runtime:
+  port: 8080
+  context_size: 2048
+  gpu_layers: 0
+  parallel: 1
+  threads: 4
+
+profiles:
+  cpu-gguf-text:
+    display_name: Local GGUF Text Chat (CPU / llama.cpp)
+    served_model_name: local-main
+    compatibility:
+      status: unknown
+    qualification:
+      status: unverified
+    capabilities:
+      deployed_input: [text]
+    gateway_policy:
+      max_concurrency: 1
+      max_output_tokens: 256
+      request_limits:
+        max_model_len: 2048
+        input_modalities: [text]
+      request_parameter_policy:
+        allow_unlisted_parameters: false
+        supported_parameters: [stream, stream_options, temperature, max_tokens, top_p, top_k, stop, seed]
+        max_n: 1

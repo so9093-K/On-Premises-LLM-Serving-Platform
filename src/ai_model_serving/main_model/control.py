@@ -360,22 +360,52 @@ class MainModelManager:
                 self._reconcile_failure_streak = 0
                 self._reconcile_backoff_until = 0.0
 
-    async def stop_main(self) -> None:
+    async def stop_main(self, *, strict_drain: bool = False) -> None:
         """VRAM 회수를 위해 main runtime을 drain 후 중지한다.
 
         gate를 닫아 chat 요청은 503으로 fail-closed 처리하며, 재시작 후 자동 기동하지 않도록
         저장된 ``runtime_state``를 ``stopped``로 바꾼다.
         """
         async with self._lock:
+            previous_gate = self.state_store.read().get("gate", "closed")
             self.state_store.update(lambda s: s.update(gate="closed"))
             try:
                 await self.backend.wait_for_drain(
                     float(self.catalog.runtime.get("drain_timeout_seconds", 30))
                 )
             except Exception:  # noqa: BLE001 - drain이 타임아웃되어도 의도적으로 stop을 진행한다
+                if strict_drain:
+                    self.state_store.update(lambda s: s.update(gate=previous_gate))
+                    raise
                 pass
             await self.backend.stop(self.catalog)
             self.state_store.update(lambda s: s.update(runtime_state="stopped"))
+
+    def record_initialization_failure(self, error: str) -> None:
+        """중단된 작업의 재검증 실패를 종료 기록으로 남겨 재복구 경로를 연다."""
+        operation = self.state_store.read().get("last_operation") or {}
+        if operation and operation.get("status") not in _TERMINAL_STATES:
+            self._set_operation(operation["id"], "failed", stage=operation.get("stage", "validating"),
+                                error=error, recovered_after_restart=True)
+            self._record_terminal(operation["id"], success=False)
+        self.state_store.update(lambda s: s.update(gate="closed"))
+
+    async def wait_for_operation(self, operation_id: str) -> dict[str, Any]:
+        """호출자가 수락한 작업의 종료 결과를 기다린다."""
+        while True:
+            operation = self.operation(operation_id)
+            if operation is None:
+                raise MainModelStateError("accepted operation disappeared")
+            if operation["status"] in _TERMINAL_STATES:
+                return operation
+            await asyncio.sleep(0.1)
+
+    async def aclose(self) -> None:
+        """종료 시 전환 Task를 정리하고 미완료 기록은 재시작 복구에 맡긴다."""
+        tasks = list(self._tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def start_main(self) -> None:
         """중지된 main runtime을 저장된 프로필로 시작하고 검증한다.
@@ -420,6 +450,11 @@ class MainModelManager:
                 await self._recover_interrupted(interrupted, observed)
                 return
             target = self.boot_profile
+            if self.catalog.runtime.get("adaptive"):
+                runtime = await self.backend.observe_runtime(self.catalog)
+                if runtime.get("status") != "ready":
+                    self.request_switch(target, confirm_unverified=True, boot_reconcile=True)
+                    return
             if observed == target:
                 await self._validate_and_record(self.catalog.profiles[target])
                 self._commit_boot(target)
@@ -743,7 +778,7 @@ class MainModelManager:
             await self.backend.prepare(self.catalog, target)
             self.state_store.update(lambda state: state.update(gate="closed"))
             self._set_operation(operation_id, "draining")
-            if not boot_reconcile:
+            if not boot_reconcile or self.catalog.runtime.get("adaptive"):
                 await self.backend.wait_for_drain(
                     float(self.catalog.runtime.get("drain_timeout_seconds", 30))
                 )
