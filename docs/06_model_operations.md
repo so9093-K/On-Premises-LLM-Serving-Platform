@@ -396,6 +396,26 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 Profile switch에서 자원이 부족하면 필요한 runtime stop plan을 확인한 뒤 자원 구성을 조정하고 다시 전환한다.
 
+**Control Plane → 메인 모델**의 각 후보는 `GPU 예약 비율`과 `실행 전 판단`을 분리해 보여준다.
+프로필 조회(`GET /admin/main-model/profiles`)의 `switch_preflight`는 실제 전환 요청이
+사용하는 리소스 정책과 동일한 GPU Admission으로 계산한 읽기 전용 결과다.
+
+| 사전 판단 | 의미 | 다음 행동 |
+|---|---|---|
+| `fits` | 설정된 GPU 예약 예산 검사 통과 | 전환 검토 가능; 시작 뒤 실제 Runtime 검증 필요 |
+| `needs_stop` | 낮은 우선순위 Runtime의 예약을 해제하면 예산을 맞출 수 있음 | 안내된 중지 대상을 **별도** 확인·중지 후 재조회 |
+| `infeasible` | 중지 가능한 Runtime만으로 예산을 확보할 수 없음 | 모델 정책·동시 실행 구성 재검토 |
+| `blocked` | 기술 호환성·배포 잠금·명시적 Resource Variant 조건 또는 다른 모델 전환 진행 중 | 거부 원인을 해결하거나 진행 중인 전환의 완료를 기다린 뒤 재조회 |
+| `unknown` | Docker 예약 정보를 확인하지 못함 | 관측 상태를 복구한 후 다시 조회 |
+| `current` | 현재 실행 대상으로 선택된 프로필 | 전환 대상이 아님 |
+
+**예약 정책 비율은 GPU 실측 사용량이나 모델 메모리 요구량 추정치가 아니다.**
+사전 판단 통과는 실제 가중치 적재·KV Cache·CUDA workspace 할당 성공을 보장하지 않는다.
+Docker 예약 관측이 지연되거나 실패해도 조회 전체를 실패시키기보다는 후보를 `unknown`으로 표시한다.
+운영 화면은 열린 동안 후보의 실행 전 판단을 주기적으로 갱신하지만, 그 사이의 자원 상태도 달라질 수 있다.
+자원 정보가 변할 수 있으므로 서버는 전환을 적용할 때 다시 Admission을 확인하고,
+전환 단계에서는 기존 Runtime 검증과 Rollback을 수행한다. 읽기 전용 조회는 Runtime을 정지하지 않는다.
+
 새 hardware에서는 먼저 실제 GPU/resource 상태를 관측하고 reference policy의 feasibility를 판단한다.
 제품명이 catalog에 없다는 이유로 거부하지 않는다. 다만 운영자가
 `MAIN_MODEL_RESOURCE_VARIANT`를 명시적으로 선택한 경우에는 그 override를 선언하지 않은 profile이

@@ -66,6 +66,10 @@ profile = {
     "capabilities": {"deployed_input": ["text"]},
     "resource_variant": None,
     "vram_fraction": .65,
+    "switch_preflight": {
+        "status": "fits", "reason_code": None, "required_fraction": .65,
+        "available_fraction": .93, "ceiling_fraction": .93, "stop": [],
+    },
     "gateway_policy": {"request_limits": {"max_model_len": 4096}, "max_output_tokens": 512},
 }
 
@@ -111,7 +115,14 @@ def install_routes(page, state):
                        "active": True, "resource_variant": "gpu-high",
                        "capabilities": {"deployed_input": ["text", "image"]},
                        "vram_fraction": .85} if state["active_profile"] else None)
-            return send(route, {"profiles": [active, profile] if active else [profile]})
+            candidate = dict(profile)
+            if state.get("switch_in_progress"):
+                candidate["switch_preflight"] = {
+                    "status": "blocked", "reason_code": "MODEL_SWITCH_IN_PROGRESS",
+                    "required_fraction": None, "available_fraction": None,
+                    "ceiling_fraction": None, "stop": [],
+                }
+            return send(route, {"profiles": [active, candidate] if active else [candidate]})
         if path == "/admin/config/schema":
             return send(route, schema)
         if path == "/admin/config/effective":
@@ -222,6 +233,13 @@ def run_one(browser, width, height):
     assert summary.get_by_text("제거: 이미지").count() > 0
     assert summary.get_by_text("변경됨").count() > 0
     page.screenshot(path=str(SCREENSHOTS / f"main-switch-impact-{width}.png"), full_page=True)
+    # 서버가 다른 전환 진행 중이라고 응답하면 그 이유는 보이되 재전환은 실행할 수 없다.
+    state["switch_in_progress"] = True
+    page.reload(wait_until="domcontentloaded")
+    page.get_by_role("link", name="메인 모델", exact=True).click()
+    page.get_by_role("button", name="전환 검토").click()
+    page.get_by_text("다른 모델 전환 작업이 완료된 뒤 다시 검토하세요.").wait_for()
+    assert page.get_by_role("button", name="전환 요청").is_disabled()
     viewport_check = page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     assert viewport_check, f"Body overflow at {width} px"
     assert errors == [], errors

@@ -63,7 +63,15 @@ class ContractMainModelSidecar:
         }
 
     async def main_model_profiles(self):
-        return [{**self.profile, "active": True}]
+        return [{
+            **self.profile,
+            "active": True,
+            "switch_preflight": {
+                "status": "current", "reason_code": None,
+                "required_fraction": None, "available_fraction": None,
+                "ceiling_fraction": None, "stop": [],
+            },
+        }]
 
     async def switch_main_model(self, profile, *, confirm_unverified=False, request_id=None):
         return {"operation_id": "41cf50bb-60b2-4dbc-b38a-7dd07da91d97", "status": "pending", "reused": False}

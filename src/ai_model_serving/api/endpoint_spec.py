@@ -651,6 +651,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
             "- `capabilities.deployed_input` — 그 프로필로 전환했을 때 받을 수 있는 입력 modality입니다. "
             "전환이 완료되면 `/v1/models`의 `input_modalities`와 chat validator에 즉시 반영됩니다.\n"
             "- `upstream_model_id`, `revision` — 실제로 로딩되는 가중치 pin입니다.\n\n"
+            "- `switch_preflight` — 정책 거부·GPU 예산 통과·Runtime 정리 필요·예산 부족·관측 불가를 구분하는 읽기 전용 판단입니다. "
+            "`fits`는 정적 GPU 예약 검사만 통과했음을 뜻하며 모델 적재·실제 VRAM 성공을 보장하지 않습니다. "
+            "자원 관측 실패는 `unknown`으로 표시하며 다른 Runtime을 자동 중지하지 않습니다.\\n\\n"
             "프로필 목록의 source of truth는 `configs/main_model_profiles.yaml`이며, 여기 없는 ID로는 전환할 수 없습니다."
         ),
         request_schema=None,

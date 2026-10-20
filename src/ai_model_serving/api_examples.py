@@ -818,6 +818,15 @@ def main_model_profile_example(profile_id: str, *, active: bool | None = None) -
     }
     if active is not None:
         example["active"] = active
+        # 예시는 실제 GPU를 관측하지 않으므로 후보의 예산 통과를 주장하지 않는다.
+        example["switch_preflight"] = {
+            "status": "current" if active else "unknown",
+            "reason_code": None if active else "GPU_BUDGET_OBSERVATION_FAILED",
+            "required_fraction": None,
+            "available_fraction": None,
+            "ceiling_fraction": None,
+            "stop": [],
+        }
     return example
 
 

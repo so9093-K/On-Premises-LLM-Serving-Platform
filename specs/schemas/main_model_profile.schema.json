@@ -104,6 +104,23 @@
       },
       "description": "Reviewed resource-policy override IDs declared by the profile. This is not a supported-GPU allowlist."
     },
+    "switch_preflight": {
+      "type": "object",
+      "description": "현재 GPU 예약 정책에 대한 읽기 전용 사전 판단이다. fits는 모델 적재 성공을 보장하지 않는다.",
+      "additionalProperties": false,
+      "required": ["status", "reason_code", "required_fraction", "available_fraction", "ceiling_fraction", "stop"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["current", "blocked", "fits", "needs_stop", "infeasible", "unknown"]
+        },
+        "reason_code": {"type": ["string", "null"]},
+        "required_fraction": {"type": ["number", "null"]},
+        "available_fraction": {"type": ["number", "null"]},
+        "ceiling_fraction": {"type": ["number", "null"]},
+        "stop": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
     "active": {
       "type": "boolean"
     },

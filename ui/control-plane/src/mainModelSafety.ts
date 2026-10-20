@@ -192,8 +192,48 @@ export function mainModelProfileRequiresConfirmation(profile: MainModelProfile):
   return profile.qualification.status !== 'verified';
 }
 
+export type MainModelPreflightView = {
+  label: string;
+  description: string;
+  color: 'green' | 'orange' | 'red' | 'grey';
+};
+
+// 백엔드 GPU Admission과 정책 검사를 UI에서 다시 계산하지 않는다.
+// 응답이 없거나 새 상태를 해석할 수 없다면 "가능"으로 추측하지 않는다.
+export function mainModelPreflightView(profile: MainModelProfile): MainModelPreflightView {
+  const preflight = profile.switch_preflight;
+  if (!preflight) return {
+    label: '판단 불가', description: 'GPU 예약 예산 정보를 받지 못했습니다. 새로고침 후 다시 확인하세요.', color: 'orange',
+  };
+  switch (preflight.status) {
+    case 'current':
+      return { label: '현재 사용 중', description: '현재 활성 프로필입니다.', color: 'green' };
+    case 'fits':
+      return { label: '예산 검사 통과', description: 'GPU 예약 정책을 통과했습니다. 실제 모델 적재와 추론 성공은 시작 후 검증합니다.', color: 'green' };
+    case 'needs_stop':
+      return { label: '자원 정리 필요', description: '다른 Runtime을 먼저 중지해야 합니다. 전환 검토에서 대상을 확인하세요.', color: 'orange' };
+    case 'infeasible':
+      return { label: 'GPU 예산 부족', description: '현재 GPU 예약 상한에서 실행에 필요한 예산을 확보할 수 없습니다.', color: 'red' };
+    case 'blocked':
+      if (preflight.reason_code === 'MODEL_SWITCH_IN_PROGRESS') {
+        return { label: '전환 진행 중', description: '다른 모델 전환 작업이 완료된 뒤 다시 검토하세요.', color: 'orange' };
+      }
+      if (preflight.reason_code === 'MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED') {
+        return { label: '리소스 정책 불일치', description: '서버에서 명시한 리소스 정책 Override를 이 프로필이 선언하지 않습니다.', color: 'red' };
+      }
+      if (preflight.reason_code === 'MODEL_PROFILE_LOCKED') {
+        return { label: '전환 잠김', description: '현재 배포에서는 Main Model 전환 권한을 제공하지 않습니다.', color: 'grey' };
+      }
+      return { label: '기술적 전환 불가', description: '현재 배포·Runtime 조합에서 이 프로필로 전환할 수 없습니다.', color: 'red' };
+    default:
+      return { label: '판단 불가', description: 'GPU 예약 예산 또는 Runtime 관측을 확인할 수 없습니다. 실행 가능으로 간주하지 않습니다.', color: 'orange' };
+  }
+}
+
 export function mainModelProfileSwitchable(profile: MainModelProfile): boolean {
-  return profile.active !== true && profile.compatibility.status !== 'incompatible';
+  return profile.active !== true
+    && profile.compatibility.status !== 'incompatible'
+    && profile.switch_preflight?.status === 'fits';
 }
 
 export function mainModelSwitchRequest(

@@ -22,6 +22,7 @@ from ..main_model.catalog import (
     resource_variant_from_mapping,
 )
 from ..main_model.control import MainModelManager, MainModelSwitchError, MainModelRuntimeBackend
+from ..main_model.switch_preflight import project_switch_preflight
 from ..main_model.state import MainModelStateError, MainModelStateStore
 from ..log_target_manifest import build_targets, write_manifest
 from ..docker_scope import (
@@ -606,7 +607,37 @@ def create_runtime_controller_app(
     @app.get("/main-model/profiles")
     async def main_model_profiles(authorization: str | None = Header(default=None)) -> JSONResponse:
         await _require_runtime_controller_token(authorization)
-        return JSONResponse(jsonable_encoder({"profiles": context._main_model_manager.profiles()}))
+        # 정책 판정은 실제 전환 요청과 같은 Manager 검사를 사용한다.
+        # GPU 예산도 기존 Admission을 사용하며 관측 실패를 "여유"로 해석하지 않는다.
+        async with context._budget_lock:
+            profiles = context._main_model_manager.profiles()
+            switching = context._main_model_manager.switch_in_progress()
+            eligible = [
+                profile for profile in profiles
+                if not profile["active"]
+                and not switching
+                and context._main_model_manager.switch_policy_error(profile["id"]) is None
+            ]
+            participants = None
+            if eligible:
+                try:
+                    # Gateway 측 내부 Controller 조회 제한 시간(5초)보다 먼저
+                    # 관측을 종료해 화면에는 전체 오류 대신 '판단 불가'를 제공한다.
+                    participants = await asyncio.wait_for(_build_participants(), timeout=3.0)
+                except Exception as exc:  # noqa: BLE001 - 실패는 모든 후보에 판단 불가로 투영
+                    _logger.warning("GPU admission preflight observation unavailable: %s", type(exc).__name__)
+            for profile in profiles:
+                policy_error = context._main_model_manager.switch_policy_error(profile["id"])
+                profile["switch_preflight"] = project_switch_preflight(
+                    active=profile["active"],
+                    policy_error_code=policy_error.code if policy_error else None,
+                    switch_in_progress=switching,
+                    participants=participants,
+                    target_key=context._MAIN_SERVICE,
+                    target_fraction=profile["vram_fraction"],
+                    ceiling=context._GPU_BUDGET_CEILING,
+                )
+            return JSONResponse(jsonable_encoder({"profiles": profiles}))
 
 
     @app.post("/main-model/switch", status_code=202)
@@ -627,6 +658,11 @@ def create_runtime_controller_app(
                 # 운영자에게 먼저 무엇을 stop해야 하는지 알려준다. (여기서는 auto-evict를 하지
                 # 않는다: profile 변경은 의도적인 행위이므로, 공간 확보는 명시적인 단계여야 한다.)
                 if target_profile is not None:
+                    # 사전 판단과 동일하게 기술·명시적 리소스 정책을 먼저 확인한다.
+                    # 확실히 거부할 요청에서 Docker GPU 관측을 수행하지 않는다.
+                    policy_error = context._main_model_manager.switch_policy_error(profile_id)
+                    if policy_error is not None:
+                        raise policy_error
                     await _admit_profile_switch_or_raise(target_profile.vram_fraction)
                 outcome = context._main_model_manager.request_switch(
                     profile_id,
