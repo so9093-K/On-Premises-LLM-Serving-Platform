@@ -157,6 +157,8 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     queryFn: () => fetchMainModelProfiles(token),
     retry: false,
     staleTime: 10_000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 10_000 : false,
+    refetchIntervalInBackground: false,
   });
 
   useEffect(() => {
