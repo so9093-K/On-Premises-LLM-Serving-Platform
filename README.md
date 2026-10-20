@@ -39,6 +39,19 @@ make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.interna
 `configs/cpu_main_model_profiles.yaml`의 Text Chat·Streaming Profile은 아직 실환경 검증 전입니다.
 GPU 자원 부족 시 자동 Fallback이나 Target 전환은 지원하지 않습니다.
 
+**최초 실행 자동 후보 선택 (Linux)**
+
+```bash
+make up TARGET=auto ACCESS=local
+```
+
+최초 실행에서 실제 GPU VRAM·CPU 여유 RAM을 관측해 기존 GPU Managed,
+CPU Managed 또는 Core Target 중 후보를 고릅니다. 선택 결과는 `.env`의
+Deployment Target으로 고정되며, 실행 중 무단 전환하지 않습니다.
+GPU 관측값은 모델 실행 가능성의 보증이 아니며 최종 Admission/Runtime 검증이
+필요합니다. 기존 환경의 재기동 시 `TARGET=auto`는 이미 선택한 Target을
+유지합니다.
+
 **Linux / 관리형 CPU 모델 (llama.cpp)**
 
 ```bash

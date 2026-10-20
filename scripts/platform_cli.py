@@ -26,6 +26,9 @@ if str(ROOT / "src") not in sys.path:
 
 from ai_model_serving.deployment_target import DeploymentTarget, load_deployment_target  # noqa: E402
 from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
+from ai_model_serving.host_resource_probe import (  # noqa: E402
+    read_host_resource_snapshot, recommend_initial_target,
+)
 from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_mismatches,
     access_profile_names,
@@ -97,6 +100,17 @@ def _env_values() -> dict[str, str]:
 def _target(explicit: str | None, *, require_env: bool = True) -> DeploymentTarget:
     values = _env_values() if ENV_PATH.is_file() else {}
     configured = values.get("DEPLOYMENT_TARGET")
+    if explicit == "auto":
+        # 기존 배포는 자동 재선택하지 않는다. 최초 make up만 실행 후보를 고른다.
+        if configured:
+            return load_deployment_target(TARGETS_PATH, configured)
+        if require_env:
+            raise RuntimeError("TARGET=auto is only supported for first make up")
+        candidate = suggested_target()
+        if candidate is None:
+            raise RuntimeError("automatic target selection is not supported on this host")
+        explicit = candidate[0]
+        print(f"[platform] initial target: {explicit} ({candidate[1]})")
     if explicit and configured and explicit != configured:
         raise RuntimeError(
             f"requested target {explicit!r} differs from .env target {configured!r}; "
@@ -114,10 +128,9 @@ def suggested_target() -> tuple[str, str] | None:
     """Suggest a target from what this host can run. Selection stays explicit."""
     if sys.platform == "darwin" and platform.machine().lower() in ("arm64", "aarch64"):
         return "macos-metal-static", "Apple Silicon detected"
-    if sys.platform.startswith("linux") and shutil.which("nvidia-smi"):
-        return "linux-nvidia-dynamic", "nvidia-smi available; model compatibility and free VRAM not checked"
     if sys.platform.startswith("linux"):
-        return "linux-core", "Linux host; model/GPU resources are not required"
+        policy = load_yaml_mapping(ROOT / "configs/runtime_selection_policy.yaml")
+        return recommend_initial_target(read_host_resource_snapshot(), policy)
     return None
 
 

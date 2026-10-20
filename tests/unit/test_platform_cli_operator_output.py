@@ -154,12 +154,20 @@ def test_suggestion_follows_host_capability_only(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(platform_cli.platform, "machine", lambda: "arm64")
     assert platform_cli.suggested_target()[0] == "macos-metal-static"
 
+    from ai_model_serving.host_resource_probe import GpuMemory, HostResourceSnapshot
+
     monkeypatch.setattr(platform_cli.sys, "platform", "linux")
-    monkeypatch.setattr(platform_cli.shutil, "which", lambda name: "/usr/bin/nvidia-smi" if name == "nvidia-smi" else None)
+    monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
+        lambda: HostResourceSnapshot((GpuMemory(0, 24564, 22000),), 8192))
     assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
 
-    monkeypatch.setattr(platform_cli.shutil, "which", lambda name: None)
-    # NVIDIA 도구가 없는 Linux에서는 모델 자원이 필요 없는 Core Target을 권장한다.
+    # 장치는 있지만 모델을 적재할 실제 여유 VRAM이 부족하면 CPU 후보를 안내한다.
+    monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
+        lambda: HostResourceSnapshot((GpuMemory(0, 24564, 1000),), 8192))
+    assert platform_cli.suggested_target()[0] == "linux-cpu-managed"
+
+    monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
+        lambda: HostResourceSnapshot((), None, "GPU_MEMORY_OBSERVATION_FAILED"))
     assert platform_cli.suggested_target()[0] == "linux-core"
 
 

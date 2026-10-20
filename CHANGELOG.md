@@ -12,6 +12,9 @@
 
 ### Added
 
+- 첫 설치에서 `TARGET=auto`를 명시하면 GPU별 실제 여유 VRAM과 CPU RAM을 조사해 GPU Managed, CPU Managed 또는 모델 없는 Core 실행 후보를 선택한다. 관측 실패나 기존 배포 재시작 시 기존 Runtime을 자동 교체하지 않는다.
+
+
 - `linux-cpu-managed`는 고정된 GGUF 모델 Revision·SHA-256을 검사하고 CPU-only llama.cpp Runtime을 프로젝트 Compose가 자동 실행하는 별도 Target이다. 기존 외부 `linux-cpu-static`의 운영권한은 유지한다.
 
 
