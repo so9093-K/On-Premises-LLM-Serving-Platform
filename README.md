@@ -31,7 +31,7 @@ make up TARGET=macos-metal-static ACCESS=local
 
 모델 접근 승인·`HF_TOKEN`·GPU 메모리 및 Resource Variant 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 참고하세요.
 
-실행 후 `make status`로 준비 상태를 확인하고 출력된 주소로 접속합니다.
+실행 후 `make status`로 플랫폼 준비 상태를 확인합니다. **다른 기기에서의 접근 가능 여부는 별도 검증**해야 합니다.
 
 - **Control Plane:** `http://127.0.0.1:9400/admin/console/`
 - **Gateway:** `http://127.0.0.1:9400`
@@ -48,7 +48,7 @@ curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
   }'
 ```
 
-인증이 활성화된 경우 사용자 API Key가 필요합니다. `ACCESS=local`은 동일 호스트의 Loopback 접속이며, 원격 접속은 [별도 안내](docs/guides/remote-access.md)를 따릅니다.
+인증이 활성화된 경우 사용자 API Key가 필요합니다. `ACCESS=local`은 동일 호스트의 Loopback 접속입니다. 개인 원격 접속을 준비하려면 플랫폼 서버에서 `make access PURPOSE=personal`, 팀원 API 공유가 필요하면 `make access PURPOSE=team`을 실행하세요. 두 명령은 **읽기 전용 계획**을 표시하며, 실제 Host·Tailnet 설정 및 권한 검증은 [원격 접속 가이드](docs/guides/remote-access.md)를 따릅니다.
 
 ```bash
 make up
