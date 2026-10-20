@@ -6,7 +6,7 @@
 
 장비별 검증 범위는 [Mac 초기 기록](../../docs/resources/macos_aiperf_measurement.md)과
 [Ubuntu/NVIDIA 기록](../../docs/resources/linux_aiperf_measurement.md)을 따른다.
-Mac의 Long/Queue 반복과 동일 입력 c1 기준은 아직 완료하지 않았다.
+Mac 초기 기록은 Short 2회·Long 1회·Queue-c2 1회의 실측만 나타내며, 추가 반복이나 동일 입력 c1/c2 비교를 주장하지 않는다.
 도구 설치·lock 해석·일반 CI·각 장비의 실측을 서로 대신하는 근거로 사용하지 않는다.
 `make check`, Qualification 선언, Release Gate에 성능 측정을 추가하지 않는다.
 설계 경계는 [ADR-0052](../../docs/adr/0052-manual-aiperf-measurement.md),
