@@ -101,7 +101,7 @@ access_example_profiles:
 service_env_projections:
   static_gateway:
     service: gateway
-    deployment_targets: [linux-nvidia-static, linux-cpu-static, macos-metal-static]
+    deployment_targets: [linux-nvidia-static, linux-cpu-static, linux-cpu-managed, macos-metal-static]
     required_source_keys:
       - APP_ENV
       - MAIN_MODEL_BASE_URL
@@ -140,7 +140,7 @@ service_env_projections:
 
   static_risk_signal_service:
     service: risk_signal_service
-    deployment_targets: [linux-nvidia-static, linux-cpu-static, macos-metal-static]
+    deployment_targets: [linux-nvidia-static, linux-cpu-static, linux-cpu-managed, macos-metal-static]
     required_source_keys:
       - APP_ENV
       - MAIN_MODEL_STATIC_PROFILE

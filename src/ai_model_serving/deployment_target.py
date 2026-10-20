@@ -20,7 +20,7 @@ KNOWN_FEATURES = frozenset(
         "gpu_admission",
     }
 )
-_CONTROL_MODES = frozenset({"runtime_controller", "static"})
+_CONTROL_MODES = frozenset({"runtime_controller", "static", "managed_cpu"})
 _LIFECYCLE_OWNERS = frozenset({"platform", "external"})
 _TARGET_FIELDS = frozenset(
     {
@@ -60,6 +60,11 @@ class DeploymentTarget:
 
     def supports(self, feature: str) -> bool:
         return feature in self.features
+
+    @property
+    def static_serving(self) -> bool:
+        """Gateway의 고정 endpoint 여부. Runtime 관리 권한과 독립된 개념이다."""
+        return self.control_mode in ("static", "managed_cpu")
 
     @property
     def controllable(self) -> bool:
@@ -141,7 +146,7 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
     # 읽는다. dynamic 진입점은 override를 실행 시점에 조합하므로 이 값을 쓰지 않는다.
     # 읽는 곳이 없는 선언을 남기지 않도록 static target에서만 요구한다.
     raw_compose_files = raw.get("compose_files")
-    if control_mode == "static":
+    if control_mode in ("static", "managed_cpu"):
         if not isinstance(raw_compose_files, list) or not raw_compose_files:
             raise RuntimeError(
                 f"static deployment target {selected!r} requires a non-empty compose_files list"
@@ -169,12 +174,14 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
             raise RuntimeError(
                 f"deployment target {selected!r} gateway_runtime_host must be a host name"
             )
-        if control_mode != "static":
+        if control_mode not in ("static", "managed_cpu"):
             raise RuntimeError(
                 f"deployment target {selected!r} gateway_runtime_host is only valid for static targets"
             )
 
-    expected_owner = "platform" if control_mode == "runtime_controller" else "external"
+    expected_owner = "platform" if control_mode in ("runtime_controller", "managed_cpu") else "external"
+    if control_mode == "managed_cpu" and (runtime_backend != "llama-cpp" or platform != "linux"):
+        raise RuntimeError("managed_cpu requires linux and llama-cpp backend")
     if lifecycle_owner != expected_owner:
         raise RuntimeError(
             f"deployment target {selected!r} control_mode={control_mode!r} requires "
@@ -202,7 +209,7 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
             f"deployment target {selected!r} must enable or disable runtime_control, "
             "model_switching, and gpu_admission together"
         )
-    if control_mode == "static" and ({"runtime_control", "model_switching", "gpu_admission"} & features):
+    if control_mode in ("static", "managed_cpu") and ({"runtime_control", "model_switching", "gpu_admission"} & features):
         raise RuntimeError(f"static deployment target {selected!r} cannot enable lifecycle control features")
 
     return DeploymentTarget(

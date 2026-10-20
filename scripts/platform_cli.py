@@ -130,7 +130,7 @@ def first_run_guidance() -> str:
         notes: list[str] = []
         if target.qualification_status != "verified":
             notes.append(target.qualification_status)
-        if target.control_mode == "static" and target.supports("chat") and not target.gateway_runtime_host:
+        if target.static_serving and target.supports("chat") and not target.gateway_runtime_host:
             notes.append("also needs MAIN_URL=http(s)://<main-runtime>")
         if suggestion is not None and suggestion[0] == target_id:
             notes.append(f"suggested: {suggestion[1]}")
@@ -142,7 +142,7 @@ def first_run_guidance() -> str:
 
 
 def _main_profile(target: DeploymentTarget, values: dict[str, str]) -> str:
-    key = "MAIN_MODEL_STATIC_PROFILE" if target.control_mode == "static" else "MAIN_MODEL_BOOT_PROFILE"
+    key = "MAIN_MODEL_STATIC_PROFILE" if target.static_serving else "MAIN_MODEL_BOOT_PROFILE"
     profile = values.get(key, "")
     if not profile:
         raise RuntimeError(f"{key} is missing from .env; rerun make up for target {target.target_id}")
@@ -258,7 +258,7 @@ def setup_target(
             command += ["--main-model-base-url", main_base_url]
         if access_profile:
             command += ["--access-profile", access_profile]
-        if target.control_mode == "static" and target.supports("chat") and not target.gateway_runtime_host and not main_base_url:
+        if target.static_serving and target.supports("chat") and not target.gateway_runtime_host and not main_base_url:
             raise RuntimeError(
                 f"static target {target.target_id!r} needs MAIN_URL=http(s)://... on first make up"
             )
@@ -429,6 +429,9 @@ def prepare_target(target: DeploymentTarget) -> None:
             "scripts/runtime/macos_mlx_runtime.py",
             "prepare",
         )
+    elif target.control_mode == "managed_cpu":
+        _run_step("Preparing pinned CPU GGUF model",
+            sys.executable, "scripts/models/prepare_cpu_model.py")
     elif target.controllable:
         profile = _main_profile(target, values)
         _run_step(
@@ -472,7 +475,7 @@ def up_target(target: DeploymentTarget) -> None:
         )
         metal_started_here = status.returncode != 0
     try:
-        if target.control_mode == "static":
+        if target.static_serving:
             process_env = {**os.environ, "DEPLOYMENT_TARGET": target.target_id}
             _run_step(
                 "Starting platform services",
@@ -552,7 +555,7 @@ def down_target(target: DeploymentTarget) -> None:
         return
     compose_error: subprocess.CalledProcessError | None = None
     try:
-        if target.control_mode == "static":
+        if target.static_serving:
             process_env = {**os.environ, "DEPLOYMENT_TARGET": target.target_id}
             _run_step(
                 "Stopping platform services",

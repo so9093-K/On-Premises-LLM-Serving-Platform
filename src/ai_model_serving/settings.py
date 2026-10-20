@@ -41,7 +41,7 @@ def _static_main_engine_projection(
     resource_variant: str | None,
 ) -> tuple[dict[str, Any], str | None]:
     """Resolve capacity-relevant engine policy for externally managed static Main runtimes."""
-    if deployment_target.control_mode != "static" or not deployment_target.supports("chat"):
+    if not deployment_target.static_serving or not deployment_target.supports("chat"):
         return {}, None
 
     if deployment_target.runtime_backend == "vllm-cuda":
@@ -332,7 +332,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             raise RuntimeError("deployment target main_profile_catalog escapes the project root") from exc
         main_model_catalog = load_main_serving_catalog(main_catalog_path)
         selected_main_profile = main_model_catalog.default_profile
-        if deployment_target.control_mode == "static":
+        if deployment_target.static_serving:
             static_main_profile = _env("MAIN_MODEL_STATIC_PROFILE", "").strip()
             if not static_main_profile:
                 raise RuntimeError("MAIN_MODEL_STATIC_PROFILE is required for a static deployment target")
@@ -433,7 +433,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         main_model_catalog.profiles[selected_main_profile].gateway_policy
         if main_model_catalog is not None else {}
     )
-    if deployment_target.control_mode == "static" and "max_concurrency" in selected_gateway_policy:
+    if deployment_target.static_serving and "max_concurrency" in selected_gateway_policy:
         max_concurrency = int(selected_gateway_policy["max_concurrency"])
         if max_concurrency < 1:
             raise RuntimeError("static main profile max_concurrency must be at least 1")

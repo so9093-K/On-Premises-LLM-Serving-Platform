@@ -100,7 +100,7 @@ def deployment_target_values(target_id: str, main_profile: str | None = None) ->
             f"allowed: {allowed}"
         )
     values = {"DEPLOYMENT_TARGET": target.target_id}
-    if target.control_mode == "static":
+    if target.static_serving:
         values["MAIN_MODEL_STATIC_PROFILE"] = selected_profile
     else:
         values["MAIN_MODEL_BOOT_PROFILE"] = selected_profile
@@ -131,7 +131,7 @@ def sync_deployment_target(
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", target_id)
     profile_key = (
         "MAIN_MODEL_STATIC_PROFILE"
-        if target.control_mode == "static"
+        if target.static_serving
         else "MAIN_MODEL_BOOT_PROFILE"
     )
     if not target.supports("chat"):

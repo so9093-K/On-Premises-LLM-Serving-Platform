@@ -14,6 +14,12 @@ images:
       해당 patch가 동작하지 않는다. 2026-07-24에 기존 vllm-gemma4-audio와 risk-vllm-kanana
       이미지를 통합했다.
     source: ops/images/vllm-unified/Dockerfile을 사용하는 로컬 Docker 빌드
+  llama_cpp:
+    env_key: LLAMA_CPP_IMAGE
+    reference_policy: immutable_upstream
+    default: ghcr.io/ggml-org/llama.cpp:server-b10454@sha256:2244d2b223b49912c7e0c31b4a3654e5e62cf19899f1f36ad30e785eac171a31
+    purpose: GPU가 없어도 실행 가능한 CPU-only GGUF Runtime 이미지.
+    source: ggml-org llama.cpp 공식 GHCR의 고정 다중 아키텍처 digest
   dcgm_exporter:
     env_key: DCGM_EXPORTER_IMAGE
     reference_policy: immutable_upstream
