@@ -286,9 +286,9 @@ def build_router(
         operation_id=_s.operation_id,
         description=_s.description,
         responses={
-            401: {"description": "API Bearer token 필요"},
+            401: {"description": "사용자 API 키 필요"},
             503: {
-                "description": "메인 모델 전환 중, control plane 불가, 또는 upstream 동시성/circuit breaker로 인한 일시적 admission 거부(error.code: MAIN_MODEL_SWITCH_IN_PROGRESS, MAIN_MODEL_CONTROL_UNAVAILABLE, QUEUE_TIMEOUT, CIRCUIT_OPEN)",
+                "description": "모델 전환·제어 서비스 장애·요청 대기 시간 초과·일시 차단으로 요청을 처리할 수 없습니다.",
                 "headers": {
                     "Retry-After": {
                         "description": "재시도 전 대기 시간(초)",
@@ -363,9 +363,9 @@ def build_router(
         operation_id=_s.operation_id,
         description=_s.description,
         responses={
-            401: {"description": "API Bearer token 필요"},
+            401: {"description": "사용자 API 키 필요"},
             503: {
-                "description": "메인 모델 전환 중, control plane 불가, 또는 upstream admission 거부",
+                "description": "모델 전환·제어 서비스 장애·요청 제한으로 요청을 처리할 수 없습니다.",
                 "headers": {
                     "Retry-After": {
                         "description": "재시도 전 대기 시간(초)",
@@ -431,7 +431,7 @@ def build_router(
         summary=_s.summary,
         operation_id=_s.operation_id,
         description=_s.description,
-        responses={401: {"description": "API Bearer token 필요"}},
+        responses={401: {"description": "사용자 API 키 필요"}},
     )
     async def embeddings(
         request: Request,

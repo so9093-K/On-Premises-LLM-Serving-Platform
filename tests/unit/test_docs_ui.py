@@ -9,8 +9,12 @@ def test_scalar_config_is_explicitly_on_prem() -> None:
     config = json.loads(SCALAR_CONFIG)
 
     assert config["agent"] == {"disabled": True}
+    assert config["mcp"] == {"disabled": True}
     assert config["telemetry"] is False
     assert config["withDefaultFonts"] is False
+    assert config["showDeveloperTools"] == "never"
+    assert config["hideClientButton"] is True
+    assert config["persistAuth"] is False
     assert config["modelsSectionLabel"] == "Schemas"
 
 

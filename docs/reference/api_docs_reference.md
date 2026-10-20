@@ -1,72 +1,64 @@
-# API 문서 화면 Reference
+# API 문서 화면
 
-이 문서는 Gateway와 Risk Signal Service가 제공하는 API 문서 화면의 현재 동작과 운영 경계를 설명한다. 요청·응답 계약과 호출 예시는 [API 인터페이스](./api_reference.md)를 기준으로 한다.
+Gateway와 Risk Signal Service의 `/docs`는 Scalar API 문서 화면입니다.
+API 연동 절차는 [API 연동 가이드](../guides/api-integration.md), 상세 계약은 [API 인터페이스](api_reference.md)를 참고하세요.
 
-## 제공 경로
+## 접속과 호출
 
-| 서비스 | Scalar | OpenAPI JSON |
-|---|---|---|
-| Gateway | `:9400/docs` | `:9400/openapi.json` |
-| Risk Signal Service | `:9405/docs` | `:9405/openapi.json` |
+| 서비스 | 문서 화면 | OpenAPI JSON | 인증이 활성화된 경우 |
+|---|---|---|---|
+| Gateway | `:9400/docs` | `:9400/openapi.json` | 사용자 API 키 또는 관리자 API 키 |
+| Risk Signal Service | `:9405/docs` | `:9405/openapi.json` | 탐지 API: 내부 서비스 토큰, `/ready`·`/metrics`: 관리자 API 키 |
 
-`/docs`는 Scalar UI다. 문서 화면은 인증을 우회하지 않는다. Gateway의 사용자 API는 API token, admin endpoint는 admin token, Risk Signal Service 직접 호출은 internal service token이 필요하다.
+1. Gateway의 `Models`에서 공개 모델과 지원 기능을 확인합니다. 모델 목록에 있어도 런타임은 중지 상태일 수 있습니다.
+2. 사용할 API에서 요청 예시를 선택합니다. `Chat`과 `Responses`는 기본 호출·스트리밍·도구 호출·구조화 출력 예시를 제공합니다.
+3. 인증이 활성화돼 있으면 요청 창에서 해당 인증 항목을 선택합니다. 사용자 API 키와 관리자 API 키는 서로 대체할 수 없습니다.
+4. **Test Request**로 호출하고 상태 코드·응답 본문을 확인합니다. 스트리밍은 오류 이벤트와 종료 이벤트까지 확인합니다.
 
-## 계약 정렬
+cURL과 일반 HTTP 클라이언트 샘플은 선택한 요청 예시로 생성됩니다. 별도로 제공되는 OpenAI Python·JavaScript SDK 샘플은 기본 요청 예시를 사용합니다.
+예시의 샘플링 값은 Gateway 기본값과 다를 수 있습니다. 지원 기능과 한도의 최신 값은 `GET /v1/models`, 운영자용 상세 정책은
+`GET /admin/main-model`의 `active_profile.gateway_policy`에서 확인하세요.
 
-FastAPI route는 플랫폼 자체 validator와 오류 매핑을 적용한다. 따라서 자동 생성 OpenAPI의 느슨한 `object` schema를 사용하지 않는다.
+## 화면과 용어
 
-- `specs/schemas/*.json`은 request/response body의 단일 계약이다.
-- `src/ai_model_serving/openapi_contracts.py`가 같은 schema와 operation-level code sample을 생성 OpenAPI에 주입한다.
-- `src/ai_model_serving/api_examples.py`가 request example payload를 소유하고, `api_code_samples.py`는 그 canonical payload에서 OpenAI SDK sample을 만든다.
-- `specs/openapi.gateway.yaml`, `specs/openapi.risk-signal-service.yaml`은 runtime route와
-  endpoint metadata에서 생성한 배포 가능한 정적 OpenAPI다.
-- `make validate`는 runtime OpenAPI와 정적 산출물의 path, method, operation ID,
-  인증, response status, endpoint별 오류 code, request/response schema drift를 검사한다.
+Gateway의 탐색 순서는 모델 조회 → 응답 생성 → 임베딩·검색·위험 탐지 → 런타임 관리 → 운영·지표입니다.
 
-따라서 route-local inline schema를 별도로 추가하지 않는다.
+- API 제목·요청 예시·설명은 한국어를 기본으로 합니다.
+- `Chat Completions`, `Responses`, `SSE`, `JSON Schema` 등 규격 이름과 경로·필드명·상태 값은 원래 표기를 유지합니다.
+- `Runtime Control`의 GPU 정책 예약 비율과 실측 GPU 메모리 사용량은 구분합니다.
+- 메인 모델 전환의 `status`는 작업 상태·결과, `stage`는 진행 단계 또는 실패 지점입니다.
+- OpenAPI 자료형 목록은 플랫폼 모델 목록(`Models`)과 구분해 `Schemas`로 표시합니다.
+- 긴 표와 코드 블록은 해당 영역 안에서 가로로 스크롤합니다.
 
-## 화면 구성
+문서에는 호출 방법·제약·결과 확인에 필요한 설명을 둡니다. 구현 과정·검토 메모·변경 이력과 장문의 운영 절차는 별도 문서에서 관리합니다.
 
-Gateway 문서 화면은 네 곳에 나눠 설명을 싣는다. 태그 설명의 표와 숫자는 손으로 적지 않고 `AppSettings`에서 생성한다(`src/ai_model_serving/api_descriptions.py`). 같은 값이 `/v1/models` 응답과 요청 검증에도 쓰이므로 configs를 고치면 문서가 함께 따라온다.
+## 문서 생성 위치
 
-| 위치 | 내용 | 출처 |
-|---|---|---|
-| 첫 화면(`info.description`) | 빠른 시작, 인증, **요청별 디버깅**(추적 헤더·오류 본문 필드·증상별 확인 순서), readiness | 고정 문안 |
-| `Models` 태그 | 모델별 backend·입력 modality·capability·파라미터 개수, `local-main` 프로필 목록과 호환성 | `settings.public_models`, `settings.main_model_profile_summaries` |
-| `Chat` / `Responses` operation | 파라미터 한도, request example selector, streaming·tools·structured output·reasoning 사용 예시 | profile `gateway_policy`, `api_examples.py` |
-| `Runtime Control` 태그 | 함대 제어 모델, GPU 예산, gate 의미, 전환 작업 stage 표 | 고정 문안 + `main_model.control.OPERATION_STAGES` |
+| 내용 | 소스 |
+|---|---|
+| API 제목·기본 설명·태그 | `src/ai_model_serving/api/endpoint_spec.py` |
+| 첫 화면·태그 설명·설정별 한도 | `src/ai_model_serving/api_descriptions.py` |
+| 요청·응답 스키마 | `specs/schemas/*.json` |
+| 요청 예시 | `src/ai_model_serving/api_examples.py` |
+| 기본 요청에서 생성하는 SDK 샘플 | `src/ai_model_serving/api_code_samples.py` |
+| 상태별 오류 의미 | `configs/error_catalog.yaml` |
+| OpenAPI 조합·오류 코드별 응답 | `src/ai_model_serving/openapi_contracts.py` |
+| Scalar 설정·번들 버전·SRI 해시 | `src/ai_model_serving/docs_ui.py` |
 
-태그 설명의 값은 **기본 프로필** 기준이다. 실행 시점 권위는 사용자에게는 `GET /v1/models`, 운영자에게는 `GET /admin/main-model`의 `active_profile.gateway_policy`다.
+`specs/openapi.gateway.yaml`과 `specs/openapi.risk-signal-service.yaml`은 생성 산출물입니다.
+소스를 수정한 뒤 `make render-runtime-assets`로 갱신하고 `make validate`로 일치 여부를 확인합니다.
+모델·한도는 `AppSettings`에서, 오류 상태·재시도 가능 여부는 실제 오류 정의에서 생성합니다.
+화면 설명을 고치기 위해 요청·응답 계약을 별도로 복사하지 않습니다.
 
-각 route의 summary·description은 `src/ai_model_serving/api/endpoint_spec.py`가 단일 출처이며, router는 그 값을 읽어 붙인다. status별 오류 code 설명은 `configs/error_catalog.yaml`에서 주입된다.
+## 활성화와 네트워크
 
-## 요청 예시와 코드 샘플
+`FASTAPI_DOCS_ENABLED=false`이면 `/docs`와 `/openapi.json`이 비활성화됩니다.
+문서 화면의 공개 여부와 API 호출 권한은 별개입니다. API 호출은 배포의 사용자·관리자·내부 서비스 인증 설정을 따릅니다.
 
-`POST /v1/chat/completions`와 `POST /v1/responses`는 OpenAPI `requestBody.examples`를 사용한다. Scalar는 이 named example을 request example selector와 Test Request에 그대로 사용한다. 예시는 Quick start, Common, Structured output, Tools, Reasoning, Multimodal, Diagnostics처럼 작업 목적이 summary에 드러나도록 표현한다.
+Scalar JS는 애플리케이션에 포함된 번들을 같은 출처에서 제공합니다. 외부 CDN 없이 열리며 브라우저는 SRI 해시를 검증합니다.
+Agent·MCP 연결·개발용 도구 모음·외부 Client 연결 버튼·텔레메트리·외부 폰트는 비활성화합니다.
+API 인증 정보는 로컬 저장소에 영구 보관하지 않습니다(`persistAuth: false`).
 
-코드 picker는 두 층으로 구성한다. cURL과 일반 HTTP client 코드는 Scalar가 현재 선택한 request example에서 생성하고, OpenAI SDK 사용법은 operation의 `x-codeSamples`로 추가한다. Python/JavaScript SDK sample의 request body는 별도 복사본이 아니라 `api_examples.py`의 `basic` example에서 생성한다. 따라서 public model alias나 기본 요청 구조가 바뀌면 request example과 SDK sample이 함께 바뀐다.
-
-`make validate`는 생성 OpenAPI와 checked-in OpenAPI의 drift를 검증하고, unit test는 Generation 문서 예제가 public JSON Schema에 유효한지 확인한다. profile별로 조건부인 multimodal/reasoning capability의 실행 시점 권위는 계속 `GET /v1/models`와 runtime validator다.
-
-## 문서 화면의 역할
-
-문서 화면은 API contract를 탐색하고 인증된 호출을 확인하는 용도다. 모델별 form UI나 별도 playground의 대체물이 아니다.
-
-- 사용자 조정 가능 parameter는 `/v1/models`의 `request_parameters`를 기준으로 표시한다.
-- runtime 하이퍼파라미터(GPU memory, model length, concurrency, quantization)는 운영자 설정이며 사용자 UI에 노출하지 않는다.
-- 모델별 request form이 필요하면 model ID·capability·`request_parameters`를 `/v1/models`에서 읽어 구성한다.
-- UI의 예시 sampling 값은 client preset일 뿐 Gateway 기본값을 의미하지 않는다.
-
-권장 parameter group은 Basic generation, Advanced sampling, Streaming, Tools, Structured Outputs, Diagnostics, Token control, Multimodal input이다.
-
-## 활성화·네트워크 정책
-
-`FASTAPI_DOCS_ENABLED=false`일 때만 `/docs`, `/openapi.json`을 비활성화한다. 기본값은 활성화다.
-
-문서 화면을 공개해도 API 호출 권한이 생기지는 않는다. 외부 인터넷에 노출하는 환경에서는 API 인증 외에 VPN, allowlist, SSO proxy 같은 ingress 경계를 별도로 둔다.
-
-Scalar asset은 self-host 한다. 번들(`src/ai_model_serving/static/`)이 애플리케이션 패키지에 함께 실려 `/static/scalar-api-reference-<version>.js`로 같은 origin에서 나가므로, air-gapped 망이나 외부 CDN을 막은 환경에서도 `/docs`가 그대로 뜬다. 페이지는 same-origin 응답에도 `integrity` 속성을 유지하므로 번들이 손상되면 브라우저가 실행하지 않는다.
-
-Self-host JS와 런타임 네트워크 정책은 별개다. `SCALAR_CONFIG`는 Agent를 명시적으로 비활성화하고, telemetry와 Scalar default web font를 끈다. 따라서 localhost에서도 Agent가 문서를 외부 서비스로 업로드하지 않고 `fonts.scalar.com`을 요청하지 않는다. OpenAPI `components.schemas` section은 플랫폼의 Models 개념과 구분되도록 `Schemas`로 표시한다. 이 설정은 API의 `Models` tag 이름이나 OpenAPI 계약을 바꾸지 않는다.
-
-버전과 SRI 해시는 `ai_model_serving/docs_ui.py`가 단독으로 선언한다. 올릴 때는 그 값을 바꾸고 `python scripts/build/fetch_docs_assets.py`를 돌린다. 선언된 해시와 다른 번들은 받아도 기록하지 않는다. `make validate`는 네트워크 없이 vendoring 파일의 해시만 확인한다.
+번들 갱신 시 `docs_ui.py`의 버전·해시를 수정하고 `python scripts/build/fetch_docs_assets.py`로 다운로드합니다.
+`make validate`는 네트워크 없이 로컬 번들의 해시를 검사합니다.
+설정 항목은 [Scalar 공식 설정 문서](https://scalar.com/products/api-references/configuration)를 참고하세요.

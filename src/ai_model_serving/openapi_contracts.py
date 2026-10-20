@@ -22,17 +22,17 @@ STANDARD_ERROR_DESCRIPTIONS: dict[str, str] = {
     "401": "인증 실패",
     "403": "권한 없음",
     "404": "리소스를 찾을 수 없음",
-    "405": "지원하지 않는 HTTP method",
+    "405": "지원하지 않는 HTTP 메서드",
     "409": "현재 상태 또는 리소스와 충돌",
-    "412": "사전 조건 또는 revision 불일치",
-    "413": "요청 body가 너무 큼",
+    "412": "사전 조건 또는 리비전 불일치",
+    "413": "요청 본문 크기 초과",
     "422": "요청 검증 실패",
     "428": "필수 사전 조건 누락",
-    "429": "Upstream rate limit",
+    "429": "의존 서비스 요청 제한",
     "500": "내부 서버 오류",
-    "502": "Upstream 오류 또는 유효하지 않은 upstream 응답",
-    "503": "Runtime 또는 dependency를 사용할 수 없음",
-    "504": "Upstream timeout",
+    "502": "의존 서비스 오류 또는 유효하지 않은 응답",
+    "503": "런타임 또는 의존 서비스를 사용할 수 없음",
+    "504": "의존 서비스 응답 시간 초과",
 }
 
 
@@ -68,7 +68,7 @@ def _error_code_gloss(codes: list[str], catalog: dict[str, dict[str, Any]]) -> s
         # 하면서 문서는 반대로 적는 상태가 된다. 이제 양쪽 모두 여기 한 곳을 읽는다.
         retry = "재시도 가능" if ERROR_RETRYABLE.get(code) else "재시도 불가"
         lines.append(f"- `{code}` — {meaning} ({retry})" if meaning else f"- `{code}` ({retry})")
-    return "\n\n이 status로 올 수 있는 `error.code`:\n" + "\n".join(lines)
+    return "\n\n오류 코드 (`error.code`):\n" + "\n".join(lines)
 
 
 def _narrowed_error_schema(
@@ -110,6 +110,8 @@ def _inject_standard_error_responses(
     catalog = _load_error_catalog()
 
     def with_gloss(status: str, codes: list[str], existing: str | None) -> str:
+        if existing == "Validation Error":
+            existing = None
         base = existing or STANDARD_ERROR_DESCRIPTIONS[status]
         return base + _error_code_gloss(codes, catalog) if codes else base
 
@@ -411,6 +413,13 @@ def install_contract_openapi(
         try:
             document = original_openapi()
             paths = document.setdefault("paths", {})
+            for path_item in paths.values():
+                for operation in path_item.values():
+                    if not isinstance(operation, dict):
+                        continue
+                    for response in operation.get("responses", {}).values():
+                        if response.get("description") == "Successful Response":
+                            response["description"] = "성공 응답"
             # 설정에서 생성한 상세 설명을 해당 오퍼레이션에 붙인다. 엔드포인트가 하나뿐인
             # 태그(Chat/Models/Embeddings)는 이 내용이 태그 설명에 있었는데, 태그와
             # 오퍼레이션이 사실상 같은 것이라 나눌 이유가 없었고 무거운 쪽이 접혔다.
@@ -445,9 +454,9 @@ def install_contract_openapi(
                 responses = operation.setdefault("responses", {})
                 response = responses.setdefault("200", {"description": "성공 응답"})
                 if path == "/v1/chat/completions" and method.upper() == "POST":
-                    response["description"] = "Main LLM runtime에서 반환한 OpenAI 호환 chat completion 응답. stream=true일 때는 text/event-stream SSE 응답을 반환한다."
+                    response["description"] = "OpenAI 호환 대화 응답. `stream: true`이면 `text/event-stream` 형식의 SSE 응답을 반환합니다."
                 if path == "/v1/responses" and method.upper() == "POST":
-                    response["description"] = "Main LLM runtime의 OpenAI Responses 호환 응답. stream=true일 때 typed response.* event를 text/event-stream으로 반환한다."
+                    response["description"] = "OpenAI Responses 호환 응답. `stream: true`이면 `response.*` 이벤트를 SSE로 반환합니다."
                 content = response.setdefault("content", {}).setdefault("application/json", {})
                 content["schema"] = schema_for(schema_name)
                 if path in {"/v1/chat/completions", "/v1/responses"} and method.upper() == "POST":

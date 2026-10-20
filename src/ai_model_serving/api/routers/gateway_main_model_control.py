@@ -76,7 +76,7 @@ _OPERATION_RESPONSE_EXAMPLES = {
         },
     },
     "failed": {
-        "summary": "실패 후 이전 프로필로 rollback",
+        "summary": "실패 후 이전 프로필 복구",
         "value": {
             "id": _OPERATION_ID_EXAMPLE,
             "requested_profile": _DEFAULT_PROFILE_ID,
@@ -188,15 +188,15 @@ def build_router(
                 "content": {
                     "application/json": {"examples": {
                         "active": {
-                            "summary": "서비스 가능 (gate open, Docker health healthy)",
+                            "summary": "서비스 준비 완료",
                             "value": _MAIN_MODEL_STATUS_EXAMPLE,
                         },
                         "stopped": {
-                            "summary": "정지됨 (VRAM 회수, gate closed)",
+                            "summary": "중지됨",
                             "value": {**_MAIN_MODEL_STATUS_EXAMPLE, "gate": "closed", "runtime_state": "stopped", "observed_runtime": {"status": "stopped", "container_state": "exited", "health": None, "profile_id": _DEFAULT_PROFILE_ID, "image_ref": PLACEHOLDER_RUNTIME_IMAGE, "image_id": "sha256:" + "1" * 64, "image_digest": PLACEHOLDER_RUNTIME_IMAGE.split("@", 1)[1], "runtime_engine": _VLLM_ENGINE_EXAMPLE, "error": None, "observed_at": 1782086258.2}},
                         },
                         "switch_in_progress": {
-                            "summary": "전환 중 (gate closed, 작업 진행)",
+                            "summary": "전환 중",
                             "value": {
                                 **_MAIN_MODEL_STATUS_EXAMPLE,
                                 "gate": "closed",

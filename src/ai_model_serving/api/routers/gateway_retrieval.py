@@ -48,7 +48,7 @@ def build_router(
         summary=_s.summary,
         operation_id=_s.operation_id,
         description=_s.description,
-        responses={401: {"description": "API Bearer token 필요"}},
+        responses={401: {"description": "사용자 API 키 필요"}},
     )
     async def retrieval_rerank(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         await _ensure_retrieval_runtime_available(payload, settings, state_store)
@@ -63,7 +63,7 @@ def build_router(
         summary=_s.summary,
         operation_id=_s.operation_id,
         description=_s.description,
-        responses={401: {"description": "API Bearer token 필요"}},
+        responses={401: {"description": "사용자 API 키 필요"}},
     )
     async def retrieval_score(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         await _ensure_retrieval_runtime_available(payload, settings, state_store)
