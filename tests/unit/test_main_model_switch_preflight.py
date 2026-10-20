@@ -10,10 +10,11 @@ from ai_model_serving.gpu_budget import Participant
 from ai_model_serving.main_model.switch_preflight import project_switch_preflight
 
 
-def _preflight(*, fraction: float, participants: list[Participant] | None, blocked: str | None = None, active: bool = False):
+def _preflight(*, fraction: float, participants: list[Participant] | None, blocked: str | None = None, active: bool = False, switching: bool = False):
     return project_switch_preflight(
         active=active,
         policy_error_code=blocked,
+        switch_in_progress=switching,
         participants=participants,
         target_key="main",
         target_fraction=fraction,
@@ -52,6 +53,39 @@ def test_policy_block_and_observation_failure_never_return_fits():
     assert missing["status"] == "unknown"
     assert missing["available_fraction"] is None
     assert _preflight(fraction=.76, participants=None, active=True)["status"] == "current"
+    switching = _preflight(fraction=.76, participants=[], switching=True)
+    assert switching["status"] == "blocked"
+    assert switching["reason_code"] == "MODEL_SWITCH_IN_PROGRESS"
+
+
+def test_profiles_endpoint_blocks_candidates_during_running_operation(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAIN_MODEL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "")
+    monkeypatch.setenv("COMPOSE_PROJECT", "test-platform")
+    app = create_runtime_controller_app()
+    controller = app.state.controller
+    monkeypatch.setattr(controller._main_model_manager, "switch_in_progress", lambda: True)
+
+    class MustNotObserve:
+        async def status(self, _service):
+            raise AssertionError("진행 중인 전환 동안 Docker 예산을 새로 조회하면 안 된다")
+
+    monkeypatch.setattr(controller, "_executor", lambda: MustNotObserve())
+
+    async def fetch_profiles():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test",
+        ) as client:
+            return await client.get("/main-model/profiles")
+
+    response = asyncio.run(fetch_profiles())
+    assert response.status_code == 200
+    profiles = response.json()["profiles"]
+    for profile in profiles:
+        if not profile["active"] and profile["compatibility"]["status"] != "incompatible":
+            result = profile["switch_preflight"]
+            assert result["status"] == "blocked"
+            assert result["reason_code"] == "MODEL_SWITCH_IN_PROGRESS"
 
 
 def test_profiles_endpoint_reports_gpu_observation_failure_without_allowing_switch(
