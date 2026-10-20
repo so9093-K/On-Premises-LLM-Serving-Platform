@@ -16,6 +16,7 @@ import { trafficTiles, trafficWindowLabel, type TrafficTone } from './trafficSum
 import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
 import {
   accessProfileLabel,
+  accessReachabilityHint,
   CAPABILITY_KEYS,
   capabilityPresentation,
   controlModeLabel,
@@ -308,6 +309,18 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               </a>
             ) : null}
           </div>
+        </CardBody>
+      </Card>
+
+      <Card className="overview-access-card">
+        <CardTitle>접속 안내</CardTitle>
+        <CardBody>
+          <p>{accessReachabilityHint(bootstrap.access.profile)}</p>
+          <p className="overview-muted">
+            현재 Control Plane 접속 성공은 다른 기기에서의 접근이나 Tailnet 권한 검증을 의미하지 않습니다.
+            서버에서 <code>make access PURPOSE=personal</code>로 개인 접속 절차를,
+            <code>make access PURPOSE=team</code>으로 팀원 API 공유 절차를 확인하세요.
+          </p>
         </CardBody>
       </Card>
 
