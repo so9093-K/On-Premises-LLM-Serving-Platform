@@ -103,15 +103,6 @@ export function accessProfileLabel(profile: string): string {
   return labels[profile] ?? profile;
 }
 
-export function accessReachabilityHint(profile: string): string {
-  switch (profile) {
-    case 'local': return '이 서버의 로컬 주소로만 접속하도록 구성되어 있습니다.';
-    case 'private': return '사설망/LAN 접근 정책입니다. 다른 기기에서의 연결은 별도로 확인해야 합니다.';
-    case 'edge': return '서버의 Gateway는 Loopback에 유지됩니다. 원격 접속에는 별도의 TLS Proxy와 Tailnet 접근 정책이 필요합니다.';
-    default: return '사용자 지정 접근 정책입니다. 실제 네트워크 노출과 인증 상태는 서버에서 확인해야 합니다.';
-  }
-}
-
 export function yesNoLabel(value: boolean): string {
   return value ? '예' : '아니요';
 }
