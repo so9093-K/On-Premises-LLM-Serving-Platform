@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- 운영 원격 접속을 개인 관리자·팀원 API 목적별 `make access PURPOSE=personal|team` 읽기 전용 계획과 `make access-status` 진단으로 분리한다. `make status`·Control Plane에서도 로컬 플랫폼 준비와 외부 접근 검증을 구분한다. 기존 Access/Auth 정책, Tailscale Grants 및 Nginx 운영 권한은 그대로 유지한다.
+- 원격 접속 안내를 외부 관리자(브라우저·Admin Key), 외부 API 사용자(HTTPS 8443·API Key), 서버 운영자(Tailscale·Grants·Nginx 구성) 역할별 경로로 정리했다. 외부 사용자는 저장소나 `make` 없이 이용하고 서버 운영용 `make up/status` 계약과 비공개 Tailnet 권한 경계는 그대로 유지한다.
+
+### Added
 
 
 - 독립된 AIPerf 0.13.0 환경과 공통 Streaming Chat Workload로 수동 성능 측정을 제공한다. macOS 초기 실측과 Ubuntu/NVIDIA의 단일·긴 입력·동시 요청·Admission 한도 초과 Queue 실험은 장비별 조건과 서버 토큰 수로 해석한다. AIPerf 완료 표시와 SSE 무결성을 구분하고, 공개 합성 입력의 native RAW 진단으로 종료·usage를 확인한다. 일반 CI·Qualification·성능 Gate와 분리한다. ([ADR-0052](docs/adr/0052-manual-aiperf-measurement.md))
