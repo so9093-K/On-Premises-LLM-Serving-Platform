@@ -256,10 +256,6 @@ def main() -> int:
         for path, expected in drifts:
             relative = str(path.relative_to(root))
             print(f"  {relative}", file=sys.stderr)
-            if relative == "specs/openapi.gateway.yaml":
-                # 임시 CI 생성물 회수: 최종 변경에서는 삭제한다.
-                for offset in range(0, len(expected), 5000):
-                    print(f"ARTGEN_OPENAPI:{offset // 5000}:" + json.dumps(expected[offset:offset + 5000], ensure_ascii=True), file=sys.stderr)
             actual = path.read_text(encoding="utf-8") if path.exists() else ""
             diff = list(
                 difflib.unified_diff(
