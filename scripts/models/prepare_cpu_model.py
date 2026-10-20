@@ -49,17 +49,20 @@ def prepare() -> Path:
         raise RuntimeError("CPU model revision must be a full immutable SHA")
     if len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
         raise RuntimeError("CPU model checksum must be SHA-256")
-    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-    output = OUTPUT_ROOT / filename
-    if output.is_file() and not output.is_symlink() and _check_sha256(output, sha256):
-        print(f"[cpu-model] verified cached artifact: {output}")
-        return output
+    # Artifact가 캐시에 있어도 모델 적재에 필요한 RAM은 매번 확인해야 한다.
+    # 과거 버전은 캐시 hit일 때 이 Admission을 우회하여 메모리 부족 Host에서
+    # CPU 런타임을 OOM 상태로 시작할 수 있었다.
     available = available_memory_mib()
     minimum_ram = int(policy["minimum_available_ram_mib"])
     if available is None or available < minimum_ram:
         raise RuntimeError(
             f"CPU RAM admission blocked: available={available}MiB, required={minimum_ram}MiB"
         )
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    output = OUTPUT_ROOT / filename
+    if output.is_file() and not output.is_symlink() and _check_sha256(output, sha256):
+        print(f"[cpu-model] verified cached artifact: {output}")
+        return output
     free = shutil.disk_usage(OUTPUT_ROOT).free // (1024 * 1024)
     minimum_disk = int(policy["minimum_free_disk_mib"])
     if free < minimum_disk:

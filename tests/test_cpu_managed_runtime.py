@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 
 import yaml
+import pytest
 
 from ai_model_serving.deployment_target import load_deployment_target
 from ai_model_serving.serving_profile import load_main_serving_catalog
@@ -64,6 +65,32 @@ def test_cpu_control_mode_is_accepted_in_public_schemas() -> None:
     )
     assert "managed_cpu" in bootstrap["properties"]["deployment"]["properties"]["control_mode"]["enum"]
     assert "managed_cpu" in envelope["properties"]["control_mode"]["enum"]
+
+
+def test_cpu_model_prepare_rechecks_ram_even_with_valid_cache(tmp_path, monkeypatch) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "cpu_artifact_prepare_admission", ROOT / "scripts/models/prepare_cpu_model.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    model = tmp_path / "pinned.gguf"
+    model.write_bytes(b"cached")
+    manifest = tmp_path / "artifact.yaml"
+    manifest.write_text(yaml.safe_dump({
+        "model": {
+            "repo_id": "example/test",
+            "revision": "a" * 40,
+            "filename": model.name,
+            "sha256": hashlib.sha256(b"cached").hexdigest(),
+        },
+        "runtime": {"minimum_available_ram_mib": 4096, "minimum_free_disk_mib": 2048},
+    }), encoding="utf-8")
+    monkeypatch.setattr(module, "MANIFEST", manifest)
+    monkeypatch.setattr(module, "OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(module, "available_memory_mib", lambda: 1024)
+    with pytest.raises(RuntimeError, match="CPU RAM admission blocked"):
+        module.prepare()
 
 
 def test_cpu_model_prepare_checks_cached_bytes(tmp_path) -> None:

@@ -18,6 +18,10 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 고정 Revision과 SHA-256으로 다운로드·검증한 뒤 Cache에 보존한다.
 Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
 적용하고, Runtime은 CPU/GPU 혼합 Offloading을 활성화하지 않는다.
+CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인한다.
+모델 준비 실패 시 선택한 CPU Managed Target이 성공한 것으로 처리되지
+않으며, 기본 서비스를 따로 유지하려면 명시적으로 `linux-core`로
+새로 배포해야 한다. 자동 Fallback은 별도로 구현해야 한다.
 
 ```bash
 make up TARGET=linux-cpu-managed ACCESS=local

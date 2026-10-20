@@ -500,7 +500,10 @@ def up_target(target: DeploymentTarget) -> None:
         else:
             _run_step("Starting platform services", "bash", "scripts/compose/compose_up.sh")
             _run_step("Verifying serving readiness", "bash", "scripts/ops/ready_full.sh")
-        url = _wait_for_gateway(values, "/ready")
+        url = _wait_for_gateway(
+            values, "/ready",
+            timeout=180 if target.control_mode == "managed_cpu" else 60,
+        )
     except (OSError, RuntimeError, subprocess.CalledProcessError):
         if metal_started_here:
             subprocess.run(
