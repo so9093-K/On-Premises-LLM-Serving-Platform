@@ -22,6 +22,7 @@ from ..main_model.catalog import (
     resource_variant_from_mapping,
 )
 from ..main_model.control import MainModelManager, MainModelSwitchError, MainModelRuntimeBackend
+from ..main_model.switch_preflight import project_switch_preflight
 from ..main_model.state import MainModelStateError, MainModelStateStore
 from ..log_target_manifest import build_targets, write_manifest
 from ..docker_scope import (
@@ -606,7 +607,32 @@ def create_runtime_controller_app(
     @app.get("/main-model/profiles")
     async def main_model_profiles(authorization: str | None = Header(default=None)) -> JSONResponse:
         await _require_runtime_controller_token(authorization)
-        return JSONResponse(jsonable_encoder({"profiles": context._main_model_manager.profiles()}))
+        # 정책 판정은 실제 전환 요청과 같은 Manager 검사를 사용한다.
+        # GPU 예산도 기존 Admission을 사용하며 관측 실패를 "여유"로 해석하지 않는다.
+        async with context._budget_lock:
+            profiles = context._main_model_manager.profiles()
+            eligible = [
+                profile for profile in profiles
+                if not profile["active"]
+                and context._main_model_manager.switch_policy_error(profile["id"]) is None
+            ]
+            participants = None
+            if eligible:
+                try:
+                    participants = await _build_participants()
+                except Exception as exc:  # noqa: BLE001 - 실패는 모든 후보에 판단 불가로 투영
+                    _logger.warning("GPU admission preflight observation unavailable: %s", type(exc).__name__)
+            for profile in profiles:
+                policy_error = context._main_model_manager.switch_policy_error(profile["id"])
+                profile["switch_preflight"] = project_switch_preflight(
+                    active=profile["active"],
+                    policy_error_code=policy_error.code if policy_error else None,
+                    participants=participants,
+                    target_key=context._MAIN_SERVICE,
+                    target_fraction=profile["vram_fraction"],
+                    ceiling=context._GPU_BUDGET_CEILING,
+                )
+            return JSONResponse(jsonable_encoder({"profiles": profiles}))
 
 
     @app.post("/main-model/switch", status_code=202)
