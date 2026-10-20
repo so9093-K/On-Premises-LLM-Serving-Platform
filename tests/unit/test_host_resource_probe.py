@@ -8,7 +8,7 @@ from ai_model_serving.host_resource_probe import (
 POLICY = {"startup": {
     "gpu_min_total_vram_mib": 20480,
     "gpu_min_free_vram_mib": 19000,
-    "cpu_min_available_ram_mib": 1536,
+    "cpu_min_available_ram_mib": 4096,
     "preferred_gpu_target": "linux-nvidia-dynamic",
     "preferred_cpu_target": "linux-cpu-managed",
     "no_inference_target": "linux-core",

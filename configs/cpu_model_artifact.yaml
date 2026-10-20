@@ -7,5 +7,5 @@ model:
   sha256: b0638f08417a2d3c8652760462eb5407c6e30173cf9608ad0820757a281eea0e
   license: apache-2.0
 runtime:
-  minimum_available_ram_mib: 1536
-  minimum_free_disk_mib: 1100
+  minimum_available_ram_mib: 4096
+  minimum_free_disk_mib: 2048
