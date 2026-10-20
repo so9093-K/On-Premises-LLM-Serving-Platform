@@ -224,15 +224,28 @@ tailscale serve status
 
 팀원 API를 제공하면서 이 가이드대로 **전용 파일 `/etc/nginx/conf.d/llm-team-api.conf`을 복사한 경우에 한해**, 해당 파일의 내용을 먼저 확인하고 다른 설정에서 참조하지 않는지 검토한 후 정리한다. 팀원 공유 기능을 계속 사용하거나 파일 소유권이 불명확하면 제거하지 않는다.
 
+파일을 즉시 지우지 말고 **활성 Nginx 설정 범위 밖에 임시 보존**한다. 아래 비활성화 파일 경로가 기존에 없고 현재 Nginx `include` 대상도 아닌지 먼저 확인한다. 경로가 공유 설정 또는 다른 서비스에 속하면 이 절차를 실행하지 않는다.
+
 ```bash
-# 파일이 이 플랫폼 전용임을 확인한 후 운영자가 직접 실행
-sudo rm -- /etc/nginx/conf.d/llm-team-api.conf
-sudo nginx -t
-# 검증 성공 시에만 기존 Nginx 서비스를 reload
-sudo systemctl reload nginx
+# 이 플랫폼 전용 설정임을 확인한 뒤, 기존 백업을 덮어쓰지 않고 비활성화
+if sudo test ! -e /etc/nginx/llm-team-api.conf.disabled &&
+   sudo test ! -L /etc/nginx/llm-team-api.conf.disabled &&
+   sudo mv -- /etc/nginx/conf.d/llm-team-api.conf /etc/nginx/llm-team-api.conf.disabled; then
+  sudo nginx -t && sudo systemctl reload nginx
+else
+  printf '%s\n' '대상 파일 또는 비활성화 경로를 확인하세요. Nginx는 변경하지 않았습니다.' >&2
+fi
 ```
 
-`nginx -t`가 실패하면 reload를 진행하지 않고 해당 파일을 복구해 원인을 확인한다. 공유 Nginx 패키지·서비스 전체를 중지하거나 삭제하지 않는다. macOS Host에는 이 Ubuntu 명령을 적용하지 않는다.
+구성 검증이나 reload가 실패하면 **최종 삭제하지 않고**, 보존된 파일을 원래 경로로 복원한 다음 다시 검증한다.
+
+```bash
+# 비활성화 파일이 있을 때만 원래 파일로 되돌린다
+sudo mv -- /etc/nginx/llm-team-api.conf.disabled /etc/nginx/conf.d/llm-team-api.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+비활성화가 정상 적용됐고 팀원 API가 더 이상 노출되지 않으며 다른 Nginx 사이트가 정상 동작하는 것을 확인한 **이후에만** `/etc/nginx/llm-team-api.conf.disabled` 파일을 운영자가 최종 삭제한다. 공유 Nginx 패키지·서비스 전체를 중지하거나 삭제하지 않는다. macOS Host에는 이 Ubuntu 명령을 적용하지 않는다.
 
 ### 7.4 Tailnet 권한 및 인증 키 정리
 
