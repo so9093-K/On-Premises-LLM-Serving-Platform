@@ -11,9 +11,15 @@ Control Plane 운영자를 위한 서비스 확인·모델 관리·복구 절차
 ```bash
 make status
 make auth-status
+# 다른 기기에서 개인 운영 접속을 준비할 때
+make access PURPOSE=personal
+# 팀원에게 모델 API만 공유할 때
+make access PURPOSE=team
+# Host 설정 뒤 읽기 전용 접속 상태 조회
+make access-status PURPOSE=personal
 ```
 
-`ACCESS=local`은 기본적으로 로컬 인증이 비활성이고, `private`는 신뢰된 LAN/VPN에서 인증을 요구합니다. `edge`는 Loopback Gateway 뒤에 별도의 TLS 프록시가 필요하며 인터넷 공개를 뜻하지 않습니다. 접속 모드 변경은 [접근 설정](../05_configuration.md), 개인·팀원 VPN 구성은 [원격 접속 가이드](remote-access.md)를 따르세요.
+`ACCESS=local`은 기본적으로 로컬 인증이 비활성이고, `private`는 신뢰된 LAN/VPN에서 인증을 요구합니다. `edge`는 Loopback Gateway 뒤에 별도의 TLS 프록시가 필요하며 인터넷 공개를 뜻하지 않습니다. 접속 모드 변경은 [접근 설정](../05_configuration.md), 개인·팀원 VPN 구성은 [원격 접속 가이드](remote-access.md)를 따르세요. `make status`의 준비 완료는 **외부 사용자 접근 승인·Tailscale Serve·Grants 확인**을 보증하지 않습니다.
 
 ![관리자 키 입력 화면](../../assets/screenshots/guides/admin-auth.png)
 
