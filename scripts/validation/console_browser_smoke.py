@@ -66,6 +66,10 @@ profile = {
     "capabilities": {"deployed_input": ["text"]},
     "resource_variant": None,
     "vram_fraction": .65,
+    "switch_preflight": {
+        "status": "fits", "reason_code": None, "required_fraction": .65,
+        "available_fraction": .93, "ceiling_fraction": .93, "stop": [],
+    },
     "gateway_policy": {"request_limits": {"max_model_len": 4096}, "max_output_tokens": 512},
 }
 
