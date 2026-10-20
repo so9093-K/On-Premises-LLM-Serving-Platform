@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Control Plane의 메인 모델 목록에서 GPU 예약 정책 비율과 실제 전환 전 판단을 분리해 표시한다. 서버는 명시적 Resource Variant 거부와 공유 GPU Admission을 같은 정책으로 재사용하며, 관측 불가·예산 부족·Runtime 정리 필요 시 전환을 차단하고 이유를 안내한다. 예산 검사 통과를 실제 GPU 적재 성공으로 표시하지 않으며 기존 Runtime 검증·Rollback 계약을 유지한다.
+
+
 ### Added
 
 - 독립된 AIPerf 0.13.0 환경과 공통 Streaming Chat Workload로 수동 성능 측정을 제공한다. macOS 초기 실측과 Ubuntu/NVIDIA의 단일·긴 입력·동시 요청·Admission 한도 초과 Queue 실험은 장비별 조건과 서버 토큰 수로 해석한다. AIPerf 완료 표시와 SSE 무결성을 구분하고, 공개 합성 입력의 native RAW 진단으로 종료·usage를 확인한다. 일반 CI·Qualification·성능 Gate와 분리한다. ([ADR-0052](docs/adr/0052-manual-aiperf-measurement.md))
