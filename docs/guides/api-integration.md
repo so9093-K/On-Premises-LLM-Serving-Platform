@@ -5,12 +5,39 @@
 요청 필드·오류·지원 범위의 기준은 [API Reference](../reference/api_reference.md),
 [OpenAI 호환 범위](../reference/openai_compatibility.md), [OpenAPI](../../specs/openapi.gateway.yaml)입니다.
 
+<a id="remote-api"></a>
+
+## 외부 기기에서 API를 사용한다면
+
+서버 운영자가 이미 구성한 **팀원 API 전용 HTTPS 주소**를 사용합니다. **사용자 기기에 이 저장소를 설치하거나 `make` 명령을 실행할 필요는 없습니다.**
+
+1. 운영자에게 본인의 Tailscale 접속 권한(HTTPS 8443), **API Base URL**, **사용자 API Key**, 모델 별칭을 요청합니다.
+2. 본인의 기기에서 Tailscale에 로그인·연결합니다. 주소 형식은 `https://<실제-서버-tailnet-이름>:8443`이며, 실제 서버 주소는 운영자가 확인해 전달합니다.
+3. 아래 `GATEWAY_URL`을 **운영자가 전달한 주소**로 설정한 뒤 이 문서의 `/v1/models` 및 Chat 예제를 실행합니다.
+
+```bash
+# 외부 기기용: 실제 운영자가 제공한 값으로 교체
+export GATEWAY_URL="https://<실제-서버-tailnet-이름>:8443"
+read -r -s -p '사용자 API Key: ' API_KEY
+printf '\n'
+export API_KEY
+AUTH=(-H "Authorization: Bearer $API_KEY")
+curl --fail-with-body "$GATEWAY_URL/v1/models" "`{AUTH[@]}"
+```
+
+위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings 경로만 제공하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
+Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세요. 연결 실패는 Tailscale·주소·8443 Grants, `401`은 일반 사용자 API Key, `404`는 허용된 API 경로를 운영자에게 확인합니다.
+[외부 API 접속 안내](remote-access.md#external-api)와 [서버 운영자 설정](remote-access.md#operator-setup)은 다른 절차입니다.
+
+---
+
 ## 1. Gateway 연결·모델 조회
 
-**준비:** 운영자로부터 Gateway 주소와 필요한 경우 **사용자 API Key**를 받습니다.
+**준비:** 운영자로부터 Gateway 주소와 필요한 경우 **사용자 API Key**를 받습니다. 로컬 서버와 동일한 기기에서는 아래 Loopback 기본값을 사용하고, 외부 기기에서는 위의 HTTPS 8443 주소를 사용하세요.
 아래 shell 예제는 Bash와 curl 7.76 이상을 사용합니다. Admin Key·내부 token·Hugging Face token은 사용하지 않습니다.
 
 ```bash
+# 동일 서버에서만 사용하는 로컬 예시
 export GATEWAY_URL=http://127.0.0.1:9400
 AUTH=()
 ```
@@ -31,7 +58,7 @@ curl --fail-with-body "$GATEWAY_URL/v1/models" "${AUTH[@]}"
 `data`에서 `local-main`의 `input_modalities`, `capabilities`, `request_parameters`를 읽습니다.
 이 alias는 활성 Main Model을 가리키므로 전환 뒤에도 같은 alias가 다른 모델을 의미할 수 있습니다.
 모델 목록은 catalog 조회이며 실제 Runtime 준비 상태를 보장하지 않습니다.
-브라우저에서는 Gateway의 `/docs`에서 같은 API를 탐색할 수 있습니다.
+`/docs`는 문서 공개가 허용된 Access Profile에서만 이용할 수 있습니다. 팀원 API용 HTTPS 8443 및 `ACCESS=edge`에서는 사용할 수 없습니다.
 
 ![API 목록·Schema·테스트 요청을 제공하는 Scalar의 기존 화면](../../assets/screenshots/scalar_api_reference.jpg)
 
