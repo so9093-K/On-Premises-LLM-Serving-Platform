@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import re
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,8 @@ from ..contracts.chat_response import validate_chat_response
 from ..docker_scope import compose_container_filter, scoped_container_id
 from ..errors import ServiceError
 from ..host_resource_probe import valid_gpu_uuid
+from ..project_paths import resolve_project_root
+from .cpu import prepare_cpu_model
 from .catalog import MainModelCatalog, MainModelProfile
 from ..media_samples import TINY_JPEG_1X1_B64, TINY_M4A_AAC_B64, TINY_MP4_VIDEO_B64
 from .cache import default_hf_hub_cache_dir, prepare_model_snapshot
@@ -60,6 +63,8 @@ class DockerMainModelBackend:
         gateway_url: str,
         internal_token: str = "",
         cache_dir: str | None = None,
+        config_root: Path | None = None,
+        cpu_cache_dir: Path | None = None,
     ) -> None:
         self.docker_socket = docker_socket
         self.compose_project = compose_project
@@ -73,6 +78,8 @@ class DockerMainModelBackend:
         # 그렇지 않으면 준비된 snapshot이 런타임이 resolve하는 위치보다 한 단계 위에
         # 놓이게 된다.
         self.cache_dir = Path(cache_dir) if cache_dir else default_hf_hub_cache_dir()
+        self.config_root = config_root or resolve_project_root()
+        self.cpu_cache_dir = cpu_cache_dir or self.config_root / ".runtime/cpu-models"
         self._template: dict[str, Any] | None = None
 
     def _client(self) -> httpx.AsyncClient:
@@ -326,7 +333,29 @@ class DockerMainModelBackend:
     async def prepare(
         self, catalog: MainModelCatalog, profile: MainModelProfile
     ) -> None:
-        del catalog
+        if profile.runtime_backend == "llama-cpp":
+            container_id = await self._container_id(str(catalog.runtime["compose_service"]))
+            if container_id:
+                inspected = await self._inspect(container_id)
+                host = inspected.get("HostConfig", {})
+                mounted = any(isinstance(b, str) and len(b.split(":")) >= 2 and b.split(":")[1] == "/models" for b in host.get("Binds") or []) or any(m.get("Target") == "/models" for m in host.get("Mounts") or [])
+                if not mounted:
+                    raise RuntimeError("CPU_MODEL_MOUNT_UNAVAILABLE: run make up to update the Main container")
+            await asyncio.to_thread(prepare_cpu_model, config_root=self.config_root, output_root=self.cpu_cache_dir)
+            # CPU image 다운로드 실패도 기존 GPU의 Gate·컨테이너를 유지한다.
+            try:
+                await self._inspect_image(profile.image)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+                async with self._client() as client:
+                    response = await client.post("/images/create", params={"fromImage": profile.image}, timeout=600)
+                    response.raise_for_status()
+                    for line in response.text.splitlines():
+                        if line.strip() and json.loads(line).get("error"):
+                            raise RuntimeError("CPU image preparation failed")
+                await self._inspect_image(profile.image)
+            return
         await asyncio.to_thread(
             prepare_model_snapshot,
             model_id=profile.model_id,
@@ -415,18 +444,47 @@ class DockerMainModelBackend:
             f"main-model request drain timed out with in_flight={last_in_flight}"
         )
 
+    @staticmethod
+    def _saved_gpu_device_requests(labels: dict[str, str]) -> list[dict[str, Any]]:
+        try:
+            requests = json.loads(labels.get("ai_model_serving.gpu_device_requests", "[]"))
+            if not isinstance(requests, list) or not requests or any(
+                not isinstance(request, dict)
+                or request.get("Driver", "") not in {"", "nvidia"}
+                or not any(isinstance(capabilities, list) and "gpu" in capabilities for capabilities in request.get("Capabilities", []))
+                for request in requests
+            ):
+                raise ValueError("invalid saved GPU device requests")
+            return requests
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("GPU_DEVICE_CONFIGURATION_UNAVAILABLE") from exc
+
     async def replace(self, catalog: MainModelCatalog, profile: MainModelProfile) -> None:
-        image_config = None
-        if catalog.runtime.get("adaptive"):
-            # 이미지나 장치 선택 오류는 기존 컨테이너 해체 전에 확인한다.
-            image_config = (await self._inspect_image(profile.image))["Config"]
-            if profile.runtime_backend != "llama-cpp" and getattr(self, "gpu_uuid", None) is None:
-                raise RuntimeError("GPU device admission is required before replacement")
         service = str(catalog.runtime["compose_service"])
         container_id = await self._container_id(service)
         if container_id is not None:
             inspected = await self._inspect(container_id)
             self._template = self._creation_template(inspected)
+        if self._template is None:
+            raise RuntimeError("main runtime container template is unavailable")
+        labels = self._template["config"].setdefault("Labels", {})
+        source_cpu = labels.get("ai_model_serving.runtime_backend") == "llama-cpp"
+        source_profile = self._profile_from_inspected(catalog, inspected) if container_id is not None else None
+        if source_profile:
+            source_cpu = catalog.profiles[source_profile].runtime_backend == "llama-cpp"
+        engine_change = catalog.runtime.get("adaptive") or source_cpu or profile.runtime_backend == "llama-cpp"
+        image_config = None
+        if engine_change:
+            # 이미지·장치 설정 오류는 기존 컨테이너 해체 전에 확인한다.
+            image_config = (await self._inspect_image(profile.image))["Config"]
+            if catalog.runtime.get("adaptive") and profile.runtime_backend != "llama-cpp" and getattr(self, "gpu_uuid", None) is None:
+                raise RuntimeError("GPU device admission is required before replacement")
+            previous_requests = self._template["host_config"].get("DeviceRequests") or []
+            if previous_requests:
+                labels["ai_model_serving.gpu_device_requests"] = json.dumps(previous_requests)
+            if profile.runtime_backend != "llama-cpp" and not catalog.runtime.get("adaptive"):
+                self._saved_gpu_device_requests(labels)
+        if container_id is not None:
             grace = int(catalog.runtime.get("stop_timeout_seconds", 30))
             async with self._client() as client:
                 stopped = await client.post(
@@ -450,7 +508,7 @@ class DockerMainModelBackend:
         payload["Cmd"] = list(profile.command)
         payload["HostConfig"] = copy.deepcopy(self._template["host_config"])
         payload["NetworkingConfig"] = copy.deepcopy(self._template["networking_config"])
-        if catalog.runtime.get("adaptive"):
+        if engine_change:
             # 서로 다른 엔진의 이미지 기본값을 이전 컨테이너에서 상속하지 않는다.
             config = image_config
             for key in ("Entrypoint", "User", "WorkingDir"):
@@ -460,13 +518,26 @@ class DockerMainModelBackend:
             ]
             cpu = profile.runtime_backend == "llama-cpp"
             host = payload["HostConfig"]
-            host["DeviceRequests"] = [] if cpu else [{"Driver": "nvidia", "DeviceIDs": [str(self.gpu_uuid)], "Capabilities": [["gpu"]]}]
+            # 엔진 버전은 이전 컨테이너가 아니라 대상 image의 근거를 따른다.
+            payload["Labels"].pop("ai_model_serving.vllm_version", None)
+            image_version = (config.get("Labels") or {}).get("ai_model_serving.vllm_version")
+            if not cpu and image_version:
+                payload["Labels"]["ai_model_serving.vllm_version"] = image_version
+            payload["Labels"]["ai_model_serving.runtime_backend"] = profile.runtime_backend
+            if cpu:
+                host["DeviceRequests"] = []
+            elif catalog.runtime.get("adaptive"):
+                host["DeviceRequests"] = [{"Driver": "nvidia", "DeviceIDs": [str(self.gpu_uuid)], "Capabilities": [["gpu"]]}]
+            else:
+                host["DeviceRequests"] = self._saved_gpu_device_requests(payload["Labels"])
             host["Memory"] = int(catalog.runtime["cpu_memory_limit_bytes"]) if cpu else 0
             host["MemorySwap"] = host["Memory"] if cpu else 0
             host["PidsLimit"] = 256 if cpu else 2048
             host["ShmSize"] = 64 * 1024 * 1024 if cpu else 2 * 1024 * 1024 * 1024
             if not cpu:
-                payload["Env"] += ["NVIDIA_DRIVER_CAPABILITIES=compute,utility", "CUDA_VISIBLE_DEVICES=0"]
+                payload["Env"] += ["NVIDIA_DRIVER_CAPABILITIES=compute,utility", "VLLM_CACHE_ROOT=/root/.cache/vllm"]
+                if catalog.runtime.get("adaptive"):
+                    payload["Env"].append("CUDA_VISIBLE_DEVICES=0")
             port = int(catalog.runtime["container_port"])
             payload["Healthcheck"] = {
                 "Test": ["CMD", "python3", "-c", f"import urllib.request; urllib.request.urlopen('http://127.0.0.1:{port}/health',timeout=2)"],

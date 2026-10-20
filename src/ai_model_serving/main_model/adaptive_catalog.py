@@ -7,11 +7,9 @@ from typing import Mapping
 
 from ..configuration import load_yaml_mapping
 from ..image_refs import is_immutable_image_ref
-from ..serving_profile import load_main_serving_catalog
-from .catalog import MainModelCatalog, MainModelProfile, load_main_model_catalog
-from .cpu import cpu_runtime_command
+from .catalog import MainModelCatalog, load_main_model_catalog
+from .cpu_catalog import load_cpu_profile
 from .adaptive_gpu import AdaptiveGpuPolicies
-from .engine_policy import CpuEnginePolicy
 
 
 def load_adaptive_catalog(
@@ -24,42 +22,10 @@ def load_adaptive_catalog(
             "total_gpu_memory_utilization"
         ]["avoid_above"]
     )
-    serving = load_main_serving_catalog(root / "configs/cpu_main_model_profiles.yaml")
-    cpu_document = load_yaml_mapping(root / "configs/cpu_main_model_profiles.yaml")
-    artifact_document = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")
-    artifact = artifact_document["model"]
     cpu_id = selection["cpu_profile"]
-    cpu = serving.profiles[cpu_id]
-    image = (
-        environment.get("LLAMA_CPP_IMAGE")
-        or load_yaml_mapping(root / "configs/recommended_images.yaml")["images"][
-            "llama_cpp"
-        ]["default"]
-    )
-    if not is_immutable_image_ref(image):
-        raise ValueError("LLAMA_CPP_IMAGE must be an immutable image reference")
-    profiles = {
-        cpu_id: MainModelProfile(
-            profile_id=cpu_id,
-            display_name=cpu.display_name,
-            model_id=artifact["repo_id"],
-            revision=artifact["revision"],
-            served_model_name=serving.public_model,
-            command=cpu_runtime_command(
-                root, port=document["runtime"]["container_port"]
-            ),
-            compatibility=cpu.compatibility,
-            qualification=cpu.qualification,
-            capabilities={"deployed_input": list(cpu.deployed_input)},
-            gateway_policy=cpu.gateway_policy,
-            image=image,
-            runtime_backend="llama-cpp",
-            resolved_engine_policy=CpuEnginePolicy(
-                cpu_document["runtime"]["context_size"],
-                cpu_document["runtime"]["parallel"],
-            ),
-        )
-    }
+    cpu = load_cpu_profile(root, cpu_id, document["runtime"]["container_port"], environment)
+    artifact_document = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")
+    profiles = {cpu_id: cpu}
     gpu_error = None
     gpu_profiles = {}
     explicit_value = environment.get("ADAPTIVE_GPU_RESOURCE_POLICY", "").strip()
@@ -106,7 +72,7 @@ def load_adaptive_catalog(
     )
     return (
         MainModelCatalog(
-            public_model=serving.public_model,
+            public_model=cpu.served_model_name,
             default_profile=cpu_id,
             runtime={
                 **document["runtime"],

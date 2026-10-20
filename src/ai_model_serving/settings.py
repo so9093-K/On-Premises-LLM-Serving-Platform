@@ -97,6 +97,7 @@ def _public_models_from_registry(
     default_main_model_gateway_policy: dict[str, Any],
     deployment_target: DeploymentTarget,
     enabled_runtime_keys: frozenset[str],
+    main_presentation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     # ModelRegistry는 공개 목록의 공통 projection을 담당한다. main_llm의 API
     # parameter 표면만은 default Profile에서 주입한다. 실제 요청 시에는 Gateway가
@@ -142,6 +143,7 @@ def _public_models_from_registry(
             # inference backend는 deployment target이 소유하므로 공개 목록에도
             # 그 값을 투영한다(Mac에서 main_llm_vllm으로 잘못 보이지 않게 한다).
             item["backend"] = deployment_target.runtime_backend
+            item.update(main_presentation or {})
         public_models.append(item)
     return tuple(public_models)
 
@@ -341,6 +343,8 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
                 raise RuntimeError(
                     f"unknown MAIN_MODEL_STATIC_PROFILE {static_main_profile!r}; allowed: {allowed}"
                 )
+            if static_main_profile == "cpu-gguf-text" and deployment_target.runtime_backend != "llama-cpp":
+                raise RuntimeError("CPU static profile requires a CPU deployment target")
             selected_main_profile = static_main_profile
     version = (project_root / "VERSION").read_text(encoding="utf-8").strip()
 
@@ -440,6 +444,18 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         runtime_endpoints["main_llm"] = replace(
             runtime_endpoints["main_llm"], max_concurrency=max_concurrency
         )
+    main_presentation = {}
+    if deployment_target.control_mode == "managed_cpu":
+        artifact = load_yaml_mapping(project_root / "configs/cpu_model_artifact.yaml")["model"]
+        main_presentation = {"display_name": f"{artifact['repo_id'].rsplit('/', 1)[-1]}", "upstream_model_id": artifact["repo_id"]}
+    profile_summaries = []
+    if deployment_target.supports("model_switching"):
+        for profile in main_model_catalog.profiles.values():
+            name = profile.display_name
+            if profile.profile_id == "cpu-gguf-text":
+                artifact = load_yaml_mapping(project_root / "configs/cpu_model_artifact.yaml")["model"]
+                name = f"{artifact['repo_id'].rsplit('/', 1)[-1]}"
+            profile_summaries.append((profile.profile_id, name, str(profile.qualification.get("status", ""))))
     embedding_profiles = (
         _embedding_profiles_from_config(model_serving)
         if deployment_target.supports("embeddings")
@@ -547,10 +563,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         default_main_model_gateway_policy=dict(
             selected_gateway_policy
         ),
-        main_model_profile_summaries=tuple(
-            (profile.profile_id, profile.display_name, str(profile.qualification.get("status", "")))
-            for profile in main_model_catalog.profiles.values()
-        ) if deployment_target.supports("model_switching") else (),
+        main_model_profile_summaries=tuple(profile_summaries),
         main_model_profile_policies=tuple(
             dict(profile.gateway_policy) for profile in main_model_catalog.profiles.values()
         ) if deployment_target.supports("model_switching") else (
@@ -579,6 +592,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             selected_gateway_policy,
             deployment_target,
             frozenset(enabled_service_keys),
+            main_presentation,
         ),
         documentation=documentation,
         cors=cors,

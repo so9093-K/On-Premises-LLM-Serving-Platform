@@ -545,3 +545,6 @@ profiles:
           max_bias: 100
           token_id_min: 0
           token_id_semantics: served_model_tokenizer
+
+  cpu-gguf-text:
+    catalog: configs/cpu_main_model_profiles.yaml

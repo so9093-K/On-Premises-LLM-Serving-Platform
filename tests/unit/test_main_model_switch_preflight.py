@@ -114,7 +114,7 @@ def test_profiles_endpoint_reports_gpu_observation_failure_without_allowing_swit
     assert profiles
     for profile in profiles:
         if not profile["active"] and profile["compatibility"]["status"] != "incompatible":
-            assert profile["switch_preflight"]["status"] == "unknown"
+            assert profile["switch_preflight"]["status"] == ("fits" if profile.get("runtime_backend") == "llama-cpp" else "unknown")
             assert profile["switch_preflight"]["available_fraction"] is None
 
 
@@ -144,7 +144,9 @@ def test_slow_docker_observation_returns_unknown_within_controller_read_timeout(
 
     response = asyncio.run(asyncio.wait_for(fetch_profiles(), timeout=4.5))
     assert response.status_code == 200
-    candidates = [p for p in response.json()["profiles"] if not p["active"]]
+    candidates = [p for p in response.json()["profiles"] if not p["active"] and p.get("runtime_backend") != "llama-cpp"]
+    cpu = next(p for p in response.json()["profiles"] if p.get("runtime_backend") == "llama-cpp")
+    assert cpu["switch_preflight"]["status"] == "fits"
     assert candidates
     assert all(p["switch_preflight"]["status"] in {"unknown", "blocked"} for p in candidates)
     assert not any(p["switch_preflight"]["status"] == "fits" for p in candidates)

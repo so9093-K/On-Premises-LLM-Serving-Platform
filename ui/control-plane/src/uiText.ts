@@ -238,3 +238,15 @@ export function formatFraction(value: number | null | undefined): string {
 export function formatPercent(value: number | null | undefined): string {
   return typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
 }
+
+export function modelRuntimeLabel(backend: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    'llama-cpp': 'CPU · llama.cpp',
+    'vllm-cuda': 'GPU · vLLM',
+    'mlx': 'Apple Silicon · MLX',
+    'mlx-vlm': 'Apple Silicon · MLX',
+    'none': '모델 런타임 없음',
+    'adaptive': 'CPU/GPU 자동 선택',
+  };
+  return backend ? labels[backend] ?? backend : '확인 불가';
+}

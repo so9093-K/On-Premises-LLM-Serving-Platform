@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
 
@@ -201,6 +202,8 @@ def create_runtime_controller_app(
             context.COMPOSE_PROJECT,
             gateway_url=context._CONFIG.gateway_internal_url,
             internal_token=context.RUNTIME_CONTROLLER_TOKEN,
+            config_root=context.APP_CONFIG_ROOT,
+            cpu_cache_dir=Path("/models"),
         )),
         boot_profile=context.MAIN_MODEL_BOOT_PROFILE,
         profile_locked=context.MAIN_MODEL_PROFILE_LOCKED,
@@ -264,13 +267,15 @@ def create_runtime_controller_app(
         active_profile = snapshot.get("active_profile") or {}
         # 아직 active profile이 기록되지 않았을 때는 boot profile 예약값을 사용한다.
         boot_fraction = context._catalog.profiles[context._main_model_manager.boot_profile].vram_fraction
-        main_fraction = float(active_profile.get("vram_fraction") or boot_fraction)
+        fraction = active_profile.get("vram_fraction")
+        main_fraction = float(boot_fraction if fraction is None else fraction)
         main_status = await _docker_reservation_status(context._MAIN_SERVICE)
         observed[context._MAIN_SERVICE] = main_status
         participants.append(
             Participant(
                 key=context._MAIN_SERVICE,
                 vram_fraction=main_fraction,
+                gpu_required=main_fraction > 0,
                 active=_reserved_or_unavailable(context._MAIN_SERVICE, main_status),
                 priority=context._MAIN_PRIORITY,
                 evictable=False,
@@ -393,6 +398,9 @@ def create_runtime_controller_app(
         Runtime 시작·중지의 Plan/Apply는 _runtime_transition_plan만 사용한다.
         이 함수는 Profile 교체의 다른 VRAM 비용을 별도로 검증하며 자동 퇴거하지 않는다.
         """
+        if target_fraction == 0:
+            # CPU RAM·Artifact 준비는 Backend가 검사하며 GPU 관측 장애로 막지 않는다.
+            return
         participants = await _build_participants()
         result = plan_activation(
             participants, context._MAIN_SERVICE, target_fraction, ceiling=context._GPU_BUDGET_CEILING
@@ -624,6 +632,7 @@ def create_runtime_controller_app(
                 profile for profile in profiles
                 if not profile["active"]
                 and not switching
+                and profile.get("runtime_backend") != "llama-cpp"
                 and context._main_model_manager.switch_policy_error(profile["id"]) is None
             ]
             participants = None

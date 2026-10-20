@@ -47,7 +47,8 @@ COMPOSE_JSON_ARGS = (
 )
 
 def load_yaml(path: Path) -> Any:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    from ai_model_serving.main_model.boot import BootOverrideLoader
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=BootOverrideLoader)
 
 
 _COMPOSE_VAR_DEFAULT = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*):-([^}]*)\}$")
@@ -167,6 +168,8 @@ def validate_main_llm_bootstrap_image(compose: dict[str, Any]) -> list[str]:
             "main-model runtime.container_port must match services.yaml main_llm_vllm.container_port"
         )
     for candidate_id, candidate in catalog.get("profiles", {}).items():
+        if "catalog" in candidate:
+            continue
         args = command_args(candidate.get("command", []))
         if str(args.get("port")) != str(canonical_port):
             errors.append(
@@ -194,7 +197,7 @@ def validate_main_llm_bootstrap_image(compose: dict[str, Any]) -> list[str]:
     # 실제 command와 Gateway 계약은 같은 Profile이 소유한다. 모든 후보 Profile에서
     # context 한도와 output 한도가 조용히 갈라지지 않는지만 확인한다.
     for profile_id, item in catalog.get("profiles", {}).items():
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or "catalog" in item:
             continue
         policy = item.get("gateway_policy", {})
         limits = policy.get("request_limits", {}) if isinstance(policy, dict) else {}
@@ -390,6 +393,12 @@ def validate_alignment(
         command = service.get("command")
         if command is None and service_name == boot_service_name:
             command = default_main_profile_command()
+        if service_name == boot_service_name and "--n-gpu-layers" in (command or []):
+            # CPU boot는 별도 모델·RAM 계약을 사용하며 vLLM 인자를 요구하지 않는다.
+            host_devices = service.get("deploy", {}).get("resources", {}).get("reservations", {}).get("devices", [])
+            if host_devices:
+                errors.append("CPU Main boot must not reserve GPU devices")
+            continue
         args = command_args(command)
         cfg = runtime.config
         revision = cfg.get("revision")

@@ -283,7 +283,8 @@ def validate_model_resource_control_policy() -> None:
         )
     # 이 검증은 profile 정책 구조만 본다. image pin의 실제 해석은 .env를 읽는
     # boot/admin 경로에서 수행하므로 여기서 runtime image env를 요구하지 않는다.
-    main_profiles = read_yaml('configs/main_model_profiles.yaml')['profiles']
+    from ai_model_serving.serving_profile import load_main_serving_catalog
+    main_profiles = {key: {'gateway_policy': value.gateway_policy, 'capabilities': {'deployed_input': value.deployed_input}} for key, value in load_main_serving_catalog(ROOT / 'configs/main_model_profiles.yaml').profiles.items()}
     for profile_id, profile in main_profiles.items():
         policy = profile.get('gateway_policy', {})
         if not policy:

@@ -183,6 +183,9 @@ def test_gpu_util_override_rewrites_command_and_fraction():
     # override는 모든 프로필에 대해 runtime command와 파싱된 budget cost 양쪽에
     # 동시에(lockstep) 반영된다 (호스트별 용량 조절 손잡이).
     for profile in loaded.profiles.values():
+        if profile.runtime_backend == "llama-cpp":
+            assert profile.vram_fraction == 0
+            continue
         cmd = list(profile.command)
         assert cmd[cmd.index("--gpu-memory-utilization") + 1] == "0.55"
         assert profile.vram_fraction == 0.55
@@ -371,7 +374,11 @@ def test_resource_variant_rejects_fractional_integer_knob(tmp_path):
     raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text())
     profile = raw["profiles"]["gemma4-e4b-it"]
     profile["resource_variants"]["fractional-invalid"] = {"max_num_seqs": 1.5}
-    path = tmp_path / "profiles.yaml"
+    import shutil
+    (tmp_path / "configs").mkdir(exist_ok=True)
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(ROOT / "configs" / name, tmp_path / "configs" / name)
+    path = tmp_path / "configs/profiles.yaml"
     path.write_text(yaml.safe_dump(raw))
     with pytest.raises(MainModelConfigurationError, match="must be an integer"):
         load_main_model_catalog(
@@ -385,7 +392,11 @@ def test_resource_variant_may_not_change_model_identity_or_policy(tmp_path) -> N
 
     raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text(encoding="utf-8"))
     raw["profiles"]["gemma4-e4b-it"]["resource_variants"]["rtx4090-24gb"]["revision"] = "b" * 40
-    path = tmp_path / "profiles.yaml"
+    import shutil
+    (tmp_path / "configs").mkdir(exist_ok=True)
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(ROOT / "configs" / name, tmp_path / "configs" / name)
+    path = tmp_path / "configs/profiles.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     with pytest.raises(MainModelConfigurationError) as excinfo:
         load_main_model_catalog(
@@ -404,7 +415,11 @@ def test_variant_max_model_len_is_projected_into_gateway_limits(tmp_path) -> Non
 
     raw = yaml.safe_load((ROOT / "configs/main_model_profiles.yaml").read_text(encoding="utf-8"))
     raw["profiles"]["gemma4-e4b-it"]["resource_variants"]["rtx4090-24gb"]["max_model_len"] = 32000
-    path = tmp_path / "profiles.yaml"
+    import shutil
+    (tmp_path / "configs").mkdir(exist_ok=True)
+    for name in ("cpu_main_model_profiles.yaml", "cpu_model_artifact.yaml", "recommended_images.yaml"):
+        shutil.copy(ROOT / "configs" / name, tmp_path / "configs" / name)
+    path = tmp_path / "configs/profiles.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
     loaded = load_main_model_catalog(
         path,

@@ -60,7 +60,7 @@ def main_model_runtime_engine_example() -> dict[str, str]:
 def alternate_main_model_profile_id() -> str:
     """default가 아닌 첫 프로필. 전환 예시가 두 번째 후보를 필요로 한다."""
     default = default_main_model_profile_id()
-    return next(pid for pid in _main_model_profiles()["profiles"] if pid != default)
+    return next(pid for pid, item in _main_model_profiles()["profiles"].items() if pid != default and "catalog" not in item)
 
 
 # 공개 모델 이름은 설정이 소유한다(main_model_profiles.public_model,
@@ -799,6 +799,13 @@ def main_model_profile_example(profile_id: str, *, active: bool | None = None) -
     """
     document = _main_model_profiles()
     profile = document["profiles"][profile_id]
+    if "catalog" in profile:
+        from .main_model.cpu_catalog import load_cpu_profile
+        cpu = load_cpu_profile(resolve_project_root(), profile_id, int(document["runtime"]["container_port"]), {})
+        example = cpu.public_view()
+        if active is not None:
+            example.update(active=active, switch_preflight={"status": "current" if active else "fits", "reason_code": None, "required_fraction": 0, "available_fraction": None, "ceiling_fraction": None, "stop": []})
+        return example
     profile_state = validate_profile_state(
         profile_id,
         profile.get("compatibility", {}),

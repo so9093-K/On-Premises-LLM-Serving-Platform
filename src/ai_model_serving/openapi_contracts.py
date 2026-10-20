@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 import yaml
 
 from .project_paths import resolve_project_root
@@ -413,6 +414,19 @@ def install_contract_openapi(
         try:
             document = original_openapi()
             paths = document.setdefault("paths", {})
+            # FastAPI의 exclude_none 직렬화가 예시 본문의 필수 null까지 제거한다.
+            # 선언된 응답 예시는 원본 값으로 복원해 Scalar의 JSON을 계약과 일치시킨다.
+            for route in app.routes:
+                if not isinstance(route, APIRoute):
+                    continue
+                for method in route.methods or ():
+                    operation = paths.get(route.path_format, {}).get(method.lower())
+                    if not isinstance(operation, dict):
+                        continue
+                    for status, declared in route.responses.items():
+                        for media_type, content in declared.get("content", {}).items():
+                            if "examples" in content:
+                                operation["responses"][str(status)].setdefault("content", {}).setdefault(media_type, {})["examples"] = copy.deepcopy(content["examples"])
             for path_item in paths.values():
                 for operation in path_item.values():
                     if not isinstance(operation, dict):

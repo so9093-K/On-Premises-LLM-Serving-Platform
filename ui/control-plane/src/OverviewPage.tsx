@@ -25,6 +25,7 @@ import {
   lifecycleOwnerLabel,
   qualificationStatusLabel,
   runtimeStateLabel,
+  modelRuntimeLabel,
   t,
 } from './uiText';
 
@@ -359,6 +360,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <dl className="facts">
                 <dt>공개 모델 이름</dt><dd>{mainModel.public_model}</dd>
                 <dt>현재 프로필</dt><dd>{mainModel.active_profile?.display_name ?? '—'}</dd>
+                <dt>실제 모델</dt><dd>{mainModel.active_profile?.upstream_model_id ?? '—'}</dd>
+                <dt>실행 방식</dt><dd>{modelRuntimeLabel(mainModel.active_profile?.runtime_backend)}</dd>
                 <dt>요청 상태</dt>
                 <dd><Label color={mainModel.gate === 'open' ? 'green' : 'orange'}>{runtimeStateLabel(mainModel.gate)}</Label></dd>
                 <dt>런타임 상태</dt><dd>{runtimeStateLabel(mainModel.runtime_state)}</dd>
@@ -433,7 +436,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <dl className="facts">
             <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
             <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
-            <dt>런타임 백엔드</dt><dd>{bootstrap.deployment.runtime_backend}</dd>
+            <dt>실행 방식</dt><dd>{modelRuntimeLabel(bootstrap.deployment.runtime_backend)}</dd>
             <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
             <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
             <dt>구현·검증</dt>

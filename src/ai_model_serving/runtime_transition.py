@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import Iterable
 
-from .gpu_budget import Participant, budget_snapshot, plan_activation
+from .gpu_budget import AdmissionResult, Participant, budget_snapshot, plan_activation
 
 
 @dataclass(frozen=True)
@@ -183,12 +183,16 @@ def plan_runtime_transition(
         else participant
         for participant in participants
     ]
-    admission = plan_activation(
-        admission_participants,
-        f"__runtime_transition__:{target_key}",
-        required,
-        ceiling=ceiling,
-    )
+    if required == 0 and all(not by_key[key].gpu_required for key in start):
+        # 명시적으로 GPU를 쓰지 않는 CPU 시작은 다른 GPU Runtime을 퇴거시키지 않는다.
+        admission = AdmissionResult(feasible=True, ceiling=ceiling, required=0, used_by_others=before_used)
+    else:
+        admission = plan_activation(
+            admission_participants,
+            f"__runtime_transition__:{target_key}",
+            required,
+            ceiling=ceiling,
+        )
 
     victims = tuple(admission.victims) if admission.feasible else ()
     victim_fraction = sum(by_key[key].vram_fraction for key in victims)

@@ -122,8 +122,9 @@ export function mainModelOperationProgress(
 }
 
 export function mainModelResourcePolicyLabel(
-  profile: { resource_variant?: string | null },
+  profile: { resource_variant?: string | null; runtime_backend?: string },
 ): string {
+  if (profile.runtime_backend === 'llama-cpp') return 'CPU 전용 · GPU 예약 없음';
   return profile.resource_variant
     ? `GPU 정책 override · ${profile.resource_variant}`
     : '기준 리소스 정책';
@@ -195,7 +196,7 @@ export function mainModelProfileRequiresConfirmation(profile: MainModelProfile):
 export type MainModelPreflightView = {
   label: string;
   description: string;
-  color: 'green' | 'orange' | 'red' | 'grey';
+  color: 'green' | 'orange' | 'red' | 'grey' | 'blue';
 };
 
 // 백엔드 GPU Admission과 정책 검사를 UI에서 다시 계산하지 않는다.
@@ -209,6 +210,7 @@ export function mainModelPreflightView(profile: MainModelProfile): MainModelPref
     case 'current':
       return { label: '현재 사용 중', description: '현재 활성 프로필입니다.', color: 'green' };
     case 'fits':
+      if (profile.runtime_backend === 'llama-cpp') return { label: 'CPU 선택 가능', description: 'GPU 예약이 필요하지 않습니다. 실행 준비 단계에서 RAM·모델 무결성·이미지를 검사하고 실제 응답을 검증합니다.', color: 'blue' };
       return { label: '예산 검사 통과', description: 'GPU 예약 정책을 통과했습니다. 실제 모델 적재와 추론 성공은 시작 후 검증합니다.', color: 'green' };
     case 'needs_stop':
       return { label: '자원 정리 필요', description: '다른 Runtime을 먼저 중지해야 합니다. 전환 검토에서 대상을 확인하세요.', color: 'orange' };

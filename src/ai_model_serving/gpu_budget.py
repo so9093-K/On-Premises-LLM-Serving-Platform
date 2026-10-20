@@ -33,6 +33,8 @@ class Participant:
     # 순으로 정렬하므로) 이 값을 사용하지 않는다.
     criticality: str | None = None
     resource_pool: GpuResourceId = CONTROLLER_LOCAL_GPU
+    # CPU Main도 Lifecycle 참여자로 표시하지만 GPU 예약은 갖지 않는다.
+    gpu_required: bool = True
 
 
 @dataclass(frozen=True)
@@ -67,7 +69,8 @@ def _validate_pool(participants: list[Participant], ceiling: float) -> None:
             raise ValueError(f"duplicate GPU participant: {participant.key}")
         keys.add(participant.key)
         pools.add(participant.resource_pool)
-        if isinstance(participant.vram_fraction, bool) or not math.isfinite(participant.vram_fraction) or not 0 < participant.vram_fraction <= 1:
+        valid_fraction = (0 < participant.vram_fraction <= 1) if participant.gpu_required else participant.vram_fraction == 0
+        if type(participant.gpu_required) is not bool or isinstance(participant.vram_fraction, bool) or not math.isfinite(participant.vram_fraction) or not valid_fraction:
             raise ValueError(f"invalid GPU fraction for participant: {participant.key}")
     if len(pools) > 1:
         raise ValueError("cannot combine reservations from different GPU resource pools")
@@ -108,7 +111,7 @@ def plan_activation(
 
     deficit = target_fraction - available
     candidates = sorted(
-        (p for p in others if p.active and p.evictable),
+        (p for p in others if p.active and p.evictable and p.gpu_required),
         key=lambda p: (p.priority, -p.vram_fraction, p.key),
     )
     victims: list[str] = []

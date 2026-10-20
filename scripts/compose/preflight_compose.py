@@ -140,7 +140,8 @@ def _check_auth_profile_preflight() -> None:
 
 def _load_yaml(path: Path, label: str) -> dict[str, Any]:
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        from ai_model_serving.main_model.boot import BootOverrideLoader
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=BootOverrideLoader) or {}
     except Exception as exc:
         raise SystemExit(f"[preflight] fail: cannot load {label}: {exc}") from exc
     if not isinstance(data, dict):

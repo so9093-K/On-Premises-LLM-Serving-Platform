@@ -2,6 +2,26 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import json
+import yaml
+
+
+class ResetList(list):
+    """Compose가 상위 GPU 장치 목록을 병합하지 않고 비우도록 표시한다."""
+
+
+yaml.SafeDumper.add_representer(
+    ResetList, lambda dumper, value: dumper.represent_sequence("!reset", value)
+)
+
+
+class BootOverrideLoader(yaml.SafeLoader):
+    pass
+
+
+BootOverrideLoader.add_constructor(
+    "!reset", lambda loader, node: loader.construct_sequence(node)
+)
 
 from .catalog import (
     gpu_util_override_from_mapping,
@@ -64,7 +84,7 @@ def render_boot_override(
         persisted_profile=read_active_profile(state_path),
     )
     profile = catalog.profiles[profile_id]
-    return profile_id, {
+    override = {
         "services": {
             str(catalog.runtime["compose_service"]): {
                 # 이 프로필에 대해 resolve된 image로 boot한다 (프로필이 자체
@@ -76,3 +96,38 @@ def render_boot_override(
             }
         }
     }
+
+    if profile.runtime_backend == "llama-cpp":
+        service = override["services"][str(catalog.runtime["compose_service"])]
+        root = catalog_path.resolve().parent.parent
+        # 초기 Compose의 장치 정책을 보존해 CPU 기동 뒤 GPU 복귀에도 사용한다.
+        source = yaml.safe_load(
+            (root / "ops/compose/full-stack.private-network.yaml").read_text()
+        )
+        devices = source["services"][str(catalog.runtime["compose_service"])]["deploy"][
+            "resources"
+        ]["reservations"]["devices"]
+        requests = [
+            {
+                "Driver": d.get("driver", ""),
+                "Count": 0
+                if "device_ids" in d
+                else -1
+                if d.get("count", "all") == "all"
+                else int(d["count"]),
+                "Capabilities": [d["capabilities"]],
+                **({"DeviceIDs": d["device_ids"]} if "device_ids" in d else {}),
+            }
+            for d in devices
+        ]
+        service.update(
+            mem_limit=catalog.runtime["cpu_memory_limit_bytes"],
+            memswap_limit=catalog.runtime["cpu_memory_limit_bytes"],
+            pids_limit=256,
+            labels={
+                "ai_model_serving.gpu_device_requests": json.dumps(requests),
+                "ai_model_serving.runtime_backend": "llama-cpp",
+            },
+            deploy={"resources": {"reservations": {"devices": ResetList()}}},
+        )
+    return profile_id, override

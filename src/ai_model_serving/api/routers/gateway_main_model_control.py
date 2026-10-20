@@ -113,6 +113,7 @@ _ACCEPTED_SCHEMA = {
 }
 _MAIN_MODEL_STATUS_EXAMPLE = {
     "public_model": MAIN_MODEL,
+    "runtime_image": PLACEHOLDER_RUNTIME_IMAGE,
     "active_profile": main_model_profile_example(_DEFAULT_PROFILE_ID),
     "last_known_good_profile": _DEFAULT_PROFILE_ID,
     "previous_known_good_profile": None,
@@ -191,6 +192,15 @@ def build_router(
                             "summary": "서비스 준비 완료",
                             "value": _MAIN_MODEL_STATUS_EXAMPLE,
                         },
+                        **({"cpu_serving": {
+                            "summary": "CPU 모델 서빙 (예시)",
+                            "value": {**_MAIN_MODEL_STATUS_EXAMPLE,
+                                "active_profile": main_model_profile_example("cpu-gguf-text"),
+                                "last_known_good_profile": "cpu-gguf-text", "boot_profile": "cpu-gguf-text",
+                                "runtime_image": main_model_profile_example("cpu-gguf-text")["runtime_image"],
+                                "observed_runtime": {"status": "ready", "container_state": "running", "health": "healthy", "profile_id": "cpu-gguf-text", "runtime_engine": {"name": "llama-cpp", "version": None}, "observed_at": 1782086258.2},
+                            },
+                        }} if any(p[0] == "cpu-gguf-text" for p in settings.main_model_profile_summaries) else {}),
                         "stopped": {
                             "summary": "중지됨",
                             "value": {**_MAIN_MODEL_STATUS_EXAMPLE, "gate": "closed", "runtime_state": "stopped", "observed_runtime": {"status": "stopped", "container_state": "exited", "health": None, "profile_id": _DEFAULT_PROFILE_ID, "image_ref": PLACEHOLDER_RUNTIME_IMAGE, "image_id": "sha256:" + "1" * 64, "image_digest": PLACEHOLDER_RUNTIME_IMAGE.split("@", 1)[1], "runtime_engine": _VLLM_ENGINE_EXAMPLE, "error": None, "observed_at": 1782086258.2}},

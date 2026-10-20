@@ -214,3 +214,15 @@ test('profile token limits come from the Gateway policy the profile publishes', 
   assert.equal(formatTokenLimits(limits), '50,000 / 13,000');
   assert.equal(formatTokenLimits(mainModelTokenLimits({ gateway_policy: {} })), '— / —');
 });
+
+test('CPU choice describes RAM preparation without promising GPU admission', () => {
+  const cpu = profile('unknown', 'unverified', {
+    runtime_backend: 'llama-cpp', vram_fraction: 0,
+    switch_preflight: { status: 'fits', reason_code: null, required_fraction: 0, available_fraction: null, ceiling_fraction: null, stop: [] },
+  });
+  assert.equal(mainModelResourcePolicyLabel(cpu), 'CPU 전용 · GPU 예약 없음');
+  assert.equal(mainModelPreflightView(cpu).label, 'CPU 선택 가능');
+  assert.equal(mainModelProfileSwitchable(cpu), true);
+  assert.throws(() => mainModelSwitchRequest(cpu, false));
+  assert.deepEqual(mainModelSwitchRequest(cpu, true), { profile: 'candidate', confirm_unverified: true });
+});

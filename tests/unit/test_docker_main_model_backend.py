@@ -131,7 +131,7 @@ def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, moun
     inspected = {
         "Name": "/platform-main-llm-vllm-1",
         "Config": {"Env": ["VLLM_CACHE_ROOT=/root/.cache/vllm"]},
-        "HostConfig": {mount_field: mount},
+        "HostConfig": {mount_field: mount, "DeviceRequests": [{"Driver": "", "Count": -1, "Capabilities": [["gpu"]]}]},
     }
     created = []
     lookups = iter(["old", None])  # failed candidate absent; rollback uses saved template
@@ -152,6 +152,9 @@ def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, moun
     monkeypatch.setattr(backend, "_inspect", inspect)
     monkeypatch.setattr(backend, "_client", lambda: httpx.AsyncClient(
         transport=httpx.MockTransport(respond), base_url="http://docker"))
+    async def image(reference):
+        return {"Config": {"Env": []}}
+    monkeypatch.setattr(backend, "_inspect_image", image)
     for profile_id in ("gemma4-26b-a4b-fp8", "gemma4-12b-unified-fp8"):
         asyncio.run(backend.replace(catalog, catalog.profiles[profile_id]))
     for payload in created:

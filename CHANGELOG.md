@@ -16,6 +16,8 @@
 
 ### Added
 
+- GPU Dynamic에서 고정 CPU 모델을 수동 선택하고 기존 GPU 모델로 복귀할 수 있다. 기존 Gate·Drain·Canary·Rollback과 재시작 의도를 사용하며, CPU는 GPU 장치 없이 RAM 제한으로 실행한다. Control Plane·Scalar·Playground는 실제 모델명·CPU/GPU 엔진·입력/토큰 한도와 수동/자동 모드를 구분한다. 기존 배포는 `make up`으로 Controller와 CPU cache mount를 반영해야 한다. ([ADR-0055](docs/adr/0055-manual-cpu-profile-in-gpu-dynamic.md))
+
 - 첫 Linux 설치의 `TARGET=auto`는 Core를 먼저 기동하는 `linux-adaptive`를 선택한다. 관리형 CPU 서빙·GPU 자원 관측·Gate/Drain/Canary를 거친 자동 복귀와 CPU 복구를 제공하며, 운영자 중지 의도와 실패 재시도 시각을 유지한다. 기존 `.env`의 Target은 유지한다. CPU 전환 후 지원 입력·파라미터·한도는 활성 모델 목록을 따른다. ([ADR-0054](docs/adr/0054-managed-cpu-gpu-runtime-selection.md))
 
 

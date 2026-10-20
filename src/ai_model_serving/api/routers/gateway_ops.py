@@ -103,13 +103,13 @@ async def _readiness(
     main_evaluator = None
     if settings.deployment_target.control_mode == "managed_cpu":
         main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
-    if settings.deployment_target.adaptive:
+    if getattr(clients, "runtime_controller", None) is not None:
         try:
             snapshot = await asyncio.wait_for(clients.runtime_controller.main_model(observed=False), timeout_seconds)
         except (RuntimeControllerRequestError, RuntimeControllerUnavailableError, TimeoutError):
             snapshot = {}
         profile = snapshot.get("active_profile") or {}
-        if snapshot.get("gate") != "open" or not profile:
+        if snapshot.get("gate") == "closed" or (settings.deployment_target.adaptive and (snapshot.get("gate") != "open" or not profile)):
             main_evaluator = lambda body: (NOT_READY, "MAIN_MODEL_GATE_CLOSED")
         elif profile.get("runtime_backend") == "llama-cpp":
             main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
