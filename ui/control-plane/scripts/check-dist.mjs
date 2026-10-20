@@ -28,6 +28,16 @@ try {
     filesUnder(candidate),
   ]);
   if (JSON.stringify(expectedFiles) !== JSON.stringify(actualFiles)) {
+    // 임시 CI 생성물 회수: 최종 변경에서는 삭제한다.
+    for (const relative of actualFiles.filter((name) =>
+      name === 'index.html' || name === 'asset-manifest.json'
+      || /^assets\\/index-.*\\.js$/.test(name)
+    )) {
+      const content = await fs.readFile(path.join(candidate, relative), 'utf8');
+      for (let i = 0; i < content.length; i += 5000) {
+        console.log('ARTGEN_CONSOLE:' + relative + ':' + Math.floor(i / 5000) + ':' + JSON.stringify(content.slice(i, i + 5000)));
+      }
+    }
     throw new Error(
       `generated Console file-set drift: checked-in=${expectedFiles.join(',')} candidate=${actualFiles.join(',')}`,
     );
