@@ -12,6 +12,8 @@ CPU를 GPU 예약률 0%의 vLLM 모델로 취급하면 엔진 설정·예산·�
 
 ## Decision
 
+- Gateway는 Main의 Compose health를 기동 의존성으로 갖지 않는다. GPU가 준비되지 않아도
+  운영 UI와 Scalar에서 상태를 확인하고 CPU 후보를 선택할 수 있다. 추론 준비는 Gate와 `/ready`가 소유한다.
 - `linux-nvidia-dynamic`은 기존 GPU 후보와 고정 CPU GGUF 후보를 함께 제공한다.
   CPU 선택은 기존 MainModelManager·상태 저장소·동일 service/endpoint를 사용한다.
   자동 GPU 복귀나 CPU 자동 복구는 `linux-adaptive`의 별도 권한으로 유지한다.

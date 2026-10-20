@@ -285,7 +285,9 @@ def test_cpu_boot_override_really_removes_compose_gpu_devices(tmp_path, monkeypa
         capture_output=True,
     )
     assert result.returncode == 0, result.stderr
-    main = json.loads(result.stdout)["services"]["main-llm-vllm"]
+    services = json.loads(result.stdout)["services"]
+    assert "main-llm-vllm" not in services["gateway"].get("depends_on", {})
+    main = services["main-llm-vllm"]
     assert (
         main.get("deploy", {})
         .get("resources", {})
