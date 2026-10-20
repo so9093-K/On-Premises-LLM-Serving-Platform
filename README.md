@@ -11,7 +11,7 @@
 서버 운영자가 이미 LLM 플랫폼과 Tailnet 접근을 준비했다면, **이 저장소를 내려받거나 서버의 `make` 명령을 실행하지 않습니다.**
 
 - **외부 관리자:** 본인의 기기에서 Tailscale에 연결한 뒤 운영자가 알려 준 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 열고 Admin Key로 인증합니다. [외부 관리자 접속](docs/guides/remote-access.md#external-admin)
-- **외부 API 사용자:** Tailscale 연결 후 운영자가 전달한 HTTPS 8443 **API Base URL**과 **사용자 API Key**로 SDK 또는 `/v1/*` 요청을 보냅니다. 팀원 API에서는 관리자 Console을 제공하지 않습니다. [외부 API 연동](docs/guides/api-integration.md#remote-api)
+- **외부 API 사용자:** Tailscale 연결 후 운영자가 전달한 HTTPS 8443 **API Base URL**과 **사용자 API Key**로 SDK 또는 **허용된 모델 API 경로**로 요청합니다. 팀원 진입점은 `GET /v1/models`, `POST /v1/chat/completions`·`/v1/responses`·`/v1/embeddings`만 전달합니다. 팀원 API에서는 관리자 Console을 제공하지 않습니다. [외부 API 연동](docs/guides/api-integration.md#remote-api)
 
 URL과 권한은 운영자가 실제 Tailnet에서 확인해 전달합니다. 이 절차는 일반 인터넷 공개가 아니며, 인증 키를 URL에 포함하지 않습니다.
 
