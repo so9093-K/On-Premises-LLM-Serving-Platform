@@ -31,7 +31,7 @@ try {
     // 임시 CI 생성물 회수: 최종 변경에서는 삭제한다.
     for (const relative of actualFiles.filter((name) =>
       name === 'index.html' || name === 'asset-manifest.json'
-      || /^assets\\/index-.*\\.js$/.test(name)
+      || (name.startsWith('assets/index-') && name.endsWith('.js'))
     )) {
       const content = await fs.readFile(path.join(candidate, relative), 'utf8');
       for (let i = 0; i < content.length; i += 5000) {
