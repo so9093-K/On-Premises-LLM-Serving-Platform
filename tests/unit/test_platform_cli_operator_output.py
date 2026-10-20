@@ -159,7 +159,8 @@ def test_suggestion_follows_host_capability_only(monkeypatch: pytest.MonkeyPatch
     assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
 
     monkeypatch.setattr(platform_cli.shutil, "which", lambda name: None)
-    assert platform_cli.suggested_target() is None
+    # NVIDIA 도구가 없는 Linux에서는 모델 자원이 필요 없는 Core Target을 권장한다.
+    assert platform_cli.suggested_target()[0] == "linux-core"
 
 
 def test_ready_output_points_to_surfaces_the_gateway_reports(
