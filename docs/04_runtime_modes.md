@@ -10,6 +10,27 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 실행 환경의 기능 집합은 `configs/deployment_targets.yaml`의 `DEPLOYMENT_TARGET`이 결정한다.
 `static`은 macOS의 별칭이 아니며 Linux CUDA runtime도 static으로 연결할 수 있다.
 
+### CPU Managed (llama.cpp)
+
+`linux-cpu-managed`는 플랫폼 Compose가 CPU-only llama.cpp 서버를
+시작·중지·재시작하는 Deployment Target이다. 모델은
+`configs/cpu_model_artifact.yaml`에서 선언한 Qwen3 0.6B GGUF를
+고정 Revision과 SHA-256으로 다운로드·검증한 뒤 Cache에 보존한다.
+Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
+적용하고, Runtime은 CPU/GPU 혼합 Offloading을 활성화하지 않는다.
+
+```bash
+make up TARGET=linux-cpu-managed ACCESS=local
+make cpu-runtime-validate
+make status
+```
+
+설치 시 후보를 자동 선택하고 싶다면 **최초 실행에서만**
+`make up TARGET=auto ACCESS=local`을 사용한다. GPU VRAM이 충분해도
+실제 모델 호환성/적재 성공이 보증되지 않으며, 이 명령은
+기존 운영 중 Target을 자동 교체하지 않는다. 실행 중 자동 CPU↔GPU
+Fallback 및 GPU 복귀는 아직 구현하지 않았다.
+
 ### CPU Static (llama.cpp)
 
 `linux-cpu-static`은 운영자가 별도 CPU-only `llama-server`와 GGUF 모델을
