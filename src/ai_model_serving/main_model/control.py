@@ -516,6 +516,39 @@ class MainModelManager:
             return prior
         return None
 
+    def switch_policy_error(
+        self, profile_id: str, *, boot_reconcile: bool = False
+    ) -> MainModelSwitchError | None:
+        """실제 전환 요청과 읽기 전용 사전 검토가 공유하는 정책 판정이다.
+
+        Qualification 확인과 GPU 예산·실행 검증은 별도 단계다.
+        """
+        if profile_id not in self.catalog.profiles:
+            return MainModelSwitchError(
+                "MODEL_PROFILE_NOT_FOUND", f"unknown profile: {profile_id}", status_code=404
+            )
+        if self.profile_locked and not boot_reconcile:
+            return MainModelSwitchError(
+                "MODEL_PROFILE_LOCKED", "main model profile is deployment-locked"
+            )
+        profile = self.catalog.profiles[profile_id]
+        if profile.compatibility.get("status") == "incompatible":
+            return MainModelSwitchError(
+                "MODEL_PROFILE_INCOMPATIBLE",
+                "the selected model is incompatible with the current deployment",
+                status_code=422,
+            )
+        # 명시적 리소스 정책이 없는 프로필의 기준 정책 fallback은 금지한다.
+        missing_policy = self.catalog.missing_selected_resource_policy(profile_id)
+        if missing_policy is not None:
+            return MainModelSwitchError(
+                "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED",
+                "the selected profile does not declare the explicitly selected resource "
+                f"policy override {missing_policy}; refusing reference-policy fallback",
+                status_code=422,
+            )
+        return None
+
     def request_switch(
         self,
         profile_id: str,
@@ -524,32 +557,11 @@ class MainModelManager:
         boot_reconcile: bool = False,
         client_request_id: str | None = None,
     ) -> SwitchOutcome:
-        if profile_id not in self.catalog.profiles:
-            raise MainModelSwitchError("MODEL_PROFILE_NOT_FOUND", f"unknown profile: {profile_id}", status_code=404)
-        if self.profile_locked and not boot_reconcile:
-            raise MainModelSwitchError("MODEL_PROFILE_LOCKED", "main model profile is deployment-locked")
+        policy_error = self.switch_policy_error(profile_id, boot_reconcile=boot_reconcile)
+        if policy_error is not None:
+            raise policy_error
         profile = self.catalog.profiles[profile_id]
-        compatibility = profile.compatibility.get("status")
-        qualification = profile.qualification.get("status")
-        if compatibility == "incompatible":
-            raise MainModelSwitchError(
-                "MODEL_PROFILE_INCOMPATIBLE",
-                "the selected model is incompatible with the current deployment",
-                status_code=422,
-            )
-        # 운영자가 명시적으로 resource-policy override를 선택했으면 그 override가
-        # 없는 profile에서 reference 정책으로 조용히 fallback하지 않는다. 이것은 GPU
-        # 제품 allowlist가 아니며, confirm_unverified(미검증 profile 확인)와도
-        # 별개의 자원 정책 안전장치다.
-        missing_policy = self.catalog.missing_selected_resource_policy(profile_id)
-        if missing_policy is not None:
-            raise MainModelSwitchError(
-                "MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED",
-                "the selected profile does not declare the explicitly selected resource "
-                f"policy override {missing_policy}; refusing reference-policy fallback",
-                status_code=422,
-            )
-        if qualification != "verified" and not confirm_unverified:
+        if profile.qualification.get("status") != "verified" and not confirm_unverified:
             raise MainModelSwitchError(
                 "MODEL_PROFILE_CONFIRMATION_REQUIRED",
                 "the selected model is not qualified as verified; explicit confirmation is required",
