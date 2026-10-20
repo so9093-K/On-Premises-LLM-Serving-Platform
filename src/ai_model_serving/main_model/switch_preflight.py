@@ -13,6 +13,7 @@ def project_switch_preflight(
     *,
     active: bool,
     policy_error_code: str | None,
+    switch_in_progress: bool = False,
     participants: list[Participant] | None,
     target_key: str,
     target_fraction: float,
@@ -31,6 +32,8 @@ def project_switch_preflight(
         return {**base, "status": "current", "reason_code": None}
     if policy_error_code is not None:
         return {**base, "status": "blocked", "reason_code": policy_error_code}
+    if switch_in_progress:
+        return {**base, "status": "blocked", "reason_code": "MODEL_SWITCH_IN_PROGRESS"}
     if participants is None:
         return base
 
