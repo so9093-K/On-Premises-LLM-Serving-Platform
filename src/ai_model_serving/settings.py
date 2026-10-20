@@ -433,7 +433,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         main_model_catalog.profiles[selected_main_profile].gateway_policy
         if main_model_catalog is not None else {}
     )
-    if deployment_target.static_serving and "max_concurrency" in selected_gateway_policy:
+    if (deployment_target.static_serving or deployment_target.adaptive) and "max_concurrency" in selected_gateway_policy:
         max_concurrency = int(selected_gateway_policy["max_concurrency"])
         if max_concurrency < 1:
             raise RuntimeError("static main profile max_concurrency must be at least 1")

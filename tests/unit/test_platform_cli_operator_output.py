@@ -149,7 +149,7 @@ def test_first_run_lists_targets_with_requirements_and_a_host_suggestion(
     assert "example: make up TARGET=<deployment-target>" in platform_cli.first_run_guidance()
 
 
-def test_suggestion_follows_host_capability_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_suggestion_uses_managed_selection_on_linux(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(platform_cli.sys, "platform", "darwin")
     monkeypatch.setattr(platform_cli.platform, "machine", lambda: "arm64")
     assert platform_cli.suggested_target()[0] == "macos-metal-static"
@@ -159,16 +159,16 @@ def test_suggestion_follows_host_capability_only(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(platform_cli.sys, "platform", "linux")
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((GpuMemory(0, 24564, 22000),), 8192))
-    assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
+    assert platform_cli.suggested_target()[0] == "linux-adaptive"
 
-    # 장치는 있지만 모델을 적재할 실제 여유 VRAM이 부족하면 CPU 후보를 안내한다.
+    # GPU 상태와 무관하게 Target 소유권은 유지하고 실행 중 후보 선택은 Controller가 맡는다.
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((GpuMemory(0, 24564, 1000),), 8192))
-    assert platform_cli.suggested_target()[0] == "linux-cpu-managed"
+    assert platform_cli.suggested_target()[0] == "linux-adaptive"
 
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((), None, "GPU_MEMORY_OBSERVATION_FAILED"))
-    assert platform_cli.suggested_target()[0] == "linux-core"
+    assert platform_cli.suggested_target()[0] == "linux-adaptive"
 
 
 def test_ready_output_points_to_surfaces_the_gateway_reports(

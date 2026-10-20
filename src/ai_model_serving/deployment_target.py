@@ -67,6 +67,10 @@ class DeploymentTarget:
         return self.control_mode in ("static", "managed_cpu")
 
     @property
+    def adaptive(self) -> bool:
+        return self.runtime_backend == "adaptive"
+
+    @property
     def controllable(self) -> bool:
         return self.control_mode == "runtime_controller" and self.lifecycle_owner == "platform"
 
@@ -142,19 +146,18 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
         raise RuntimeError(
             f"deployment target {selected!r} main_profile_catalog must be a safe relative path"
         )
-    # compose_files는 static 진입점이 그대로 사용하는 목록이며 노출 진단도 같은 값을
-    # 읽는다. dynamic 진입점은 override를 실행 시점에 조합하므로 이 값을 쓰지 않는다.
-    # 읽는 곳이 없는 선언을 남기지 않도록 static target에서만 요구한다.
+    # Static·Adaptive 진입점과 노출 진단은 같은 Compose 목록을 사용한다.
+    # GPU Dynamic 진입점은 실행 시 override를 조합한다.
     raw_compose_files = raw.get("compose_files")
-    if control_mode in ("static", "managed_cpu"):
+    if control_mode in ("static", "managed_cpu") or runtime_backend == "adaptive":
         if not isinstance(raw_compose_files, list) or not raw_compose_files:
             raise RuntimeError(
-                f"static deployment target {selected!r} requires a non-empty compose_files list"
+                f"deployment target {selected!r} requires a non-empty compose_files list"
             )
     elif raw_compose_files is not None:
         raise RuntimeError(
             f"deployment target {selected!r} must not declare compose_files; "
-            "only static targets consume it"
+            "only static and adaptive targets consume it"
         )
     compose_files: list[str] = []
     for entry in raw_compose_files or []:

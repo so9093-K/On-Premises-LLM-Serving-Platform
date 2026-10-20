@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — 자동 선택 정책은 [ADR-0054](0054-managed-cpu-gpu-runtime-selection.md)로 대체
 
 ## Context
 
@@ -25,10 +25,7 @@ Risk 기능은 독립적으로 운영할 수 있어야 한다. 기존 app-only�
   Compose가 CPU llama.cpp Server를 소유한다. 정적 Gateway Routing을 재사용하되
   외부 Static Target과 관리 주체는 구분한다. Image Digest와 모델 Revision·SHA-256을
   검증하며, CPU Runtime에 Docker Socket을 노출하지 않는다.
-- `TARGET=auto`는 최초 설치만 CPU RAM과 GPU free/total VRAM을 관측해
-  GPU/CPU/Core 배포 후보를 정한다. 판단 결과는 운영 설정에 고정되며,
-  GPU Compatibility와 실제 적재 성공은 후속 strict validation의 권위다.
-  기존 배포를 주기적으로 전환하거나 GPU Runtime을 퇴거시키지 않는다.
+- `TARGET=auto`의 현재 자동 배포·복구 계약은 ADR-0054가 소유한다.
 - 기존 GPU Dynamic Target의 Main 준비, GPU Admission과 strict readiness는 유지한다.
   GPU 시작 실패를 CPU/Core 성공으로 조용히 전환하지 않는다.
 
@@ -38,7 +35,7 @@ Risk 기능은 독립적으로 운영할 수 있어야 한다. 기존 app-only�
 |---|---|
 | GPU 설치·점유와 독립적인 기본 운영 | Target 변경은 운영자의 명시적인 설정 변경 필요 |
 | Gateway API에서 CPU Chat 경로 재사용 | CPU GGUF 모델과 서버 준비 및 보안은 외부 운영자 소유 |
-| GPU Admission과 모델 재검증 계약 보존 | 모델 자동 배치·자동 Fallback은 없음 |
+| GPU Admission과 모델 재검증 계약 보존 | 자동 선택은 별도 Adaptive Target의 범위 |
 
 ## Operational impact
 

@@ -23,6 +23,19 @@ def _float_flag(command: Sequence[str], flag: str) -> float | None:
 
 
 @dataclass(frozen=True)
+class CpuEnginePolicy:
+    """CPU llama.cpp의 자원 정책. GPU 예약량은 0이다."""
+
+    context_size: int
+    max_num_seqs: int
+    gpu_memory_utilization: float = 0.0
+
+    def public_view(self) -> dict[str, Any]:
+        return {"backend": "llama-cpp", "context_size": self.context_size,
+                "max_num_seqs": self.max_num_seqs, "gpu_layers": 0}
+
+
+@dataclass(frozen=True)
 class VllmEnginePolicy:
     """최종 Runtime 명령에서 해석한 vLLM의 용량 관련 정책값."""
 

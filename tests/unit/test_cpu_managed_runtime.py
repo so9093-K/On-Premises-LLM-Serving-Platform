@@ -1,8 +1,8 @@
 """관리형 CPU의 모델 무결성·Runtime 소유권 회귀 검증."""
 import hashlib
-import importlib.util
 import os
 import shutil
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -11,8 +11,9 @@ import pytest
 
 from ai_model_serving.deployment_target import load_deployment_target
 from ai_model_serving.serving_profile import load_main_serving_catalog
+from ai_model_serving.main_model.cpu import cpu_runtime_command
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_cpu_managed_target_is_platform_owned() -> None:
@@ -46,8 +47,8 @@ def test_cpu_compose_has_no_gpu_device_or_host_port() -> None:
     assert not runtime.get("ports")
     assert not runtime.get("devices")
     assert not runtime.get("deploy")
-    assert "--n-gpu-layers" in runtime["command"]
-    assert runtime["command"][runtime["command"].index("--n-gpu-layers") + 1] == "0"
+    command = cpu_runtime_command(ROOT)
+    assert command[command.index("--n-gpu-layers") + 1] == "0"
     assert any(str(v).endswith("/models:ro") for v in runtime["volumes"])
 
 
@@ -71,6 +72,8 @@ def test_managed_cpu_compose_resolves_all_services_without_gpu(tmp_path) -> None
         "RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE": str(risk_env),
         "PLATFORM_IMAGE": "ai-model-serving-platform:test",
         "DEPLOYMENT_TARGET": "linux-cpu-managed",
+        "CPU_MAIN_COMMAND": shlex.join(cpu_runtime_command(ROOT)),
+        "CPU_MEMORY_LIMIT_BYTES": "4294967296",
     }
     target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", "linux-cpu-managed")
     command = ["docker", "compose", "--project-name", "cpu-compose-contract"]
@@ -107,7 +110,7 @@ def test_managed_cpu_readiness_requires_the_expected_model_identity() -> None:
     from ai_model_serving.api.routers.gateway_ops import _managed_cpu_model_readiness
 
     assert _managed_cpu_model_readiness(
-        {"data": [{"id": "local-main"}]}, "local-main"
+        {"data": [{"id": "local-main", "meta": {}}]}, "local-main"
     ) == ("ready", None)
     assert _managed_cpu_model_readiness(
         {"data": [{"id": "unrelated-model"}]}, "local-main"
@@ -141,7 +144,7 @@ def test_managed_cpu_model_listing_tracks_runtime_availability(monkeypatch) -> N
         return {
             "object": "list",
             "data": [{"id": "local-main", "meta": None}] if selected == "loading"
-                    else [{"id": selected}],
+                    else [{"id": selected, "meta": {}}],
         }
 
     monkeypatch.setattr(RuntimeClient, "probe_json", observed_models)
@@ -154,15 +157,11 @@ def test_managed_cpu_model_listing_tracks_runtime_availability(monkeypatch) -> N
 
 
 def test_cpu_model_prepare_rechecks_ram_even_with_valid_cache(tmp_path, monkeypatch) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "cpu_artifact_prepare_admission", ROOT / "scripts/models/prepare_cpu_model.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    from ai_model_serving.main_model import cpu as module
     model = tmp_path / "pinned.gguf"
     model.write_bytes(b"cached")
-    manifest = tmp_path / "artifact.yaml"
+    (tmp_path / "configs").mkdir()
+    manifest = tmp_path / "configs/cpu_model_artifact.yaml"
     manifest.write_text(yaml.safe_dump({
         "model": {
             "repo_id": "example/test",
@@ -172,20 +171,13 @@ def test_cpu_model_prepare_rechecks_ram_even_with_valid_cache(tmp_path, monkeypa
         },
         "runtime": {"minimum_available_ram_mib": 4096, "minimum_free_disk_mib": 2048},
     }), encoding="utf-8")
-    monkeypatch.setattr(module, "MANIFEST", manifest)
-    monkeypatch.setattr(module, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(module, "available_memory_mib", lambda: 1024)
     with pytest.raises(RuntimeError, match="CPU RAM admission blocked"):
-        module.prepare()
+        module.prepare_cpu_model(config_root=tmp_path, output_root=tmp_path)
 
 
 def test_cpu_model_prepare_checks_cached_bytes(tmp_path) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "cpu_artifact_prepare", ROOT / "scripts/models/prepare_cpu_model.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    from ai_model_serving.main_model import cpu as module
     file = tmp_path / "model.gguf"
     file.write_bytes(b"test")
     assert not module._check_sha256(file, "0" * 64)

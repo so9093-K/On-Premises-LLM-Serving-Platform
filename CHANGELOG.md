@@ -6,19 +6,21 @@
 
 ### Changed
 
+- 관리형 Linux 배포는 모델 image·캐시 준비 전에 Core를 기동한다. 추론 준비 실패 시 운영 UI와 로컬 Risk를 유지하고 `/ready`는 실제 모델 준비 실패를 보고한다.
+
 - Scalar API 문서의 API 제목·요청 예시·오류 설명을 한국어 중심으로 정리하고 모델 조회·추론 API를 먼저 탐색하도록 구성했다. GPU 정책 예약과 실측 메모리, 전환 작업의 상태와 단계를 구분하며 모바일 표의 가로 스크롤과 개발용·외부 연결 메뉴 노출을 정리했다.
 
 - 비공개 원격 접속 안내를 외부 관리자·API 사용자·Ubuntu/Linux Host 운영자별로 정리하고, macOS Host의 미검증 범위와 프로젝트 소유 Serve/Nginx·Grants·키의 선택적 해제 절차를 명시했다. 사용하지 않는 원격 접속 `plan` 하위명령은 제거하되 읽기 전용 `preflight`·`status`와 기존 `make up/status` 운영 계약은 유지한다.
 
 ### Added
 
-- 첫 설치에서 `TARGET=auto`를 명시하면 GPU별 실제 여유 VRAM과 CPU RAM을 조사해 GPU Managed, CPU Managed 또는 모델 없는 Core 실행 후보를 선택한다. 관측 실패나 기존 배포 재시작 시 기존 Runtime을 자동 교체하지 않는다.
+- 첫 Linux 설치의 `TARGET=auto`는 Core를 먼저 기동하는 `linux-adaptive`를 선택한다. 관리형 CPU 서빙·GPU 자원 관측·Gate/Drain/Canary를 거친 자동 복귀와 CPU 복구를 제공하며, 운영자 중지 의도와 실패 재시도 시각을 유지한다. 기존 `.env`의 Target은 유지한다. CPU 전환 후 지원 입력·파라미터·한도는 활성 모델 목록을 따른다. ([ADR-0054](docs/adr/0054-managed-cpu-gpu-runtime-selection.md))
 
 
 - `linux-cpu-managed`는 고정된 GGUF 모델 Revision·SHA-256을 검사하고 CPU-only llama.cpp Runtime을 프로젝트 Compose가 자동 실행하는 별도 Target이다. 기존 외부 `linux-cpu-static`의 운영권한은 유지한다.
 
 
-- GPU 자원 없이 기본 서비스를 운영하는 `linux-core` Target과 외부 llama.cpp CPU Runtime을 연결하는 `linux-cpu-static` Target을 제공한다. Core Target은 Main Model Profile 없이 Gateway·Control Plane·PII/Secret Risk를 실행한다. CPU Static Target은 실제 엔진·가중치를 운영자가 준비하고, 실환경 검증 전까지 unverified다. 자동 CPU/GPU Fallback은 제공하지 않는다. ([ADR-0053](docs/adr/0053-model-optional-deployment-and-cpu-static-serving.md))
+- GPU 자원 없이 기본 서비스를 운영하는 `linux-core` Target과 외부 llama.cpp CPU Runtime을 연결하는 `linux-cpu-static` Target을 제공한다. Core Target은 Main Model Profile 없이 Gateway·Control Plane·PII/Secret Risk를 실행한다. CPU Static Target은 실제 엔진·가중치를 운영자가 준비하고, 실환경 검증 전까지 unverified다. 자동 CPU/GPU 복구는 별도 `linux-adaptive` Target이 소유한다. ([ADR-0053](docs/adr/0053-model-optional-deployment-and-cpu-static-serving.md))
 
 
 - 독립된 AIPerf 0.13.0 환경과 공통 Streaming Chat Workload로 수동 성능 측정을 제공한다. macOS 초기 실측과 Ubuntu/NVIDIA의 단일·긴 입력·동시 요청·Admission 한도 초과 Queue 실험은 장비별 조건과 서버 토큰 수로 해석한다. AIPerf 완료 표시와 SSE 무결성을 구분하고, 공개 합성 입력의 native RAW 진단으로 종료·usage를 확인한다. 일반 CI·Qualification·성능 Gate와 분리한다. ([ADR-0052](docs/adr/0052-manual-aiperf-measurement.md))

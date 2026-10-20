@@ -172,6 +172,105 @@
           "type": "null"
         }
       ]
+    },
+    "runtime_selection": {
+      "type": "object",
+      "required": [
+        "mode",
+        "reason_code"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "automatic"
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "active_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gpu_retry_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cpu_retry_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "last_activation_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "healthy_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failure_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_failed_operation": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object",
+          "required": [
+            "gpus",
+            "ram_available_mib",
+            "gpu_observation_error"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "gpus": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "index",
+                  "total_mib",
+                  "free_mib"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "total_mib": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "free_mib": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "ram_available_mib": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "gpu_observation_error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }

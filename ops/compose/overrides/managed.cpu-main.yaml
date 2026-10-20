@@ -1,32 +1,12 @@
 # 운영자가 허용한 CPU GGUF만 제공한다. 컨테이너 포트를 host에 공개하지 않는다.
 services:
-  gateway:
-    depends_on:
-      cpu-main:
-        condition: service_started
   cpu-main:
     image: ${LLAMA_CPP_IMAGE:?Use pinned official llama.cpp server digest}
     restart: unless-stopped
-    command:
-      - -m
-      - /models/Qwen3-0.6B-Q4_K_M.gguf
-      - --alias
-      - local-main
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - --ctx-size
-      - "2048"
-      - --parallel
-      - "1"
-      - --threads
-      - "4"
-      - --n-gpu-layers
-      - "0"
+    command: ${CPU_MAIN_COMMAND:?Use make up}
     expose:
       - "8080"
-    mem_limit: 4g
+    mem_limit: ${CPU_MEMORY_LIMIT_BYTES:?Use make up}
     pids_limit: 256
     security_opt:
       - no-new-privileges:true

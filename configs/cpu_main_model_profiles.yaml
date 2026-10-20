@@ -1,4 +1,4 @@
-# CPU-only llama.cpp Gateway 계약. 실제 엔진 바이너리/GGUF는 외부 운영자가 소유한다.
+# CPU-only llama.cpp의 공통 Serving 계약. 실행·Artifact 소유권은 Deployment Target이 정한다.
 version: 1
 public_model: local-main
 default_profile: cpu-gguf-text
@@ -7,6 +7,8 @@ runtime:
   port: 8080
   context_size: 2048
   gpu_layers: 0
+  parallel: 1
+  threads: 4
 
 profiles:
   cpu-gguf-text:

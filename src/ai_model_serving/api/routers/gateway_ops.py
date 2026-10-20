@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -48,7 +49,7 @@ def _managed_cpu_model_readiness(body: dict[str, Any], expected: str) -> tuple[s
     if isinstance(models, list) and any(
         isinstance(item, dict)
         and item.get("id") == expected
-        and item.get("meta", {}) is not None
+        and isinstance(item.get("meta"), dict)
         for item in models
     ):
         return READY, None
@@ -99,16 +100,25 @@ async def _readiness(
     # 조립하면(예전엔 main_llm에 문자열을 직접 박고 embedding은 f"{key}_vllm"였다)
     # 선언된 식별자와 갈라지고, /ready만 옛 이름을 계속 광고하게 된다.
     probes = list(embedding_probes)
+    main_evaluator = None
+    if settings.deployment_target.control_mode == "managed_cpu":
+        main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
+    if settings.deployment_target.adaptive:
+        try:
+            snapshot = await asyncio.wait_for(clients.runtime_controller.main_model(observed=False), timeout_seconds)
+        except (RuntimeControllerRequestError, RuntimeControllerUnavailableError, TimeoutError):
+            snapshot = {}
+        profile = snapshot.get("active_profile") or {}
+        if snapshot.get("gate") != "open" or not profile:
+            main_evaluator = lambda body: (NOT_READY, "MAIN_MODEL_GATE_CLOSED")
+        elif profile.get("runtime_backend") == "llama-cpp":
+            main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
     if settings.feature_enabled("chat"):
         probes.insert(0, DependencyProbe(
             settings.runtime_service_id("main_llm"),
             clients.main_llm,
             "models",
-            evaluator=(
-                (lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model))
-                if settings.deployment_target.control_mode == "managed_cpu"
-                else None
-            ),
+            evaluator=main_evaluator,
             required=await runtime_required("main_llm"),
         ))
     risk_signal_service = getattr(clients, "risk_signal_service", None)
@@ -231,7 +241,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
             "runtime": "main_llm",
             "public_model": main_endpoint.model,
             "deployment_target": target.target_id,
-            "backend": target.runtime_backend,
+            "backend": active_profile["runtime_backend"] if target.adaptive else target.runtime_backend,
             "control_mode": target.control_mode,
             "profile": {
                 "id": profile_id,

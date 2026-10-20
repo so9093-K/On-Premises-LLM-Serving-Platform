@@ -257,7 +257,7 @@ def build_router(
                     and any(
                         isinstance(model, dict)
                         and model.get("id") == active_model_id
-                        and model.get("meta", {}) is not None
+                        and isinstance(model.get("meta"), dict)
                         for model in observed["data"]
                     )
                 )
@@ -276,6 +276,7 @@ def build_router(
             )
         )
         if runtime_controller is not None:
+            active_snapshot = None
             try:
                 # /v1/models는 active profile의 modality·정책만 읽는다.
                 active_snapshot = await runtime_controller.main_model(observed=False)
@@ -285,6 +286,14 @@ def build_router(
             if isinstance(active_snapshot, dict):
                 active_modalities = _active_input_modalities(active_snapshot) or active_modalities
                 active_policy = _active_gateway_policy(active_snapshot) or active_policy
+            if settings.deployment_target.adaptive:
+                active = (active_snapshot or {}).get("active_profile")
+                if not isinstance(active, dict) or active_snapshot.get("gate") != "open":
+                    items = [item for item in items if item.get("id") != settings.runtime("main_llm").model]
+                else:
+                    for item in items:
+                        if item.get("id") == settings.runtime("main_llm").model:
+                            item["backend"] = active["runtime_backend"]
         main_model_id = settings.runtime("main_llm").model
         for item in items:
             if item.get("id") == main_model_id:

@@ -46,10 +46,10 @@ class ModelListSchemaProjection:
                 "data": {
                     "type": "array",
                     # checked-in schema는 deployment-target/resource-policy 중립 계약이다.
-                    # 모든 target은 chat/Main을 제공하지만 embeddings/risk는 target 또는
-                    # effective topology에 따라 빠질 수 있다. 허용 ID는 union으로 두고,
+                    # 모델 없는 Core와 준비되지 않은 관리형 Runtime은 빈 목록이 유효하다.
+                    # 허용 ID는 target/resource policy의 합집합으로 두고,
                     # 현재 target의 정확한 필수 집합은 runtime validation이 검증한다.
-                    "minItems": 1,
+                    "minItems": 0,
                     "maxItems": len(self.model_ids),
                     "items": {
                         "type": "object",

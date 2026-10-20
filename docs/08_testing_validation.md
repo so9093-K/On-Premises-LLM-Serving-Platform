@@ -715,3 +715,13 @@ CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate�
 확인한다. 소비자가 없는 공통 `manifest.json`·`summary.json`·합성 JUnit 생성·업로드는
 유지하지 않는다. 브라우저 실패 시 화면 진단 스크린샷만 게시하며, Live GPU 결과는
 별도 `make runtime-validate`의 리포트가 소유한다.
+
+## 관리형 CPU/GPU 자동 전환 검증
+
+`linux-adaptive`는 기존 Main Gate·Drain·Canary·Rollback을 재사용한다.
+`tests/unit/test_adaptive_runtime.py`는 자원 관측 오류, 안정 관측, 실패 유예,
+운영자 중지 의도, 활성 정책·Readiness를 결정론적으로 검증한다.
+CPU 실추론은 `make cpu-runtime-validate BASE_URL=http://127.0.0.1:9400`으로 확인한다.
+실제 전환·SSE 보호·관측 장애 복구의 호스트별 결과는
+[수동 검증 기록](resources/adaptive_runtime_validation.md)을 참조한다.
+이 기록은 장비 범위를 설명하며 Qualification 선언과 일반 CI를 대체하지 않는다.

@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 from ..image_refs import is_immutable_image_ref
-from .engine_policy import VllmEnginePolicy
+from .engine_policy import CpuEnginePolicy, VllmEnginePolicy
 from .profile_state import validate_profile_state
 
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -54,13 +54,14 @@ class MainModelProfile:
     # resource variant와 host override까지 적용된 final command에서 loader가 한 번
     # resolve한 capacity 관련 vLLM policy다. Serving Envelope와 GPU budget은 이 값을
     # 소비하고 command 문자열을 각자 다시 해석하지 않는다.
-    resolved_engine_policy: VllmEnginePolicy
+    resolved_engine_policy: VllmEnginePolicy | CpuEnginePolicy
     # 이 host에 실제로 적용된 resource variant. base 자원 정책으로 서빙 중이면
     # None이다. admin 응답과 request log가 이 값을 함께 보여주므로, 같은 profile이
     # 어떤 자원 정책으로 서빙 중인지 구분된다.
     resource_variant: str | None = None
     # 이 profile이 선언한 모든 variant id다(선택 여부와 무관).
     resource_variants: tuple[str, ...] = ()
+    runtime_backend: str = "vllm-cuda"
 
     @property
     def vram_fraction(self) -> float:
@@ -73,6 +74,7 @@ class MainModelProfile:
     def public_view(self) -> dict[str, Any]:
         return {
             "id": self.profile_id,
+            "runtime_backend": self.runtime_backend,
             "display_name": self.display_name,
             "served_model_name": self.served_model_name,
             "upstream_model_id": self.model_id,
@@ -107,9 +109,9 @@ class MainModelCatalog:
         적합하지 않다는 의도를 표현한 것이므로, 해당 override가 없는 profile에서
         reference 정책으로 조용히 fallback하는 것만 막는다.
         """
-        if self.resource_variant is None:
-            return None
         profile = self.profiles.get(profile_id)
+        if self.resource_variant is None or (profile is not None and profile.runtime_backend == "llama-cpp"):
+            return None
         if profile is None or profile.resource_variant == self.resource_variant:
             return None
         return self.resource_variant

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ai_model_serving.deployment_target import load_deployment_target
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_core_target_does_not_require_model_runtime() -> None:
@@ -53,9 +53,15 @@ def test_core_gateway_does_not_advertise_or_serve_missing_model(monkeypatch) -> 
     settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-core-env")
     app = create_gateway_app(settings)
     with TestClient(app) as client:
+        from jsonschema import Draft202012Validator
+        from ai_model_serving.openapi_contracts import load_contract_schema
+
+        assert client.get("/docs").status_code == 200
+        assert client.get("/openapi.json").status_code == 200
         listing = client.get("/v1/models")
         assert listing.status_code == 200
         assert listing.json() == {"object": "list", "data": []}
+        Draft202012Validator(load_contract_schema("model_list_response.schema.json")).validate(listing.json())
         result = client.post("/v1/chat/completions", json={
             "model": "local-main",
             "messages": [{"role": "user", "content": "안녕하세요"}],

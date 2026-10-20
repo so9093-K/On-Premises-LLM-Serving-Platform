@@ -16,6 +16,34 @@
     "vram_fraction"
   ],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "runtime_backend"
+        ],
+        "properties": {
+          "runtime_backend": {
+            "const": "llama-cpp"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vram_fraction": {
+            "const": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "vram_fraction": {
+            "exclusiveMinimum": 0
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -87,7 +115,7 @@
     },
     "vram_fraction": {
       "type": "number",
-      "exclusiveMinimum": 0,
+      "minimum": 0,
       "maximum": 1
     },
     "resource_variant": {
@@ -139,6 +167,13 @@
           ]
         }
       }
+    },
+    "runtime_backend": {
+      "type": "string",
+      "enum": [
+        "vllm-cuda",
+        "llama-cpp"
+      ]
     }
   }
 }

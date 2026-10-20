@@ -100,6 +100,23 @@
         "vision_cache_size": {
           "type": ["integer", "null"],
           "minimum": 0
+        },
+        "backend": {
+          "type": "string"
+        },
+        "context_size": {
+          "type": "integer",
+          "minimum": 256
+        },
+        "gpu_layers": {
+          "const": 0
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "platform",
+            "external"
+          ]
         }
       }
     }

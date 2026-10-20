@@ -235,6 +235,16 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const active = status.active_profile;
   const observed = status.observed_runtime;
   const locked = status.profile_locked;
+  const selection = status.runtime_selection;
+  const selectionReasons: Record<string, string> = {
+    STARTING_CPU: "CPU 준비 중", CPU_BOOTSTRAP: "CPU 준비 중", CPU_RUNTIME_UNAVAILABLE: "CPU 복구 중",
+    GPU_SERVING: "GPU 서빙 중", GPU_RECOVERY_PENDING: "GPU 자원 안정성 확인 중",
+    GPU_MEMORY_INSUFFICIENT: "GPU 여유 메모리 부족 · CPU 사용",
+    GPU_OBSERVATION_UNAVAILABLE: "GPU 관측 불가 · CPU 사용", GPU_ARTIFACT_UNAVAILABLE: "GPU 이미지 준비 필요 · CPU 사용",
+    GPU_FAILURE_BACKOFF: "GPU 재시도 대기 · CPU 사용", GPU_RECOVERY_VALIDATION: "GPU 적재 및 응답 검증 중",
+    GPU_HEALTH_OR_MEMORY_PRESSURE: "GPU 장애 또는 메모리 부족 · CPU 복구", OPERATOR_STOPPED: "운영자가 중지함",
+    RUNTIME_OBSERVATION_UNAVAILABLE: "런타임 관측 불가",
+  };
   const requiresConfirmation = reviewProfile ? mainModelProfileRequiresConfirmation(reviewProfile) : false;
   const switchImpact = reviewProfile && active
     ? mainModelProfileImpact(active, reviewProfile)
@@ -259,7 +269,21 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Button>
       </div>
 
-      {locked ? (
+      {selection ? (
+        <Card>
+          <CardTitle>자동 CPU/GPU 선택</CardTitle>
+          <CardBody>
+            <p>활성 프로필: {active?.runtime_backend === "llama-cpp" ? "CPU · llama.cpp" : active?.runtime_backend === "vllm-cuda" ? "GPU · vLLM" : "준비 중"}</p>
+            <p>{selectionReasons[selection.reason_code] ?? selection.reason_code}</p>
+            <p>요청 상태: {status.gate === "open" ? "수락 중" : "새 요청 차단 중"}</p>
+            {selection.observed_at ? <p>마지막 자원 관측: {new Date(selection.observed_at * 1000).toLocaleString()}</p> : null}
+            <p>전환 중에는 새 요청이 일시 거부됩니다. 진행 중인 요청이 끝난 뒤 모델을 교체하고 응답 검증에 성공하면 다시 요청을 받습니다.</p>
+            {selection.resources?.gpus.map(gpu => <p key={gpu.index}>GPU {gpu.index}: 실측 여유 {gpu.free_mib.toLocaleString()} / 전체 {gpu.total_mib.toLocaleString()} MiB</p>)}
+            {selection.gpu_retry_at && selection.reason_code === "GPU_FAILURE_BACKOFF" ? <p>GPU 재시도 가능 시각: {new Date(selection.gpu_retry_at * 1000).toLocaleString()}</p> : null}
+            <p>자동 선택을 중단하거나 재개하려면 <Link to="/runtimes">런타임</Link>에서 메인 모델을 중지하거나 시작하세요.</p>
+          </CardBody>
+        </Card>
+      ) : locked ? (
         <Alert isInline variant="warning" title="이 배포에서는 메인 모델 전환이 잠겨 있습니다.">
           상태와 프로필 정보는 조회할 수 있지만 Console에서 전환을 시작할 수 없습니다.
         </Alert>

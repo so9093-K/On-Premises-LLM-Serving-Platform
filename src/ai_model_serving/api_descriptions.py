@@ -394,6 +394,13 @@ def _auth_section(settings: AppSettings) -> str:
 
 def gateway_description(settings: AppSettings) -> str:
     """API 첫 호출과 배포별 인증 안내를 제공한다."""
+    if not settings.feature_enabled("chat"):
+        return (
+            "모델 런타임 없이 Control Plane과 개인정보·시크릿 위험 탐지를 제공하는 Core 배포입니다.\n\n"
+            "`GET /v1/models`는 빈 목록을 반환합니다. Chat Completions·Responses는 "
+            "`503 MODEL_UNAVAILABLE`이며 모델 런타임의 중지가 Core 서비스의 장애를 뜻하지는 않습니다.\n\n"
+            + _auth_section(settings)
+        )
     auth = '  -H "Authorization: Bearer $API_KEY" \\\n' if settings.security.api_key_required else ''
     return f"""모델 응답 생성·텍스트 임베딩·문서 관련도 평가·위험 신호 탐지를 제공하는 Gateway API입니다.
 현재 모델별 지원 기능과 요청 한도는 `GET /v1/models`에서 확인하세요.

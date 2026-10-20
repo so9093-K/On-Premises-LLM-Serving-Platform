@@ -1,0 +1,30 @@
+# 자동 관리도 원본 프로필의 입력·출력 정책과 모델 신원을 재사용한다.
+version: 1
+public_model: local-main
+default_profile: cpu-gguf-text
+profiles:
+  cpu-gguf-text:
+    catalog: configs/cpu_main_model_profiles.yaml
+  gemma4-e4b-it:
+    catalog: configs/main_model_profiles.yaml
+runtime:
+  compose_service: main-llm-vllm
+  container_port: 9401
+  models_path: /v1/models
+  chat_path: /v1/chat/completions
+  drain_timeout_seconds: 90
+  startup_timeout_seconds: 240
+  stop_timeout_seconds: 30
+selection:
+  cpu_profile: cpu-gguf-text
+  gpu_profile: gemma4-e4b-it
+  gpu_resource_variant: rtx4090-24gb
+  # E4B의 검증된 자원 정책에 대한 보수적 시작 조건이다. 적재 성공은 Canary로 확인한다.
+  gpu_minimum_total_mib: 23500
+  gpu_start_margin_mib: 512
+  gpu_pressure_free_mib: 512
+  poll_interval_seconds: 5
+  recovery_samples: 3
+  failure_samples: 2
+  minimum_residency_seconds: 30
+  failure_cooldown_seconds: 60

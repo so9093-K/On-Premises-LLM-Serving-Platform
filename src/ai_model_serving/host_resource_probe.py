@@ -24,7 +24,7 @@ class HostResourceSnapshot:
     gpu_observation_error: str | None = None
 
 
-def _available_ram() -> int | None:
+def available_memory_mib() -> int | None:
     try:
         for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
             if line.startswith("MemAvailable:"):
@@ -35,7 +35,7 @@ def _available_ram() -> int | None:
 
 
 def read_host_resource_snapshot() -> HostResourceSnapshot:
-    available_ram = _available_ram()
+    available_ram = available_memory_mib()
     if not shutil.which("nvidia-smi"):
         return HostResourceSnapshot((), available_ram, "NVIDIA_TOOL_UNAVAILABLE")
     try:
@@ -60,31 +60,3 @@ def read_host_resource_snapshot() -> HostResourceSnapshot:
         return HostResourceSnapshot(tuple(records), available_ram)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
         return HostResourceSnapshot((), available_ram, "GPU_MEMORY_OBSERVATION_FAILED")
-
-
-def recommend_initial_target(
-    snapshot: HostResourceSnapshot, policy: dict,
-) -> tuple[str, str]:
-    """GPU 후보는 장치별 총/여유 메모리를 모두 충족해야 한다.
-
-    예약량, 실제 모델 Compatibility/Loading은 별도 Admission/Qualification이 판단한다.
-    """
-    limits = policy["startup"]
-    min_total = int(limits["gpu_min_total_vram_mib"])
-    min_free = int(limits["gpu_min_free_vram_mib"])
-    min_ram = int(limits["cpu_min_available_ram_mib"])
-    if any(value <= 0 for value in (min_total, min_free, min_ram)) or min_free > min_total:
-        raise ValueError("invalid startup resource thresholds")
-    for gpu in snapshot.gpus:
-        if gpu.total_mib >= min_total and gpu.free_mib >= min_free:
-            return str(limits["preferred_gpu_target"]), (
-                f"GPU {gpu.index}: free {gpu.free_mib}MiB / total {gpu.total_mib}MiB; "
-                "candidate only, real runtime admission required"
-            )
-    if snapshot.ram_available_mib is not None and snapshot.ram_available_mib >= min_ram:
-        return str(limits["preferred_cpu_target"]), (
-            f"GPU model candidate unavailable; CPU RAM available {snapshot.ram_available_mib}MiB"
-        )
-    return str(limits["no_inference_target"]), (
-        "GPU model candidate unavailable; CPU available RAM insufficient or unobservable"
-    )

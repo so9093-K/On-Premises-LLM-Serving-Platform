@@ -8,4 +8,5 @@ model:
   license: apache-2.0
 runtime:
   minimum_available_ram_mib: 4096
+  memory_limit_mib: 4096
   minimum_free_disk_mib: 2048

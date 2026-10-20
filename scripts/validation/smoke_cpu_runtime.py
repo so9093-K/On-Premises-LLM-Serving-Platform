@@ -11,6 +11,11 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from ai_model_serving.contracts import validate_chat_response  # noqa: E402
+from ai_model_serving.errors import ServiceError  # noqa: E402
 
 
 def _request(base_url: str, path: str, token: str, body: dict | None = None):
@@ -39,11 +44,13 @@ def smoke(base_url: str, token: str) -> None:
     }
     with _request(base_url, "/v1/chat/completions", token, payload) as response:
         answer = json.load(response)
-    if not isinstance(answer.get("choices"), list) or not answer["choices"]:
-        raise RuntimeError("CPU non-streaming response has no choices")
+    answer = validate_chat_response(answer, expected_model="local-main")
+    if not any(str(choice["message"].get("content") or "").strip() for choice in answer["choices"]):
+        raise RuntimeError("CPU non-streaming response has no visible answer")
     with _request(base_url, "/v1/chat/completions", token, {**payload, "stream": True}) as response:
         done = False
         saw_data = False
+        finished = False
         for raw in response:
             line = raw.decode("utf-8", errors="replace").strip()
             if not line.startswith("data:"):
@@ -53,10 +60,14 @@ def smoke(base_url: str, token: str) -> None:
                 done = True
                 break
             chunk = json.loads(data)
-            if isinstance(chunk, dict) and chunk.get("choices"):
-                saw_data = True
-        if not (done and saw_data):
-            raise RuntimeError("CPU SSE stream missing choice events or [DONE]")
+            if not isinstance(chunk, dict) or chunk.get("error"):
+                raise RuntimeError("CPU SSE stream contains an error")
+            for choice in chunk.get("choices", []):
+                if str(choice.get("delta", {}).get("content") or "").strip():
+                    saw_data = True
+                finished = finished or choice.get("finish_reason") in {"stop", "length"}
+        if not (done and saw_data and finished):
+            raise RuntimeError("CPU SSE stream missing visible answer, finish event or [DONE]")
     print("[cpu-smoke] PASS: local-main Chat Completions and SSE streaming")
 
 
@@ -67,7 +78,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         smoke(args.base_url, args.api_key)
-    except (OSError, RuntimeError, ValueError, json.JSONDecodeError, urllib.error.HTTPError) as exc:
+    except (OSError, RuntimeError, ValueError, ServiceError, json.JSONDecodeError, urllib.error.HTTPError) as exc:
         print(f"[cpu-smoke] FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
     return 0
