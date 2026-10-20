@@ -6,6 +6,8 @@
 배포 상태는 boot log, `nvidia-smi`, vLLM `/metrics`로 확인한다.
 
 - `main_model_profile_validation_history.md`: Main Model 프로필별 과거 GPU 측정·모델 전환·엔진 변경 이력. 현재 설정의 근거를 보존하나 운영 정책값을 정의하지 않는다.
+- [macOS AIPerf 측정](macos_aiperf_measurement.md): Apple Silicon에서 공통 Workload를 실행한 조건·실측·제약. 성능 Baseline이나 Ubuntu 검증으로 사용하지 않는다.
+- [Ubuntu/NVIDIA AIPerf 측정](linux_aiperf_measurement.md): 활성 E4B/RTX 4090 구성에서의 실제 요청·원본 SSE·Admission과 엔진 지표. 다른 모델·GPU나 Mac 성능과 등가로 비교하지 않는다.
 - `gpu_resource_requirements_48gb.md`: 초기 Gemma 26B/12B 프로필을 48GB GPU에서
   검증하며 얻은 resource 판단 이력과 실측값. 현재 선택 가능한 전체 Main Model profile의
   실행값·현재 qualification 선언은 `configs/main_model_profiles.yaml`을 기준으로 하며,

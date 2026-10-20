@@ -6,6 +6,8 @@
 
 ### Added
 
+- 독립된 AIPerf 0.13.0 환경과 공통 Streaming Chat Workload로 수동 성능 측정을 제공한다. macOS 초기 실측과 Ubuntu/NVIDIA의 단일·긴 입력·동시 요청·Admission 한도 초과 Queue 실험은 장비별 조건과 서버 토큰 수로 해석한다. AIPerf 완료 표시와 SSE 무결성을 구분하고, 공개 합성 입력의 native RAW 진단으로 종료·usage를 확인한다. 일반 CI·Qualification·성능 Gate와 분리한다. ([ADR-0052](docs/adr/0052-manual-aiperf-measurement.md))
+
 - 개인 관리자와 팀원에게 같은 GPU 서버를 비공개 원격 공유하기 위한 `ACCESS=edge` 기반의 Tailscale Serve/Grants 및 Loopback 전용 Nginx API Gateway 제한 Proxy 계약을 제공한다. 관리자 HTTPS와 팀원 HTTPS를 포트별로 분리하고, 팀원 API 진입점은 허용된 HTTP 메서드·경로만 전달한다. 서버와 Tailnet의 실제 적용·권한 철회는 운영자가 소유하며 인터넷 공개/Funnel은 활성화하지 않는다. ([ADR-0051](docs/adr/0051-private-remote-team-access.md))
 
 
@@ -363,6 +365,8 @@
 - 12B(`gemma4-12b-unified-fp8`) 프로필의 `--max-model-len`/`--max-num-batched-tokens`를 20000 → 50000으로 올렸다. `--max-num-seqs`(2)·`--gpu-memory-utilization`(0.76)은 그대로 두고 실제 배포 서버에서 boot/health/`/metrics` 검증까지 완료했다. profiling이 커진 배치만큼 activation 메모리를 더 확보하면서 KV cache pool(`num_gpu_blocks`)이 20707→16638로 줄어, 엔진 VRAM 사용량은 오히려 35.2GiB→30.2GiB로 감소했다. ([ADR-0015](docs/adr/0015-main-llm-20k-o3-runtime-target.md))
 
 ### Fixed
+
+- MLX Exporter는 Native Runtime의 십진 GB Peak Memory를 GiB로 변환해 `mlx_runtime_latest_peak_memory_gib`에 노출한다. 최근 완료 요청이 보고한 값이라는 의미는 유지한다.
 
 - Main Runtime의 Docker 시작 신원·Profile 관측 실패 시 검증되지 않은 기존 Gate 개방을 폐기한다. 관측 복구 후 동일 인스턴스·Profile 및 Canary 검증을 통과해야 요청을 다시 허용한다.
 - GPU Admission은 Docker `paused`·`restarting` 상태의 예약을 유지하고, 자원 해제를 확정할 수 없는 상태는 예산·전환 계획을 거부한다. 비실행 상태를 Start Plan의 성공 또는 No-op으로 취급하지 않는다.

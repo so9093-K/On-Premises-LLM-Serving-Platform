@@ -36,9 +36,12 @@ make runtime-validate
 | target readiness gate | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
 | `make runtime-validate` | 실제 vLLM API·고급 요청·모니터링 연결이 동작하는가? | Full-stack Runtime |
 
-저장소는 성능 benchmark·baseline·SLO 판정을 두지 않는다
-([ADR-0042](./adr/0042-remove-qualification-evidence-and-benchmark.md)). 운영 중 지연은
-Console **개요**의 최근 트래픽 요약(`GET /admin/traffic/recent`)과 Grafana 서비스 개요로 본다.
+저장소는 자체 성능 Runner·Baseline 승격·SLO 판정을 두지 않는다
+([ADR-0042](./adr/0042-remove-qualification-evidence-and-benchmark.md)). 명시적인 수동 성능
+실험은 [독립 AIPerf 환경과 공통 Workload](../ops/perf/README.md)를 사용한다
+([ADR-0052](./adr/0052-manual-aiperf-measurement.md)). 일반 CI와 실제 장비 측정은 별개다.
+운영 중 지연은 Console **개요**의 최근 트래픽 요약(`GET /admin/traffic/recent`)과
+Grafana 서비스 개요로 본다.
 
 ---
 

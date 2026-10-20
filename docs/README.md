@@ -29,6 +29,7 @@
 |---|---|
 | 로컬 개발·빌드 | [개발 환경](07_local_dev_build.md) |
 | 테스트 범위·검증 | [테스트와 검증](08_testing_validation.md) |
+| 수동 성능 측정·장비별 실측 | [AIPerf 절차](../ops/perf/README.md) · [Mac](resources/macos_aiperf_measurement.md) · [Ubuntu/NVIDIA](resources/linux_aiperf_measurement.md) |
 | 자동화 책임 | [CI 경계](09_cicd.md) |
 | 배포 방식 | [배포](10_deployment.md) |
 | 지표·로그·Grafana | [관측성](11_observability.md) |

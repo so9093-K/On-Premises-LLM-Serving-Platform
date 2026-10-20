@@ -33,6 +33,7 @@ __pycache__/
 .runtime/
 reports/runtime/
 reports/validation/
+reports/perf/
 
 # ── Model data (large binary assets) ──────────────────────────────────────
 /model_cache/
