@@ -1,7 +1,8 @@
 # 원격 접속 가이드
 
-이 절차는 Linux GPU 서버 한 대에 이미 실행 중인 플랫폼을 **Tailnet 내부에서만** 제공한다.
-개인 도메인이나 공인 포트포워딩이 필요하지 않다. 일반 인터넷 사용자에게 공개하는 절차가 아니다. Mac Host에 대한 동일 수준의 실환경 검증은 별도이며 Linux 안내를 그대로 Mac 지원 증거로 해석하지 않는다.
+이 문서의 **Host 설치·운영 명령은 Ubuntu/Linux GPU 서버**에서 이미 실행 중인 플랫폼을 Tailnet 내부에 제공하는 절차다.
+Ubuntu 또는 macOS의 **외부 사용자 기기**에서는 Tailscale과 브라우저·SDK로 접속할 수 있다. 그러나 **macOS 자체를 원격 접속 Host로 운영하는 Tailscale Serve·팀원 Proxy 구성은 이 문서와 CI에서 검증되지 않았다.** Ubuntu의 `apt`, `systemctl`, Nginx 설정 경로를 macOS Host 명령으로 사용하지 않는다.
+개인 도메인이나 공인 포트포워딩이 필요하지 않으며, 일반 인터넷 공개 절차가 아니다.
 
 ## 외부 기기에서 이용하기
 
@@ -39,7 +40,7 @@ Admin Key를 팀원 API 사용자와 공유하지 않는다.
 
 ## 서버 운영자: 접속 환경 구성
 
-이하 설정 절차는 **Linux GPU 서버의 Host 운영자만** 수행한다. 개인 관리자만 원격으로 사용하는 경우 **HTTPS 443만** 구성한다.
+이하 설정 절차는 **Ubuntu/Linux GPU 서버의 Host 운영자만** 수행한다. 개인 관리자만 원격으로 사용하는 경우 **HTTPS 443만** 구성한다.
 팀원에게 API를 제공할 때에만 **Nginx 9480 및 Tailscale HTTPS 8443**을 추가한다.
 공유기 포트포워딩·Funnel을 통한 일반 인터넷 공개는 지원 범위가 아니다.
 `ACCESS=edge`는 Gateway Loopback·인증 설정이며 Tailscale 연결을 자동 구성하지 않는다.
@@ -192,24 +193,65 @@ tailscale serve status
 운영자 명령과 실제 Gateway가 서로 다른 키를 참조하지 않도록 검증한다. 운영자 가이드에 따라 서비스를 안전하게 재수렴한 뒤
 이전 키로 요청이 거부되는지 확인한다. **네트워크 차단만으로 API 키 폐기가 완료되지 않는다.**
 
-## 7. 상태·해제·복구
+## 7. 상태·안전한 해제·복구
 
-`status` 명령은 Tailscale이 보고하는 상태를 **화면에 표시하는 조회 명령**이다.
-Serve 443/8443의 정확한 Target, Funnel 비활성, 실제 사용자별 Grants는
-운영자가 별도로 확인해야 한다. 명령의 종료 코드 0만으로 인터넷 비공개나 정책
-안전성을 확정하지 않는다.
+원격 접속은 플랫폼 바깥의 **선택형 Host 구성**이다. `make down`, `make reset`, `make purge`는 Tailscale·Nginx·Tailnet Grants를 소유하거나 자동 삭제하지 않는다. 아래 해제는 **이 플랫폼이 전용으로 소유한 항목**만 대상으로 하며, 공유 Host 구성과 다른 서비스는 보존한다.
+
+### 7.1 현재 구성과 소유권 확인
 
 ```bash
 ./.venv/bin/python scripts/access/remote_access.py status
-# 해당 두 Listener를 이 플랫폼 전용으로 구성한 경우에만 선택적으로 해제
+tailscale serve status
+tailscale funnel status
+```
+
+`status`는 Tailscale 명령 결과를 조회할 뿐이다. 반환 코드 0만으로 실제 Serve Target, Funnel 비활성, 사용자별 Grants, 원격 연결 성공이나 안전성을 증명하지 않는다. 운영자는 **443이 이 플랫폼의 관리자 Gateway(127.0.0.1:9400), 8443이 팀원 Proxy(127.0.0.1:9480)에 속하는지** 기존 Serve 설정과 함께 확인한다. 각 포트를 다른 서비스가 사용한다면 해제하지 않는다.
+
+### 7.2 이 플랫폼의 Serve Listener만 해제
+
+팀원 API 공유를 끝낼 때는 **이 플랫폼 전용 8443 Listener**만 해제한다. 관리자의 원격 접속도 끝내는 경우에만 **이 플랫폼 전용 443 Listener**를 해제한다.
+
+```bash
+# 대상 포트와 기존 Serve 설정의 소유권을 확인한 뒤, 필요한 행만 실행
 tailscale serve --https=8443 off
 tailscale serve --https=443 off
 tailscale serve status
 ```
 
-기존 Serve 구성을 공유한다면 해당 포트의 소유권을 먼저 확인한다.
-Nginx 또는 Tailscale 설치·설정 변경은 기존 `make down`이나 `make reset`이 소유하지 않는다.
-Nginx의 예제 Config 제거/재적용은 OS 운영자가 명시적으로 수행한다.
+`tailscale serve reset`은 다른 Serve 구성을 지울 수 있으므로 사용하지 않는다. `tailscale down`, Tailscale 앱 제거 또는 Funnel 변경도 이 기능 해제 과정에서 자동 수행하지 않는다. 외부 관리자·팀원 기기에서 이전 URL 접근이 차단됐는지 별도로 확인한다.
+
+### 7.3 팀원 전용 Nginx 구성만 정리 (Ubuntu/Linux)
+
+팀원 API를 제공하면서 이 가이드대로 **전용 파일 `/etc/nginx/conf.d/llm-team-api.conf`을 복사한 경우에 한해**, 해당 파일의 내용을 먼저 확인하고 다른 설정에서 참조하지 않는지 검토한 후 정리한다. 팀원 공유 기능을 계속 사용하거나 파일 소유권이 불명확하면 제거하지 않는다.
+
+```bash
+# 파일이 이 플랫폼 전용임을 확인한 후 운영자가 직접 실행
+sudo rm -- /etc/nginx/conf.d/llm-team-api.conf
+sudo nginx -t
+# 검증 성공 시에만 기존 Nginx 서비스를 reload
+sudo systemctl reload nginx
+```
+
+`nginx -t`가 실패하면 reload를 진행하지 않고 해당 파일을 복구해 원인을 확인한다. 공유 Nginx 패키지·서비스 전체를 중지하거나 삭제하지 않는다. macOS Host에는 이 Ubuntu 명령을 적용하지 않는다.
+
+### 7.4 Tailnet 권한 및 인증 키 정리
+
+- Tailnet 관리자는 최종 Grants/ACL 전체를 확인한 뒤 **이 플랫폼을 위해 추가한 허용 규칙·그룹·태그만** 조정한다. 다른 서비스에서 쓰는 그룹·Tag나 사용자 Tailnet 계정을 무조건 삭제하지 않는다. 팀원 443 차단 등 의도한 거부 정책을 다시 검증한다.
+- 팀원 전용으로 발급된 API Key는 `API_KEYS`에서 폐기하고, 설정된 `API_KEY` 단일 값과 불일치가 생기지 않도록 정규 설정 변경 절차로 반영한다. **로컬 앱 등에서 공유 중인 키는 원격 기능 해제만으로 무조건 폐기하지 않으며**, 사용처 확인 후 필요하면 교체한다.
+- 관리자 원격 접속을 끝내더라도 로컬 운영에 필요한 Admin Key는 자동으로 폐기하지 않는다. 공유 또는 유출된 키의 회전은 별도 인증 변경으로 처리한다. **이전 키로의 실제 요청 거부**를 검증한다.
+
+### 7.5 로컬 사용 유지 및 복구 검증
+
+원격 접속이 해제돼도 Gateway·Control Plane·Main Runtime은 그대로 사용할 수 있어야 한다. `ACCESS=edge`에서 로컬 `ACCESS=local`로 되돌릴 필요가 있는 경우에만 기존 `make up`의 **변경 계획 → 명시적 확인** 절차를 사용한다. 접근 프로필을 원격 기능 해제와 묶어 자동 변경하지 않는다.
+
+```bash
+# 로컬 Profile 복귀가 필요한 경우에만, 표시된 변경 계획 검토 후 적용
+make up ACCESS=local
+make up ACCESS=local CONFIRM=access
+make status
+```
+
+`make status`만으로 충분하지 않으므로 로컬 Console 및 `GET /v1/models`를 확인하고, Main Runtime이 준비된 경우 실제 Chat 응답도 확인한다. 실환경에서 **원격 URL 차단·로컬 기능 유지·다른 Host 서비스 보존**을 확인해야 해제가 완료된다.
 
 ## 8. 검증 범위
 

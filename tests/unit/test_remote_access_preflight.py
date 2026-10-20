@@ -61,20 +61,21 @@ def test_missing_and_ambiguous_env_are_rejected(tmp_path):
     assert preflight(path)
 
 
-def test_plan_is_read_only_and_does_not_disclose_keys(monkeypatch, tmp_path, capsys):
+def test_cli_preflight_is_read_only_and_does_not_disclose_keys(monkeypatch, tmp_path, capsys):
     path = write_env(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["remote_access.py", "plan", "--env-file", str(path)])
+    monkeypatch.setattr(sys, "argv", ["remote_access.py", "preflight", "--env-file", str(path)])
 
     def unexpected_call(*_args, **_kwargs):
-        raise AssertionError("plan must not execute external commands")
+        raise AssertionError("preflight는 외부 명령을 실행하지 않아야 한다")
 
     monkeypatch.setattr("scripts.access.remote_access.subprocess.run", unexpected_call)
     assert main() == 0
     output = capsys.readouterr().out
-    assert "tailscale serve --bg" in output
+    assert "ACCESS=edge, Loopback" in output
     assert "api-only-long-secret" not in output
     assert "admin-only-long-secret" not in output
-    assert "tailscale serve reset" in output  # 사용 금지 안내에만 등장한다.
+    assert "tailscale serve --bg" not in output
+
 
 def test_missing_grafana_bind_or_normalized_duplicate_key_fails(tmp_path):
     path = write_env(tmp_path)

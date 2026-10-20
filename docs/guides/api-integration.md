@@ -20,7 +20,9 @@
 export GATEWAY_URL="https://<실제-서버-tailnet-이름>:8443"
 ```
 
-위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings 경로만 제공하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
+위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings **경로만 전달**하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
+
+**Proxy의 경로 허용과 모델 기능 지원은 별개**입니다. 실제 지원 기능은 [Deployment Target 설정](../../configs/deployment_targets.yaml)과 `/v1/models`의 모델 Capability를 확인하세요. 현재 `linux-nvidia-dynamic` Target은 Embeddings를 지원하지만 `linux-nvidia-static`과 `macos-metal-static`은 지원하지 않습니다. 허용된 경로라도 현재 Target이나 활성 Runtime에서 처리할 수 있다고 가정하지 않습니다.
 Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세요. 연결 실패는 Tailscale·주소·8443 Grants, `401`은 일반 사용자 API Key, `404`는 허용된 API 경로를 운영자에게 확인합니다.
 [외부 API 접속 안내](remote-access.md#external-api)와 [서버 운영자 설정](remote-access.md#operator-setup)은 다른 절차입니다.
 

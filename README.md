@@ -13,7 +13,7 @@
 - **외부 관리자:** 본인의 기기에서 Tailscale에 연결한 뒤 운영자가 알려 준 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 열고 Admin Key로 인증합니다. [외부 관리자 접속](docs/guides/remote-access.md#external-admin)
 - **외부 API 사용자:** Tailscale 연결 후 운영자가 전달한 HTTPS 8443 **API Base URL**과 **사용자 API Key**로 SDK 또는 **허용된 모델 API 경로**로 요청합니다. 팀원 진입점은 `GET /v1/models`, `POST /v1/chat/completions`·`/v1/responses`·`/v1/embeddings`만 전달합니다. 팀원 API에서는 관리자 Console을 제공하지 않습니다. [외부 API 연동](docs/guides/api-integration.md#remote-api)
 
-URL과 권한은 운영자가 실제 Tailnet에서 확인해 전달합니다. 이 절차는 일반 인터넷 공개가 아니며, 인증 키를 URL에 포함하지 않습니다.
+URL과 권한은 운영자가 실제 Tailnet에서 확인해 전달합니다. 이 절차는 일반 인터넷 공개가 아니며, 인증 키를 URL에 포함하지 않습니다. 원격 접속 **Host 구성 절차는 현재 Ubuntu/Linux 기준**입니다. macOS를 접속하는 사용자 기기로 이용하는 것과 macOS를 원격 접속 서버로 운영하는 것은 다르며, **macOS Host의 동일한 원격 접속 구성은 아직 실환경 검증되지 않았습니다.** 자세한 범위와 해제 절차는 [원격 접속 가이드](docs/guides/remote-access.md)를 확인하세요.
 
 <a id="quick-start"></a>
 

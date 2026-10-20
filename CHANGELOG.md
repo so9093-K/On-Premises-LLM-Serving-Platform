@@ -6,7 +6,7 @@
 
 ### Changed
 
-- 원격 접속 안내를 외부 관리자(브라우저·Admin Key), 외부 API 사용자(HTTPS 8443·API Key), 서버 운영자(Tailscale·Grants·Nginx 구성) 역할별 경로로 정리했다. 외부 사용자는 저장소나 `make` 없이 이용하고 서버 운영용 `make up/status` 계약과 비공개 Tailnet 권한 경계는 그대로 유지한다.
+- 비공개 원격 접속 안내를 외부 관리자·API 사용자·Ubuntu/Linux Host 운영자별로 정리하고, macOS Host의 미검증 범위와 프로젝트 소유 Serve/Nginx·Grants·키의 선택적 해제 절차를 명시했다. 사용하지 않는 원격 접속 `plan` 하위명령은 제거하되 읽기 전용 `preflight`·`status`와 기존 `make up/status` 운영 계약은 유지한다.
 
 ### Added
 
