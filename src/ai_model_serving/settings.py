@@ -533,7 +533,11 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         runtime_endpoints=runtime_endpoints,
         required_runtime_keys=required_runtime_keys,
         runtime_service_ids={
-            key: binding.service_id
+            key: (
+                "cpu_main_llama"
+                if key == "main_llm" and deployment_target.control_mode == "managed_cpu"
+                else binding.service_id
+            )
             for key, binding in runtime_topology.bindings_by_key.items()
         },
         runtime_topology_status=runtime_topology_status,

@@ -21,6 +21,15 @@ def test_cpu_managed_target_is_platform_owned() -> None:
     assert target.supports("chat")
     assert target.runtime_backend == "llama-cpp"
     assert target.qualification_status == "unverified"
+
+    from ai_model_serving.settings import load_settings
+    from unittest.mock import patch
+    with patch.dict("os.environ", {
+        "DEPLOYMENT_TARGET": "linux-cpu-managed",
+        "MAIN_MODEL_STATIC_PROFILE": "cpu-gguf-text",
+    }):
+        settings = load_settings(root=ROOT, env_file=ROOT / ".nonexistent-cpu-model-env")
+    assert settings.runtime_service_id("main_llm") == "cpu_main_llama"
     catalog = load_main_serving_catalog(ROOT / target.main_profile_catalog)
     assert catalog.public_model == "local-main"
 

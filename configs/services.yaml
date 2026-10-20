@@ -48,6 +48,13 @@ services:
       - model_runtime
       - vllm_runtime
 
+  # 플랫폼 Compose가 소유하는 CPU-only llama.cpp Main Runtime.
+  cpu_main_llama:
+    compose_service: cpu-main
+    container_port: 8080
+    categories:
+      - model_runtime
+
   # 범용 embedding 및 retrieval용 runtime.
   embedding_vllm:
     compose_service: embedding-vllm
