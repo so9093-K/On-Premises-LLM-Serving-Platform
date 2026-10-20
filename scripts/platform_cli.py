@@ -608,21 +608,6 @@ def _gateway_json(
         return 0, None
 
 
-def _print_remote_access_scope(values: dict[str, str]) -> None:
-    """서버 준비와 외부 기기 접근 확인을 같은 상태로 표시하지 않는다."""
-    profile = values.get("ACCESS_PROFILE")
-    if profile == "local":
-        print("Remote        로컬 전용 · 외부 접근 미구성")
-        print("Access help   make access PURPOSE=personal")
-    elif profile == "edge":
-        print("Remote        TLS 프록시 별도 구성 · 외부 기기 접근 미검증")
-        print("Access check  make access-status PURPOSE=personal")
-    elif profile == "private":
-        print("Remote        LAN/VPN 네트워크 접근은 별도 검증 필요")
-    else:
-        print("Remote        사용자 지정 구성 · 외부 접근 미검증")
-
-
 def status_target(target: DeploymentTarget) -> int:
     values = _env_values()
     if values.get("BUILD_PROFILE") == "local":
@@ -638,7 +623,6 @@ def status_target(target: DeploymentTarget) -> int:
         print(f"Platform      {'READY' if ready else 'DEGRADED'}")
         print(f"Target        {target.target_id}")
         print(f"Access        {values.get('ACCESS_PROFILE') or 'legacy/custom'}")
-        _print_remote_access_scope(values)
         print(f"Gateway       {'READY' if gateway_ready else 'UNAVAILABLE'}")
         print(f"Applications  {'READY' if process_status.returncode == 0 else 'DEGRADED'}")
         if not ready:
@@ -659,7 +643,6 @@ def status_target(target: DeploymentTarget) -> int:
     print(f"Target        {target.target_id}")
     access = values.get("ACCESS_PROFILE") or "legacy/custom"
     print(f"Access        {access}")
-    _print_remote_access_scope(values)
     if code == 200:
         gateway_status = "READY"
     elif code == 503:
