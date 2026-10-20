@@ -1,37 +1,48 @@
 # 원격 접속 가이드
 
 이 절차는 Linux GPU 서버 한 대에 이미 실행 중인 플랫폼을 **Tailnet 내부에서만** 제공한다.
-개인 도메인이나 공인 포트포워딩이 필요하지 않다. 일반 인터넷 사용자에게 공개하는 절차가 아니다.
+개인 도메인이나 공인 포트포워딩이 필요하지 않다. 일반 인터넷 사용자에게 공개하는 절차가 아니다. Mac Host에 대한 동일 수준의 실환경 검증은 별도이며 Linux 안내를 그대로 Mac 지원 증거로 해석하지 않는다.
 
-## 먼저: 접속 목적 선택
+## 외부 기기에서 이용하기
 
-아래 명령은 **읽기 전용 설정 계획**만 표시하고 Tailscale/Nginx/방화벽을 설치·변경하지 않는다.
-플랫폼을 처음 설치할 때는 먼저 [빠른 시작](getting-started.md)으로 `make up`을 완료한다.
+**외부 사용자는 이 프로젝트 저장소를 내려받거나 서버의 `make` 명령을 실행하지 않는다.**
+접속을 위해 필요한 Tailscale 권한과 주소·인증 정보는 서버 운영자가 미리 준비한다.
+아래 주소는 형식 예시이며 실제 주소는 운영자에게 확인한다.
 
-| 목적 | 서버에서 실행할 명령 | 접속 대상 |
-|---|---|---|
-| **내 기기에서 관리자 접속** | `make access PURPOSE=personal` | 관리자 Control Plane · HTTPS 443 |
-| **팀원에게 모델 API 공유** | `make access PURPOSE=team` | 팀원 API · HTTPS 8443 |
+<a id="external-admin"></a>
 
-- 개인 접속에는 **Nginx와 8443이 필요하지 않다.**
-- 두 경우 모두 기존 Access Profile의 인증·Loopback 조건과 Tailscale 접근 정책을 확인해야 한다.
-- `ACCESS=edge`는 **Host의 Loopback+인증 정책**이지 Tailscale 설치·설정 완료를 의미하지 않는다.
-- 적용 후 `make access-status PURPOSE=personal` 또는 `PURPOSE=team`으로 서버 내부 관측을 조회한다. `make status`의 `READY`는 **모델 준비 상태**이지 외부 접속 성공이 아니다.
-- 표시된 Tailnet URL은 **접속 주소 후보**일 뿐이다. 실제 외부 기기에서 HTTPS, 관리자/일반 API Key, Grants, 비허용 경로 차단, Funnel 비공개를 직접 확인해야 최종 완료다.
+### 외부 관리자: Control Plane 사용
 
-### 개인 접속 최소 흐름 (Linux Host)
+1. 운영자가 지정한 Tailscale 계정으로 **본인의 기기에서** Tailscale 앱에 로그인하고 연결한다.
+2. 운영자가 알려 준 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 연다(HTTPS 443).
+3. 관리자 인증 화면이 나오면 **Admin Key**를 입력한다. Playground에서 모델을 호출하려면 별도의 **사용자 API Key**가 필요할 수 있다.
+4. **운영 개요**에서 상태를 확인하고 필요한 Control Plane 기능을 사용한다. 실제 Runtime 제어 범위는 배포 Target에 따라 다르다.
 
-1. 플랫폼을 준비한 후 `make access PURPOSE=personal`을 실행해 요구 사항과 현재 설정을 확인한다.
-2. Access Profile 변경이 필요하면 `make up ACCESS=edge`로 계획을 검토하고 `make up ACCESS=edge CONFIRM=access`로 명시적으로 적용한다. 키는 운영자 Secret 관리 정책으로 준비한다.
-3. 서버와 접속할 기기에 Tailscale을 설치·로그인하고, Tailnet 관리자가 **관리자만 443에 접근하도록** 기존 전체 Grants/ACL과 함께 검토한다.
-4. 기존 Serve/Funnel 구성을 확인한 후, 충돌이 없을 때만 서버에 `tailscale serve --bg --https=443 http://127.0.0.1:9400`을 적용한다.
-5. `make access-status PURPOSE=personal`로 서버가 관측한 내용을 확인하고, 별도 기기에서 실제 `https://<server-tailnet-name>/admin/console/` 접속을 검사한다.
+Tailscale 연결이 되더라도 **443 접근 권한**이 없으면 접속할 수 없다. 연결 실패는 Tailscale 상태·주소·관리자 Grants를, `401`은 Admin Key를 운영자에게 확인한다.
+Admin Key를 팀원 API 사용자와 공유하지 않는다.
 
-팀원에게 API를 공유할 때만 아래 **3~6절의 Nginx 8443·Grants 분리 절차**를 추가한다.
+<a id="external-api"></a>
 
-이 안내와 Host adapter는 **Linux GPU 서버에서 검증된 경계**다. macOS 호스트의 실제 Tailscale 설치·권한·서비스 재시작 특성은 별도 검증이 필요하며, Mac 지원 완료로 표시하지 않는다.
+### 외부 API 사용자: 모델 호출
+
+1. 본인에게 허용된 Tailscale 계정으로 연결한다. **HTTPS 8443 접근 권한**은 운영자가 부여한다.
+2. 운영자로부터 **API Base URL**(형식 예: `https://<실제-서버-tailnet-이름>:8443`), **사용자 API Key**, 모델 별칭(일반적으로 `local-main`)을 전달받는다. 키는 별도의 안전한 수단으로 전달받는다.
+3. 본인의 앱·SDK에서 해당 주소와 Key를 설정한 뒤 `GET /v1/models`로 연결을 확인한다. 실제 호출 예제는 [API 연동 가이드](api-integration.md#remote-api)에 있다.
+
+팀원에게 제공되는 것은 **허용된 모델 API**이며, 관리자 Control Plane이나 웹 Playground가 아니다.
+`/admin/*`, `/metrics` 등은 팀원 API 포트에서 차단된다. `401`이면 사용자 API Key, 연결 실패이면 주소·Tailscale/8443 Grants, `404`이면 허용 API 경로인지 운영자에게 확인한다.
+외부 기기에서 서버 Git 저장소, Docker, Nginx, `make` 명령은 필요하지 않다.
 
 ---
+
+<a id="operator-setup"></a>
+
+## 서버 운영자: 접속 환경 구성
+
+이하 설정 절차는 **Linux GPU 서버의 Host 운영자만** 수행한다. 개인 관리자만 원격으로 사용하는 경우 **HTTPS 443만** 구성한다.
+팀원에게 API를 제공할 때에만 **Nginx 9480 및 Tailscale HTTPS 8443**을 추가한다.
+공유기 포트포워딩·Funnel을 통한 일반 인터넷 공개는 지원 범위가 아니다.
+`ACCESS=edge`는 Gateway Loopback·인증 설정이며 Tailscale 연결을 자동 구성하지 않는다.
 
 ## 1. 접근 경계
 
@@ -54,8 +65,8 @@ Gateway도 Tailnet 사용자별 Role·Quota를 제공하지 않는다. 팀원에
 - `make up ACCESS=edge`는 기존 설정 변경 계획만 보여 준다.
   계획 검토 후에만 `make up ACCESS=edge CONFIRM=access`를 실행한다.
 - `make status`, `make auth-status`로 상태를 확인한다.
-- Nginx와 Tailscale을 OS 운영자가 별도로 설치·업데이트한다. 프로젝트는 이들을 자동 설치하지 않는다.
-- Nginx나 Tailscale의 기존 설정이 있다면 백업하고 포트 443·8443·9480 충돌을 확인한다.
+- Tailscale은 서버 운영자가 설치·업데이트한다. **팀원 API를 공유할 때만** Nginx를 별도로 설치·관리한다. 프로젝트는 두 소프트웨어를 자동 설치하지 않는다.
+- 기존 Tailscale Serve/Funnel 설정을 확인하고 관리자용 HTTPS 443 충돌을 검토한다. **팀원 API를 공유할 때만** Nginx 9480·HTTPS 8443 충돌도 확인한다.
 - API Key와 Admin Key는 별도 값이다. 실제 키를 Git·Issue·Screenshot·Shell history에 기록하지 않는다.
 
 ```bash
@@ -64,7 +75,6 @@ make up ACCESS=edge
 make up ACCESS=edge CONFIRM=access
 make status
 ./.venv/bin/python scripts/access/remote_access.py preflight
-./.venv/bin/python scripts/access/remote_access.py plan
 ```
 
 사전 점검은 기존 엄격한 dotenv parser와 canonical Access Profile 판정을 재사용하며,
@@ -122,7 +132,9 @@ Tailnet Admin Console의 Policy Editor에서
 [공식 Policy 문법](https://tailscale.com/docs/reference/syntax/policy-file) ·
 [Grants](https://tailscale.com/docs/reference/syntax/grants)
 
-## 5. HTTPS 접속 (관리자 기본 / 팀원 확장)
+## 5. HTTPS 접속
+
+개인 관리자 접속만 사용하는 경우에는 **443만 적용**한다. 다음 예제는 서버 운영자가 기존 Serve 설정의 소유권과 충돌을 확인한 뒤 수행한다.
 
 Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 **기존 Serve 및 Funnel 설정을 먼저 확인하고, 충돌이 없을 때만** 아래 명령을 실행한다.
@@ -131,7 +143,12 @@ Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 tailscale serve status
 tailscale funnel status
 tailscale serve --bg --https=443 http://127.0.0.1:9400
-# 팀원 API 공유를 별도로 선택한 경우에만 아래 명령 추가
+tailscale serve status
+```
+
+팀원 API를 공유할 때만 **3절의 Nginx를 먼저 검증하고**, HTTPS 8443을 추가한다.
+
+```bash
 tailscale serve --bg --https=8443 http://127.0.0.1:9480
 tailscale serve status
 ```
@@ -146,7 +163,7 @@ tailscale serve status
 
 ## 6. 접근 검증·권한 철회
 
-서로 다른 **관리자 기기와 일반 팀원 기기**에서 검증한다.
+관리자 기기에서 HTTPS 443과 Admin Key를 실제로 확인한다. 팀원 공유를 활성화한 경우에는 **별도의 팀원 기기**에서 아래 8443 허용 및 443 차단까지 검증한다.
 
 | 시나리오 | 기대값 |
 |---|---|
