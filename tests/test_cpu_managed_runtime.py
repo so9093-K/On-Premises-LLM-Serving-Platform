@@ -1,6 +1,9 @@
 """관리형 CPU의 모델 무결성·Runtime 소유권 회귀 검증."""
 import hashlib
 import importlib.util
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -46,6 +49,39 @@ def test_cpu_compose_has_no_gpu_device_or_host_port() -> None:
     assert "--n-gpu-layers" in runtime["command"]
     assert runtime["command"][runtime["command"].index("--n-gpu-layers") + 1] == "0"
     assert any(str(v).endswith("/models:ro") for v in runtime["volumes"])
+
+
+def test_managed_cpu_compose_resolves_all_services_without_gpu(tmp_path) -> None:
+    """GPU가 없는 CI에서도 실제 Compose merge/interpolation 오류를 검출한다."""
+    if shutil.which("docker") is None:
+        pytest.skip("Docker CLI is unavailable")
+    version = subprocess.run(
+        ["docker", "compose", "version"],
+        text=True, capture_output=True, check=False, timeout=15,
+    )
+    if version.returncode != 0:
+        pytest.skip("Docker Compose plugin is unavailable")
+    gateway_env = tmp_path / "gateway.env"
+    risk_env = tmp_path / "risk.env"
+    gateway_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\\n", encoding="utf-8")
+    risk_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\\n", encoding="utf-8")
+    env = {
+        **os.environ,
+        "GATEWAY_RUNTIME_ENV_FILE": str(gateway_env),
+        "RISK_SIGNAL_SERVICE_RUNTIME_ENV_FILE": str(risk_env),
+        "PLATFORM_IMAGE": "ai-model-serving-platform:test",
+        "DEPLOYMENT_TARGET": "linux-cpu-managed",
+    }
+    target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", "linux-cpu-managed")
+    command = ["docker", "compose", "--project-name", "cpu-compose-contract"]
+    for filename in target.compose_files:
+        command.extend(["-f", str(ROOT / filename)])
+    command.extend(["--env-file", str(ROOT / ".env.compose.example"), "config", "--quiet"])
+    result = subprocess.run(
+        command, cwd=ROOT, env=env, text=True,
+        capture_output=True, check=False, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_cpu_model_artifact_is_immutable() -> None:
