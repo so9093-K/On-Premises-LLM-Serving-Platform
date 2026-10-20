@@ -63,8 +63,8 @@ def test_managed_cpu_compose_resolves_all_services_without_gpu(tmp_path) -> None
         pytest.skip("Docker Compose plugin is unavailable")
     gateway_env = tmp_path / "gateway.env"
     risk_env = tmp_path / "risk.env"
-    gateway_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\\n", encoding="utf-8")
-    risk_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\\n", encoding="utf-8")
+    gateway_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\n", encoding="utf-8")
+    risk_env.write_text("DEPLOYMENT_TARGET=linux-cpu-managed\n", encoding="utf-8")
     env = {
         **os.environ,
         "GATEWAY_RUNTIME_ENV_FILE": str(gateway_env),
