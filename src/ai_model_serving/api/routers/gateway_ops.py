@@ -42,6 +42,16 @@ def _risk_signal_service_readiness(body: dict[str, Any]) -> tuple[str, str | Non
     return status, message
 
 
+def _managed_cpu_model_readiness(body: dict[str, Any], expected: str) -> tuple[str, str | None]:
+    """Runtime이 HTTP 200을 반환해도 다른 GGUF를 적재했다면 준비 완료가 아니다."""
+    models = body.get("data")
+    if isinstance(models, list) and any(
+        isinstance(item, dict) and item.get("id") == expected for item in models
+    ):
+        return READY, None
+    return NOT_READY, "CPU_MODEL_ID_MISMATCH"
+
+
 async def _readiness(
     clients: Any,
     settings: Any,
@@ -91,6 +101,11 @@ async def _readiness(
             settings.runtime_service_id("main_llm"),
             clients.main_llm,
             "models",
+            evaluator=(
+                lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
+                if settings.deployment_target.control_mode == "managed_cpu"
+                else None
+            ),
             required=await runtime_required("main_llm"),
         ))
     risk_signal_service = getattr(clients, "risk_signal_service", None)
