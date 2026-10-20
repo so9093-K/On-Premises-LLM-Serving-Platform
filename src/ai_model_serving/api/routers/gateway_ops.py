@@ -85,15 +85,14 @@ async def _readiness(
     # 의존성 이름은 configs/runtime_topology.yaml이 선언한 service_id다. 코드에서
     # 조립하면(예전엔 main_llm에 문자열을 직접 박고 embedding은 f"{key}_vllm"였다)
     # 선언된 식별자와 갈라지고, /ready만 옛 이름을 계속 광고하게 된다.
-    probes = [
-        DependencyProbe(
+    probes = list(embedding_probes)
+    if settings.feature_enabled("chat"):
+        probes.insert(0, DependencyProbe(
             settings.runtime_service_id("main_llm"),
             clients.main_llm,
             "models",
             required=await runtime_required("main_llm"),
-        ),
-        *embedding_probes,
-    ]
+        ))
     risk_signal_service = getattr(clients, "risk_signal_service", None)
     if settings.feature_enabled("risk") and risk_signal_service is not None:
         probes.append(
@@ -161,6 +160,8 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         },
     )
     async def serving_envelope() -> JSONResponse:
+        if not settings.feature_enabled("chat"):
+            raise ServiceError("MODEL_UNAVAILABLE", "This deployment has no Main Model runtime.")
         main_endpoint = settings.runtime("main_llm")
         target = settings.deployment_target
 

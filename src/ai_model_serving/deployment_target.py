@@ -48,7 +48,7 @@ class DeploymentTarget:
     platform: str
     runtime_backend: str
     runs_monitoring_stack: bool
-    main_profile_catalog: str
+    main_profile_catalog: str | None
     control_mode: str
     lifecycle_owner: str
     internal_service_token_required: bool
@@ -124,14 +124,16 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
         )
     platform = str(raw.get("platform", "")).strip()
     runtime_backend = str(raw.get("runtime_backend", "")).strip()
-    main_profile_catalog = str(raw.get("main_profile_catalog", "")).strip()
-    if not platform or not runtime_backend or not main_profile_catalog:
+    main_profile_catalog = str(raw.get("main_profile_catalog", "")).strip() or None
+    if not platform or not runtime_backend:
         raise RuntimeError(
-            f"deployment target {selected!r} requires platform, runtime_backend, "
-            "and main_profile_catalog"
+            f"deployment target {selected!r} requires platform and runtime_backend"
         )
-    catalog_path = Path(main_profile_catalog)
-    if catalog_path.is_absolute() or ".." in catalog_path.parts:
+    if raw_features.get("chat") is True and not main_profile_catalog:
+        raise RuntimeError(f"deployment target {selected!r} with chat requires main_profile_catalog")
+    if main_profile_catalog and (
+        Path(main_profile_catalog).is_absolute() or ".." in Path(main_profile_catalog).parts
+    ):
         raise RuntimeError(
             f"deployment target {selected!r} main_profile_catalog must be a safe relative path"
         )
@@ -180,7 +182,11 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
         )
     features = frozenset(str(key) for key, enabled in raw_features.items() if enabled is True)
     if "chat" not in features:
-        raise RuntimeError(f"deployment target {selected!r} must enable chat")
+        if runtime_backend != "none" or control_mode != "static" or main_profile_catalog is not None:
+            raise RuntimeError(
+                f"deployment target {selected!r} without chat must be static, "
+                "use runtime_backend=none and omit main_profile_catalog"
+            )
     if "retrieval" in features and "embeddings" not in features:
         raise RuntimeError(f"deployment target {selected!r}: retrieval requires embeddings")
     if "prompt_detection" in features and "risk" not in features:

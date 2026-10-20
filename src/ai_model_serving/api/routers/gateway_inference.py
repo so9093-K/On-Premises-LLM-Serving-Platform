@@ -196,6 +196,9 @@ def build_router(
     async def _main_model_request_context(request: Request) -> tuple[
         tuple[str, ...] | None, dict[str, Any] | None, JSONResponse | None
     ]:
+        if not settings.feature_enabled("chat"):
+            body = error_payload("MODEL_UNAVAILABLE", "This deployment has no active Chat runtime.")
+            return None, None, JSONResponse(body, status_code=503)
         if runtime_controller is None:
             return None, None, None
         try:
@@ -234,6 +237,8 @@ def build_router(
     )
     async def models() -> dict[str, Any]:
         items = [dict(item) for item in settings.public_models]
+        if not settings.feature_enabled("chat"):
+            return {"object": "list", "data": items}
         # active main-model 프로필의 입력 modality를 덮어써서, listing이 정적
         # catalog 기본값이 아니라 chat validator와 동일하게 지금 실제로 서빙
         # 가능한 것(예: 멀티모달 프로필의 audio/video)을 알리도록 한다.

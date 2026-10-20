@@ -98,7 +98,10 @@ class GatewayClients:
             if settings.runtime_controller_url
             else None
         )
-        self.main_llm = RuntimeClient(settings.runtime("main_llm"), admission_observer=admission_observer)
+        self.main_llm = (
+            RuntimeClient(settings.runtime("main_llm"), admission_observer=admission_observer)
+            if settings.feature_enabled("chat") else None
+        )
         self.runtime_clients_by_service_key: dict[str, RuntimeClient] = {}
         self.embedding_clients: dict[str, RuntimeClient] = {}
         for model_id, profile in settings.embedding_profiles.items():
@@ -113,7 +116,9 @@ class GatewayClients:
             if settings.risk_signal_service_endpoint is not None
             else None
         )
-        self.runtimes: dict[str, Any] = {"main_llm": self.main_llm}
+        self.runtimes: dict[str, Any] = (
+            {"main_llm": self.main_llm} if self.main_llm is not None else {}
+        )
         if self.risk_signal_service is not None:
             self.runtimes["risk_signal_service"] = self.risk_signal_service
         self.runtimes.update(self.runtime_clients_by_service_key)

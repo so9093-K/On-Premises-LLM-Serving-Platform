@@ -182,7 +182,7 @@ class AppSettings:
             ) from None
 
     def __post_init__(self) -> None:
-        if "main_llm" not in self.runtime_endpoints:
+        if self.feature_enabled("chat") and "main_llm" not in self.runtime_endpoints:
             raise ValueError("main_llm runtime endpoint must be configured")
         if self.feature_enabled("risk") and self.risk_signal_service_endpoint is None:
             raise ValueError(

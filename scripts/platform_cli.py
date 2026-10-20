@@ -128,7 +128,7 @@ def first_run_guidance() -> str:
         notes: list[str] = []
         if target.qualification_status != "verified":
             notes.append(target.qualification_status)
-        if target.control_mode == "static" and not target.gateway_runtime_host:
+        if target.control_mode == "static" and target.supports("chat") and not target.gateway_runtime_host:
             notes.append("also needs MAIN_URL=http(s)://<main-runtime>")
         if suggestion is not None and suggestion[0] == target_id:
             notes.append(f"suggested: {suggestion[1]}")
@@ -256,7 +256,7 @@ def setup_target(
             command += ["--main-model-base-url", main_base_url]
         if access_profile:
             command += ["--access-profile", access_profile]
-        if target.control_mode == "static" and not target.gateway_runtime_host and not main_base_url:
+        if target.control_mode == "static" and target.supports("chat") and not target.gateway_runtime_host and not main_base_url:
             raise RuntimeError(
                 f"static target {target.target_id!r} needs MAIN_URL=http(s)://... on first make up"
             )
@@ -438,8 +438,10 @@ def prepare_target(target: DeploymentTarget) -> None:
             "--env-file",
             DEFAULT_ENV_FILENAME,
         )
-    else:
+    elif target.supports("chat"):
         print("[platform] external Main runtime is not built or downloaded by this target")
+    else:
+        print("[platform] no model runtime required for this target")
     print(f"[platform] model inputs ready: target={target.target_id}")
 
 

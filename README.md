@@ -17,6 +17,17 @@ git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 ```
 
+**Linux / 기본 서비스 (GPU 및 모델 불필요)**
+
+```bash
+make up TARGET=linux-core ACCESS=local
+```
+
+Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. `/ready`는
+활성 모델 대신 Core 서비스의 준비 상태를 검사하며, Chat/Responses 요청은
+`MODEL_UNAVAILABLE`로 거부합니다. GPU가 존재해도 자원이 부족하면 이 구성을
+사용할 수 있습니다. GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
+
 **Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
 
 ```bash

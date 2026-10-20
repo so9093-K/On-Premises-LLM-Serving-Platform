@@ -41,7 +41,7 @@ def _static_main_engine_projection(
     resource_variant: str | None,
 ) -> tuple[dict[str, Any], str | None]:
     """Resolve capacity-relevant engine policy for externally managed static Main runtimes."""
-    if deployment_target.control_mode != "static":
+    if deployment_target.control_mode != "static" or not deployment_target.supports("chat"):
         return {}, None
 
     if deployment_target.runtime_backend == "vllm-cuda":
@@ -98,7 +98,10 @@ def _public_models_from_registry(
     if issues:
         details = "; ".join(f"{issue.code}: {issue.message}" for issue in issues)
         raise RuntimeError(f"Model registry and serving config are not aligned: {details}")
-    enabled_ids = {str(model_serving["models"]["main_llm"]["served_model_name"])}
+    enabled_ids = (
+        {str(model_serving["models"]["main_llm"]["served_model_name"])}
+        if deployment_target.supports("chat") else set()
+    )
     if deployment_target.supports("embeddings"):
         enabled_ids.update(str(item) for item in model_serving.get("embedding_profiles", {}))
     if deployment_target.supports("risk"):
@@ -299,7 +302,11 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             f"{deployment_target.implementation_status} and cannot be started"
         )
     model_catalog = load_yaml_mapping(project_root / "configs" / "model_catalog.yaml")
-    main_catalog_path = (project_root / deployment_target.main_profile_catalog).resolve()
+    # Model-less target는 공개 Chat 계약이 없다. 공통 schema 생성에 쓰는 기본
+    # profile 정책만 내부적으로 읽고 Main runtime/service는 투영하지 않는다.
+    main_catalog_path = (
+        project_root / (deployment_target.main_profile_catalog or "configs/main_model_profiles.yaml")
+    ).resolve()
     try:
         main_catalog_path.relative_to(project_root.resolve())
     except ValueError as exc:
@@ -359,7 +366,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     enabled_service_keys = runtime_topology.runtime_keys_for_features(
         deployment_target.features
     )
-    if "main_llm" not in enabled_service_keys:
+    if deployment_target.supports("chat") and "main_llm" not in enabled_service_keys:
         raise RuntimeError(
             f"deployment target {deployment_target.target_id!r} does not project main_llm"
         )
@@ -444,7 +451,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         else ()
     )
     aggregate_detector_order = _aggregate_order(risk_signal_service_cfg, risk_detectors)
-    main_llm = runtime_endpoints["main_llm"]
+    main_llm = runtime_endpoints.get("main_llm")
     # timeout budget에는 vLLM detector만 반영된다; local detector는 in-process로 실행된다.
     risk_detector_endpoints = tuple(
         runtime_endpoints[detector.service_key]
@@ -458,7 +465,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     )
 
     risk_signal_service_execution = str(risk_signal_service_cfg.get("aggregate", {}).get("execution", risk_signal_service_cfg.get("aggregate_execution", "sequential")))
-    if deployment_target.supports("risk"):
+    if deployment_target.supports("risk") and main_llm is not None:
         validate_timeout_budget(
             gateway_timeout_seconds=gateway_timeout_seconds,
             risk_signal_service_timeout_seconds=risk_signal_service_timeout_seconds,
@@ -466,6 +473,8 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             risk_detectors=risk_detector_endpoints,
             risk_signal_service_execution=risk_signal_service_execution,
         )
+    elif deployment_target.supports("risk") and gateway_timeout_seconds < risk_signal_service_timeout_seconds:
+        raise RuntimeError("REQUEST_TIMEOUT_SECONDS must cover RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS.")
 
     risk_input_policy = risk_signal_service_cfg.get("input_policy", {})
     detector_windows = [endpoint.max_model_len for endpoint in risk_detector_endpoints]
