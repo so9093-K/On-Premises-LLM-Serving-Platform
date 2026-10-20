@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import httpx
 
+from ai_model_serving.apps.runtime_controller import create_runtime_controller_app
 from ai_model_serving.gpu_budget import Participant
 from ai_model_serving.main_model.switch_preflight import project_switch_preflight
-from tests.support.runtime_controller import load_runtime_controller
 
 
 def _preflight(*, fraction: float, participants: list[Participant] | None, blocked: str | None = None, active: bool = False):
@@ -57,15 +57,25 @@ def test_policy_block_and_observation_failure_never_return_fits():
 def test_profiles_endpoint_reports_gpu_observation_failure_without_allowing_switch(
     tmp_path, monkeypatch,
 ):
-    controller = load_runtime_controller(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAIN_MODEL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "")
+    monkeypatch.setenv("COMPOSE_PROJECT", "test-platform")
+    app = create_runtime_controller_app()
+    controller = app.state.controller
 
     class UnavailableExecutor:
         async def status(self, _service):
             raise RuntimeError("Docker unavailable")
 
     monkeypatch.setattr(controller, "_executor", lambda: UnavailableExecutor())
-    result = asyncio.run(controller.main_model_profiles())
-    profiles = json.loads(result.body)["profiles"]
+    async def fetch_profiles():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return (await client.get("/main-model/profiles")).json()
+
+    profiles = asyncio.run(fetch_profiles())["profiles"]
     assert profiles
     for profile in profiles:
         if not profile["active"] and profile["compatibility"]["status"] != "incompatible":
