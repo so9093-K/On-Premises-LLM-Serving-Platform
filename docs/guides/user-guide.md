@@ -6,20 +6,24 @@ Control Plane 운영자를 위한 서비스 확인·모델 관리·복구 절차
 
 ## 1. 접근·인증
 
-운영자가 안내한 Gateway 주소로 Console에 접속하고, 인증이 필요하면 **Admin Key**를 입력합니다. Playground의 모델 요청에는 별도 **사용자 API Key**가 필요할 수 있습니다. 키는 브라우저 탭 메모리에만 유지되며 새로고침 후 다시 입력해야 할 수 있습니다.
+**외부에서 접속하는 관리자에게는 서버 저장소나 `make` 명령이 필요하지 않습니다.** 서버 운영자로부터 관리용 Control Plane 주소와 본인의 접근 권한을 확인하세요.
+
+1. 본인의 노트북·휴대폰에서 운영자가 지정한 Tailscale 계정으로 로그인하고 연결합니다.
+2. 전달받은 `https://<실제-서버-tailnet-이름>/admin/console/` 주소를 브라우저에서 엽니다.
+3. 관리자 인증을 요구하면 운영자로부터 별도로 전달받은 **Admin Key**로 인증합니다. Playground에서 모델을 호출할 때에는 별도 **사용자 API Key**가 필요할 수 있습니다.
+4. **운영 개요**에서 실제 서비스 상태를 확인합니다. 외부 접속·인증이 성공했다고 모델 추론까지 성공한 것은 아닙니다.
+
+관리자 443 네트워크 접근 권한은 Tailscale 관리자가 부여합니다. 일반 팀원 API(HTTPS 8443)는 **Control Plane 접속 경로가 아닙니다**. 외부 접속 방법은 [원격 접속 가이드](remote-access.md#external-admin)를 참고하세요.
+키는 브라우저 탭 메모리에만 유지되며 새로고침 후 다시 입력해야 할 수 있습니다.
+
+서버에서 직접 운영·복구하는 **Host 운영자만** 아래 명령을 사용합니다.
 
 ```bash
 make status
 make auth-status
-# 다른 기기에서 개인 운영 접속을 준비할 때
-make access PURPOSE=personal
-# 팀원에게 모델 API만 공유할 때
-make access PURPOSE=team
-# Host 설정 뒤 읽기 전용 접속 상태 조회
-make access-status PURPOSE=personal
 ```
 
-`ACCESS=local`은 기본적으로 로컬 인증이 비활성이고, `private`는 신뢰된 LAN/VPN에서 인증을 요구합니다. `edge`는 Loopback Gateway 뒤에 별도의 TLS 프록시가 필요하며 인터넷 공개를 뜻하지 않습니다. 접속 모드 변경은 [접근 설정](../05_configuration.md), 개인·팀원 VPN 구성은 [원격 접속 가이드](remote-access.md)를 따르세요. `make status`의 준비 완료는 **외부 사용자 접근 승인·Tailscale Serve·Grants 확인**을 보증하지 않습니다.
+서버 접근 프로필은 `ACCESS=local`(기본 Loopback), `private`(사설망), `edge`(Loopback 뒤 별도 TLS Proxy)로 구분합니다. `edge`는 원격 접속이 이미 열렸다는 뜻이 아닙니다. Host 운영자는 [접근 설정](../05_configuration.md)과 [원격 접속 구성](remote-access.md#operator-setup)을 확인합니다.
 
 ![관리자 키 입력 화면](../../assets/screenshots/guides/admin-auth.png)
 
@@ -107,7 +111,7 @@ Gate가 닫혔거나 이전 모델로 복구된 경우 [모델 전환 복구](..
 
 ## 7. 오류 복구·종료
 
-오류 코드와 Request ID 또는 Operation ID를 확보한 뒤 현재 상태와 로그를 확인합니다.
+오류 코드와 Request ID 또는 Operation ID를 확보합니다. 외부 관리자는 이를 서버 운영자에게 전달하고, **Host 운영자만** 서버에서 다음 명령으로 진단합니다.
 
 ```bash
 make status
@@ -116,7 +120,7 @@ make logs
 
 | 증상 | 확인 및 조치 |
 |---|---|
-| 접속 불가 | Gateway 주소·바인딩·프로세스 확인 후 `make up`으로 수렴 |
+| 접속 불가 | 외부 관리자는 Tailscale 로그인·URL·443 권한을 운영자에게 확인. Host 운영자는 Gateway 바인딩·프로세스 진단 후 `make up`으로 수렴 |
 | 401 | 사용자 API Key·Admin Key와 접근 프로필 확인 |
 | 422 | 오류 필드 및 모델 입력·파라미터 제한 확인 |
 | `MODEL_UNAVAILABLE` | 원하는 Runtime 상태와 관측 상태 확인, 시작·검증 |
@@ -128,6 +132,6 @@ make logs
 
 *스트림 중단 · 테스트 재현 화면 (실제 GPU 장애 아님)*
 
-필요하면 `make logs SERVICE=gateway RAW=1 TAIL=100`으로 Gateway 로그를 확인하세요. 로그를 공유하기 전 키·프롬프트 원문·내부 주소를 제거합니다.
+Host 운영자는 필요하면 `make logs SERVICE=gateway RAW=1 TAIL=100`으로 Gateway 로그를 확인하세요. 로그를 공유하기 전 키·프롬프트 원문·내부 주소를 제거합니다.
 
-원인을 해결한 뒤 **`make up` → `make status` → 실제 Playground/API 응답**으로 복구를 검증합니다. 일반 종료는 `make down`이며 Reset/Purge는 [운영 관리](../12_operations.md)를 참고하세요.
+Host 운영자가 원인을 해결한 뒤 **`make up` → `make status` → 실제 Playground/API 응답**으로 복구를 검증합니다. 일반 종료는 `make down`이며 Reset/Purge는 [운영 관리](../12_operations.md)를 참고하세요.
