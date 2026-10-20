@@ -143,22 +143,26 @@ def _show_status(purpose: str, issues: list[str]) -> int:
     expected = [(443, "http://127.0.0.1:9400")]
     if purpose == "team":
         expected.append((8443, "http://127.0.0.1:9480"))
+    all_mapped = True
     for port, upstream in expected:
         mapped = _serve_proxy_observed(serve.stdout, port, upstream)
+        if not mapped:
+            all_mapped = False
         print(f"Serve HTTPS {port} → {upstream}: " + ("표시된 설정에서 관측됨" if mapped else "확인 필요"))
     funnel = _tailscale_command("funnel", "status")
     if funnel is None or funnel.returncode:
         print("Funnel: 조회 불가 — tailscale funnel status에서 공개 여부 확인")
         return 1
-    if "https://" in funnel.stdout:
+    funnel_visible = "https://" in funnel.stdout
+    if funnel_visible:
         print("Funnel: 공개 URL이 표시됨 — 의도하지 않은 인터넷 노출 여부 확인 필요")
     else:
         print("Funnel: 명령 조회됨 — 공개 비활성 여부는 출력과 설정에서 직접 확인")
     if purpose == "team":
         print("Nginx 팀원 API 경로·메서드 제한 및 관리자 경로 차단: 실제 Host 검증 필요")
-    print("Tailnet 사용자별 Grants·외부 기기 연결·TLS 및 인증: 별도 확인 필요")
+    print("Tailnet 사용자별 Grants·외부 기기 접근·TLS 및 인증: 별도 확인 필요")
     print("원격 접속 완료 여부: 미검증 (서버 내부 조회 결과는 외부 접근 보증이 아님)")
-    return 0
+    return 0 if all_mapped and not funnel_visible else 1
 
 
 def main() -> int:
