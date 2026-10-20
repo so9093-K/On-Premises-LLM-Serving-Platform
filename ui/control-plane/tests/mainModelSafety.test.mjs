@@ -11,6 +11,7 @@ import {
   mainModelProfileRequiresConfirmation,
   mainModelResourcePolicyLabel,
   mainModelProfileSwitchable,
+  mainModelPreflightView,
   mainModelSwitchRequest,
   mainModelTokenLimits,
 } from '../src/mainModelSafety.ts';
@@ -34,6 +35,7 @@ function profile(
     vram_fraction: 0.5,
     resource_variant: null,
     resource_variants: [],
+    switch_preflight: { status: 'fits', reason_code: null, required_fraction: 0.5, available_fraction: 0.93, ceiling_fraction: 0.93, stop: [] },
     active: false,
     ...overrides,
   };
@@ -61,6 +63,25 @@ test('compatibility and active state control switchability', () => {
   );
   assert.equal(mainModelProfileSwitchable(profile('unknown', 'unverified')), true);
   assert.throws(() => mainModelSwitchRequest(profile('incompatible', 'unverified'), true));
+});
+
+test('GPU 사전 판단의 부정 상태를 전환 불가로 유지한다', () => {
+  const blocked = profile('compatible', 'verified', {
+    switch_preflight: { status: 'blocked', reason_code: 'MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED', required_fraction: null, available_fraction: null, ceiling_fraction: null, stop: [] },
+  });
+  assert.equal(mainModelProfileSwitchable(blocked), false);
+  assert.equal(mainModelPreflightView(blocked).label, '리소스 정책 불일치');
+  assert.throws(() => mainModelSwitchRequest(blocked, true));
+  for (const status of ['needs_stop', 'infeasible', 'unknown']) {
+    const target = profile('compatible', 'verified', {
+      switch_preflight: { status, reason_code: null, required_fraction: 0.85, available_fraction: 0.6, ceiling_fraction: 0.93, stop: [] },
+    });
+    assert.equal(mainModelProfileSwitchable(target), false);
+    assert.throws(() => mainModelSwitchRequest(target, false));
+  }
+  assert.equal(mainModelProfileSwitchable(profile('compatible', 'verified', { switch_preflight: undefined })), false);
+  assert.equal(mainModelPreflightView(profile('compatible', 'verified', { switch_preflight: undefined })).label, '판단 불가');
+  assert.equal(mainModelProfileSwitchable(profile('compatible', 'verified')), true);
 });
 
 test('switch request carries qualification confirmation and terminal states', () => {
