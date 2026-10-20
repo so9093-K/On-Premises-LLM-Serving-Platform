@@ -215,6 +215,9 @@ export function mainModelPreflightView(profile: MainModelProfile): MainModelPref
     case 'infeasible':
       return { label: 'GPU 예산 부족', description: '현재 GPU 예약 상한에서 실행에 필요한 예산을 확보할 수 없습니다.', color: 'red' };
     case 'blocked':
+      if (preflight.reason_code === 'MODEL_SWITCH_IN_PROGRESS') {
+        return { label: '전환 진행 중', description: '다른 모델 전환 작업이 완료된 뒤 다시 검토하세요.', color: 'orange' };
+      }
       if (preflight.reason_code === 'MODEL_PROFILE_HOST_VARIANT_UNSUPPORTED') {
         return { label: '리소스 정책 불일치', description: '서버에서 명시한 리소스 정책 Override를 이 프로필이 선언하지 않습니다.', color: 'red' };
       }
