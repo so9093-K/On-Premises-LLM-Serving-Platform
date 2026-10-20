@@ -60,7 +60,9 @@ def _show_plan(purpose: str, issues: list[str]) -> None:
         print("접근 정책: 조치 필요 (다음 안내는 변경을 실행하지 않습니다)")
         for issue in issues:
             print(f"  - {issue}")
-        print("먼저: make up ACCESS=edge")
+        if any("설정 파일이 없습니다" in issue for issue in issues):
+            print("먼저: make up TARGET=<deployment-target>  # 초기 플랫폼 설치")
+        print("접근 변경 계획: make up ACCESS=edge")
         print("변경 계획 확인 뒤: make up ACCESS=edge CONFIRM=access")
         print("인증 키는 일반 API/Admin/내부 호출별로 구분하고 로그·명령 인자에 노출하지 않습니다.")
     else:
@@ -180,7 +182,7 @@ def main() -> int:
         return 2 if issues else 0
     if args.command == "plan":
         _show_plan(args.purpose, issues)
-        return 2 if issues else 0
+        return 0  # 계획 출력 자체는 성공; 실제 사전 점검·접속 완료와는 별개다.
     return _show_status(args.purpose, issues)
 
 
