@@ -20,6 +20,7 @@ import {
   mainModelOperationProgress,
   mainModelOperationStagePresentation,
   mainModelProfileImpact,
+  mainModelPreflightView,
   mainModelProfileRequiresConfirmation,
   mainModelProfileSwitchable,
   mainModelResourcePolicyLabel,
@@ -309,14 +310,15 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       <Card>
         <CardTitle>사용 가능한 프로필</CardTitle>
         <CardBody>
+          <p className="configuration-help">GPU 예약 비율은 실행 정책이며 실측 VRAM 점유량이나 모델별 메모리 요구량 예측치가 아닙니다. 실행 전 판단은 실제 모델 적재 성공을 보장하지 않습니다.</p>
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
-                <tr><th>프로필</th><th>호환성</th><th>검증 상태</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th>VRAM</th><th>상태</th><th>작업</th></tr>
+                <tr><th>프로필</th><th>호환성</th><th>검증 상태</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th title="실제 VRAM 점유량이나 모델 가중치 예상 크기가 아닌 예약 정책 비율입니다.">GPU 예약 비율</th><th>실행 전 판단</th><th>작업</th></tr>
               </thead>
               <tbody>
                 {profiles.map((profile) => {
-                  const switchable = !locked && mainModelProfileSwitchable(profile);
+                  const preflight = mainModelPreflightView(profile);
                   return (
                     <tr key={profile.id}>
                       <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code></td>
@@ -326,7 +328,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                       <td>{inputList(profile.capabilities.deployed_input)}</td>
                       <td>{formatTokenLimits(mainModelTokenLimits(profile))}</td>
                       <td>{formatPercent(profile.vram_fraction)}</td>
-                      <td>{profile.active ? <Label color="green">현재 사용 중</Label> : '사용 가능'}</td>
+                      <td><Label color={preflight.color}>{preflight.label}</Label></td>
                       <td>
                         {profile.active ? (
                           <span className="current-state-text">현재 사용 중</span>
@@ -334,7 +336,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                           <Button
                             size="sm"
                             variant="secondary"
-                            isDisabled={!switchable || switchMutation.isPending}
+                            isDisabled={switchMutation.isPending}
                             onClick={() => {
                               setReviewProfileId(profile.id);
                               setConfirmed(false);
@@ -448,6 +450,28 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               </Alert>
             )}
 
+            <Alert
+              isInline
+              variant={reviewProfile.switch_preflight?.status === 'fits' ? 'info' : 'warning'}
+              title={`GPU 실행 전 판단 · ${mainModelPreflightView(reviewProfile).label}`}
+            >
+              <p>{mainModelPreflightView(reviewProfile).description}</p>
+              {reviewProfile.switch_preflight?.required_fraction != null
+                && reviewProfile.switch_preflight.available_fraction != null ? (
+                <p>
+                  예약 필요 {formatPercent(reviewProfile.switch_preflight.required_fraction)}
+                  {' · '}현재 예약 가능 {formatPercent(reviewProfile.switch_preflight.available_fraction)}
+                  {reviewProfile.switch_preflight.ceiling_fraction != null
+                    ? ` · 정책 상한 ${formatPercent(reviewProfile.switch_preflight.ceiling_fraction)}`
+                    : ''}
+                </p>
+              ) : null}
+              {reviewProfile.switch_preflight?.status === 'needs_stop'
+                && reviewProfile.switch_preflight.stop.length > 0 ? (
+                <p>먼저 중지할 Runtime: {reviewProfile.switch_preflight.stop.join(', ')}. 자동 중지하지 않습니다.</p>
+              ) : null}
+            </Alert>
+
             <details className="profile-target-details">
               <summary>전환 대상 상세 정보</summary>
               <dl className="facts compact-facts">
@@ -475,7 +499,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               <Button variant="secondary" onClick={() => setReviewProfileId(null)} isDisabled={switchMutation.isPending}>취소</Button>
               <Button
                 variant="primary"
-                isDisabled={switchMutation.isPending || (requiresConfirmation && !confirmed)}
+                isDisabled={switchMutation.isPending || locked || !mainModelProfileSwitchable(reviewProfile) || (requiresConfirmation && !confirmed)}
                 onClick={() => switchMutation.mutate({ profile: reviewProfile, accepted: confirmed })}
               >{switchMutation.isPending ? '요청 중…' : '전환 요청'}</Button>
             </div>
