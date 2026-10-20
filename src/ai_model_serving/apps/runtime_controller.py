@@ -611,15 +611,19 @@ def create_runtime_controller_app(
         # GPU 예산도 기존 Admission을 사용하며 관측 실패를 "여유"로 해석하지 않는다.
         async with context._budget_lock:
             profiles = context._main_model_manager.profiles()
+            switching = context._main_model_manager.switch_in_progress()
             eligible = [
                 profile for profile in profiles
                 if not profile["active"]
+                and not switching
                 and context._main_model_manager.switch_policy_error(profile["id"]) is None
             ]
             participants = None
             if eligible:
                 try:
-                    participants = await _build_participants()
+                    # Gateway 측 내부 Controller 조회 제한 시간(5초)보다 먼저
+                    # 관측을 종료해 화면에는 전체 오류 대신 '판단 불가'를 제공한다.
+                    participants = await asyncio.wait_for(_build_participants(), timeout=3.0)
                 except Exception as exc:  # noqa: BLE001 - 실패는 모든 후보에 판단 불가로 투영
                     _logger.warning("GPU admission preflight observation unavailable: %s", type(exc).__name__)
             for profile in profiles:
@@ -627,6 +631,7 @@ def create_runtime_controller_app(
                 profile["switch_preflight"] = project_switch_preflight(
                     active=profile["active"],
                     policy_error_code=policy_error.code if policy_error else None,
+                    switch_in_progress=switching,
                     participants=participants,
                     target_key=context._MAIN_SERVICE,
                     target_fraction=profile["vram_fraction"],
