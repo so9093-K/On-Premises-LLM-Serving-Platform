@@ -20,79 +20,79 @@ errors:
     action: "유효한 Authorization 헤더(API 키)를 포함해 다시 호출한다."
   FORBIDDEN:
     meaning: "인증은 되었으나 해당 작업을 수행할 권한이 없다."
-    action: "필요한 권한/프로파일로 호출하거나 운영자에게 문의한다."
+    action: "필요한 권한/프로필로 호출하거나 운영자에게 문의한다."
   NOT_FOUND:
-    meaning: "요청한 리소스(엔드포인트, operation 등)가 존재하지 않는다."
+    meaning: "요청한 리소스(경로·작업 ID 등)가 존재하지 않는다."
     action: "요청 경로와 식별자를 확인한다."
   METHOD_NOT_ALLOWED:
-    meaning: "해당 경로에서 요청한 HTTP method를 지원하지 않는다."
-    action: "Allow 응답 헤더와 API 문서에서 지원하는 method를 확인한다."
+    meaning: "해당 경로에서 요청한 HTTP 메서드를 지원하지 않는다."
+    action: "Allow 응답 헤더와 API 문서에서 지원하는 메서드를 확인한다."
   CONFLICT:
     meaning: "현재 리소스 상태와 요청이 충돌해 작업을 수행할 수 없다."
     action: "error.details.reason 또는 message를 확인한 뒤, 진행 중인 작업 완료·명시적 확인 등 충돌 원인을 해결한다."
   PRECONDITION_REQUIRED:
-    meaning: "상태 변경 요청에 필요한 revision precondition이 빠졌거나 형식이 잘못됐다."
+    meaning: "상태 변경 요청에 필요한 리비전 사전 조건이 빠졌거나 형식이 잘못됐다."
     action: "GET /admin/config/effective 또는 plan 응답의 ETag를 If-Match 헤더로 보내 다시 요청한다."
   CONFIG_REVISION_CONFLICT:
-    meaning: "검토한 Configuration revision 또는 plan이 현재 상태와 달라졌다."
-    action: "최신 effective 설정을 다시 읽고 plan을 재생성한 뒤 Apply한다."
+    meaning: "검토한 설정 리비전 또는 변경 계획이 현재 상태와 달라졌다."
+    action: "현재 적용된 설정을 다시 읽고 새 변경 계획을 검토한 뒤 적용한다."
   CONFIGURATION_WRITE_UNAVAILABLE:
-    meaning: "Configuration store·resolver·runtime snapshot 또는 audit journal이 안전한 write 조건을 만족하지 못한다."
+    meaning: "설정 저장소·적용 상태·작업 이력에 문제가 있어 변경을 시작할 수 없다."
     action: "error.details.reason을 확인하고 persistent state·pending operation·revision drift를 복구한 뒤 다시 plan한다."
   CONFIGURATION_APPLY_FAILED:
-    meaning: "operator desired state 저장 이후 runtime 적용 또는 검증 단계가 완료되지 못했다."
+    meaning: "운영자 설정 저장 후 런타임 적용 또는 검증이 완료되지 못했다."
     action: "operation_id와 error.details의 phase·revision 상태를 확인한다. 재시작 시 persisted desired state가 다시 hydrate된다."
   RUNTIME_HISTORY_UNAVAILABLE:
-    meaning: "Runtime Control audit journal이 안전하게 읽히거나 기록될 수 없어 상태 변경을 시작할 수 없다."
+    meaning: "런타임 작업 이력을 읽거나 기록할 수 없어 상태 변경을 시작할 수 없다."
     action: "persistent platform state와 runtime-history 디렉터리를 복구한 뒤 새 Plan을 검토해 다시 Apply한다."
   RUNTIME_VERIFICATION_FAILED:
-    meaning: "Runtime transition apply는 반환됐지만 후속 관측이 목표 상태와 수렴했음을 확인하지 못했다."
+    meaning: "런타임 상태 변경 후 실제 상태가 목표와 일치하는지 확인하지 못했다."
     action: "error.details.operation_id와 /admin/runtimes/operations 기록을 확인하고 현재 runtime 상태를 다시 조회한다. 자동 재실행하지 않는다."
   GPU_BUDGET_EXCEEDED:
-    meaning: "요청한 런타임을 시작할 GPU VRAM 예산이 부족하다."
-    action: "error.details.plan.stop의 런타임을 정지한 뒤 재시도하거나 force=true로 자동 축출을 요청한다."
+    meaning: "요청한 런타임을 시작할 GPU 정책 예약 예산이 부족하다."
+    action: "새 런타임 변경 계획에서 중지 대상과 영향을 확인한다. 자동 중지를 허용하려면 force=true로 계획을 다시 검토하고 해당 plan_digest로 적용한다."
   MODEL_UNAVAILABLE:
     meaning: "대상 모델 런타임을 현재 사용할 수 없다(미기동·축출 등)."
     action: "잠시 후 재시도하거나 런타임 상태(/admin/runtimes)를 확인한다."
   MODEL_CAPABILITY_MISMATCH:
     meaning: "요청이 활성 모델이 지원하지 않는 기능을 요구한다(예 - 비활성 모달리티)."
-    action: "활성 프로파일이 지원하는 입력/기능으로 요청을 맞춘다."
+    action: "활성 프로필이 지원하는 입력/기능으로 요청을 맞춘다."
   UPSTREAM_TIMEOUT:
-    meaning: "upstream 런타임 응답이 제한 시간을 초과했다."
+    meaning: "모델 런타임 응답이 제한 시간을 초과했다."
     action: "잠시 후 재시도하거나 요청 크기·복잡도를 줄인다."
   UPSTREAM_ERROR:
-    meaning: "upstream 런타임이 오류를 반환했거나 통신에 실패했다."
+    meaning: "모델 런타임이 오류를 반환했거나 통신에 실패했다."
     action: "잠시 후 재시도한다. 반복되면 런타임 로그를 확인한다."
   UPSTREAM_RESPONSE_INVALID:
-    meaning: "upstream 응답의 envelope, 필드 또는 detector 출력이 계약을 만족하지 못했다."
+    meaning: "의존 서비스 응답의 구조·필드 또는 탐지기 출력이 계약을 만족하지 못했다."
     action: "반복되면 request_id로 운영 로그와 runtime 호환성을 확인한다."
   STRUCTURED_OUTPUT_INVALID:
     meaning: "모델이 생성한 JSON이 요청한 출력 형식 또는 json_schema를 만족하지 못했다."
     action: "response_format.json_schema 를 단순화하거나 max_tokens 를 늘린다."
   RATE_LIMITED:
-    meaning: "upstream rate limit에 도달했다."
+    meaning: "의존 서비스의 요청 제한에 도달했다."
     action: "Retry-After 를 존중해 백오프 후 재시도한다."
   QUEUE_TIMEOUT:
     meaning: "동시 처리 한도로 대기열에서 시간이 초과됐다."
     action: "잠시 후 재시도하고 동시 요청 수를 줄인다."
   CIRCUIT_OPEN:
-    meaning: "연속 실패로 upstream 서킷이 열려 일시적으로 차단 중이다."
+    meaning: "연속 실패로 의존 서비스 호출이 일시 차단됐다."
     action: "잠시 후 재시도한다."
   REQUEST_TOO_LARGE:
-    meaning: "요청 body 가 허용 한도를 초과했다."
-    action: "payload(이미지·오디오·비디오·문서) 크기를 한도 이하로 줄인다."
+    meaning: "요청 본문이 허용 한도를 초과했다."
+    action: "요청 본문(이미지·오디오·비디오·문서) 크기를 한도 이하로 줄인다."
   INTERNAL_ERROR:
     meaning: "Gateway 내부 처리 중 예기치 못한 오류가 발생했다."
     action: "request_id 와 함께 운영자에게 문의한다."
   DETECTOR_DISABLED:
-    meaning: "요청한 risk detector 가 현재 설정에서 비활성이다."
-    action: "운영자에게 활성화를 요청하거나 다른 detector 를 사용한다."
+    meaning: "요청한 위험 탐지기가 현재 설정에서 비활성이다."
+    action: "운영자에게 활성화를 요청하거나 다른 탐지기를 사용한다."
   STREAM_LIMIT_EXCEEDED:
-    meaning: "스트리밍 응답이 chunk/byte 한도를 초과했다."
+    meaning: "스트리밍 응답이 청크 수·전송 시간·크기 한도를 초과했다."
     action: "출력 길이를 줄이거나 비스트리밍으로 재시도한다."
   MAIN_MODEL_CONTROL_UNAVAILABLE:
     meaning: "메인 모델 Runtime Controller를 사용할 수 없다."
     action: "잠시 후 재시도한다. 반복되면 Runtime Controller 상태를 확인한다."
   MAIN_MODEL_SWITCH_IN_PROGRESS:
-    meaning: "메인 모델 프로파일 전환이 진행 중이다."
+    meaning: "메인 모델 프로필 전환이 진행 중이다."
     action: "전환 완료(operation 상태) 후 재시도한다."

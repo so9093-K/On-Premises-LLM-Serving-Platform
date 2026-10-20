@@ -252,7 +252,7 @@ def build_router(
         ]
 
     _ADMIN_401 = (
-        {401: {"description": "Admin Bearer token 필요"}}
+        {401: {"description": "관리자 API 키 필요"}}
         if settings.security.admin_api_key_required
         else {}
     )

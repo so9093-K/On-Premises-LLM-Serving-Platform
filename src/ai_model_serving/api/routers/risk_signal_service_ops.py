@@ -56,12 +56,12 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         description=_s.description,
         responses={
             200: {
-                "description": "모든 detector runtime이 준비됨",
+                "description": "필수 탐지기 의존 서비스 준비 완료",
                 "content": {"application/json": {"example": risk_ready_response_example()}},
             },
-            401: {"description": "Admin Bearer token 필요"},
+            401: {"description": "관리자 API 키 필요"},
             503: {
-                "description": "하나 이상의 detector runtime이 아직 로딩 중이거나 사용할 수 없음",
+                "description": "필수 탐지기 의존 서비스를 사용할 수 없음",
                 "content": {"application/json": {"example": risk_loading_response_example()}},
             },
         },
@@ -85,7 +85,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         summary=_s.summary,
         operation_id=_s.operation_id,
         description=_s.description,
-        responses={401: {"description": "Admin Bearer token 필요"}},
+        responses={401: {"description": "관리자 API 키 필요"}},
     )
     async def metrics_endpoint():
         return metrics.response()

@@ -6,6 +6,8 @@
 
 ### Changed
 
+- Scalar API 문서의 API 제목·요청 예시·오류 설명을 한국어 중심으로 정리하고 모델 조회·추론 API를 먼저 탐색하도록 구성했다. GPU 정책 예약과 실측 메모리, 전환 작업의 상태와 단계를 구분하며 모바일 표의 가로 스크롤과 개발용·외부 연결 메뉴 노출을 정리했다.
+
 - 비공개 원격 접속 안내를 외부 관리자·API 사용자·Ubuntu/Linux Host 운영자별로 정리하고, macOS Host의 미검증 범위와 프로젝트 소유 Serve/Nginx·Grants·키의 선택적 해제 절차를 명시했다. 사용하지 않는 원격 접속 `plan` 하위명령은 제거하되 읽기 전용 `preflight`·`status`와 기존 `make up/status` 운영 계약은 유지한다.
 
 ### Added

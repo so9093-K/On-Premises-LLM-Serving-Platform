@@ -90,278 +90,136 @@ def models_tag_summary(settings: AppSettings) -> str:
 
 
 def models_operation_detail(settings: AppSettings) -> str:
-    """모델 목록 엔드포인트의 상세. 표지(태그)에는 목록만 두고 여기에 나머지를 둔다."""
-    lines = [
-        "조정할 수 있는 파라미터는 모델마다 다릅니다. 파라미터 이름과 허용 범위"
-        "(`min`, `max`, `max_items`, `allowed` 등)는 `GET /v1/models`의 `request_parameters`가 "
-        "함께 돌려줍니다. 모델별 입력 폼을 만든다면 그 값을 읽어서 구성하세요. "
-        "이 문서 화면에 보이는 예시 값은 화면용 preset이며 Gateway 기본값이 아닙니다.",
-    ]
-
-    if settings.main_model_profile_summaries:
-        lines += [
-            "",
-            "### `local-main`은 이름만 고정된 창구입니다",
-            "",
-            "`local-main`은 고정된 하나의 모델이 아니라 현재 활성화된 메인 모델 프로필의 공개 이름입니다. "
-            "프로필을 바꾸면 받을 수 있는 입력 종류, 토큰 한도, 허용 파라미터 목록이 함께 바뀌고 `/v1/models` 응답이 "
-            "즉시 그 값을 반영합니다.",
-            "",
-            "| 프로필 ID | 이름 | Qualification |",
-            "|---|---|---|",
-        ]
-        for profile_id, display_name, status in settings.main_model_profile_summaries:
-            lines.append(f"| `{profile_id}` | {display_name} | `{status or 'unknown'}` |")
-        lines += [
-            "",
-            "Qualification이 `verified`가 아닌 프로필로 전환하려면 `POST /admin/main-model/switch`에 "
-            "`confirm_unverified: true`가 필요합니다. 각 프로필의 근거는 "
-            "`GET /admin/main-model/profiles`가 반환합니다.",
-        ]
-    return "\n".join(lines)
+    """공개 모델 조회에서 확인할 필드와 활성 프로필의 관계를 설명한다."""
+    return (
+        "`request_parameters`는 모델별 허용 파라미터와 범위(`min`, `max`, `max_items`, `allowed`)를, "
+        "`request_limits`는 입력 종류별 개수·크기 한도를 반환합니다. 요청 예시의 값은 Gateway 기본값과 다를 수 있습니다.\n\n"
+        "`local-main`은 활성 메인 모델 프로필의 공개 이름입니다. 프로필 전환 후 입력 종류·토큰 한도·허용 파라미터가 "
+        "달라질 수 있으므로 응답의 최신 값을 사용하세요. 모델 목록에 포함돼 있어도 런타임은 중지 상태일 수 있습니다. "
+        "운영자는 `GET /admin/main-model/profiles`에서 전환 후보와 검증 상태를 확인할 수 있습니다."
+    )
 
 
 def chat_tag_summary(settings: AppSettings) -> str:
-    """Chat 그룹의 표지. 지금 이 배포가 무엇을 받는지까지만 담는다."""
-    lines = [
-        "OpenAI 호환 chat completions API입니다. Gateway는 요청을 모델 런타임으로 넘기기 전에 "
-        "모델 이름, 입력 종류, 요청 출력 한도, 허용 파라미터, 구조화 출력 스키마를 직접 검사합니다. "
-        "입력과 출력의 정확한 합은 실제 tokenizer와 chat/media template를 소유한 런타임이 검사합니다.",
-    ]
-    policy = settings.default_main_model_gateway_policy or {}
-    limits = policy.get("request_limits") or {}
-    if limits:
-        lines += [
-            "",
-            f"- 받을 수 있는 입력 — {_codes(limits.get('input_modalities'))}",
-            f"- 컨텍스트 상한 — {_number(limits.get('max_model_len'))}토큰 (입력+출력)",
-            f"- 요청 본문 상한 — {_bytes(settings.max_request_body_bytes)}",
-            "",
-            "스트리밍·도구 호출·구조화 출력·멀티모달 한도 같은 세부는 아래 "
-            "`POST /v1/chat/completions` 설명에 있습니다. 값은 프로필을 바꾸면 함께 바뀝니다.",
-        ]
-    return "\n".join(lines)
+    """Chat Completions의 용도와 현재 기능 조회 경로를 설명한다."""
+    return (
+        "메시지 목록으로 모델 응답을 생성하는 OpenAI 호환 Chat Completions API입니다. "
+        "스트리밍·도구 호출·구조화 출력·멀티모달 입력의 지원 범위는 활성 프로필에 따라 다릅니다. "
+        "현재 기능과 한도는 `GET /v1/models`에서 확인하세요."
+    )
 
 
 def chat_operation_detail(settings: AppSettings) -> str:
-    """chat 엔드포인트의 동작·한도 설명.
-
-    예전엔 이 내용이 Chat 태그 설명에 있었다. 그런데 Chat 태그에는 엔드포인트가
-    하나뿐이라 태그와 오퍼레이션이 사실상 같은 것이고, 4천 자가 넘으니 Scalar가
-    태그 설명을 `Show More`로 접어버려 아무도 안 읽는 상태였다. 읽는 사람이 그
-    엔드포인트를 보고 있을 때 그 자리에 있는 게 맞다.
-    """
+    """기본 프로필에서 생성한 요청 한도와 응답 처리 방법을 설명한다."""
     policy = settings.default_main_model_gateway_policy or {}
     limits = policy.get("request_limits") or {}
     parameters = policy.get("request_parameter_policy") or {}
-
-    lines: list[str] = []
     if not policy:
-        return (
-            "기능별 한도는 지금 활성화된 메인 모델 프로필이 정합니다. 실제 값은 "
-            "`GET /v1/models`의 `request_parameters`에서 확인하세요."
-        )
-
-    lines += [
-        "아래 값은 이 배포의 **기본 프로필** 정책입니다. 프로필을 전환하면 값이 달라지므로, "
-        "지금 실제로 적용 중인 값은 `GET /v1/models`(호출자용)와 `GET /admin/main-model`의 `active_profile.gateway_policy`"
-        "(운영자용)입니다.",
-        "",
-        "### 허용 파라미터",
-        "",
+        return "현재 지원 기능과 요청 한도는 `GET /v1/models`에서 확인하세요."
+    lines = [
+        "아래 한도는 **기본 프로필** 기준입니다. 활성 프로필의 최신 값은 `GET /v1/models`의 "
+        "`request_parameters`와 `request_limits`에서 확인하세요.",
+        "", "### 요청 파라미터", "",
         f"- 허용 파라미터: {_codes(parameters.get('supported_parameters'))}",
+        "- `max_tokens`와 `max_completion_tokens`는 출력 토큰 한도를 지정합니다. 둘 중 하나만 사용하세요.",
+        "- 메시지 역할: `system`, `developer`, `user`, `assistant`, 도구 호출 시 `tool`. "
+        "이 플랫폼은 `developer`를 `system`과 동일하게 처리합니다.",
     ]
     if parameters.get("allow_unlisted_parameters") is False:
-        lines.append(
-            "- 목록에 없는 파라미터는 모델 런타임으로 전달되지 않고 `422 VALIDATION_ERROR`로 거부됩니다. "
-            "응답 `error.param`이 문제가 된 필드명을 가리킵니다."
-        )
-    lines.append(
-        "- `max_completion_tokens`는 OpenAI가 `max_tokens`를 대체한 이름입니다. 같은 한도를 가리키므로 "
-        "요청에는 둘 중 하나만 담아야 하며, 런타임으로 넘기기 전에 `max_tokens`로 합쳐집니다."
-    )
-    dropped = [str(name) for name in parameters.get("drop_upstream_parameters", [])]
+        lines.append("- 미지원 파라미터는 `422 VALIDATION_ERROR`입니다. `error.param`에서 필드명을 확인하세요.")
+    dropped = parameters.get("drop_upstream_parameters") or []
     if dropped:
-        lines.append(
-            f"- 다음 파라미터는 Gateway 계약에서만 쓰이고 런타임에는 전달되지 않습니다: {_codes(dropped)}. "
-            "응답과 지표 라벨에는 영향이 없습니다."
-        )
-    lines.append(
-        "- 메시지 역할은 `system`, `developer`, `user`, `assistant`(+ tool 지원 시 `tool`)입니다. "
-        "`developer`는 OpenAI가 `system`을 대체한 이름이며 동일하게 처리됩니다."
-    )
+        lines.append(f"- {_codes(dropped)}: Gateway에서만 처리하며 모델 런타임에 전달하지 않습니다.")
     lines += [
-        "",
-        "### 토큰 한도",
-        "",
-        # max_tokens / n 상한은 아래 요청 스키마가 필드 옆에 그린다. 산문으로 또 적으면
-        # 같은 값이 두 곳에 살면서, 프로필을 바꿨을 때 한쪽만 갱신되는 자리가 생긴다.
-        f"- `max_model_len` {_number(limits.get('max_model_len'))} — 활성 런타임이 광고하는 입력+출력 전체 용량입니다.",
-        "- Gateway는 요청별 `max_tokens`·`n` 상한을 아래 요청 스키마대로 먼저 검사합니다. "
-        "넘기면 `422 VALIDATION_ERROR`이고 `error.param`이 어느 필드인지 알려줍니다.",
-        "- 정확한 prompt token 수는 tokenizer, chat template와 이미지 전처리를 적용한 뒤 런타임이 계산합니다. "
-        "`max_tokens`를 생략하면 활성 런타임의 기본 출력 예산을 사용합니다. "
-        "`prompt tokens + effective max_tokens`가 전체 용량을 넘으면 런타임의 비재시도 4xx를 Gateway가 "
-        "`422 VALIDATION_ERROR`로 전달합니다. Gateway는 모델별 tokenizer를 복제하지 않습니다.",
-        f"- 요청 본문 자체의 상한은 {_bytes(settings.max_request_body_bytes)}입니다"
-        "(base64 미디어 포함). 초과하면 `413 REQUEST_TOO_LARGE`입니다.",
-        "",
-        "### 스트리밍",
-        "",
-        "- `stream: true` — 런타임이 보내는 SSE 조각을 모아두지 않고 `text/event-stream`으로 그대로 중계합니다.",
-        "- `stream_options.include_usage: true` — 마지막 조각에 토큰 사용량을 포함합니다.",
-        f"- 스트림 상한: 최대 {_number(settings.streaming_max_duration_seconds)}초, "
-        f"{_number(settings.streaming_max_chunks)} chunk, {_bytes(settings.streaming_max_bytes)}.",
-        "- 전송 도중 오류가 나면 이미 `200`으로 헤더가 나간 뒤이므로 상태 코드를 바꿀 수 없습니다. "
-        "Gateway는 SSE `error` 이벤트를 먼저 보내고 `data: [DONE]`으로 스트림을 닫으므로, "
-        "클라이언트는 마지막 이벤트를 반드시 확인해야 합니다.",
-        "",
-        "### 응답 종료 상태",
-        "",
-        "- reasoning이 출력 예산을 모두 사용하면 `content: null`, 비어 있지 않은 `reasoning`, "
-        "`finish_reason: length`가 올 수 있습니다. 이는 잘린 정상 completion이며 Gateway가 그대로 반환합니다.",
-        "- text·reasoning·tool call이 모두 없거나 `finish_reason: tool_calls`와 실제 `tool_calls`가 "
-        "모순되면 runtime 응답 계약 오류입니다.",
+        "", "### 입력·출력 한도", "",
+        f"- 컨텍스트 상한: 입력과 출력 합계 {_number(limits.get('max_model_len'))}토큰.",
+        "- 요청별 출력 한도와 `n` 범위는 아래 요청 스키마를 따릅니다. "
+        "정확한 입력 토큰 수는 런타임이 토크나이저·대화 템플릿·미디어 전처리를 적용해 계산합니다.",
+        "- `max_tokens`를 생략하면 활성 런타임의 기본 출력 예산을 사용합니다. "
+        "입력과 출력 예산 합이 컨텍스트 상한을 넘으면 `422 VALIDATION_ERROR`입니다.",
+        f"- 요청 본문 상한: {_bytes(settings.max_request_body_bytes)}(base64 미디어 포함). "
+        "초과하면 `413 REQUEST_TOO_LARGE`입니다.",
+        "", "### 스트리밍과 응답 종료", "",
+        "- `stream: true`로 SSE 응답을 받습니다. `stream_options.include_usage: true`로 마지막 청크에 토큰 사용량을 포함합니다.",
+        f"- 스트림 상한: {_number(settings.streaming_max_duration_seconds)}초, "
+        f"{_number(settings.streaming_max_chunks)}청크, {_bytes(settings.streaming_max_bytes)}.",
+        "- HTTP 200 이후에도 SSE `error` 이벤트가 올 수 있습니다. 오류 이벤트·`finish_reason`·최종 `data: [DONE]`을 "
+        "함께 확인하세요. `[DONE]` 누락은 정상 종료로 간주하지 마세요.",
+        "- `finish_reason: length`는 출력 한도에 도달한 응답입니다. 추론이 출력 예산을 모두 사용하면 "
+        "`content: null`과 비어 있지 않은 `reasoning`이 반환될 수 있습니다.",
     ]
-
-    tool_calling = parameters.get("tool_calling") or {}
-    if tool_calling:
-        tool_choice = _main_model_parameter(settings, "tool_choice")
+    tool = parameters.get("tool_calling") or {}
+    if tool:
+        choice = _main_model_parameter(settings, "tool_choice")
         lines += [
-            "",
-            "### 도구 호출 (tools)",
-            "",
-            f"- 지원 여부: `{str(tool_calling.get('enabled', False)).lower()}` "
-            "— 비활성 프로필에서는 `tools`를 보내면 거부됩니다.",
-            f"- `parallel_tool_calls` 허용: `{str(tool_calling.get('allow_parallel_tool_calls', False)).lower()}` "
-            "— 허용되지 않으면 `true`를 보낼 수 없습니다.",
-            f"- `tool_choice` 문자열 허용값: {_codes(tool_choice.get('allowed'))}.",
-            f"- named function choice 허용: `{str(tool_choice.get('allow_named', False)).lower()}`.",
-            "- 병렬 호출 비허용 프로필은 생략한 `parallel_tool_calls`도 upstream에 `false`로 고정합니다.",
-            "- 프로필이 tool calling을 지원하지 않으면 `/v1/models`의 capability 목록에서 "
-            "`chat.completions.tools`가 빠집니다.",
+            "", "### 도구 호출", "",
+            f"- 지원: `{str(tool.get('enabled', False)).lower()}`. "
+            f"`tool_choice` 허용값: {_codes(choice.get('allowed'))}.",
+            f"- 지정 함수 선택 지원: `{str(choice.get('allow_named', False)).lower()}`.",
+            f"- 병렬 호출 지원: `{str(tool.get('allow_parallel_tool_calls', False)).lower()}`. "
+            "미지원 프로필에서는 `parallel_tool_calls: true`를 사용할 수 없습니다.",
         ]
-
     response_format = parameters.get("response_format") or {}
     if response_format:
-        json_schema = response_format.get("json_schema") or {}
-        json_object = response_format.get("json_object") or {}
+        schema = response_format.get("json_schema") or {}
         lines += [
-            "",
-            "### 구조화 출력 (response_format)",
-            "",
-            f"- 허용 타입: {_codes(response_format.get('types'))}",
+            "", "### 구조화 출력", "",
+            f"- `response_format.type` 허용값: {_codes(response_format.get('types'))}.",
+            "- `json_object`: 메시지에 JSON 출력을 지시해야 합니다. 특정 스키마와의 일치는 보장하지 않습니다.",
         ]
-        if json_object.get("require_json_instruction"):
-            lines.append(
-                "- `json_object` — JSON mode입니다. `messages`에 JSON으로 답하라는 명시적 지시문이 있어야 하며, "
-                "특정 스키마와의 일치는 보장하지 않습니다."
-            )
-        if json_schema:
+        if schema:
             lines += [
-                "- `json_schema` — Structured Outputs입니다. 다음 제약을 Gateway가 미리 검사하고, "
-                "위반하면 upstream 호출 없이 `422`로 거부합니다.",
-                f"  - root는 `object`여야 함: `{str(json_schema.get('require_root_object', False)).lower()}`",
-                f"  - `additionalProperties: false` 필수: "
-                f"`{str(json_schema.get('require_additional_properties_false', False)).lower()}`",
-                f"  - 스키마 크기 {_bytes(json_schema.get('max_schema_bytes'))}, 최대 깊이 "
-                f"{_number(json_schema.get('max_depth'))}, 전체 property "
-                f"{_number(json_schema.get('max_total_properties'))}개",
-                "  - optional 필드는 nullable union(`[\"type\", \"null\"]`)으로 표현하고, external `$ref`는 쓸 수 없습니다.",
-                "- **열린 값 타입에는 경계를 주세요.** `integer`/`number`에 `minimum`·`maximum`, "
-                "자유 `string`에 `maxLength` 또는 `pattern`이 없으면 문법상 값이 무한히 이어질 수 있어, "
-                "모델이 닫는 토큰을 내지 못하고 `max_tokens`에서 잘립니다(자릿수·소수점 반복). "
-                "경계가 있으면 문법 자체가 닫히므로 이 실패가 생기지 않습니다.",
-                "- 생성 결과가 스키마를 만족하지 못하면 `STRUCTURED_OUTPUT_INVALID`(retryable)입니다. "
-                "위 경계를 먼저 확인하고, 그다음 스키마를 단순화하거나 `max_tokens`를 늘리세요.",
+                "- `json_schema`: 루트 `object`, `additionalProperties: false`를 사용하세요. "
+                "선택 필드는 nullable union(`[\"type\", \"null\"]`)으로 표현하며 외부 `$ref`는 지원하지 않습니다.",
+                f"- 스키마 상한: {_bytes(schema.get('max_schema_bytes'))}, 깊이 {_number(schema.get('max_depth'))}, "
+                f"전체 속성 {_number(schema.get('max_total_properties'))}개.",
+                "- 생성 결과가 스키마를 만족하지 못하면 `STRUCTURED_OUTPUT_INVALID`입니다. "
+                "스키마와 출력 토큰 한도를 확인하세요. 숫자의 `minimum`·`maximum`, 문자열의 `maxLength`·`pattern`은 "
+                "반복 출력을 줄이는 데 도움이 되지만 정상 종료를 보장하지는 않습니다.",
             ]
-
     reasoning = parameters.get("reasoning") or {}
     if reasoning:
         lines += [
-            "",
-            "### 추론 (reasoning)",
-            "",
-            f"- 지원 여부: `{str(reasoning.get('enabled', False)).lower()}`, 기본값 "
-            f"`{str(reasoning.get('default', False)).lower()}`, 방식 `{reasoning.get('mode', '—')}`.",
-            "- 요청마다 `reasoning: true`로 켜는 opt-in이며, 켜면 출력 토큰을 더 씁니다 — "
-            "`max_tokens` 여유를 함께 늘려야 답변이 잘리지 않습니다.",
+            "", "### 추론", "",
+            f"- `reasoning` 지원: `{str(reasoning.get('enabled', False)).lower()}`, "
+            f"기본값: `{str(reasoning.get('default', False)).lower()}`.",
+            "- `reasoning: true`로 활성화합니다. 추론 토큰도 출력 한도에 포함되므로 `max_tokens`를 함께 조정하세요.",
         ]
-
     lines += [
-        "",
-        "### 진단용 파라미터",
-        "",
-        "- `logprobs` / `top_logprobs` — 토큰별 확률을 응답에 포함합니다. `top_logprobs`는 `logprobs: true`가 전제입니다.",
-        "- `logit_bias` — 토큰 id 기준으로 편향을 겁니다. 토큰 id는 **지금 활성화된 프로필의 tokenizer 기준**이라 "
-        "프로필을 전환하면 같은 id가 다른 토큰을 가리킬 수 있습니다.",
-        "- `seed` — 같은 입력·같은 프로필에서 재현성을 높입니다(완전 결정성을 보장하지는 않습니다).",
+        "", "### 토큰 확률과 재현성", "",
+        "- `logprobs`와 `top_logprobs`: 토큰 확률을 반환합니다. `top_logprobs`에는 `logprobs: true`가 필요합니다.",
+        "- `logit_bias`: 활성 프로필의 토크나이저에 따른 토큰 ID를 사용합니다. 프로필 전환 후 ID가 달라질 수 있습니다.",
+        "- `seed`: 재현성을 높이는 값이며 동일한 결과를 보장하지 않습니다.",
     ]
-
     if limits.get("input_modalities"):
         lines += [
-            "",
-            "### 멀티모달 입력",
-            "",
-            f"현재 기본 프로필이 받는 입력: {_codes(limits.get('input_modalities'))}. "
-            "허용되지 않은 종류의 입력을 보내면 `422 VALIDATION_ERROR`로 거부되고, "
-            "`error.param`이 어떤 part였는지 알려줍니다(`messages.content`, `image_url`, `input_audio`, `video_url`).",
-            "",
-            "| 항목 | 이미지 | 오디오 | 비디오 |",
-            "|---|---|---|---|",
-            "| 최대 개수 | {} | {} | {} |".format(
-                _number(limits.get("max_image_inputs")),
-                _number(limits.get("max_audio_inputs")),
-                _number(limits.get("max_video_inputs")),
-            ),
-            "| 최대 크기 | {} | {} | {} |".format(
-                _bytes(limits.get("max_image_bytes")),
-                _bytes(limits.get("max_audio_bytes")),
-                _bytes(limits.get("max_video_bytes")),
-            ),
-            # 허용 형식은 표 칸에 넣지 않는다. 이미지 9종·비디오 8종이라 4열 표의 한 칸에
-            # 120자 넘게 들어가면서 MIME 문자열이 글자 단위로 쪼개진다.
-            "| URL scheme | {} | 인라인 base64 | {} |".format(
-                _codes(limits.get("allowed_image_url_schemes")),
-                _codes(limits.get("allowed_video_url_schemes")),
-            ),
-            "",
-            "**허용 형식**",
-            "",
-            f"- 이미지 — {_codes(limits.get('allowed_image_mime_types'))}",
-            f"- 오디오 — {_codes(limits.get('allowed_audio_formats'))}",
-            f"- 비디오 — {_codes(limits.get('allowed_video_mime_types'))}",
-            "",
-            f"- 이미지 픽셀 상한 {_number(limits.get('max_image_pixels'))}px — 압축 폭탄을 막기 위해 "
-            "디코딩 전에 헤더에서 해상도를 읽어 검사하며, 해상도를 읽지 못하면 거부합니다(fail-closed).",
+            "", "### 멀티모달 입력", "",
+            f"지원 입력: {_codes(limits.get('input_modalities'))}. 미지원 입력·형식·크기는 "
+            "`422 VALIDATION_ERROR`이며 `error.param`에서 원인 필드를 확인할 수 있습니다.",
+            "", "| 항목 | 이미지 | 오디오 | 비디오 |", "|---|---|---|---|",
+            "| 최대 개수 | {} | {} | {} |".format(*(_number(limits.get(f"max_{kind}_inputs")) for kind in ("image", "audio", "video"))),
+            "| 최대 크기 | {} | {} | {} |".format(*(_bytes(limits.get(f"max_{kind}_bytes")) for kind in ("image", "audio", "video"))),
+            "", f"- 이미지 URL 형식: {_codes(limits.get('allowed_image_url_schemes'))}. "
+            f"MIME 유형: {_codes(limits.get('allowed_image_mime_types'))}.",
+            f"- 오디오: 인라인 base64. 형식: {_codes(limits.get('allowed_audio_formats'))}.",
+            f"- 비디오 URL 형식: {_codes(limits.get('allowed_video_url_schemes'))}. "
+            f"MIME 유형: {_codes(limits.get('allowed_video_mime_types'))}.",
+            f"- 이미지 해상도 상한: {_number(limits.get('max_image_pixels'))}픽셀. 해상도를 확인할 수 없는 이미지는 거부합니다.",
         ]
         if limits.get("max_video_frames") or limits.get("max_video_duration_seconds"):
-            lines.append(
-                f"- 비디오는 최대 {_number(limits.get('max_video_frames'))} 프레임, "
-                f"{_number(limits.get('max_video_duration_seconds'))}초, 프레임당 "
-                f"{_number(limits.get('max_video_frame_pixels'))}px까지 허용합니다."
-            )
-        lines.append(
-            "- 크기·형식 위반도 같은 방식으로 `error.param`이 원인을 가리킵니다"
-        "(예: `input_audio.format`은 형식 문제, `image_url`은 이미지 자체의 문제)."
-        )
+            lines.append(f"- 비디오 상한: {_number(limits.get('max_video_frames'))}프레임, "
+                         f"{_number(limits.get('max_video_duration_seconds'))}초, 프레임당 {_number(limits.get('max_video_frame_pixels'))}픽셀.")
     return "\n".join(lines)
 
 
 
 def responses_tag_summary(settings: AppSettings) -> str:
-    policy = settings.default_main_model_gateway_policy or {}
-    limits = policy.get("request_limits") or {}
-    lines = [
-        "OpenAI Responses API 호환 generation surface입니다. Chat Completions와 같은 `local-main` active profile과 "
-        "admission/capability policy를 사용하며, item 기반 output·function continuation·typed streaming event를 제공합니다.",
-        "",
-        "이 플랫폼의 Responses API는 self-contained stateless contract입니다. 이전 응답의 output item과 tool result를 "
-        "다음 요청 input에 포함해 이어가며 server-side response storage를 만들지 않습니다.",
-    ]
-    if limits:
-        lines += ["", f"- 기본 프로필 입력 — {_codes(limits.get('input_modalities'))}", f"- 기본 프로필 컨텍스트 상한 — {_number(limits.get('max_model_len'))}토큰"]
-    return "\n".join(lines)
+    """Responses API의 용도와 대화 상태 관리 방법을 설명한다."""
+    return (
+        "항목 기반 입력·출력과 이벤트 유형별 스트리밍을 제공하는 OpenAI 호환 Responses API입니다. "
+        "Chat Completions와 같은 활성 메인 모델을 사용합니다. "
+        "대화를 이어가려면 이전 응답과 도구 실행 결과를 다음 요청의 `input`에 포함하세요. 서버는 응답을 저장하지 않습니다."
+    )
 
 def embeddings_tag_summary(settings: AppSettings) -> str:
     """Embeddings 그룹의 표지. 쓸 수 있는 모델과 차원까지만."""
@@ -412,80 +270,41 @@ def embeddings_operation_detail(settings: AppSettings) -> str:
 
 
 def _runtime_control_tag_description(settings: AppSettings) -> str:
-    stage_meanings = {
-        "pending": "작업 접수, 아직 시작 전",
-        "preparing": "이미지·가중치 등 사전 준비",
-        "draining": "gate를 닫고 진행 중인 요청이 끝나기를 대기",
-        "stopping": "이전 런타임 컨테이너 정지",
-        "starting": "새 프로필 컨테이너 기동",
-        "validating": "기동한 런타임에 canary 요청으로 계약 확인",
-        "rolling_back": "검증 실패로 이전 프로필 복구 중",
-        "completed": "전환 성공, `gate` 다시 열림 (종료 상태)",
-        "failed": "전환 실패, 이전 프로필로 복구됨 (터미널)",
-        "rollback_failed": "복구까지 실패 — 수동 개입 필요 (터미널)",
+    """런타임 제어의 순서·GPU 정책 예산·전환 단계를 설명한다."""
+    meanings = {
+        "pending": "작업 접수", "preparing": "이미지·가중치 준비",
+        "draining": "요청 수락을 차단하고 진행 중인 요청 완료 대기",
+        "stopping": "이전 런타임 중지", "starting": "새 런타임 시작",
+        "validating": "추론 요청으로 런타임 검증", "rolling_back": "이전 프로필 복구",
+        "completed": "전환 완료", "failed": "전환 실패", "rollback_failed": "복구 실패, 수동 조치 필요",
     }
     lines = [
-        "GPU 예산을 나눠 쓰는 vLLM 런타임들을 제어하는 관리자 API입니다. admin 토큰이 필요합니다.",
-        "",
-        "### 제어 모델",
-        "",
-        "- **정지·시작**은 보조 런타임과 메인 모델 모두 `PATCH /admin/runtimes/{service_key}`의 "
-        "`desired_state`(`active` / `stopped`) 하나로 수행합니다. 메인 모델의 `service_key`는 `main`입니다.",
-        "- **메인 모델의 프로필 교체**만 `POST /admin/main-model/switch`로 따로 수행합니다.",
-        "- 모든 런타임은 같은 VRAM 예산(`budget: {ceiling, used, free}`)을 나눠 씁니다. 시작 요청이 천장을 "
-        "넘으면 `409 GPU_BUDGET_EXCEEDED`와 함께 `error.details.plan.stop`에 정지 후보를 돌려주며, "
-        "`force: true`로 우선순위가 낮은 보조 런타임을 자동 축출할 수 있습니다.",
-        "",
-        "### gate — 요청 경로와의 관계",
-        "",
-        "- `gate: open`이어야 `/v1/chat/completions`와 `/v1/responses`가 요청을 받습니다.",
-        "- 전환·정지 중에는 `gate`가 닫히고 generation 요청은 `503 MAIN_MODEL_SWITCH_IN_PROGRESS` + `Retry-After: 5`로 "
-        "fail-closed 응답합니다(요청이 조용히 잘못된 모델로 가지 않습니다).",
-        "- 요청 경로는 `gate`와 활성 프로필을 control plane 기록에서만 읽습니다. Docker 관측은 "
-        "`GET /admin/main-model`에서만 수행하므로, 추론 트래픽이 Docker daemon 상태에 묶이지 않습니다.",
-        "",
-        "### 전환 작업 stage",
-        "",
-        "`POST /admin/main-model/switch`는 즉시 `202`와 `operation_id`를 돌려주고 아래 순서로 진행합니다. "
-        "`GET /admin/main-model/operations/{operation_id}`로 폴링합니다.",
-        "",
-        "| stage | 의미 |",
-        "|---|---|",
+        "메인 모델과 보조 런타임의 상태·프로필을 관리합니다. 관리자 인증이 활성화된 배포에서는 관리자 API 키를 사용하세요.",
+        "", "### 시작·중지", "",
+        "1. `GET /admin/runtimes`에서 상태를 조회합니다.",
+        "2. `POST /admin/runtimes/{service_key}/plans`로 변경 영향을 확인합니다.",
+        "3. 같은 변경 내용과 반환된 `plan_digest`로 `PATCH /admin/runtimes/{service_key}`를 호출합니다. 메인 모델의 키는 `main`입니다.",
+        "", "`vram_fraction`과 `budget`은 동시 실행 판단에 사용하는 **GPU 정책 예약 비율**입니다. "
+        "실측 GPU 메모리 사용량이 아닙니다. `force: true`는 계획에 포함된 낮은 우선순위 보조 런타임의 자동 중지를 허용합니다.",
+        "", "### 메인 모델 전환", "",
+        "`POST /admin/main-model/switch`는 `202`와 `operation_id`를 반환합니다. "
+        "`GET /admin/main-model/operations/{operation_id}`로 결과를 확인하세요. "
+        "전환·중지 중 요청 수락이 차단되면 Chat Completions와 Responses는 "
+        "`503 MAIN_MODEL_SWITCH_IN_PROGRESS`와 `Retry-After`를 반환합니다.",
+        "", "| 단계 (`stage`) | 의미 |", "|---|---|",
     ]
-    for stage in OPERATION_STAGES:
-        lines.append(f"| `{stage}` | {stage_meanings.get(stage, '')} |")
+    lines.extend(f"| `{stage}` | {meanings.get(stage, '')} |" for stage in OPERATION_STAGES)
     lines += [
-        "",
-        "`status`는 작업의 결과를, `stage`는 controller의 실제 진행/실패 지점을 나타냅니다. "
-        "따라서 validation 실패 후 이전 프로필 복구에 성공하면 `status=failed`, `stage=validating`처럼 "
-        "terminal 결과와 실패 지점이 함께 남습니다.",
-        "",
-        "`stopping` 이후는 이전 런타임이 이미 해체된 뒤라, 실패하면 `gate`를 그냥 다시 여는 대신 이전 프로필로 "
-        "rollback합니다. rollback까지 실패하면 `rollback_failed`로 남고 이때만 수동 개입이 필요합니다.",
+        "", "`status`는 작업 상태·결과이며 `stage`는 진행 단계 또는 실패 지점입니다. "
+        "예를 들어 검증 실패 후 복구에 성공해도 `status=failed`, `stage=validating`이 남을 수 있습니다. "
+        "`status=rollback_failed`이면 수동 복구가 필요합니다.",
     ]
-    if settings.main_model_profile_summaries:
-        lines += [
-            "",
-            "전환 가능한 프로필: "
-            + ", ".join(
-                f"`{profile_id}`" for profile_id, _display, _status in settings.main_model_profile_summaries
-            )
-            + ". 근거와 활성 여부는 `GET /admin/main-model/profiles`가 반환합니다.",
-        ]
     return "\n".join(lines)
 
 
 def gateway_tags_metadata(settings: AppSettings) -> list[dict[str, str]]:
     """Gateway OpenAPI 태그 설명을 만든다. 모델·한도 값은 settings에서 나온다."""
     return [
-        {
-            "name": "Operations",
-            "description": _OPERATIONS_TAG,
-        },
-        {
-            "name": "Monitoring",
-            "description": "Prometheus가 수집하는 지표 엔드포인트입니다. 운영 환경에서는 admin 토큰 또는 내부망으로 보호합니다.",
-        },
         {
             "name": "Models",
             "description": models_tag_summary(settings),
@@ -504,147 +323,97 @@ def gateway_tags_metadata(settings: AppSettings) -> list[dict[str, str]]:
         },
         {
             "name": "Retrieval",
-            "description": "`local-embed-ko` 기본, `local-embed` 선택 dense cosine 문서 관련도 평가 API입니다.",
+            "description": "텍스트 임베딩의 코사인 유사도로 문서 관련도를 평가합니다. 기본 모델은 `local-embed-ko`이며 `local-embed`도 선택할 수 있습니다.",
         },
         {
             "name": "Risk",
             "description": (
-                "신호만 돌려주는 risk API입니다. `allow`, `block`, `decision`, `action` 같은 정책 판단 필드는 반환하지 않습니다. "
-                "최종 허용·차단 결정은 Gateway 밖 product policy layer가 담당합니다.\n\n"
-                "응답이 HTTP 200이어도 `status=failed` 또는 `assessment_complete=false`이면 탐지기가 실패한 것입니다. 이 경우 `risk_detected=false`를 안전 판정으로 해석하지 마세요.\n\n"
-                "**Sensitive Data Protection** — PII Protection + Secret Exposure Signal:\n"
-                "- **PII Protection** (D1, D2, D5): 주민등록번호, 이메일, 전화번호, IP 주소 탐지\n"
-                "- **Secret Exposure** (D4, D5): API 키, JWT, private key, 비밀번호, DB URL 탐지\n\n"
-                "**Prompt 탐지기** (`risk-prompt`) — Prompt Injection / Prompt Leaking 탐지:\n"
-                "- system/developer instruction 무시 유도\n"
-                "- 숨겨진 system prompt 출력 요구\n"
-                "- 역할극(DAN, unrestricted AI 등) jailbreak\n"
-                "- 문서·웹페이지 안에 숨겨진 간접 prompt injection\n"
-                "- 연결된 도구로 시크릿·파일·메일 탈취 유도"
+                "개인정보·시크릿 노출과 프롬프트 공격의 탐지 신호를 반환합니다. "
+                "최종 허용·차단은 호출 애플리케이션이 결정합니다.\n\n"
+                "- PII Protection: 개인정보 탐지(D1, D2, D5).\n"
+                "- Secret Exposure: 시크릿·자격증명 탐지(D4, D5).\n"
+                "- Prompt: 프롬프트 인젝션·시스템 프롬프트 유출 탐지(A1, A2).\n\n"
+                "HTTP 200이어도 `status=failed` 또는 `assessment_complete=false`이면 탐지가 완료되지 않은 결과입니다. "
+                "이때 `risk_detected=false`를 안전 판정으로 사용하지 마세요."
             ),
         },
         {
             "name": "Runtime Control",
             "description": _runtime_control_tag_description(settings),
         },
+        {
+            "name": "Operations",
+            "description": _OPERATIONS_TAG,
+        },
+        {
+            "name": "Monitoring",
+            "description": "Prometheus 형식의 Gateway 지표를 조회합니다. 관리자 인증 설정을 따릅니다.",
+        },
     ]
 
 
-_OPERATIONS_TAG = """`/health`는 프로세스가 살아 있는지, `/ready`는 현재 target의 required runtime과 Risk Signal Service가 모두 준비됐는지 확인합니다.
+_OPERATIONS_TAG = """`/health`는 프로세스 상태, `/ready`는 배포에서 필수로 사용하는 런타임과 Risk Signal Service의 준비 상태를 확인합니다.
 
-문제가 생긴 요청 하나를 끝까지 추적하는 방법도 여기에 정리했습니다.
+### 요청 추적과 오류 처리
 
-### 요청 추적 헤더
-
-| 헤더 | 언제 | 내용 |
-|---|---|---|
-| `X-Request-Id` | 애플리케이션 응답 | 요청 추적 키. 접근 로그의 `request_id`와 같습니다 |
-| `X-Error-Code` | 오류 응답 | `error.code`. status만으로 원인을 나누면 안 됩니다 |
-| `Retry-After` | 재시도 가능한 429/503 | 다음 재시도까지 기다릴 초(올림, 최소 `1`) |
-
-`X-Request-Id`를 직접 보내지 않으면 Gateway가 `req_<hex>`를 발급합니다. 호출할 때 붙이면
-(최대 128자) 클라이언트 로그와 서버 로그를 같은 키로 맞출 수 있습니다.
-
-같은 HTTP status에 여러 code가 몰립니다. 예를 들어 `503`은 `MODEL_UNAVAILABLE`,
-`QUEUE_TIMEOUT`, `CIRCUIT_OPEN`, `MAIN_MODEL_SWITCH_IN_PROGRESS`가 모두 씁니다.
-
-### 오류 본문
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "...",
-    "retryable": false,
-    "request_id": "req_...",
-    "param": "response_format.json_schema"
-  }
-}
-```
-
-- `code` / `retryable` — 오류 조건이 일시적일 가능성을 나타냅니다. 자동 재전송은 작업의
-  중복 실행 안전성도 확인하고 `Retry-After`가 있으면 따라야 합니다.
-- `param` — 문제가 된 요청 필드명입니다. 메시지 문자열을 파싱하지 말고 이 값을 쓰세요
-  (예: `max_tokens` vs `input_audio.format`).
-- `details` — code만으로 표현할 수 없는 구조화된 복구 정보입니다(예: `GPU_BUDGET_EXCEEDED`의 `plan.stop`).
-
-각 엔드포인트의 status별 응답 설명에 그 status에서 나올 수 있는 code와 의미·대응이 함께 적혀 있습니다.
-
-### 서버 쪽에서 확인할 것
-
-접근 로그는 요청 한 건당 `request_id`, `route`, `status_code`, `latency_ms`, `error_code`,
-`diagnostic_code`, `error_retryable`, `error_cause_type`, `error_cause_message`, `error_upstream_status`,
-`prompt_tokens` / `completion_tokens` / `total_tokens`를 남깁니다.
-`INTERNAL_ERROR`는 클라이언트에게 고정 문구만 나가지만 로그에는 원인이 함께 남습니다.
-SSE 오류는 이미 시작된 HTTP 200과 함께 기록되므로 상태 코드뿐 아니라 `error_code`도 확인합니다.
-
-`LOG_REQUEST_RESPONSE_BODY=true`일 때만 chat 요청·응답 본문 프리뷰가 로그에 추가되며,
-PII·시크릿은 마스킹된 뒤 기록됩니다.
-
-### 증상별 확인 순서
-
-| 증상 | 먼저 볼 것 |
+| 항목 | 용도 |
 |---|---|
-| 503이 계속 난다 | `X-Error-Code`가 `MAIN_MODEL_SWITCH_IN_PROGRESS`면 `GET /admin/main-model`의 `gate`, `MODEL_UNAVAILABLE`이면 `GET /admin/runtimes`의 `state` |
-| 422로 거부된다 | `error.param`이 가리키는 필드를 `GET /v1/models`의 `request_parameters`와 대조 |
-| 기능을 지원하지 않는다고 한다 | `GET /v1/models`의 `capabilities`·`input_modalities`. 활성 프로필이 바뀌면 함께 바뀝니다 |
-| 스트리밍이 도중에 끊긴다 | 마지막 SSE 이벤트(오류는 `error` 뒤 `[DONE]`) |
-| 응답이 잘린다 | `max_tokens`, 프로필의 `max_model_len`, `reasoning` 사용 여부 |
+| `X-Request-Id` | 요청 추적 ID. 서버 접근 로그의 `request_id`와 같습니다 |
+| `X-Error-Code` / `error.code` | 같은 HTTP 상태에서도 구분되는 오류 원인 |
+| `error.param` | 수정할 요청 필드 |
+| `error.retryable` | 오류의 재시도 가능 여부 |
+| `Retry-After` | 재시도 전 대기 시간(초) |
+
+각 API의 오류 응답에서 코드별 의미를 확인하세요. 재시도 전에는 같은 작업을 다시 실행해도 되는지 확인해야 합니다.
+
+- `422`: `error.param`과 모델의 `request_parameters`·`request_limits`를 확인하세요.
+- `503`: `error.code`와 `/ready`의 의존 서비스 상태를 확인하세요. 모델 전환 중이면 완료를 기다리세요.
+- 스트리밍: HTTP 200만으로 성공을 판단하지 말고 SSE 오류 이벤트와 최종 종료 이벤트를 확인하세요.
 """
 
 
 def _auth_section(settings: AppSettings) -> str:
-    """실제 인증 설정에서 인증 안내를 만든다.
-
-    예전엔 이 문단이 하드코딩이라, 인증이 꺼진 배포에서도 "Bearer 토큰을 보내라"고
-    적혀 있었다. OpenAPI의 securitySchemes는 실제 설정을 따라 붙었다 빠졌다 하는데
-    설명 문구만 고정이라 문서가 서버와 다른 말을 하고 있었다.
-    """
+    """실제 공개·관리자 인증 설정에 맞는 호출 방법을 안내한다."""
     security = settings.security
     lines = ["## 인증", ""]
     if not security.api_key_required and not security.admin_api_key_required:
-        lines.append("이 배포는 인증을 요구하지 않습니다. 위 예시의 `Authorization` 헤더는 없어도 됩니다.")
+        lines.append("이 배포의 사용자·관리자 API는 인증이 비활성화돼 있습니다. `Authorization` 헤더 없이 호출할 수 있습니다.")
         return "\n".join(lines)
-
     if security.api_key_required:
-        lines.append("- **bearerAuth** — `/v1/*` 사용자 API: `Authorization: Bearer <API_KEY>`")
+        lines.append("- 사용자 API(`/v1/*`): `Authorization: Bearer <API_KEY>` (`bearerAuth`).")
     else:
-        lines.append("- `/v1/*` 사용자 API는 인증 없이 호출할 수 있습니다.")
+        lines.append("- 사용자 API(`/v1/*`): 인증 없이 호출할 수 있습니다.")
     if security.admin_api_key_required:
-        lines.append("- **adminBearerAuth** — `/ready`, `/metrics`, `/admin/*`: `Authorization: Bearer <ADMIN_API_KEY>`")
+        lines.append("- 관리자 API(`/ready`, `/metrics`, 인증이 필요한 `/admin/*`): "
+                     "`Authorization: Bearer <ADMIN_API_KEY>` (`adminBearerAuth`).")
     else:
-        lines.append("- `/ready`, `/metrics`, `/admin/*`도 인증 없이 접근할 수 있습니다.")
+        lines.append("- 관리자 API: 인증 없이 호출할 수 있습니다.")
+    lines += ["", "사용자 API 키와 관리자 API 키는 서로 대체할 수 없습니다. 요청 창에서 해당 인증 항목을 선택하세요."]
     return "\n".join(lines)
 
 
 def gateway_description(settings: AppSettings) -> str:
-    """Gateway OpenAPI `info.description`(문서 첫 화면)을 만든다.
-
-    첫 화면은 "어떻게 처음 호출하나"와 "인증" 두 가지만 다룬다. 엔드포인트·태그 목록은
-    왼쪽 사이드바가 summary와 함께 이미 보여주므로 여기서 다시 나열하지 않고, 장애 대응
-    레퍼런스는 Operations 태그(`/health`·`/ready` 옆)에 둔다. 예전에는 이 세 가지가 한
-    화면에 섞여 있어서, 목차처럼 보이지만 실제로는 사이드바 사본 + 트러블슈팅 매뉴얼이었다.
-    """
-    return f"""
-LLM·Embedding·Risk 기능을 하나의 OpenAI 호환 API로 제공합니다.
-이 문서의 한도·파라미터 값은 실제 배포 설정에서 자동으로 만들어집니다.
-지금 적용 중인 값은 `GET /v1/models`에서 확인하세요.
+    """API 첫 호출과 배포별 인증 안내를 제공한다."""
+    auth = '  -H "Authorization: Bearer $API_KEY" \\\n' if settings.security.api_key_required else ''
+    return f"""모델 응답 생성·텍스트 임베딩·문서 관련도 평가·위험 신호 탐지를 제공하는 Gateway API입니다.
+현재 모델별 지원 기능과 요청 한도는 `GET /v1/models`에서 확인하세요.
 
 ## 첫 호출
 
-`$GATEWAY`는 이 문서를 열고 있는 주소입니다.
+아래 로컬 주소를 실제 Gateway 주소로 바꾸세요. 사용자 인증이 활성화돼 있으면 `API_KEY`도 설정해야 합니다.
 
 ```bash
-curl -X POST "$GATEWAY/v1/chat/completions" \\
-{'  -H "Authorization: Bearer $API_KEY" \\\n' if settings.security.api_key_required else ''}  -H "Content-Type: application/json" \\
-  -d '{{
+GATEWAY_URL='http://127.0.0.1:9400'
+curl --fail-with-body "$GATEWAY_URL/v1/chat/completions" \\\n{auth}  -H "Content-Type: application/json" \\\n  -d '{{
     "model": "{settings.runtime('main_llm').model}",
-    "messages": [{{"role": "user", "content": "안녕하세요"}}]
+    "messages": [
+      {{"role": "user", "content": "안녕하세요"}}
+    ]
   }}'
 ```
 
-응답은 OpenAI chat completion 형식입니다. 사용할 수 있는 모델과 조정 가능한 파라미터는
-`GET /v1/models`의 `request_parameters`가 알려줍니다.
+응답의 `choices[0].message.content`, `finish_reason`, `usage`를 확인하세요.
+요청 예시와 코드 샘플은 각 API의 요청 영역에서 선택할 수 있습니다.
 
 {_auth_section(settings)}
 """
@@ -655,53 +424,36 @@ curl -X POST "$GATEWAY/v1/chat/completions" \\
 # ---------------------------------------------------------------------------
 
 RISK_SIGNAL_SERVICE_TAGS_METADATA = [
-    {
-        "name": "Operations",
-        "description": "`/health`는 프로세스가 살아 있는지, `/ready`는 활성화된 remote detector dependency가 준비됐는지 확인합니다. local-only 구성은 별도 모델 dependency가 없습니다.",
-    },
-    {
-        "name": "Monitoring",
-        "description": "Risk Signal Service와 탐지기별 신호 지표입니다. 운영 환경에서는 admin 토큰 또는 내부망으로 보호합니다.",
-    },
-    {
-        "name": "Risk Signal",
-        "description": (
-            "내부 탐지기 호출 결과를 신호 전용 응답으로 정규화합니다. 최종 정책 결정 필드는 반환하지 않습니다.\n\n"
-            "HTTP 200 응답의 `status=failed` 또는 `assessment_complete=false`는 탐지기가 실패했다는 뜻이며, `risk_detected=false`만 보고 안전하다고 판단하면 안 됩니다.\n\n"
-            "**Sensitive Data Protection**:\n"
-            "- **PII Protection** (D1, D2, D5) — 로컬 정규식 기반 개인정보 탐지\n"
-            "- **Secret Exposure** (D4, D5) — regex/entropy 기반 시크릿·자격증명 탐지\n\n"
-            "**Prompt 탐지기** — Prompt Injection / Leaking 탐지:\n"
-            "지시 무시, system prompt 탈취, roleplay jailbreak, 간접 injection, tool abuse"
-        ),
-    },
+    {"name": "Operations", "description": "프로세스 상태와 활성 탐지기의 의존 서비스 준비 상태를 확인합니다."},
+    {"name": "Monitoring", "description": "Prometheus 형식의 서비스·탐지기 지표를 조회합니다. 관리자 인증 설정을 따릅니다."},
+    {"name": "Risk Signal", "description": "개인정보·시크릿 노출과 프롬프트 공격의 탐지 신호를 조회합니다. "
+     "HTTP 200이어도 `status=failed` 또는 `assessment_complete=false`이면 탐지가 완료되지 않은 결과입니다. "
+     "이때 `risk_detected=false`를 안전 판정으로 사용하지 마세요."},
 ]
 
-RISK_SIGNAL_SERVICE_DESCRIPTION_TEMPLATE = """
-## 개요
+RISK_SIGNAL_SERVICE_DESCRIPTION_TEMPLATE = """Gateway와 내부 서비스에서 사용하는 위험 신호 탐지 API입니다.
+내부 서비스 인증이 활성화돼 있으면 `Authorization: Bearer <INTERNAL_SERVICE_TOKEN>`을 사용하세요.
+탐지 API의 내부 서비스 토큰과 운영 API의 관리자 API 키는 구분됩니다.
+`/ready`와 `/metrics`는 관리자 인증이 활성화돼 있으면 `Authorization: Bearer <ADMIN_API_KEY>`가 필요합니다.
 
-내부 Risk Signal Service API입니다. Gateway 또는 내부 호출자가 사용합니다.
+## 탐지기
 
-## Detector 역할
-
-| Detector | 유형 | 담당 신호 | Risk 코드 |
+| 탐지기 | 실행 방식 | 탐지 대상 | 코드 |
 |---|---|---|---|
-| **PII Protection** | local (regex) | 개인정보 노출 | D1, D2, D5 |
-| **Secret Exposure** | local (regex + entropy) | 시크릿·자격증명 노출 | D4, D5 |
-| **Prompt** | vLLM (`risk-prompt`) | Prompt Injection / Prompt Leaking | A1, A2 |
+| PII Protection | 로컬 정규식 | 개인정보 | D1, D2, D5 |
+| Secret Exposure | 로컬 정규식·엔트로피 | 시크릿·자격증명 | D4, D5 |
+| Prompt | 모델 런타임 (`risk-prompt`) | 프롬프트 인젝션·시스템 프롬프트 유출 | A1, A2 |
 
-- PII Protection과 Secret Exposure는 프로세스 안에서 직접 탐지하므로 외부 모델을 호출하지 않습니다.
-- Prompt 탐지기가 내놓는 `<SAFE>`, `<UNSAFE-A1>` 같은 라벨을 표준 신호 응답으로 정규화합니다.
-- 정책 판단 필드(`allow`, `block`, `decision`, `action`)는 반환하지 않습니다.
-- 원문 PII/Secret 값은 응답, 로그, metric에 포함되지 않습니다.
+통합 탐지는 배포에서 활성화된 탐지기를 설정된 순서로 실행합니다. 로컬 탐지기만 사용하는 구성은 PII Protection과
+Secret Exposure를 실행하며, Prompt 런타임이 활성화된 구성에서 프롬프트 탐지를 추가합니다.
 
-## Aggregate 실행 순서
+## 결과 확인
 
-현재 deployment에서 활성화된 detector를 configured order로 실행합니다. Static local-risk에서는 `pii → secret`만 실행하고, Prompt runtime이 effective일 때만 Prompt detector가 추가됩니다. 어느 하나라도 탐지하면 `risk_detected: true`입니다.
+- 하나라도 위험 신호를 탐지하면 `risk_detected: true`입니다.
+- `status`와 `assessment_complete`를 함께 확인하세요. 탐지 실패는 안전 판정이 아닙니다.
+- 최종 허용·차단은 호출 애플리케이션이 결정합니다. 이 API는 `allow`, `block`, `decision`, `action`을 반환하지 않습니다.
+- 원문 개인정보·시크릿은 탐지 응답·로그·지표에 포함하지 않습니다.
 
-## Readiness
-
-- 활성화된 remote detector dependency가 모두 준비되면 → HTTP 200 + `phase: serving`
-- local-only detector 구성은 별도 model dependency 없이 serving 상태입니다.
-- required remote detector가 로딩 중이면 → HTTP 503 + `phase: waiting_for_dependencies`
+`/ready`는 필수 모델 의존 서비스가 준비되면 HTTP 200, 준비되지 않았으면 HTTP 503을 반환합니다.
+로컬 탐지기만 사용하는 구성에는 별도 모델 의존 서비스가 없습니다.
 """

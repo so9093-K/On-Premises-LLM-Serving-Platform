@@ -126,7 +126,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
                 "description": "모든 dependency 준비 완료",
                 "content": {"application/json": {"example": ready_response_example()}},
             },
-            401: {"description": "Admin Bearer token 필요"},
+            401: {"description": "관리자 API 키 필요"},
             503: {
                 "description": "일부 dependency 로딩 중 또는 불가",
                 "content": {"application/json": {"example": loading_response_example()}},
@@ -156,7 +156,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         description=_s.description,
         responses={
             200: {"description": "현재 Main Model의 resolved admission과 engine serving context"},
-            401: {"description": "Admin Bearer token 필요"},
+            401: {"description": "관리자 API 키 필요"},
             503: {"description": "Dynamic target에서 active profile 또는 Runtime Controller 상태를 확인할 수 없음"},
         },
     )
@@ -235,7 +235,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
         summary=_s.summary,
         operation_id=_s.operation_id,
         description=_s.description,
-        responses={401: {"description": "Admin Bearer token 필요"}},
+        responses={401: {"description": "관리자 API 키 필요"}},
     )
     async def metrics_endpoint():
         runtime_controller = getattr(clients, "runtime_controller", None)

@@ -8,10 +8,10 @@ from ..detectors.secret import LABELS_BY_CODE as _SECRET_LABELS_BY_CODE
 
 # D-code의 사람이 읽을 이름. 코드 자체의 유효 집합은 contracts/risk.py가 갖는다.
 _CODE_TITLES: dict[str, str] = {
-    "D1": "Personal Identifier",
-    "D2": "Contact",
-    "D4": "Secret/Credential",
-    "D5": "Network/Infrastructure",
+    "D1": "개인 식별자",
+    "D2": "연락처",
+    "D4": "시크릿·자격증명",
+    "D5": "네트워크·인프라",
 }
 
 
@@ -123,7 +123,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/health",
         operation_id="getGatewayHealth",
         tag="Operations",
-        summary="Liveness 확인",
+        summary="프로세스 상태 확인",
         description="프로세스가 살아 있는지만 확인합니다. 항상 HTTP 200을 반환하며 인증 없이 호출할 수 있습니다.",
         request_schema=None,
         response_schema=None,
@@ -133,11 +133,11 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/ready",
         operation_id="getGatewayReadiness",
         tag="Operations",
-        summary="의존 서비스 준비 상태 확인",
+        summary="서비스 준비 상태 확인",
         description=(
-            "Gateway가 의존하는 vLLM 런타임과 Risk Signal Service가 모두 요청을 받을 준비가 됐는지 확인합니다. "
-            "모델 로딩 중에는 HTTP 503을 반환하며, body의 `not_ready_dependencies`에 "
-            "아직 준비되지 않은 dependency 목록과 `message`가 포함됩니다."
+            "현재 배포의 필수 런타임과 Risk Signal Service가 요청을 받을 준비가 됐는지 확인합니다. "
+            "필수 의존 서비스가 준비되지 않으면 HTTP 503을 반환합니다. "
+            "`required_not_ready_dependencies`와 `optional_not_ready_dependencies`에서 필수·선택 의존 서비스의 상태를 구분하세요."
         ),
         request_schema=None,
         response_schema="readiness_response.schema.json",
@@ -148,7 +148,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         operation_id="getGatewayMetrics",
         tag="Monitoring",
         summary="Prometheus 지표 조회",
-        description="Prometheus가 수집하는 Gateway 지표 엔드포인트입니다. 운영 환경에서는 admin 토큰 또는 내부망으로 보호합니다.",
+        description="Prometheus 형식의 Gateway 지표를 반환합니다. 관리자 인증 설정을 따릅니다.",
         request_schema=None,
         response_schema=None,
     ),
@@ -157,12 +157,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/control-plane/bootstrap",
         operation_id="getControlPlaneBootstrap",
         tag="Operations",
-        summary="Control Plane bootstrap 조회",
+        summary="Control Plane 접속 정보 조회",
         description=(
-            "first-party Admin Console이 인증 입력 전 현재 deployment/access posture와 사용 가능한 "
-            "capability를 발견하는 browser-safe bootstrap입니다. 이 endpoint 자체는 의도적으로 "
-            "Admin Bearer 인증을 요구하지 않으며 secret, 내부 endpoint, host path, raw environment는 "
-            "반환하지 않습니다. 실제 admin mutation/read endpoint의 인증 정책은 그대로 유지됩니다."
+            "Control Plane 접속에 필요한 배포 환경·인증 요구 여부·지원 기능을 반환합니다. 인증 전에도 조회할 수 있으며 API 키·내부 주소·호스트 경로는 포함하지 않습니다."
         ),
         request_schema=None,
         response_schema="control_plane_bootstrap_response.schema.json",
@@ -174,12 +171,11 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Operations",
         summary="최근 공개 API 트래픽 요약 조회",
         description=(
-            "Gateway 프로세스가 직접 집계한 최근 window(기본 5분)의 공개 API(`/v1/*`) 요청 결과와 지연 요약입니다. "
-            "Prometheus 없이도 Control Plane이 현재 서비스 상태를 보여 주기 위한 값이며, 프로세스가 재시작되면 "
-            "초기화됩니다. 장기 추세와 여러 인스턴스 합산은 Prometheus·Grafana가 소유합니다.\n\n"
-            "`completion_latency_seconds`는 비스트리밍 Chat Completions·Responses의 런타임 완료 시간, "
-            "`time_to_first_chunk_seconds`는 스트리밍 첫 chunk까지의 시간입니다. 백분위는 보간 없는 "
-            "nearest-rank 방법을 따르며, 표본이 `minimum_samples`에 못 미치면 `null`입니다."
+            (
+            "최근 공개 API(`/v1/*`) 요청 결과와 지연 시간 요약입니다. 기본 집계 구간은 5분이며 Gateway 재시작 시 초기화됩니다. 장기 추세는 Prometheus·Grafana에서 확인하세요.\n"
+            "\n"
+            "`completion_latency_seconds`는 비스트리밍 Chat Completions·Responses의 런타임 완료 시간, `time_to_first_chunk_seconds`는 스트리밍 첫 청크까지의 시간입니다. 백분위는 보간 없는 nearest-rank 방식이며 `minimum_samples`보다 표본이 적으면 `null`입니다."
+        )
         ),
         request_schema=None,
         response_schema="recent_traffic_response.schema.json",
@@ -189,10 +185,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/config/schema",
         operation_id="getConfigurationSchema",
         tag="Operations",
-        summary="설정 metadata schema 조회",
+        summary="설정 항목 정의 조회",
         description=(
-            "Configuration Plane이 관리하는 설정 key의 소유권·민감도·적용 방식을 조회합니다. "
-            "`editable=true`인 operator-owned hot-reload key만 Plan/Apply 대상으로 사용할 수 있습니다."
+            "설정 항목의 이름·허용값·소유자·민감도·적용 방식을 반환합니다. 운영자 소유 항목 중 `editable=true`인 항목만 변경할 수 있습니다."
         ),
         request_schema=None,
         response_schema="configuration_schema_response.schema.json",
@@ -202,10 +197,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/config/effective",
         operation_id="getEffectiveConfiguration",
         tag="Operations",
-        summary="effective 설정 조회",
+        summary="현재 적용된 설정 조회",
         description=(
-            "현재 적용된 설정값과 출처를 조회합니다. secret 원문은 반환하지 않습니다. "
-            "응답의 revision과 HTTP ETag를 Plan/Apply의 optimistic concurrency 기준으로 사용합니다."
+            "현재 적용된 설정값과 출처를 반환합니다. 시크릿 원문은 반환하지 않습니다. 변경 계획과 적용에는 응답의 `revision`과 HTTP `ETag`를 사용하세요."
         ),
         request_schema=None,
         response_schema="configuration_effective_response.schema.json",
@@ -217,8 +211,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Operations",
         summary="설정 변경 이력 조회",
         description=(
-            "Configuration Plane의 durable operation journal을 운영자용 projection으로 조회합니다. "
-            "내부 rollback snapshot과 raw failure 문자열은 노출하지 않으며, 최신 작업부터 cursor 기반으로 페이지합니다."
+            "설정 변경 이력을 최신 순서로 반환합니다. 다음 페이지는 `cursor`로 조회하세요. 내부 복구 스냅샷과 원시 오류 문자열은 포함하지 않습니다."
         ),
         request_schema=None,
         response_schema="configuration_history_response.schema.json",
@@ -232,11 +225,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/config/rollbacks/plans",
         operation_id="planConfigurationRollback",
         tag="Operations",
-        summary="과거 설정 revision rollback 계획 검토",
+        summary="설정 복구 계획 검토",
         description=(
-            "과거 revision의 operator override snapshot을 현재 source precedence에서 다시 resolve해 "
-            "필요한 set/reset 변경과 effective impact를 계산합니다. 과거 effective 값을 그대로 복사하지 않으며 "
-            "rollback intent와 target revision을 canonical plan digest에 포함합니다."
+            "과거 리비전의 운영자 설정으로 복구할 때 필요한 변경과 영향을 계산합니다. 현재 기본 설정과 우선순위를 적용해 다시 계산하며 실제 설정은 변경하지 않습니다."
         ),
         request_schema="configuration_rollback_plan_request.schema.json",
         response_schema="configuration_rollback_plan_response.schema.json",
@@ -250,11 +241,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/config/rollbacks",
         operation_id="applyConfigurationRollback",
         tag="Operations",
-        summary="검토한 설정 rollback 적용",
+        summary="검토한 설정 복구 적용",
         description=(
-            "`If-Match: \"config-<revision>\"`과 rollback Plan의 `plan_digest`를 요구합니다. "
-            "target revision의 값을 직접 덮어쓰지 않고 현재 revision에서 새 Plan/Apply/Verify transaction을 "
-            "수행하므로 성공한 rollback은 revision counter를 뒤로 돌리지 않고 새 revision을 만듭니다."
+            "`If-Match: \"config-<revision>\"`과 복구 계획의 `plan_digest`를 함께 보내세요. 복구 성공 시 새 리비전이 생성되며 과거 리비전 번호로 되돌아가지 않습니다."
         ),
         request_schema="configuration_rollback_apply_request.schema.json",
         response_schema="configuration_rollback_apply_response.schema.json",
@@ -272,9 +261,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Operations",
         summary="설정 변경 계획 검토",
         description=(
-            "현재 revision을 기준으로 operator 설정의 `set`/`reset` 변경을 검증하고 실제 저장 없이 "
-            "before/after, effective source, shadowing, apply mode, risk와 canonical plan digest를 반환합니다. "
-            "Apply 직전 같은 변경을 다시 계산하므로 Plan은 서버-side mutable session을 만들지 않습니다."
+            "현재 리비전에서 `set`·`reset`의 유효성과 변경 영향을 검토합니다. 실제 저장 없이 변경 전후 값·적용 방식·위험도·`plan_digest`를 반환합니다. 적용할 때 같은 변경 내용과 다이제스트를 사용하세요."
         ),
         request_schema="configuration_plan_request.schema.json",
         response_schema="configuration_plan_response.schema.json",
@@ -290,10 +277,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Operations",
         summary="검토한 설정 변경 적용",
         description=(
-            "`If-Match: \"config-<revision>\"`과 Plan에서 받은 `plan_digest`를 함께 요구합니다. "
-            "서버가 Plan을 재계산해 stale revision과 검토 후 drift를 거부한 뒤 operator state를 durable하게 저장하고, "
-            "shared RuntimeConfigurationProvider에 같은 revision을 적용한 뒤 convergence를 검증합니다. "
-            "`reset`은 default 값을 복사하지 않고 operator override 계층 자체를 제거합니다."
+            "`If-Match: \"config-<revision>\"`과 계획에서 받은 `plan_digest`를 함께 보내세요. 리비전이나 검토한 변경 내용이 달라지면 적용을 거부합니다. 저장 후 같은 리비전이 런타임에 적용됐는지 검증합니다. `reset`은 운영자 재정의를 제거해 다음 우선순위의 값을 사용합니다."
         ),
         request_schema="configuration_apply_request.schema.json",
         response_schema="configuration_apply_response.schema.json",
@@ -309,7 +293,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/internal/main-model/drain-status",
         operation_id="getMainModelDrainStatus",
         tag="Runtime Control",
-        summary="메인 모델 요청 drain 상태 조회",
+        summary="진행 중인 메인 모델 요청 수 조회",
         description=(
             "Runtime Controller가 모델 교체 전에 진행 중인 local-main 요청 수를 확인하는 "
             "내부 서비스 전용 endpoint입니다. OpenAPI UI에는 노출하지 않습니다."
@@ -322,15 +306,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/models",
         operation_id="listModels",
         tag="Models",
-        summary="사용 가능한 모델 목록",
+        summary="공개 모델 목록 조회",
         description=(
-            "Gateway가 외부 호출자에게 노출하는 logical model id, capability, 사용자 조정 가능 request parameter 목록입니다. "
-            "catalog 성격의 엔드포인트이므로 vLLM 로딩 상태와 무관하게 항상 목록을 반환합니다. "
-            "현재 serving 가능 여부는 `/ready`의 `status`와 `not_ready_dependencies`를 확인하세요. "
-            "클라이언트 UI는 각 item의 `request_parameters`를 읽어 모델별 입력 form을 구성할 수 있습니다. "
-            "이미지·오디오·비디오 입력의 개수·용량 한도는 `request_limits`에 modality별로 실립니다 -- "
-            "조정 가능한 파라미터가 아니라 콘텐츠 제약이라 자리를 나눕니다. "
-            "두 값 모두 활성 main-model 프로필을 따르므로, 클라이언트는 복제해 두지 말고 요청 시점에 읽어야 합니다."
+            "공개 모델 ID·지원 기능·허용 파라미터·입력 한도를 반환합니다. 모델 목록은 런타임의 실행 여부와 별개이며 현재 준비 상태는 `/ready`에서 확인하세요."
         ),
         request_schema=None,
         response_schema="model_list_response.schema.json",
@@ -340,17 +318,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/chat/completions",
         operation_id="createChatCompletion",
         tag="Chat",
-        summary="Chat completion 생성",
+        summary="대화 응답 생성",
         description=(
-            "`local-main`을 통한 chat completion API입니다. OpenAI 호환 bounded subset을 제공합니다.\n\n"
-            "Gateway가 model id, 입력 modality, 요청 출력 한도, tool-call 지원, parameter allowlist를 검증합니다. "
-            "정확한 input+output context는 실제 tokenizer와 template를 소유한 runtime이 검증합니다.\n\n"
-            "- `stream=true` — 활성 runtime의 SSE chunk를 버퍼링 없이 `text/event-stream`으로 relay\n"
-            "- `response_format`\n"
-            "  - `json_object` — JSON mode. messages에 명시적 JSON 지시문 필요, schema 일치 미보장\n"
-            "  - `json_schema` — Structured Outputs. root `object` 필수, `additionalProperties: false` 필수, "
-            "optional field는 nullable union(`[\"type\", \"null\"]`) 으로 표현, external `$ref` 불가\n"
-            "- `logprobs`, `top_logprobs`, `logit_bias` — Gateway policy 안에서 upstream에 전달"
+            "`local-main`에 메시지 목록을 보내 대화 응답을 생성합니다. 지원 파라미터와 입력 종류는 활성 메인 모델 프로필에 따라 달라집니다."
         ),
         request_schema="chat_completion_request.schema.json",
         response_schema="chat_completion_response.schema.json",
@@ -370,15 +340,18 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/responses",
         operation_id="createResponse",
         tag="Responses",
-        summary="Model response 생성",
+        summary="모델 응답 생성",
         description=(
-            "`local-main`의 OpenAI Responses API 호환 surface입니다. Chat Completions와 같은 활성 Main Model "
-            "profile, request admission, capability policy를 사용하되 item 기반 입력·출력과 typed streaming event를 제공합니다.\n\n"
-            "Gateway는 self-contained stateless 요청을 소유합니다. 이전 응답의 `output` item과 function result를 "
-            "다음 요청의 `input`에 포함해 multi-turn/tool continuation을 수행합니다. `store`, `previous_response_id`, "
-            "background/hosted tool state처럼 server-side response state가 필요한 기능은 이 계약에 포함하지 않습니다.\n\n"
-            "Structured output은 `text.format`, reasoning은 active profile이 구분 가능한 `reasoning.effort`, "
-            "function calling은 profile의 tool policy를 따릅니다."
+            (
+            "`local-main`에 항목 기반 입력을 보내 응답을 생성합니다. Chat Completions와 같은 활성 메인 모델의 기능·요청 수 제한을 따릅니다.\n"
+            "\n"
+            "- 대화 이어가기: 이전 `output` 항목과 도구 실행 결과를 다음 요청의 `input`에 포함하세요.\n"
+            "- 구조화 출력: `text.format`을 사용하세요.\n"
+            "- 추론: 활성 프로필이 지원하는 `reasoning.effort`를 사용하세요.\n"
+            "- 스트리밍: `stream: true`로 이벤트 유형별 SSE 응답을 받습니다. `response.completed`, `response.failed`, 오류 이벤트를 확인하세요.\n"
+            "\n"
+            "서버 응답 저장·`previous_response_id`·백그라운드 실행·서버에서 실행하는 도구는 지원하지 않습니다."
+        )
         ),
         request_schema="responses_request.schema.json",
         response_schema="responses_response.schema.json",
@@ -398,10 +371,9 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/embeddings",
         operation_id="createEmbedding",
         tag="Embeddings",
-        summary="Embedding vector 생성",
+        summary="텍스트 임베딩 생성",
         description=(
-            "`local-embed` 및 `local-embed-ko`를 통해 텍스트의 embedding vector를 생성합니다. "
-            "요청 파라미터는 Gateway contract로 검증하며, 지원하지 않는 파라미터는 차단합니다."
+            "`local-embed` 또는 `local-embed-ko`로 텍스트를 벡터로 변환합니다. 미지원 파라미터는 `422 VALIDATION_ERROR`로 거부됩니다."
         ),
         request_schema="embedding_request.schema.json",
         response_schema="embedding_response.schema.json",
@@ -412,11 +384,13 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/prompt/assessments",
         operation_id="assessPromptRisk",
         tag="Risk",
-        summary="Prompt 위협 탐지 신호",
+        summary="프롬프트 공격 신호 탐지",
         description=(
-            "Prompt attack 탐지기의 위험 신호만 반환합니다. "
-            "정책 판단 필드(`allow`, `block`, `decision` 등)는 포함되지 않으며, "
-            "최종 허용·차단 결정은 Gateway 밖 product policy layer가 담당합니다."
+            (
+            "Prompt 탐지기(`risk-prompt`)로 프롬프트 인젝션·시스템 프롬프트 유출 신호를 탐지합니다. 지시 무시 유도·역할극 탈옥·문서 내 악성 지시·도구 악용을 다룹니다.\n"
+            "\n"
+            "최종 허용·차단은 호출 애플리케이션이 결정합니다. 탐지기가 비활성화된 배포에서는 `409 DETECTOR_DISABLED`입니다."
+        )
         ),
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -427,7 +401,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/pii/assessments",
         operation_id="assessPIIRisk",
         tag="Risk",
-        summary="PII Protection 탐지 신호",
+        summary="개인정보 노출 신호 탐지",
         description=_PII_DETECTOR_DESCRIPTION,
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -438,7 +412,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/secret/assessments",
         operation_id="assessSecretRisk",
         tag="Risk",
-        summary="Secret Exposure 탐지 신호",
+        summary="시크릿 노출 신호 탐지",
         description=_SECRET_DETECTOR_DESCRIPTION,
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -449,11 +423,13 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/assessments",
         operation_id="assessRisk",
         tag="Risk",
-        summary="통합 Risk 신호",
+        summary="위험 신호 통합 탐지",
         description=(
-            "활성화된 탐지기들의 결과를 하나로 합친 통합 risk 신호입니다. "
-            "PII Protection(D1, D2, D5), Secret Exposure(D4, D5), Prompt Injection(A1, A2) 신호를 통합합니다. "
-            "활성화된 탐지기 중 하나라도 위험 신호를 찾으면 `risk_detected: true`를 반환합니다."
+            (
+            "배포에서 활성화된 탐지기를 설정된 순서로 실행하고 결과를 통합합니다. 로컬 구성은 PII Protection·Secret Exposure를 실행하며 Prompt 런타임이 활성화된 구성에서 프롬프트 탐지를 추가합니다.\n"
+            "\n"
+            "하나라도 신호를 탐지하면 `risk_detected: true`입니다. HTTP 200이어도 `status=failed` 또는 `assessment_complete=false`이면 탐지가 완료되지 않은 결과이며 안전 판정으로 사용할 수 없습니다."
+        )
         ),
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -466,9 +442,11 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Retrieval",
         summary="문서 관련도 재순위 정렬",
         description=(
-            "query와 documents 목록을 받아 관련도 점수로 내림차순 정렬한 결과를 반환합니다.\n\n"
-            "- `score_mode=dense_cosine` — `local-embed-ko` 기본, `local-embed`도 명시 사용 가능\n\n"
-            "모델이 요청한 `score_mode`를 지원하지 않으면 422를 반환합니다. `top_n`은 상위 n개만 반환합니다(1–32)."
+            (
+            "`query`와 `documents`의 관련도 점수를 계산해 내림차순으로 반환합니다. `top_n`으로 상위 결과 수(1–32)를 지정합니다.\n"
+            "\n"
+            "`score_mode`는 `dense_cosine`을 지원합니다. 기본 모델은 `local-embed-ko`이며 `local-embed`도 선택할 수 있습니다."
+        )
         ),
         request_schema="retrieval_rerank_request.schema.json",
         response_schema="retrieval_rerank_response.schema.json",
@@ -481,9 +459,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Retrieval",
         summary="문서 관련도 점수 계산 (입력 순서 유지)",
         description=(
-            "query와 documents 목록을 받아 관련도 점수를 계산합니다. 입력 순서를 유지합니다.\n\n"
-            "재순위 정렬이 필요하면 `/v1/retrieval/rerank`를 사용하세요.\n\n"
-            "`top_n`은 이 endpoint에서 지원하지 않습니다 (422). 지원 score mode는 `dense_cosine` 하나입니다."
+            "`query`와 `documents`의 관련도 점수를 입력 순서대로 반환합니다. `score_mode`는 `dense_cosine`을 지원하며 `top_n`은 지원하지 않습니다. 정렬된 결과가 필요하면 `POST /v1/retrieval/rerank`를 사용하세요."
         ),
         request_schema="retrieval_score_request.schema.json",
         response_schema="retrieval_score_response.schema.json",
@@ -495,14 +471,13 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/serving-envelope",
         operation_id="getServingEnvelope",
         tag="Runtime Control",
-        summary="Effective Serving Envelope 조회",
+        summary="모델 서빙 설정 조회",
         description=(
-            "현재 Main Model이 어떤 조건으로 요청을 받고 engine을 실행하도록 구성되어 있는지 읽기 전용으로 투영합니다. "
-            "Gateway admission의 resolved `max_concurrency`·`queue_timeout_seconds`와 backend별 capacity 관련 engine policy를 "
-            "한 응답에서 보되, 이를 capacity percentage·최대 사용자 수·권장 concurrency로 변환하지 않습니다.\n\n"
-            "managed dynamic target은 Runtime Controller의 현재 active profile에서 engine policy를 읽습니다. "
-            "static target은 lifecycle owner가 외부이므로 선택된 static profile/catalog의 계약을 보여 주며, "
-            "외부 프로세스를 실시간 inspect한 값이라고 해석하면 안 됩니다."
+            (
+            "메인 모델의 요청 수·대기 시간 제한과 런타임 실행 설정을 조회합니다. 최대 사용자 수나 권장 동시 요청 수를 의미하지 않습니다.\n"
+            "\n"
+            "동적 배포는 활성 프로필의 설정을, 정적 배포는 선택된 외부 런타임 프로필의 설정을 반환합니다. 정적 배포 응답은 외부 프로세스를 실시간 관측한 값이 아닙니다."
+        )
         ),
         request_schema=None,
         response_schema="serving_envelope_response.schema.json",
@@ -515,14 +490,16 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="런타임 상태 조회",
         description=(
-            "공유 GPU 예산 위의 모든 vLLM 런타임(보조: embedding, embedding_ko, prompt_injection_detector; "
-            "메인: `local-main`)의 현재 상태와 VRAM 점유를 반환합니다.\n\n"
-            "`state`: 런타임 상태 — `active`(서비스 중) / `stopped`(컨테이너 중지, VRAM 회수) / `starting`(전환 중, 일시적).\n\n"
-            "`vram_fraction`: 각 런타임의 GPU VRAM 점유율(gpu_memory_utilization).\n\n"
-            "`budget`: `{ceiling, used, free}` — 활성 런타임 점유율 합과 천장.\n\n"
-            "`container_status`: 실제 Docker 컨테이너 상태(참고용). 정지/시작은 보조·메인 모두 "
-            "`PATCH /admin/runtimes/{service_key}`(메인은 `service_key=main`)로, "
-            "메인 프로필 교체만 `POST /admin/main-model/switch`로 수행합니다."
+            (
+            "메인 모델과 보조 런타임의 설정 상태·컨테이너 관측 상태·GPU 정책 예약 비율을 조회합니다.\n"
+            "\n"
+            "- `state`: 설정 상태(`active`, `stopped`, `starting`).\n"
+            "- `container_status`: 실제 Docker 컨테이너 상태.\n"
+            "- `vram_fraction`: 동시 실행 판단용 GPU 정책 예약 비율. 실측 메모리 사용량이 아닙니다.\n"
+            "- `budget`: 정책 예약 상한(`ceiling`)·예약 합계(`used`)·예약 가능 여유(`free`).\n"
+            "\n"
+            "시작·중지는 변경 계획을 검토한 뒤 `PATCH /admin/runtimes/{service_key}`로 적용합니다. 메인 모델의 키는 `main`이며 프로필 교체는 `POST /admin/main-model/switch`를 사용합니다."
+        )
         ),
         request_schema=None,
         response_schema="runtime_list_response.schema.json",
@@ -534,9 +511,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="런타임 상태 전환 이력 조회",
         description=(
-            "Runtime start/stop의 durable operation evidence를 최신 작업부터 조회합니다. "
-            "각 record에는 actor/request id, 검토한 plan digest, apply result와 observed verification이 포함됩니다. "
-            "브라우저나 클라이언트가 별도 operation history를 만들지 않고 이 journal을 audit source로 사용합니다."
+            "런타임 시작·중지 이력을 최신 순서로 반환합니다. 각 작업에 실행 주체·요청 ID·검토한 계획의 다이제스트·적용 결과·관측 검증 결과가 포함됩니다."
         ),
         request_schema=None,
         response_schema="runtime_transition_history_response.schema.json",
@@ -549,9 +524,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="런타임 상태 전환 작업 조회",
         description=(
-            "하나의 Runtime transition operation record를 조회합니다. apply가 성공했더라도 observed verification이 "
-            "수렴하지 않으면 `verification_failed`로 남으며, process restart 전에 terminal record를 쓰지 못한 작업은 "
-            "`interrupted_after_restart`로 닫힙니다."
+            "런타임 상태 전환 작업의 적용·검증 결과를 조회합니다. 적용 후 목표 상태를 확인하지 못하면 `verification_failed`, 재시작으로 종료 결과를 기록하지 못한 작업은 `interrupted_after_restart`입니다."
         ),
         request_schema=None,
         response_schema="runtime_transition_operation_response.schema.json",
@@ -564,10 +537,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="런타임 상태 전환 계획 검토",
         description=(
-            "런타임을 실제로 변경하지 않고 현재 GPU budget과 prerequisite 상태에서 transition 영향을 계산합니다. "
-            "정상 경로에서도 시작/정지 대상, 축출 영향과 projected budget을 반환하며, `plan_digest`는 검토한 "
-            "snapshot을 PATCH apply에 반드시 묶는 opaque token입니다. "
-            "Apply는 Plan에서 받은 `plan_digest` 없이는 실행되지 않습니다."
+            "런타임 변경 전에 GPU 정책 예산·선행 조건·시작 및 중지 대상을 검토합니다. 실제 상태는 변경하지 않습니다. 반환된 `plan_digest`를 같은 변경 내용과 함께 PATCH 요청에 반드시 포함하세요."
         ),
         request_schema="runtime_transition_plan_request.schema.json",
         response_schema="runtime_transition_plan_response.schema.json",
@@ -581,21 +551,16 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         path="/admin/runtimes/{service_key}",
         operation_id="transitionRuntime",
         tag="Runtime Control",
-        summary="런타임 상태 전환",
+        summary="검토한 런타임 상태 전환 적용",
         description=(
-            "`desired_state`에 지정한 목표 상태로 런타임을 전환합니다. "
-            "`service_key`는 `GET /admin/runtimes`가 반환하는 보조 런타임 키와 "
-            "메인 모델 키(`main`)를 받습니다 — 함대 전체를 같은 동사로 제어합니다.\n\n"
-            "- **`active`** — 컨테이너를 시작하고 gateway 라우팅을 복구합니다. "
-            "이미 `active`면 no-op.\n"
-            "- **`stopped`** — 컨테이너를 중지하고 GPU VRAM을 회수합니다. "
-            "이미 `stopped`면 no-op.\n\n"
-            "`main`은 정지 시 드레인 후 gate를 닫고, 시작 시 GPU 예산 admission과 "
-            "canary 검증을 거칩니다(프로필 교체는 `POST /admin/main-model/switch`).\n\n"
-            "GPU 예산을 초과하면 409와 정지 계획(`plan.stop`)을 반환하며, "
-            "`force: true`로 우선순위 낮은 보조를 자동 축출할 수 있습니다. "
-            "apply가 반환된 뒤 Runtime Controller/Docker 관측으로 목표 상태 수렴을 검증하고, 결과는 "
-            "`/admin/runtimes/operations` journal에 actor/request evidence와 함께 남깁니다."
+            (
+            "검토한 계획의 `plan_digest`와 `desired_state`를 보내세요. `service_key`는 런타임 목록의 키를 사용하며 메인 모델은 `main`입니다.\n"
+            "\n"
+            "- `active`: 런타임을 시작하고 요청 라우팅을 복구합니다.\n"
+            "- `stopped`: 런타임을 중지하고 GPU 메모리를 회수합니다.\n"
+            "\n"
+            "GPU 정책 예산이 부족하면 `409 GPU_BUDGET_EXCEEDED`와 중지 후보를 반환합니다. `force: true`는 낮은 우선순위 보조 런타임의 자동 중지를 허용하므로 변경 계획에서 영향을 먼저 확인하세요. 적용·관측 검증 결과는 런타임 작업 이력에서 조회할 수 있습니다."
+        )
         ),
         request_schema="runtime_transition_apply_request.schema.json",
         response_schema="runtime_transition_apply_response.schema.json",
@@ -616,21 +581,17 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="활성 메인 모델 조회",
         description=(
-            "control-plane ledger가 기록한 상태와 Docker에서 방금 관측한 실제 런타임을 함께 반환합니다. "
-            "메인 모델을 디버깅할 때 가장 먼저 보는 엔드포인트입니다.\n\n"
-            "- `active_profile` — 지금 `local-main`으로 서빙 중인 프로필 전체(`capabilities.deployed_input`, "
-            "`gateway_policy` 포함). chat 요청 검증에 실제로 적용되는 값이 이것입니다.\n"
-            "- `gate` — `open`이면 요청을 받고, `closed`면 전환·정지 중이라 `/v1/chat/completions`가 "
-            "`503 MAIN_MODEL_SWITCH_IN_PROGRESS` + `Retry-After`로 fail-closed 응답합니다.\n"
-            "- `runtime_state` — ledger가 기록한 목표 상태(`active` / `stopped`).\n"
-            "- `last_operation` — 가장 최근 전환 작업 요약(`status`, `stage`, `error`).\n"
-            "- `observed_runtime` — Docker inspect 결과(`container_state`, `health`, `profile_id`, "
-            "`image_ref`, `image_id`, `image_digest`, `runtime_engine`, `observed_at`). ledger와 어긋나면 drift이며, "
-            "`image_digest`는 registry/distribution digest이며 Docker local `image_id`와 구분합니다. "
-            "digest를 단일하게 관측할 수 없으면 추측하지 않고 `null`로 반환합니다. "
-            "image label에 engine version이 없으면 이를 추측하지 않고 `runtime_engine.version=null`로 반환합니다.\n\n"
-            "Docker 관측은 이 라우트에서만 수행합니다. 요청 경로(`/v1/chat/completions`, `/v1/models`)는 "
-            "ledger만 읽으므로 추론이 Docker daemon 상태에 묶이지 않습니다."
+            (
+            "현재 메인 모델의 설정 상태와 실제 런타임 관측 결과를 조회합니다.\n"
+            "\n"
+            "- `active_profile`: 활성 프로필과 적용 중인 `gateway_policy`.\n"
+            "- `gate`: 요청 수락 상태. `closed`이면 생성 요청은 `503 MAIN_MODEL_SWITCH_IN_PROGRESS`와 `Retry-After`를 반환합니다.\n"
+            "- `runtime_state`: 설정 상태(`active` / `stopped`).\n"
+            "- `last_operation`: 최근 전환 작업의 결과·단계·오류.\n"
+            "- `observed_runtime`: 컨테이너·이미지·엔진 관측 결과. 설정과 다르면 상태 불일치입니다.\n"
+            "\n"
+            "`image_digest`는 레지스트리 다이제스트이며 로컬 `image_id`와 구분합니다. 확인할 수 없는 다이제스트·엔진 버전은 `null`입니다."
+        )
         ),
         request_schema=None,
         response_schema="main_model_status_response.schema.json",
@@ -643,18 +604,17 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="메인 모델 프로필 조회",
         description=(
-            "이 배포에서 전환할 수 있는 메인 모델 프로필과 각 프로필의 근거를 반환합니다. "
-            "`active: true`가 현재 서빙 중인 프로필입니다.\n\n"
-            "- `compatibility.status` — 기술적 전환 가능성(`compatible` / `incompatible` / `unknown`)입니다.\n"
-            "- `qualification.status` — maintainer가 실제 장비에서 검증했는지(`verified` / `unverified`)입니다. "
-            "전환 가능한 프로필이 `unverified`면 `switch` 요청에 `confirm_unverified: true`가 필요합니다.\n"
-            "- `capabilities.deployed_input` — 그 프로필로 전환했을 때 받을 수 있는 입력 modality입니다. "
-            "전환이 완료되면 `/v1/models`의 `input_modalities`와 chat validator에 즉시 반영됩니다.\n"
-            "- `upstream_model_id`, `revision` — 실제로 로딩되는 가중치 pin입니다.\n\n"
-            "- `switch_preflight` — 정책 거부·GPU 예산 통과·Runtime 정리 필요·예산 부족·관측 불가를 구분하는 읽기 전용 판단입니다. "
-            "`fits`는 정적 GPU 예약 검사만 통과했음을 뜻하며 모델 적재·실제 VRAM 성공을 보장하지 않습니다. "
-            "자원 관측 실패는 `unknown`으로 표시하며 다른 Runtime을 자동 중지하지 않습니다.\\n\\n"
-            "프로필 목록의 source of truth는 `configs/main_model_profiles.yaml`이며, 여기 없는 ID로는 전환할 수 없습니다."
+            (
+            "메인 모델 전환 후보와 각 후보의 지원 기능·검증 상태·사전 판단을 반환합니다. `active: true`가 현재 활성 프로필입니다.\n"
+            "\n"
+            "- `compatibility.status`: 기술적 호환성(`compatible` / `incompatible` / `unknown`).\n"
+            "- `qualification.status`: 실제 장비 검증 여부(`verified` / `unverified`). 미검증 프로필에는 전환 시 `confirm_unverified: true`가 필요합니다.\n"
+            "- `capabilities.deployed_input`: 전환 후 지원하는 입력 종류.\n"
+            "- `upstream_model_id`, `revision`: 로딩할 모델과 고정 리비전.\n"
+            "- `switch_preflight`: 정책 거부·GPU 예산 통과·런타임 정리 필요·예산 부족·관측 불가 등의 사전 판단. `fits`는 정책 예약 검사 통과이며 실제 모델 적재 성공을 보장하지 않습니다. 관측 실패는 `unknown`이며 런타임을 자동 중지하지 않습니다.\n"
+            "\n"
+            "반환된 프로필 ID로만 전환할 수 있습니다. 전환 후 공개 모델의 입력·요청 한도가 갱신됩니다."
+        )
         ),
         request_schema=None,
         response_schema="main_model_profiles_response.schema.json",
@@ -667,18 +627,15 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="메인 모델 전환",
         description=(
-            "메인 모델 프로필을 비동기로 전환합니다(`202` + `operation_id`). 전환 도중 gate가 닫히고 "
-            "진행 중인 요청을 drain한 뒤 컨테이너를 교체하므로, 완료까지 chat 요청은 "
-            "`503 MAIN_MODEL_SWITCH_IN_PROGRESS`를 받습니다.\n\n"
-            "- `profile` — `GET /admin/main-model/profiles`가 반환한 ID만 허용합니다. "
-            "그 외 필드(model id, command 등)는 `422`로 거부되며 임의 실행 인자를 넣을 수 없습니다.\n"
-            "- `confirm_unverified` — 기술적으로 전환 가능한 프로필의 `qualification.status`가 "
-            "`unverified`일 때 필요합니다. `compatibility.status=incompatible`인 프로필은 전환할 수 없습니다.\n"
-            "- `request_id` — 선택적 멱등 키입니다. 진행 중이거나 방금 끝난 동일 작업이 있으면 새 전환을 "
-            "시작하지 않고 그 작업을 반환하며 응답에 `reused: true`로 표시합니다(재시도 안전용이라 일정 시간 뒤 "
-            "만료됩니다). 매번 새 전환을 원하면 고유한 값을 쓰거나 생략합니다.\n\n"
-            "진행 상황은 `GET /admin/main-model/operations/{operation_id}` 또는 `GET /admin/main-model`의 "
-            "`last_operation`으로 확인합니다. 검증 단계에서 실패하면 이전 프로필로 자동 rollback합니다."
+            (
+            "메인 모델 프로필 전환을 접수하고 `202`와 `operation_id`를 반환합니다. 전환 중 요청 수락을 차단하고 진행 중인 요청 완료를 기다린 뒤 런타임을 교체합니다.\n"
+            "\n"
+            "- `profile`: 프로필 목록에서 반환된 ID.\n"
+            "- `confirm_unverified`: 미검증 프로필 전환에 필요한 확인 값. 호환되지 않는 프로필은 전환할 수 없습니다.\n"
+            "- `request_id`: 선택적 멱등 키. 같은 키의 최근 작업을 재사용하면 `reused: true`입니다. 키는 일정 시간 후 만료됩니다.\n"
+            "\n"
+            "`GET /admin/main-model/operations/{operation_id}`로 완료 여부를 확인하세요. 검증에 실패하면 이전 프로필 복구를 시도합니다."
+        )
         ),
         request_schema="main_model_switch_request.schema.json",
         response_schema=None,
@@ -696,10 +653,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="최근 메인 모델 전환 작업 목록 조회",
         description=(
-            "Main Model state가 보존하는 최근 profile switch operation을 최신 순서로 조회합니다. "
-            "이 응답은 Operations 화면을 위한 bounded operational read projection이며, 별도 audit journal이나 "
-            "브라우저 history를 만들지 않습니다. 장기 감사 기록을 의미하지 않습니다.\n\n"
-            "각 item은 `GET /admin/main-model/operations/{operation_id}`와 같은 operation contract를 사용합니다."
+            "최근 메인 모델 전환 작업을 최신 순서로 조회합니다. 보존 범위가 제한된 운영 이력이며 장기 감사 기록은 아닙니다. 각 항목은 작업 상세 조회와 같은 형식입니다."
         ),
         request_schema=None,
         response_schema="main_model_operation_list_response.schema.json",
@@ -712,15 +666,17 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
         tag="Runtime Control",
         summary="메인 모델 전환 작업 조회",
         description=(
-            "비동기 전환 작업의 현재 단계와 실패 원인을 조회합니다. `operation_id`는 "
-            "`POST /admin/main-model/switch`의 `202` 응답에서 받은 값이며, `completed`·`failed`·"
-            "`rollback_failed`에 도달할 때까지 폴링합니다. 각 stage의 의미는 Runtime Control 태그 설명에 있습니다.\n\n"
-            "- `stage` — 지금 수행 중인 단계, `status` — 같은 값(터미널 상태에서 확정).\n"
-            "- `error` — 전환을 실패시킨 원인 문자열. `rollback_error`가 함께 있으면 이전 프로필 복구까지 "
-            "실패한 것이며(`rollback_failed`), 이때는 수동 개입이 필요합니다.\n"
-            "- `client_request_id` — 요청에 넣은 멱등 키.\n\n"
-            "가장 최근 작업은 `GET /admin/main-model`의 `last_operation`으로도 볼 수 있고, 진행 상태는 "
-            "Grafana `Main-model Control` 대시보드의 Latest Operation State 패널에서 실시간으로 확인합니다."
+            (
+            "전환 작업의 결과·진행 단계·실패 원인을 조회합니다.\n"
+            "\n"
+            "- `status`: 작업 상태·결과. `completed`, `failed`, `rollback_failed`는 종료 상태입니다.\n"
+            "- `stage`: 진행 단계 또는 실패 지점. `status`와 다를 수 있습니다.\n"
+            "- `error`: 전환 실패 원인.\n"
+            "- `rollback_error`: 이전 프로필 복구 실패 원인. `rollback_failed`이면 수동 복구가 필요합니다.\n"
+            "- `client_request_id`: 전환 요청의 멱등 키.\n"
+            "\n"
+            "종료 상태가 될 때까지 조회하세요. 가장 최근 작업은 `GET /admin/main-model`의 `last_operation`에서도 확인할 수 있습니다."
+        )
         ),
         request_schema=None,
         response_schema="main_model_operation_response.schema.json",
@@ -738,7 +694,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/health",
         operation_id="getRiskSignalServiceHealth",
         tag="Operations",
-        summary="Liveness 확인",
+        summary="프로세스 상태 확인",
         description="프로세스가 살아 있는지만 확인합니다. 항상 HTTP 200을 반환하며 인증 없이 호출할 수 있습니다.",
         request_schema=None,
         response_schema=None,
@@ -748,11 +704,11 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/ready",
         operation_id="getRiskSignalServiceReadiness",
         tag="Operations",
-        summary="Risk Signal Service readiness 확인",
+        summary="서비스 준비 상태 확인",
         description=(
-            "활성화된 remote detector dependency가 요청을 받을 준비가 됐는지 확인합니다. "
-            "local-only 구성은 별도 모델 dependency 없이 ready이며, dependency 로딩 중에는 HTTP 503과 "
-            "`not_ready_dependencies` 및 dependency별 `message`를 반환합니다."
+            "활성 탐지기의 필수 모델 의존 서비스가 준비되면 HTTP 200을 반환합니다. "
+            "로컬 탐지기만 사용하는 구성에는 별도 모델 의존 서비스가 없습니다. "
+            "필수 서비스가 준비되지 않으면 HTTP 503이며 `not_ready_dependencies`에서 원인을 확인할 수 있습니다."
         ),
         request_schema=None,
         response_schema="readiness_response.schema.json",
@@ -763,7 +719,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         operation_id="getRiskSignalServiceMetrics",
         tag="Monitoring",
         summary="Prometheus 지표 조회",
-        description="Prometheus가 수집하는 Risk Signal Service 지표입니다. 탐지기별 타임아웃, 파싱 실패, 신호 건수를 볼 수 있습니다.",
+        description="Prometheus 형식의 Risk Signal Service 지표입니다. 탐지기별 시간 초과·파싱 실패·신호 건수를 반환하며 관리자 인증 설정을 따릅니다.",
         request_schema=None,
         response_schema=None,
     ),
@@ -772,16 +728,13 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/prompt/assessments",
         operation_id="assessRiskPromptDetector",
         tag="Risk Signal",
-        summary="Prompt 탐지기 신호 — Prompt Injection / Leaking",
+        summary="프롬프트 공격 신호 탐지",
         description=(
-            "**Prompt 탐지기**(`risk-prompt`)만 단독으로 호출합니다.\n\n"
-            "탐지 대상:\n"
-            "- system/developer instruction 무시 유도\n"
-            "- 숨겨진 system prompt·tool config 출력 요구\n"
-            "- 역할극(DAN 등) jailbreak\n"
-            "- 문서·웹페이지 안에 숨겨진 간접 prompt injection\n"
-            "- 연결된 도구로 시크릿·파일·메일 탈취 유도\n\n"
-            "일반 사이버 공격 절차·폭력·혐오 콘텐츠는 이 탐지기가 다루지 않습니다."
+            (
+            "Prompt 탐지기(`risk-prompt`)로 프롬프트 인젝션·시스템 프롬프트 유출 신호를 탐지합니다. 지시 무시 유도·역할극 탈옥·문서 내 악성 지시·도구 악용을 다룹니다.\n"
+            "\n"
+            "최종 허용·차단은 호출 애플리케이션이 결정합니다. 탐지기가 비활성화된 배포에서는 `409 DETECTOR_DISABLED`입니다."
+        )
         ),
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -792,7 +745,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/pii/assessments",
         operation_id="assessRiskPIIDetector",
         tag="Risk Signal",
-        summary="PII Protection 탐지기 신호 — 개인정보 노출 탐지",
+        summary="개인정보 노출 신호 탐지",
         description=_PII_DETECTOR_DESCRIPTION,
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -803,7 +756,7 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/detectors/secret/assessments",
         operation_id="assessRiskSecretDetector",
         tag="Risk Signal",
-        summary="Secret Exposure 탐지기 신호 — 시크릿·자격증명 노출 탐지",
+        summary="시크릿 노출 신호 탐지",
         description=_SECRET_DETECTOR_DESCRIPTION,
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
@@ -814,13 +767,13 @@ RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [
         path="/v1/risk/assessments",
         operation_id="assessRiskAggregate",
         tag="Risk Signal",
-        summary="통합 risk signal",
+        summary="위험 신호 통합 탐지",
         description=(
-            "현재 deployment에서 활성화된 탐지기를 configured order로 호출하고 결과를 합칩니다. "
-            "Static local-risk 구성은 PII/Secret만 실행하며, Prompt detector가 effective topology에 있을 때만 "
-            "Prompt Injection 신호를 함께 평가합니다.\n\n"
-            "어느 하나라도 신호를 찾으면 `risk_detected: true`를 반환합니다. "
-            "탐지기가 실패하면 정책 판단 없이 시스템 신호로만 알립니다."
+            (
+            "배포에서 활성화된 탐지기를 설정된 순서로 실행하고 결과를 통합합니다. 로컬 구성은 PII Protection·Secret Exposure를 실행하며 Prompt 런타임이 활성화된 구성에서 프롬프트 탐지를 추가합니다.\n"
+            "\n"
+            "하나라도 신호를 탐지하면 `risk_detected: true`입니다. HTTP 200이어도 `status=failed` 또는 `assessment_complete=false`이면 탐지가 완료되지 않은 결과이며 안전 판정으로 사용할 수 없습니다."
+        )
         ),
         request_schema="risk_assessment_request.schema.json",
         response_schema="risk_assessment_response.schema.json",
