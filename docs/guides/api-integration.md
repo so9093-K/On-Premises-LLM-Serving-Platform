@@ -13,16 +13,11 @@
 
 1. 운영자에게 본인의 Tailscale 접속 권한(HTTPS 8443), **API Base URL**, **사용자 API Key**, 모델 별칭을 요청합니다.
 2. 본인의 기기에서 Tailscale에 로그인·연결합니다. 주소 형식은 `https://<실제-서버-tailnet-이름>:8443`이며, 실제 서버 주소는 운영자가 확인해 전달합니다.
-3. 아래 `GATEWAY_URL`을 **운영자가 전달한 주소**로 설정한 뒤 이 문서의 `/v1/models` 및 Chat 예제를 실행합니다.
+3. 아래 `GATEWAY_URL`을 **운영자가 전달한 주소**로 설정한 뒤 **1절의 API Key 입력 및 `/v1/models` 호출**을 진행합니다.
 
 ```bash
-# 외부 기기용: 실제 운영자가 제공한 값으로 교체
+# 서버 운영자가 제공한 실제 HTTPS 주소로 교체합니다.
 export GATEWAY_URL="https://<실제-서버-tailnet-이름>:8443"
-read -r -s -p '사용자 API Key: ' API_KEY
-printf '\n'
-export API_KEY
-AUTH=(-H "Authorization: Bearer $API_KEY")
-curl --fail-with-body "$GATEWAY_URL/v1/models" "${AUTH[@]}"
 ```
 
 위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings 경로만 제공하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
@@ -37,8 +32,9 @@ Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세
 아래 shell 예제는 Bash와 curl 7.76 이상을 사용합니다. Admin Key·내부 token·Hugging Face token은 사용하지 않습니다.
 
 ```bash
-# 동일 서버에서만 사용하는 로컬 예시
-export GATEWAY_URL=http://127.0.0.1:9400
+# 위에서 원격 HTTPS 주소를 설정했다면 그 값을 그대로 유지합니다.
+# 같은 서버에서 실행하는 경우에는 로컬 기본 주소를 사용합니다.
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:9400}"
 AUTH=()
 ```
 
