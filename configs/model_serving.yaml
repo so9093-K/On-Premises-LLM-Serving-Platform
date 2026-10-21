@@ -36,8 +36,8 @@ models:
   main_llm:
     served_model_name: local-main
     backend: vllm
-    port: 9401
-    endpoint: http://main-llm-vllm:9401/v1
+    port: 9601
+    endpoint: http://main-llm-vllm:9601/v1
     gpu_memory_utilization: 0.76
     timeout_seconds: 120
     resource_control:
@@ -53,8 +53,8 @@ models:
     revision: 57c266a740f537b4dc058e1b0cda161fd15afa75
     served_model_name: local-embed
     backend: vllm
-    port: 9402
-    endpoint: http://embedding-vllm:9402/v1
+    port: 9602
+    endpoint: http://embedding-vllm:9602/v1
     runner: pooling
     max_model_len: 2048
     max_num_seqs: 2
@@ -97,8 +97,8 @@ models:
     revision: 55ec6e9358a56d56af759bc8372e970caf8c305f
     served_model_name: local-embed-ko
     backend: vllm
-    port: 9406
-    endpoint: http://embedding-ko-vllm:9406/v1
+    port: 9603
+    endpoint: http://embedding-ko-vllm:9603/v1
     runner: pooling
     trust_remote_code: true
     max_model_len: 2048
@@ -147,8 +147,8 @@ models:
     revision: 167d74d4706b236580b0e48318337c7ac6ba7848
     served_model_name: risk-prompt
     backend: vllm
-    port: 9403
-    endpoint: http://prompt-injection-detector-runtime:9403/v1
+    port: 9604
+    endpoint: http://prompt-injection-detector-runtime:9604/v1
     runner: generation
     quantization: bitsandbytes
     load_format: bitsandbytes
@@ -183,7 +183,7 @@ models:
         temperature: 0
 risk_signal_service:
   # PII·secret·prompt detector를 조합하는 내부 서비스 정책이다.
-  endpoint: http://risk-signal-service:9405
+  endpoint: http://risk-signal-service:9605
   # Gateway -> Risk Signal Service 호출도 model runtime과 같은 bounded admission
   # guard를 쓴다. 값은 코드 상수가 아니라 이 service policy가 소유한다.
   admission_control:

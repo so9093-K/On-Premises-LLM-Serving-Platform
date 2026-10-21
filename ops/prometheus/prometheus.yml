@@ -13,33 +13,33 @@ scrape_configs:
   bearer_token_file: /run/secrets/admin_api_key
   static_configs:
   - targets:
-    - gateway:9400
+    - gateway:9600
 - job_name: risk-signal-service
   metrics_path: /metrics
   bearer_token_file: /run/secrets/admin_api_key
   static_configs:
   - targets:
-    - risk-signal-service:9405
+    - risk-signal-service:9605
 - job_name: vllm-runtimes
   metrics_path: /metrics
   static_configs:
   - targets:
-    - main-llm-vllm:9401
+    - main-llm-vllm:9601
     labels:
       model: local-main
       runtime_service: main-llm-vllm
   - targets:
-    - embedding-vllm:9402
+    - embedding-vllm:9602
     labels:
       model: local-embed
       runtime_service: embedding-vllm
   - targets:
-    - embedding-ko-vllm:9406
+    - embedding-ko-vllm:9603
     labels:
       model: local-embed-ko
       runtime_service: embedding-ko-vllm
   - targets:
-    - prompt-injection-detector-runtime:9403
+    - prompt-injection-detector-runtime:9604
     labels:
       model: risk-prompt
       runtime_service: prompt-injection-detector-runtime
