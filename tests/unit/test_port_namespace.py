@@ -1,6 +1,7 @@
 """프로젝트 포트 대역 변경의 Offset 및 외부 엔진 격리 계약."""
 import pytest
 import yaml
+import subprocess
 
 from scripts.config import ports
 
@@ -81,6 +82,116 @@ def test_noop_keeps_operator_host_port_override():
     assert env_changes("GATEWAY_PORT=18080\n", 9600, 9600) == "GATEWAY_PORT=18080\n"
     with pytest.raises(ValueError, match="정수 포트"):
         env_changes("GATEWAY_PORT=oops\n", 9600, 9700)
+
+
+def test_reapplying_94xx_namespace_does_not_reinterpret_current_runtime_roles():
+    original = (
+        "GATEWAY_PORT=9400\nGRAFANA_PORT=9410\n"
+        "MAIN_MODEL_BASE_URL=http://main-llm-vllm:9401/v1\n"
+        "EMBEDDING_KO_BASE_URL=http://embedding-ko-vllm:9403/v1\n"
+        "PROMPT_INJECTION_DETECTOR_BASE_URL=http://prompt-injection-detector-runtime:9404/v1\n"
+    )
+    assert env_changes(original, 9400, 9400) == original
+    migrated = env_changes(original, 9400, 9700)
+    assert "embedding-ko-vllm:9703" in migrated
+    assert "prompt-injection-detector-runtime:9704" in migrated
+
+
+def test_env_changes_only_managed_authority_port_and_preserves_paths_queries_and_secrets():
+    original = (
+        "MAIN_MODEL_BASE_URL=http://main-llm-vllm:9401/v1/9400?timeout=9401\n"
+        "EXTERNAL_URL=https://outside.example/path/http://gateway:9400\n"
+        "CUSTOM_URL=http://main-llm-vllm:18000/v1\n"
+        "API_KEYS=secret9400value\n"
+    )
+    migrated = env_changes(original, 9400, 9700)
+    assert "http://main-llm-vllm:9701/v1/9400?timeout=9401" in migrated
+    assert "EXTERNAL_URL=https://outside.example/path/http://gateway:9400" in migrated
+    assert "CUSTOM_URL=http://main-llm-vllm:18000/v1" in migrated
+    assert "API_KEYS=secret9400value" in migrated
+    assert env_changes("PROMPT_INJECTION_DETECTOR_BASE_URL=http://prompt-injection-detector-runtime:9403/v1\n",
+                       9400, 9700).endswith(":9704/v1\n")
+
+
+def test_source_replacement_does_not_corrupt_hashes_or_identifiers():
+    original = "sha256:abc9400def model_9400 9400 http://gateway:9400\n"
+    assert replace_ports(original, {9400: 9700}, "README.md") == (
+        "sha256:abc9400def model_9400 9700 http://gateway:9700\n"
+    )
+
+
+def test_requested_base_in_command_examples_is_not_the_current_namespace():
+    original = "Default port 9400; make ports BASE=9700 PLAN=1\n"
+    changed = replace_ports(original, {9400: 9700}, "README.md")
+    assert changed == "Default port 9700; make ports BASE=9700 PLAN=1\n"
+    assert replace_ports(changed, {9700: 9400}, "README.md") == original
+
+
+def test_rollback_inventory_covers_all_runtime_generated_artifacts():
+    from scripts.render_runtime_assets import _load_registry_and_monitoring, get_artifacts
+
+    artifacts = get_artifacts(*_load_registry_and_monitoring(ROOT), ROOT)
+    assert {str(path.relative_to(ROOT)) for path, _ in artifacts} == set(ports.GENERATED)
+
+
+def policy_fixture(tmp_path, monkeypatch):
+    path = tmp_path / "configs/services.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_bytes((ROOT / "configs/services.yaml").read_bytes())
+    monkeypatch.setattr(ports, "tracked_paths", lambda root: ["configs/services.yaml"])
+    monkeypatch.setattr(ports, "preflight_bind", lambda *args: [])
+    base, _ = read_policy(tmp_path)
+    return path, base, base + 100 if base < 65000 else base - 100
+
+
+def test_plan_does_not_write_files_or_invoke_builds(tmp_path, monkeypatch, capsys):
+    path, base, new_base = policy_fixture(tmp_path, monkeypatch)
+    original = path.read_bytes()
+    monkeypatch.setattr(ports.subprocess, "run", lambda *args, **kwargs: pytest.fail("plan invoked a build"))
+    assert ports.run(tmp_path, new_base, yes=False, plan=True) == 0
+    assert path.read_bytes() == original
+    output = capsys.readouterr().out
+    assert "configs/services.yaml" in output
+    assert "계획만" in output
+
+
+def test_port_preflight_checks_configured_host_bind_addresses(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("GATEWAY_BIND_ADDR=127.0.0.1\nGRAFANA_BIND_ADDR=127.0.0.2\n")
+    monkeypatch.delenv("GATEWAY_BIND_ADDR", raising=False)
+    monkeypatch.delenv("GRAFANA_BIND_ADDR", raising=False)
+    bindings = []
+
+    class Socket:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def bind(self, address): bindings.append(address)
+
+    monkeypatch.setattr(ports.socket, "socket", lambda *args: Socket())
+    assert ports.preflight_bind(9700, 9400, tmp_path) == []
+    assert bindings == [("127.0.0.1", 9700), ("127.0.0.2", 9710)]
+
+
+def test_validation_failure_restores_env_permissions_and_absent_generated_files(tmp_path, monkeypatch):
+    path, base, new_base = policy_fixture(tmp_path, monkeypatch)
+    original = path.read_bytes()
+    env = tmp_path / ".env"
+    env.write_text(f"GATEWAY_PORT={base}\nAPI_KEYS=keep-me\n")
+    env.chmod(0o600)
+    previous_env = env.read_bytes()
+    generated = tmp_path / "specs/openapi.gateway.yaml"
+
+    def fail(*args, **kwargs):
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text("partial generated output")
+        raise subprocess.CalledProcessError(1, args[0])
+
+    monkeypatch.setattr(ports.subprocess, "run", fail)
+    with pytest.raises(subprocess.CalledProcessError):
+        ports.run(tmp_path, new_base, yes=True)
+    assert path.read_bytes() == original
+    assert env.read_bytes() == previous_env
+    assert env.stat().st_mode & 0o777 == 0o600
+    assert not generated.exists()
 
 
 def test_single_command_changes_namespace_idempotently_and_restores(tmp_path, monkeypatch):

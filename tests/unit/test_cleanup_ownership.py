@@ -97,6 +97,20 @@ def test_project_guard_accepts_canonical_and_legacy_checkout(inventory):
     assert mutations == []
 
 
+def test_project_guard_rejects_active_legacy_network_before_partial_startup(inventory):
+    root, resources, mutations = inventory
+    resources["container"]["own"] = container(root)
+    resources["network"]["legacy"] = {
+        "Labels": {ownership.PROJECT_LABEL: "same-project"}, "Containers": {"own": {}},
+    }
+    with pytest.raises(RuntimeError, match="run make down, then make up"):
+        ownership.assert_project_owned(root, "same-project")
+    assert mutations == []
+    resources["network"]["legacy"]["Containers"] = {}
+    ownership.assert_project_owned(root, "same-project")
+    assert mutations == []
+
+
 def test_purge_only_removes_labeled_orphans_and_preserves_images_used_elsewhere(inventory):
     root, resources, mutations = inventory
     resources["volume"].update({

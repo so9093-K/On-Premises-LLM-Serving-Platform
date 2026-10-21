@@ -6,9 +6,9 @@ from scripts.validation.validate_access_profiles import validate_services
 def _gateway() -> dict[str, object]:
     return {
         "compose_service": "gateway",
-        "container_port": 9600,
+        "container_port": 9400,
         "host_env_port": "GATEWAY_PORT",
-        "default_host_port": 9600,
+        "default_host_port": 9400,
         "host_env_bind": "GATEWAY_BIND_ADDR",
         "default_bind": "0.0.0.0",
         "categories": ["gateway", "public_entrypoint", "host_process"],
@@ -53,9 +53,9 @@ def test_host_process_keeps_port_without_host_bind() -> None:
         "gateway": _gateway(),
         "risk_signal_service": {
             "compose_service": "risk-signal-service",
-            "container_port": 9605,
+            "container_port": 9405,
             "host_env_port": "RISK_SIGNAL_SERVICE_PORT",
-            "default_host_port": 9605,
+            "default_host_port": 9405,
             "categories": ["risk_signal_service", "host_process"],
         },
     }

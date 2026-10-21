@@ -25,7 +25,7 @@ docker run --rm "${run_args[@]}" --entrypoint python "$IMAGE" -c \
   "from ai_model_serving.apps.gateway import create_gateway_app; from ai_model_serving.apps.risk_signal_service import create_risk_signal_service_app; from ai_model_serving.apps.mlx_metrics_exporter import app as mlx_metrics_app; create_gateway_app(); create_risk_signal_service_app(); assert mlx_metrics_app is not None"
 
 echo "[image] verifying Gateway HTTP surface"
-container="$(docker run --detach "${run_args[@]}" --publish 127.0.0.1::9600 "$IMAGE")"
+container="$(docker run --detach "${run_args[@]}" --publish 127.0.0.1::9400 "$IMAGE")"
 cleanup() {
   docker rm --force "$container" >/dev/null 2>&1 || true
 }
@@ -37,8 +37,8 @@ fail() {
   exit 1
 }
 
-port="$(docker port "$container" 9600/tcp | head -n 1 | sed 's/.*://')"
-[[ -n "$port" ]] || fail "Gateway port 9600 is not published"
+port="$(docker port "$container" 9400/tcp | head -n 1 | sed 's/.*://')"
+[[ -n "$port" ]] || fail "Gateway port 9400 is not published"
 base="http://127.0.0.1:${port}"
 
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))

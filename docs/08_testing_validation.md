@@ -372,7 +372,7 @@ make runtime-validate
   ↓
 docker compose run --rm --no-deps runtime-validator
   ↓
-gateway:9600 / main-llm-vllm:9601 / risk-signal-service:9605 / prometheus:9090 ...
+gateway:9400 / main-llm-vllm:9401 / risk-signal-service:9405 / prometheus:9090 ...
 ```
 
 validator는 dependency를 시작하거나 재시작하지 않는다. 필요한 service가 내려가 있으면
@@ -722,7 +722,7 @@ CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate�
 `linux-adaptive`는 기존 Main Gate·Drain·Canary·Rollback을 재사용한다.
 `tests/unit/test_adaptive_runtime.py`는 자원 관측 오류, 안정 관측, 실패 유예,
 운영자 중지 의도, 활성 정책·Readiness를 결정론적으로 검증한다.
-CPU 실추론은 `make cpu-runtime-validate BASE_URL=http://127.0.0.1:9600`으로 확인한다.
+CPU 실추론은 `make cpu-runtime-validate BASE_URL=http://127.0.0.1:9400`으로 확인한다.
 이 명령은 `/v1/models`의 CPU Backend·모델 ID·텍스트 입력·문맥/출력 한도를 설정과
 대조한 뒤 Chat과 SSE 응답·종료를 검사한다. 실제 전환과 이 검증이 통과하면
 [모델 운영의 절차](06_model_operations.md#qualification-선언)에 따라 CPU 프로필의

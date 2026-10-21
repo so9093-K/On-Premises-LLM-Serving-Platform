@@ -42,8 +42,8 @@ def test_team_has_no_admin_or_broad_network_grant():
 def test_tailnet_policy_checks_team_and_admin_denial():
     policy = load_example()
     tests = {item["src"]: item for item in policy["tests"]}
-    for port in (443, 9600, 9610, 22):
+    for port in (443, 9400, 9410, 22):
         assert f"tag:llm-server:{port}" in tests["teammate@example.com"]["deny"]
     assert "tag:llm-server:8443" in tests["teammate@example.com"]["accept"]
     assert "tag:llm-server:443" in tests["operator@example.com"]["accept"]
-    assert "tag:llm-server:9600" in tests["operator@example.com"]["deny"]
+    assert "tag:llm-server:9400" in tests["operator@example.com"]["deny"]

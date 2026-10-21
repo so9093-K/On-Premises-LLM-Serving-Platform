@@ -36,7 +36,7 @@ Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세
 ```bash
 # 위에서 원격 HTTPS 주소를 설정했다면 그 값을 그대로 유지합니다.
 # 같은 서버에서 실행하는 경우에는 로컬 기본 주소를 사용합니다.
-export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:9600}"
+export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:9400}"
 AUTH=()
 ```
 

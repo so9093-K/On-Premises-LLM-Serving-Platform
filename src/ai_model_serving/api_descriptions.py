@@ -456,7 +456,7 @@ def gateway_description(settings: AppSettings) -> str:
 아래 로컬 주소를 실제 Gateway 주소로 바꾸세요. 사용자 인증이 활성화돼 있으면 `API_KEY`도 설정해야 합니다.
 
 ```bash
-GATEWAY_URL='http://127.0.0.1:9600'
+GATEWAY_URL='http://127.0.0.1:9400'
 curl --fail-with-body "$GATEWAY_URL/v1/chat/completions" \\\n{auth}  -H "Content-Type: application/json" \\\n  -d '{{
     "model": "{settings.runtime('main_llm').model}",
     "messages": [

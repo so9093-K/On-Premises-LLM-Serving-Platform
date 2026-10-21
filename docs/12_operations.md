@@ -45,6 +45,25 @@ full-stack에서는 다음 정보를 중심으로 본다.
 현재 configuration과 Runtime desired state에서 **필요한 capability가 serving 가능한가**를
 기준으로 판단한다.
 
+### 포트 변경과 기존 캐시
+
+접속 주소만 바꾸려면 `.env`의 `GATEWAY_PORT`(Grafana는 `GRAFANA_PORT`)를 수정하고
+`make up`을 실행한다. 내부 Runtime 포트는 그대로 유지된다. 전체 Namespace 변경은
+[개발자 가이드](guides/developer-guide.md#포트-네임스페이스-변경)를 따른다.
+파일 변경만으로 실행 중인 서비스의 포트가 바뀌지는 않는다. `make up`이 성공한 뒤
+`make status`에서 실제 주소와 준비 상태를 확인한다.
+
+기존 Compose 캐시는 checkout 소유권을 검증한 뒤 재생성 없이 재사용한다.
+이전 컨테이너 연결에서 확인한 볼륨 정보는 `.runtime/compose-state/volume-reuse-*.json`에
+기록해 일반적인 `down` / `up` 이후에도 보존한다. 소유권이 불명확하거나 다른 checkout이
+사용하는 볼륨은 자동 변경하지 않고 오류로 중단한다. 이 재사용 처리는 볼륨에 소유권
+라벨을 새로 붙이거나 `purge`의 삭제 범위를 넓히지 않는다.
+
+구버전에서 `Recreate (data will be lost)?`가 보이면 `y`를 입력하지 말고 실행을 중단한다.
+볼륨 삭제로 우회하지 말고 최신 기동 스크립트로 재시도한다.
+checkout 라벨이 없는 구버전 네트워크에 활성 컨테이너가 있으면 기동 전 검사가 중단한다.
+안내에 따라 `make down` 후 `make up`을 실행하면 볼륨은 유지하면서 빈 네트워크를 이관한다.
+
 Gateway 자체가 응답하지 않거나 required dependency가 준비되지 않았으면 `status`는
 성공처럼 보이지 않고 `Attention`과 함께 `make logs`를 다음 행동으로 제시한다.
 
@@ -223,7 +242,7 @@ make logs SERVICE=<runtime>
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9600/admin/runtimes
+  http://127.0.0.1:9400/admin/runtimes
 ```
 
 Main Model state와 active profile은 Main Model Control API에서 확인한다.
@@ -248,7 +267,7 @@ Main Model 변경은 일반 lifecycle 재시작과 분리된 Control Plane opera
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9600/admin/main-model/operations/<operation_id>
+  http://127.0.0.1:9400/admin/main-model/operations/<operation_id>
 ```
 
 확인할 항목:

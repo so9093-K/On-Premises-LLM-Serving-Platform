@@ -3,7 +3,7 @@ version: 0.1.0
 
 port_namespace:
   # 최초 재정렬 이후 역할별 offset은 자동 압축하지 않는다.
-  base: 9600
+  base: 9400
   offsets:
     gateway: 0
     main_llm_vllm: 1
@@ -33,9 +33,9 @@ services:
   # 외부 요청을 받아 Model Runtime과 Risk Signal Service로 전달하는 API 진입점.
   gateway:
     compose_service: gateway
-    container_port: 9600
+    container_port: 9400
     host_env_port: GATEWAY_PORT
-    default_host_port: 9600
+    default_host_port: 9400
     host_env_bind: GATEWAY_BIND_ADDR
     default_bind: "0.0.0.0"
     categories:
@@ -47,9 +47,9 @@ services:
   # Compose에서는 internal이지만 app-only lifecycle에서는 host process로 직접 실행한다.
   risk_signal_service:
     compose_service: risk-signal-service
-    container_port: 9605
+    container_port: 9405
     host_env_port: RISK_SIGNAL_SERVICE_PORT
-    default_host_port: 9605
+    default_host_port: 9405
     categories:
       - risk_signal_service
       - host_process
@@ -57,7 +57,7 @@ services:
   # active main-model profile을 실행하는 주 대화 모델 runtime.
   main_llm_vllm:
     compose_service: main-llm-vllm
-    container_port: 9601
+    container_port: 9401
     categories:
       - model_runtime
       - vllm_runtime
@@ -78,7 +78,7 @@ services:
   # 범용 embedding 및 retrieval용 runtime.
   embedding_vllm:
     compose_service: embedding-vllm
-    container_port: 9602
+    container_port: 9402
     categories:
       - model_runtime
       - vllm_runtime
@@ -86,7 +86,7 @@ services:
   # 한국어 retrieval embedding용 runtime.
   embedding_ko_vllm:
     compose_service: embedding-ko-vllm
-    container_port: 9603
+    container_port: 9403
     categories:
       - model_runtime
       - vllm_runtime
@@ -94,7 +94,7 @@ services:
   # prompt injection 탐지용 단일 token 분류 runtime.
   prompt_injection_detector_runtime:
     compose_service: prompt-injection-detector-runtime
-    container_port: 9604
+    container_port: 9404
     categories:
       - model_runtime
       - vllm_runtime
@@ -113,7 +113,7 @@ services:
     compose_service: grafana
     container_port: 3000
     host_env_port: GRAFANA_PORT
-    default_host_port: 9610
+    default_host_port: 9410
     host_env_bind: GRAFANA_BIND_ADDR
     default_bind: "0.0.0.0"
     categories:

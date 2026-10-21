@@ -4,7 +4,7 @@ services:
     environment:
       RUNTIME_CONTROLLER_URL: http://runtime-controller:8080
       MAIN_MODEL_MAX_CONCURRENCY: '1'
-      MAIN_MODEL_BASE_URL: http://main-llm-vllm:9601/v1
+      MAIN_MODEL_BASE_URL: http://main-llm-vllm:9401/v1
 
   main-llm-vllm:
     image: ${LLAMA_CPP_IMAGE:?Use the pinned CPU runtime image}
@@ -22,9 +22,9 @@ services:
       - ${HF_CACHE_DIR:-./model_cache/huggingface}:/root/.cache/huggingface:ro
       - ../../configs:/app/configs:ro
       - main-vllm-cache:/root/.cache/vllm
-    expose: ['9601']
+    expose: ['9401']
     healthcheck:
-      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9601/health',timeout=2)"]
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9401/health',timeout=2)"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -40,7 +40,7 @@ services:
       PLATFORM_STATE_DIR: /var/lib/ai-model-serving
       DOCKER_SOCKET: /var/run/docker.sock
       COMPOSE_PROJECT: ${STATIC_COMPOSE_PROJECT_NAME:-ai-model-serving-static}
-      GATEWAY_INTERNAL_URL: http://gateway:9600
+      GATEWAY_INTERNAL_URL: http://gateway:9400
       HF_HOME: /root/.cache/huggingface
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

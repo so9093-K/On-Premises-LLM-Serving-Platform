@@ -187,8 +187,8 @@ app-only는 GPU와 vLLM runtime 없이 Gateway와 Risk Signal Service를 로컬 
 ```text
 Developer Host
 │
-├─ Gateway       localhost:9600
-└─ Risk Signal Service  localhost:9605
+├─ Gateway       localhost:9400
+└─ Risk Signal Service  localhost:9405
 ```
 
 주요 실행 명령은 다음과 같다.
@@ -255,13 +255,13 @@ full-stack의 base Compose 정의는 `ops/compose/full-stack.private-network.yam
 
 | Compose Service | Container Port | 역할 |
 |---|---:|---|
-| `gateway` | `9600` | 외부 API 진입점 |
+| `gateway` | `9400` | 외부 API 진입점 |
 | `runtime-controller` | `8080` | Main Model runtime control |
-| `main-llm-vllm` | `9601` | Chat / Multimodal inference |
-| `embedding-vllm` | `9602` | 범용 embedding |
-| `prompt-injection-detector-runtime` | `9604` | Prompt risk inference |
-| `risk-signal-service` | `9605` | Risk signal 처리 |
-| `embedding-ko-vllm` | `9603` | Korean retrieval embedding |
+| `main-llm-vllm` | `9401` | Chat / Multimodal inference |
+| `embedding-vllm` | `9402` | 범용 embedding |
+| `prompt-injection-detector-runtime` | `9404` | Prompt risk inference |
+| `risk-signal-service` | `9405` | Risk signal 처리 |
+| `embedding-ko-vllm` | `9403` | Korean retrieval embedding |
 | `prometheus` | `9090` | Metrics backend |
 | `grafana` | `3000` | Dashboard |
 | `dcgm-exporter` | `9400` | GPU metrics (upstream 고유 내부 포트) |

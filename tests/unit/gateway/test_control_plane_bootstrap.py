@@ -147,7 +147,7 @@ def test_macos_static_bootstrap_uses_target_monitoring_and_host_boundary(monkeyp
     source.write_text(
         "APP_ENV=local\n"
         "MAIN_MODEL_STATIC_PROFILE=gemma4-26b-a4b-qat-4bit-mlx\n"
-        "MAIN_MODEL_BASE_URL=http://host.docker.internal:9601/v1\n"
+        "MAIN_MODEL_BASE_URL=http://host.docker.internal:9401/v1\n"
         "ACCESS_PROFILE=local\n"
         "GRAFANA_PORT=9611\n",
         encoding="utf-8",

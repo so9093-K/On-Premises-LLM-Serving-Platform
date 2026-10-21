@@ -154,5 +154,5 @@ console-check: ## Control Plane type/API/generated asset drift 검증
 
 .PHONY: ports
 ports: ## BASE=<대역 시작 포트> 프로젝트 Port Namespace 변경
-	@if [[ -z "$(BASE)" ]]; then echo "Usage: make ports BASE=9700 [YES=1]" >&2; exit 2; fi
-	@"$(PYTHON)" scripts/config/ports.py --base "$(BASE)" $(if $(filter 1,$(YES)),--yes,)
+	@if [[ -z "$(BASE)" ]]; then echo "Usage: make ports BASE=9700 [PLAN=1 | YES=1]" >&2; exit 2; fi
+	@"$(PYTHON)" scripts/config/ports.py --base "$(BASE)" $(if $(filter 1,$(YES)),--yes,) $(if $(filter 1,$(PLAN)),--plan,)

@@ -10,7 +10,7 @@ def test_static_service_env_projects_canonical_main_model_keys(tmp_path) -> None
     output = tmp_path / "gateway.env"
     source.write_text(
         "APP_ENV=local\n"
-        "MAIN_MODEL_BASE_URL=http://host.example:9601/v1\n"
+        "MAIN_MODEL_BASE_URL=http://host.example:9401/v1\n"
         "MAIN_MODEL_STATIC_PROFILE=gemma4-12b-unified-fp8\n"
         "MAIN_MODEL_ALIAS=local-main\n",
         encoding="utf-8",
@@ -25,7 +25,7 @@ def test_static_service_env_projects_canonical_main_model_keys(tmp_path) -> None
 
     rendered = output.read_text(encoding="utf-8")
     assert name == "static_gateway"
-    assert "MAIN_MODEL_BASE_URL=http://host.example:9601/v1" in rendered
+    assert "MAIN_MODEL_BASE_URL=http://host.example:9401/v1" in rendered
     assert "MAIN_MODEL_STATIC_PROFILE=gemma4-12b-unified-fp8" in rendered
     assert "MAIN_MODEL_ALIAS=local-main" in rendered
 
@@ -52,7 +52,7 @@ def test_static_risk_service_env_omits_main_endpoint_and_keeps_internal_token(tm
     output = tmp_path / "risk.env"
     source.write_text(
         "APP_ENV=local\n"
-        "MAIN_MODEL_BASE_URL=http://host.example:9601/v1\n"
+        "MAIN_MODEL_BASE_URL=http://host.example:9401/v1\n"
         "MAIN_MODEL_STATIC_PROFILE=gemma4-12b-unified-fp8\n"
         "INTERNAL_SERVICE_AUTH_REQUIRED=true\n"
         "INTERNAL_SERVICE_TOKEN=internal-secret\n",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import subprocess
 import sys
 from pathlib import Path
 
@@ -100,6 +101,22 @@ def test_failure_keeps_exit_code_and_log(tmp_path: Path) -> None:
     assert last_output_line(tmp_path / "step.log") == "boom"
 
 
+def test_hidden_step_cannot_consume_destructive_confirmation_from_parent_stdin(tmp_path: Path) -> None:
+    # Even when the operator terminal has input, a logged implementation step
+    # must see EOF rather than hide a prompt and wait or consume an accidental y.
+    script = (
+        "from pathlib import Path\n"
+        "from scripts.ops.step_progress import run_with_progress\n"
+        f"code, _ = run_with_progress('Confirm', { _script('input(\"Recreate (data will be lost)? \")')!r}, "
+        f"log_path=Path({str(tmp_path / 'prompt.log')!r}), log_display='prompt.log', cwd=Path.cwd())\n"
+        "raise SystemExit(code)\n"
+    )
+    result = subprocess.run(_script(script), input="y\n", text=True, capture_output=True,
+                            cwd=Path(__file__).resolve().parents[2], timeout=10)
+    assert result.returncode != 0
+    assert "EOFError" in (tmp_path / "prompt.log").read_text()
+
+
 def test_last_line_ignores_colors_and_progress_redraws(tmp_path: Path) -> None:
     log = tmp_path / "step.log"
     log.write_bytes("\x1b[1m#7 [3/8] RUN pip install\x1b[0m\n 12% ▏\r 57% ▌\r\n\n".encode())
@@ -177,16 +194,16 @@ def test_ready_output_points_to_surfaces_the_gateway_reports(
     bootstrap = {"links": {"docs": "/docs", "grafana": "http://127.0.0.1:3000/"}}
     monkeypatch.setattr(platform_cli, "_gateway_json", lambda values, path, admin=False: (200, bootstrap))
 
-    platform_cli._print_next_steps({"GATEWAY_PORT": "9600"})
+    platform_cli._print_next_steps({"GATEWAY_PORT": "9400"})
     lines = capsys.readouterr().out.splitlines()
     assert lines == [
-        "[platform]   Console   http://127.0.0.1:9600/admin/console/",
-        "[platform]   API docs  http://127.0.0.1:9600/docs",
+        "[platform]   Console   http://127.0.0.1:9400/admin/console/",
+        "[platform]   API docs  http://127.0.0.1:9400/docs",
         "[platform]   Grafana   http://127.0.0.1:3000/",
         "[platform]   Next      make status · make logs · make down",
     ]
 
     # 문서를 끈 환경이나 Grafana가 없는 target에서는 없는 주소를 안내하지 않는다.
     monkeypatch.setattr(platform_cli, "_gateway_json", lambda values, path, admin=False: (200, {"links": {"docs": None, "grafana": None}}))
-    platform_cli._print_next_steps({"GATEWAY_PORT": "9600"})
+    platform_cli._print_next_steps({"GATEWAY_PORT": "9400"})
     assert [line.split()[1] for line in capsys.readouterr().out.splitlines()] == ["Console", "Next"]

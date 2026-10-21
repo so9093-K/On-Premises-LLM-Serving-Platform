@@ -9,7 +9,8 @@ Superseded by ADR-0058
 > `configs/services.yaml`, target Compose와 Access Profile projection이 소유한다.
 > 아래 본문은 이 ADR이 채택될 당시의 용어와 문서 surface를 기록한다.
 
-현재 적용 정책은 [ADR-0058](0058-port-namespace-policy.md)이 소유한다. 아래는 이전 94xx 정책의 채택 당시 기록이다.
+현재 포트 역할 정책은 [ADR-0058](0058-port-namespace-policy.md), 기본 대역과 명시적 이관 절차는
+[ADR-0059](0059-explicit-port-migration-and-cache-preservation.md)가 소유한다. 아래는 이전 94xx 정책의 채택 당시 기록이다.
 
 ## 결정
 

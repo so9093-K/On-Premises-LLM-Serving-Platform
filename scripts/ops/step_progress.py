@@ -109,6 +109,7 @@ def run_with_progress(
             list(command),
             cwd=cwd,
             env=dict(env) if env is not None else None,
+            stdin=subprocess.DEVNULL,
             stdout=log,
             stderr=subprocess.STDOUT,
             text=True,

@@ -80,6 +80,12 @@ YAML 파일은 모델, runtime, 서비스, 보안 정책 같은 **repository-lev
 
 예를 들어 기본 host port와 service role은 `configs/services.yaml`에서 관리하고, target Compose의 `ports`가 실제 host publication을 투영한다.
 
+포트 대역은 같은 파일의 `port_namespace.base`와 고정 역할 `offsets`로 관리한다.
+전체 대역 변경은 `make ports BASE=<대역> PLAN=1`로 계획을 확인한 뒤 적용한다.
+이 도구가 소비자 설정과 생성 산출물을 함께 갱신하고, 검증은 원본과의 drift를 거부한다.
+`.env`의 Host 포트 override는 로컬 배포 설정이며, 저장소 전체 대역의 원본을 바꾸지 않는다.
+실행 중 서비스 반영은 별도 `make up` 단계다. [전체 절차](guides/developer-guide.md#포트-네임스페이스-변경)를 참고한다.
+
 ### 현재값, 생성물, 문서의 경계
 
 문서는 설정을 복제해 현재값을 선언하지 않는다. 각 층위의 역할은 다음과 같다.

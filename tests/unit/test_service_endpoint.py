@@ -23,7 +23,7 @@ def test_internal_base_url_uses_compose_service_and_container_port() -> None:
 
 
 def test_internal_base_url_requires_compose_identity() -> None:
-    services = {"broken": {"container_port": 9600}}
+    services = {"broken": {"container_port": 9400}}
 
     with pytest.raises(ValueError, match="compose_service"):
         internal_base_url(services, "broken")

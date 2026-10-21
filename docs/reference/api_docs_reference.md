@@ -7,8 +7,8 @@ API 연동 절차는 [API 연동 가이드](../guides/api-integration.md), 상�
 
 | 서비스 | 문서 화면 | OpenAPI JSON | 인증이 활성화된 경우 |
 |---|---|---|---|
-| Gateway | `:9600/docs` | `:9600/openapi.json` | 사용자 API 키 또는 관리자 API 키 |
-| Risk Signal Service | `:9605/docs` | `:9605/openapi.json` | 탐지 API: 내부 서비스 토큰, `/ready`·`/metrics`: 관리자 API 키 |
+| Gateway | `:9400/docs` | `:9400/openapi.json` | 사용자 API 키 또는 관리자 API 키 |
+| Risk Signal Service | `:9405/docs` | `:9405/openapi.json` | 탐지 API: 내부 서비스 토큰, `/ready`·`/metrics`: 관리자 API 키 |
 
 1. Gateway의 `Models`에서 공개 모델과 지원 기능을 확인합니다. 모델 목록에 있어도 런타임은 중지 상태일 수 있습니다.
 2. 사용할 API에서 요청 예시를 선택합니다. `Chat`과 `Responses`는 기본 호출·스트리밍·도구 호출·구조화 출력 예시를 제공합니다.

@@ -10,7 +10,7 @@ runtime:
   project: runtimes/mlx
   environment: .runtime/metal/venv
   host: 127.0.0.1
-  port: 9601
+  port: 9401
   health_path: /health
   # port + metrics_path는 mlx_metrics_exporter가 native runtime에서 JSON metric을
   # 읽어올 upstream URL을 만들 때 사용한다. 컨테이너에서 host를 어떻게 부르는지는

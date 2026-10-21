@@ -18,21 +18,21 @@ Client / Application
         ▼
 ┌──────────────────────────────┐
 │           Gateway            │
-│            :9600             │
+│            :9400             │
 └───────┬─────────┬────────────┘
         │         │
-        │         ├──────────────► main-llm-vllm      :9601
-        │         ├──────────────► embedding-vllm     :9602
-        │         ├──────────────► embedding-ko-vllm  :9603
+        │         ├──────────────► main-llm-vllm      :9401
+        │         ├──────────────► embedding-vllm     :9402
+        │         ├──────────────► embedding-ko-vllm  :9403
         │         │
-        │         └──────────────► Risk Signal Service       :9605
+        │         └──────────────► Risk Signal Service       :9405
         │                                │
         │                                ├─ PII Detector    (local)
         │                                ├─ Secret Detector (local)
         │                                └─ Prompt Detector
         │                                      │
         │                                      ▼
-        │                               prompt-injection-detector-runtime :9604
+        │                               prompt-injection-detector-runtime :9404
         │
         └────────────────────────► Runtime Controller :8080
                                            │
@@ -50,13 +50,13 @@ Client / Application
 
 | 구성 요소 | 내부 Port | 주요 책임 |
 |---|---:|---|
-| **Gateway** | `9600` | 외부 API, 인증, 검증, routing, orchestration, retrieval |
+| **Gateway** | `9400` | 외부 API, 인증, 검증, routing, orchestration, retrieval |
 | **Runtime Controller** | `8080` | Runtime lifecycle, main model 전환, GPU budget admission, Docker 제어 |
-| **Main Model Runtime** | `9601` | Chat / Responses / Multimodal generation |
-| **Embedding Runtime** | `9602` | 범용 text embedding |
-| **Korean Embedding Runtime** | `9603` | Korean retrieval embedding |
-| **Risk Signal Service** | `9605` | PII / Secret local detection, Prompt risk signal orchestration |
-| **Prompt Injection Detector Runtime** | `9604` | Prompt detector model inference |
+| **Main Model Runtime** | `9401` | Chat / Responses / Multimodal generation |
+| **Embedding Runtime** | `9402` | 범용 text embedding |
+| **Korean Embedding Runtime** | `9403` | Korean retrieval embedding |
+| **Risk Signal Service** | `9405` | PII / Secret local detection, Prompt risk signal orchestration |
+| **Prompt Injection Detector Runtime** | `9404` | Prompt detector model inference |
 | **Prometheus** | `9090` | Metrics 수집·저장 |
 | **Grafana** | `3000` | Metrics / logs 시각화 |
 | **DCGM Exporter** | `9400` | GPU telemetry (NVIDIA Exporter 자체 포트) |
@@ -78,7 +78,7 @@ Gateway는 플랫폼의 **외부 API 경계이자 요청 orchestration 계층**�
 Client
   │
   ▼
-Gateway :9600
+Gateway :9400
   │
   ├─ Main Model Runtime
   ├─ Embedding Runtime
@@ -436,10 +436,10 @@ Main Model, Embedding, Korean Embedding, Prompt Injection Detector model은 각�
 ```text
 Shared GPU
   │
-  ├─ main-llm-vllm       :9601
-  ├─ embedding-vllm      :9602
-  ├─ embedding-ko-vllm   :9603
-  └─ prompt-injection-detector-runtime    :9604
+  ├─ main-llm-vllm       :9401
+  ├─ embedding-vllm      :9402
+  ├─ embedding-ko-vllm   :9403
+  └─ prompt-injection-detector-runtime    :9404
 ```
 
 ### Common Runtime Boundary
@@ -458,10 +458,10 @@ vLLM은 **모델 실행 엔진**이며 외부 API policy나 container lifecycle 
 
 | Runtime | Service | Port | Runner | Logical Model | 용도 |
 |---|---|---:|---|---|---|
-| **Main Model** | `main-llm-vllm` | `9601` | generation | `local-main` | Chat / Multimodal |
-| **Embedding** | `embedding-vllm` | `9602` | pooling | `local-embed` | 범용 Embedding |
-| **Korean Embedding** | `embedding-ko-vllm` | `9603` | pooling | `local-embed-ko` | Korean Retrieval |
-| **Prompt Injection Detector** | `prompt-injection-detector-runtime` | `9604` | generation | `risk-prompt` | Prompt detector inference |
+| **Main Model** | `main-llm-vllm` | `9401` | generation | `local-main` | Chat / Multimodal |
+| **Embedding** | `embedding-vllm` | `9402` | pooling | `local-embed` | 범용 Embedding |
+| **Korean Embedding** | `embedding-ko-vllm` | `9403` | pooling | `local-embed-ko` | Korean Retrieval |
+| **Prompt Injection Detector** | `prompt-injection-detector-runtime` | `9404` | generation | `risk-prompt` | Prompt detector inference |
 
 ### Main Model Runtime
 
@@ -473,7 +473,7 @@ Main Model Runtime은 Gateway의 Chat 요청을 처리한다.
 Gateway
   │ model = local-main
   ▼
-main-llm-vllm :9601
+main-llm-vllm :9401
   │
   ▼
 Active Profile Model
@@ -490,7 +490,7 @@ Main Model container는 profile switch 과정에서 Runtime Controller에 의해
 ```text
 Logical Model : local-embed
 Runtime       : embedding-vllm
-Port          : 9602
+Port          : 9402
 Default Dim   : 768
 ```
 
@@ -503,7 +503,7 @@ Gateway `/v1/embeddings`에서 model을 생략하면 기본적으로 `local-embe
 ```text
 Logical Model : local-embed-ko
 Runtime       : embedding-ko-vllm
-Port          : 9603
+Port          : 9403
 Default Dim   : 1024
 ```
 
@@ -519,7 +519,7 @@ Retrieval에서 query와 document에 적용되는 prompt policy는 embedding pro
 Risk Signal Service
   │
   ▼
-prompt-injection-detector-runtime :9604
+prompt-injection-detector-runtime :9404
   │
   ▼
 Detector Model
@@ -569,14 +569,14 @@ vLLM runtime은 다음 책임을 소유하지 않는다.
 Gateway Risk API
       │
       ▼
-Risk Signal Service :9605
+Risk Signal Service :9405
       │
       ├─ PII Detector      ── local
       ├─ Secret Detector   ── local
       └─ Prompt Detector
               │
               ▼
-       prompt-injection-detector-runtime :9604
+       prompt-injection-detector-runtime :9404
 ```
 
 `risk-signal-service`와 `prompt-injection-detector-runtime`은 서로 다른 서비스다.

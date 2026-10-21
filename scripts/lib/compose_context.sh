@@ -58,3 +58,12 @@ compose_context_run() {
     --env-file "$ENV_FILE_ABS" \
     "$@"
 }
+
+compose_context_preserve_volumes() {
+  local python_bin="${PYTHON_BIN:-$(command -v python3 || command -v python)}"
+  local tool override
+  tool="$(cd "$(dirname "${BASH_SOURCE[0]}")/../compose" && pwd -P)/preserve_volumes.py"
+  override="$("$python_bin" "$tool" --root "$COMPOSE_CHECKOUT_ROOT" \
+    --project "$COMPOSE_PROJECT_NAME_EFFECTIVE" --env-file "$ENV_FILE_ABS" "$@")" || return
+  COMPOSE_VOLUME_ARGS=(-f "$override")
+}

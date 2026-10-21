@@ -16,7 +16,7 @@ monitoring_stack:
   # 두지 않는다 -- Alloy가 빠져 있는 것과 같은 이유다.
   mlx_metrics_exporter:
     compose_service: mlx-metrics-exporter
-    internal_port: 9616
+    internal_port: 9416
     default_metrics_path: /metrics
 
 metric_sources:

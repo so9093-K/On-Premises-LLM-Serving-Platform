@@ -24,6 +24,11 @@ fi
 
 "$PYTHON_BIN" scripts/env/env_validate.py --env-file "$ENV_FILE"
 
+# Resolve and verify existing cache volumes before even the Core startup mutates
+# containers. Added labels must never turn an upgrade into a cache deletion prompt.
+compose_context_preserve_volumes --compose-file "$COMPOSE_FILE_ABS"
+COMPOSE_CONTEXT_FILE_ARGS+=("${COMPOSE_VOLUME_ARGS[@]}")
+
 _env_value() {
   local key="$1"
   "$PYTHON_BIN" scripts/env/env_get.py --env-file "$ENV_FILE" "$key"
