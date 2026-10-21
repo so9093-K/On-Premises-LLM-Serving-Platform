@@ -1,6 +1,8 @@
 """프로젝트 포트 대역 변경의 Offset 및 외부 엔진 격리 계약."""
 import pytest
 
+from scripts.config import ports
+
 from scripts.config.ports import REQUIRED_OFFSETS, assert_base, env_changes, managed_path, port_mapping, read_policy, replace_ports, ROOT
 
 
@@ -71,3 +73,30 @@ def test_legacy_94xx_env_can_migrate_directly_to_any_selected_base():
 def test_env_preserves_nondefault_override_and_quotes():
     with pytest.raises(ValueError, match="운영자 지정 포트"):
         env_changes("GATEWAY_PORT=18080\n", 9600, 9700)
+
+
+def test_noop_keeps_operator_host_port_override():
+    assert env_changes("GATEWAY_PORT=18080\n", 9600, 9600) == "GATEWAY_PORT=18080\n"
+    with pytest.raises(ValueError, match="정수 포트"):
+        env_changes("GATEWAY_PORT=oops\n", 9600, 9700)
+
+
+def test_single_command_changes_namespace_idempotently_and_restores(tmp_path, monkeypatch):
+    # 전체 저장소를 변형하지 않고 서비스 레지스트리만 복사한 격리된 fixture에서 검증한다.
+    target_config = tmp_path / "configs"
+    target_config.mkdir()
+    (target_config / "services.yaml").write_bytes((ROOT / "configs/services.yaml").read_bytes())
+    current_base, _ = ports.read_policy(tmp_path)
+    new_base = current_base + 100 if current_base < 65000 else current_base - 100
+    monkeypatch.setattr(ports, "tracked_paths", lambda root: ["configs/services.yaml"])
+    monkeypatch.setattr(ports, "preflight_bind", lambda *args: [])
+    env_path = tmp_path / ".env"
+    env_path.write_text("GATEWAY_PORT=9400\nGRAFANA_PORT=9411\n", encoding="utf-8")
+    assert ports.run(tmp_path, new_base, yes=True, validate=False) == 0
+    assert ports.read_policy(tmp_path)[0] == new_base
+    assert f"GATEWAY_PORT={new_base}" in env_path.read_text(encoding="utf-8")
+    first_env = env_path.read_bytes()
+    assert ports.run(tmp_path, new_base, yes=True, validate=False) == 0
+    assert env_path.read_bytes() == first_env
+    assert ports.run(tmp_path, current_base, yes=True, validate=False) == 0
+    assert ports.read_policy(tmp_path)[0] == current_base
