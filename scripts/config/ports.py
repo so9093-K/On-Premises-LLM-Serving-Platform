@@ -72,6 +72,28 @@ def read_policy(root: Path) -> tuple[int, dict[str, int]]:
         expected = base + offsets[name]
         if actual != expected:
             raise ValueError(f"{name}.default_host_port={actual}, 정책값={expected}; 설정 불일치")
+
+    # Host Adapter와 추가 내부 Exporter도 정책값을 직접 따라야 한다.
+    monitoring_path = root / "configs/monitoring.yaml"
+    if monitoring_path.exists():
+        monitoring = yaml.safe_load(monitoring_path.read_text(encoding="utf-8"))
+        actual = int(monitoring["monitoring_stack"]["mlx_metrics_exporter"]["internal_port"])
+        expected = base + offsets["mlx_metrics_exporter"]
+        if actual != expected:
+            raise ValueError(f"MLX Metrics 포트={actual}, 정책값={expected}; 설정 불일치")
+
+    proxy_path = root / "ops/access/team-api.nginx.conf"
+    if proxy_path.exists():
+        nginx = proxy_path.read_text(encoding="utf-8")
+        listen = re.search(r"(?m)^\s*listen 127\.0\.0\.1:(\d+);", nginx)
+        expected = base + offsets["team_api_proxy"]
+        if listen is None or int(listen.group(1)) != expected:
+            raise ValueError(f"Nginx 팀원 Listener는 127.0.0.1:{expected}이어야 합니다")
+        upstream_ports = re.findall(
+            r"(?:proxy_set_header Host |proxy_pass http://)127\.0\.0\.1:(\d+)", nginx
+        )
+        if not upstream_ports or any(int(port) != base for port in upstream_ports):
+            raise ValueError(f"Nginx Gateway upstream은 127.0.0.1:{base}이어야 합니다")
     return base, offsets
 
 
