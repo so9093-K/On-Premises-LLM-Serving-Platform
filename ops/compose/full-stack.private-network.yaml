@@ -300,7 +300,7 @@ services:
     cap_add:
     - SYS_ADMIN
     expose:
-    - '9600'
+    - '9400'
     ports: []
     deploy:
       resources:
