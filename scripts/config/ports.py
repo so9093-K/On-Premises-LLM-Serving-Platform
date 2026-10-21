@@ -88,7 +88,7 @@ def managed_path(path: str) -> bool:
         return False
     if path.startswith(("docs/adr/", "docs/resources/", "assets/")):
         return False
-    if path in {"CHANGELOG.md", "scripts/config/ports.py"} or path.startswith("src/ai_model_serving/static/"):
+    if path in {"CHANGELOG.md", "scripts/config/ports.py", "tests/unit/test_port_namespace.py"} or path.startswith("src/ai_model_serving/static/"):
         # Browser 배포 파일은 Vite가 생성하는 산출물이다. 문자열 치환하지 않는다.
         return False
     return path.startswith((
