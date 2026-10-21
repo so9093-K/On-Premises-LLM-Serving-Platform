@@ -22,6 +22,8 @@
 
 ### Added
 
+- Playground의 Embedding·Risk 화면이 마지막 요청의 **코드로 사용하기**를 제공한다. 전송한 요청 바이트를 담은 cURL·Python·Node.js 단일 파일 예제이며 API 키는 `API_KEY` 환경변수에서 읽는다. Embedding은 OpenAI SDK 통합 예제를 포함하고, Risk 예제는 실행 검사기를 출력하며 완료 조건을 만족할 때만 미탐지로 보고한다. 코드는 펼칠 때만 만들고 자동 저장하지 않는다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
+
 - Control Plane Playground가 배포 기능별 Chat·Embedding·Risk 작업 화면을 제공한다. 모델이 없는 `linux-core`에서도 Playground → Risk로 PII·Secret 탐지를 확인한다. Embedding은 모델·차원·Usage와 같은 요청 두 문장의 유사도를, Risk는 신호 코드·항목·개수와 검사 완료 여부를 보여 주며 허용·차단을 판정하지 않는다. 합성 예제만 제공하고 입력·결과는 화면 밖에 저장하지 않는다. Console 주소는 `/admin/console/playground/*`이며 기존 `/admin/console/chat`은 Chat 화면으로 이동한다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
 
 - Playground 예제 갤러리에 흐름도의 판단 단계와 분기를 정리하는 「문서 해석」 이미지 예제를 제공한다. 모델의 이미지 형식·크기 한도를 넘으면 선택 전에 비활성화한다. README 대표 데모는 이 예제를 실제 Gateway·모델로 실행한 GIF이며 응답의 판독 차이를 함께 기록한다. ([기능 데모](docs/reference/feature_demos.md#document-analysis))

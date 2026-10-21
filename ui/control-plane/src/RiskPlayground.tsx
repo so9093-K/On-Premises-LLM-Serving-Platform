@@ -6,6 +6,8 @@ import { ApiError, postPublicJson } from './api';
 import { apiErrorMessage } from './apiFeedback';
 import type { PublicModel } from './chatSession';
 import { useChatSession } from './ChatSessionContext';
+import { PublicRequestExportPanel } from './PublicRequestExportPanel';
+import type { PublicRequestRecord } from './publicRequestExport';
 import { usePublicModels } from './publicModelsQuery';
 import {
   availableRiskChecks,
@@ -65,6 +67,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
   const [run, setRun] = useState<RiskRun | null>(null);
   const [failure, setFailure] = useState<{ message: string; requestId: string | null } | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [lastRequest, setLastRequest] = useState<PublicRequestRecord | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const check = checks.find((item) => item.id === checkId) ?? checks[0] ?? null;
   const length = riskPromptLength(prompt);
@@ -77,12 +80,15 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
     const { body, error } = buildRiskRequest(prompt);
     setInputError(error);
     if (body === null) return;
+    // 한 번 직렬화한 문자열을 전송과 "코드로 사용하기"에 함께 쓴다.
+    const requestJson = JSON.stringify(body);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
     setFailure(null);
+    setLastRequest({ kind: 'risk', path: check.path, requestJson });
     try {
-      const { payload, requestId } = await postPublicJson(apiKey, check.path, body, controller.signal);
+      const { payload, requestId } = await postPublicJson(apiKey, check.path, requestJson, controller.signal);
       const interpreted = interpretRiskAssessment(payload);
       if (interpreted.error !== null) {
         setRun(null);
@@ -187,12 +193,13 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
             <Button
               type="button"
               variant="secondary"
-              isDisabled={busy || (!prompt && run === null)}
+              isDisabled={busy || (!prompt && run === null && failure === null && lastRequest === null)}
               onClick={() => {
                 setPrompt('');
                 setRun(null);
                 setFailure(null);
                 setInputError(null);
+                setLastRequest(null);
               }}
             >
               입력·결과 지우기
@@ -271,6 +278,8 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
           </details>
         </section>
       ) : null}
+
+      {lastRequest && !busy ? <PublicRequestExportPanel record={lastRequest} completed={run !== null && failure === null} /> : null}
     </section>
   );
 }

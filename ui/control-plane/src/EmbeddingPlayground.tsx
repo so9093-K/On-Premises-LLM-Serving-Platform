@@ -19,6 +19,8 @@ import {
   type EmbeddingMode,
   type EmbeddingResult,
 } from './embeddingPlayground';
+import { PublicRequestExportPanel } from './PublicRequestExportPanel';
+import type { PublicRequestRecord } from './publicRequestExport';
 import { usePublicModels } from './publicModelsQuery';
 
 type EmbeddingRun = {
@@ -63,6 +65,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
   const [run, setRun] = useState<EmbeddingRun | null>(null);
   const [failure, setFailure] = useState<EmbeddingFailure | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [lastRequest, setLastRequest] = useState<PublicRequestRecord | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
@@ -75,12 +78,15 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
     const { body, error } = buildEmbeddingRequest(model, mode, inputs);
     setInputError(error);
     if (body === null) return;
+    // 한 번 직렬화한 문자열을 전송과 "코드로 사용하기"에 함께 쓴다.
+    const requestJson = JSON.stringify(body);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
     setFailure(null);
+    setLastRequest({ kind: 'embeddings', path: EMBEDDINGS_PATH, requestJson });
     try {
-      const { payload, requestId } = await postPublicJson(apiKey, EMBEDDINGS_PATH, body, controller.signal);
+      const { payload, requestId } = await postPublicJson(apiKey, EMBEDDINGS_PATH, requestJson, controller.signal);
       const summary = summarizeEmbeddingResponse(payload, body);
       if (summary.error !== null) {
         setRun(null);
@@ -228,6 +234,8 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
           </details>
         </section>
       ) : null}
+
+      {lastRequest && !busy ? <PublicRequestExportPanel record={lastRequest} completed={run !== null && failure === null} /> : null}
     </section>
   );
 }
