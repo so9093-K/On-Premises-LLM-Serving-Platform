@@ -633,36 +633,7 @@ def reconcile_up_target(
 
 
 def down_target(target: DeploymentTarget) -> None:
-    values = _env_values()
-    if values.get("BUILD_PROFILE") == "local":
-        _run_step("Stopping application services", "bash", "scripts/ops/down_services.sh", "--local")
-        print("[platform] stopped: app-only")
-        return
-    compose_error: subprocess.CalledProcessError | None = None
-    try:
-        if target.static_serving or target.adaptive:
-            process_env = {**os.environ, "DEPLOYMENT_TARGET": target.target_id}
-            _run_step(
-                "Stopping platform services",
-                "bash",
-                "scripts/compose/static_main_compose.sh",
-                "down",
-                env=process_env,
-            )
-        else:
-            _run_step("Stopping platform services", "bash", "scripts/ops/down_services.sh", "--compose")
-    except subprocess.CalledProcessError as exc:
-        compose_error = exc
-    finally:
-        if target.runtime_backend == "mlx-vlm":
-            _run_step(
-                "Stopping Metal Main Model runtime",
-                sys.executable,
-                "scripts/runtime/macos_mlx_runtime.py",
-                "stop",
-            )
-    if compose_error is not None:
-        raise compose_error
+    _run_step("Stopping checkout-owned resources", "bash", "scripts/ops/down_all.sh")
     print(f"[platform] stopped: target={target.target_id}")
 
 
@@ -838,11 +809,6 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.action == "down":
             down_target(target)
-            _run_step(
-                "Checking for checkout-owned leftovers",
-                "bash",
-                "scripts/ops/down_all.sh",
-            )
         else:
             return status_target(target)
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:

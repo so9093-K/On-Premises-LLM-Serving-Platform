@@ -19,9 +19,9 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
 적용하고, Runtime은 CPU/GPU 혼합 Offloading을 활성화하지 않는다.
 CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인한다.
-모델 준비 실패 시 선택한 CPU Managed Target이 성공한 것으로 처리되지
-않으며, 기본 서비스를 따로 유지하려면 명시적으로 `linux-core`로
-새로 배포해야 한다. 자동 Fallback은 별도로 구현해야 한다.
+모델 준비 전에 Gateway와 로컬 Risk 서비스를 먼저 기동한다. 모델 준비에 실패하면
+`make up`은 실패를 반환하지만 Core는 진단을 위해 유지된다.
+운영 중 자동 복구가 필요하면 `linux-adaptive`를 선택한다.
 
 ```bash
 make up TARGET=linux-cpu-managed ACCESS=local
@@ -32,8 +32,12 @@ make status
 설치 시 후보를 자동 선택하고 싶다면 **최초 실행에서만**
 `make up TARGET=auto ACCESS=local`을 사용한다. GPU VRAM이 충분해도
 실제 모델 호환성/적재 성공이 보증되지 않으며, 이 명령은
-기존 운영 중 Target을 자동 교체하지 않는다. 실행 중 자동 CPU↔GPU
-Fallback 및 GPU 복귀는 아직 구현하지 않았다.
+기존 운영 중 Target을 자동 교체하지 않는다.
+
+운영 중 자동 CPU/GPU 선택과 GPU 복귀는 별도 `linux-adaptive` Target이 제공한다.
+Core를 유지하면서 Main Runtime을 전환하며 Gate·Drain·Canary·Rollback을 적용한다.
+`linux-nvidia-dynamic`은 운영자가 CPU/GPU 프로필을 수동 선택한다.
+[ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)의 소유권·복구 계약을 따른다.
 
 ### CPU Static (llama.cpp)
 

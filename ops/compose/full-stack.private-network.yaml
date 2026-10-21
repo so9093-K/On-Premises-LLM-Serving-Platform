@@ -475,9 +475,21 @@ volumes:
   # Compose project-scoped, runtime-private caches survive container replacement
   # and ordinary down/up. Never share executable cache artifacts across runtimes.
   main-vllm-cache:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
   embedding-vllm-cache:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
   embedding-ko-vllm-cache:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
   prompt-vllm-cache:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
+networks:
+  default:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
 secrets:
   prometheus_admin_api_key:
     file: ../../.runtime/prometheus/admin_api_key

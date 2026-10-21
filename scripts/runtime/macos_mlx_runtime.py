@@ -17,14 +17,11 @@ import shutil
 import subprocess
 import sys
 import time
-import tomllib
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "configs" / "macos_mlx_runtime.yaml"
@@ -89,6 +86,8 @@ def _report_log_tail() -> None:
 
 
 def _config() -> dict[str, Any]:
+    import yaml
+
     document = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     if not isinstance(document, dict) or document.get("version") != 1:
         raise RuntimeError(f"invalid Metal runtime config: {CONFIG_PATH}")
@@ -123,6 +122,8 @@ def _runtime_project(config: dict[str, Any]) -> Path:
 
 
 def _direct_packages(config: dict[str, Any]) -> list[str]:
+    import tomllib
+
     metadata = tomllib.loads(
         (_runtime_project(config) / "pyproject.toml").read_text(encoding="utf-8")
     )
@@ -364,10 +365,30 @@ def supervisor_installed() -> bool:
 
 
 def _supervisor_loaded() -> bool:
-    return subprocess.run(
+    result = subprocess.run(
         ["launchctl", "print", _supervisor_job()],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-    ).returncode == 0
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if "Could not find service" in result.stderr or "Could not find domain" in result.stderr:
+        return False
+    raise RuntimeError(f"cannot inspect launchd supervisor: {result.stderr.strip()}")
+
+
+def _owns_supervisor(installed: Path) -> bool:
+    document = plistlib.loads(installed.read_bytes())
+    directory = document.get("WorkingDirectory")
+    if document.get("Label") != SUPERVISOR_LABEL or not isinstance(directory, str) or not directory:
+        raise RuntimeError("cannot prove launchd supervisor ownership; installation preserved")
+    return Path(directory).resolve() == (ROOT / ".runtime/metal/models").resolve()
+
+
+def _stop_supervisor() -> None:
+    if _supervisor_loaded():
+        _launchctl("bootout", _supervisor_job())
+        if _supervisor_loaded():
+            raise RuntimeError("launchd supervisor is still loaded; installation preserved")
 
 
 def _launchctl(*args: str) -> None:
@@ -409,14 +430,10 @@ def install_supervisor(config: dict[str, Any], *, listen_host: str) -> None:
             "run `stop` first so launchd does not start a second server on the same port"
         )
     installed = _installed_plist()
-    if installed.is_file():
-        existing = plistlib.loads(installed.read_bytes())
-        owner = str(existing.get("WorkingDirectory", ""))
-        if owner and not owner.startswith(str(ROOT)):
-            raise RuntimeError(
-                f"{SUPERVISOR_LABEL} is already installed for another checkout ({owner}); "
-                "uninstall it there before installing here"
-            )
+    if installed.is_file() and not _owns_supervisor(installed):
+        raise RuntimeError(f"{SUPERVISOR_LABEL} is installed for another checkout; preserved")
+    if not installed.is_file() and _supervisor_loaded():
+        raise RuntimeError("loaded launchd supervisor has no ownership plist; preserved")
     document = _supervisor_document(config, listen_host=listen_host)
     SUPERVISOR_PLIST.parent.mkdir(parents=True, exist_ok=True)
     NATIVE_LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -442,10 +459,14 @@ def install_supervisor(config: dict[str, Any], *, listen_host: str) -> None:
 def uninstall_supervisor() -> None:
     installed = _installed_plist()
     if not installed.is_file():
+        if platform.system() == "Darwin" and _supervisor_loaded():
+            raise RuntimeError("loaded launchd supervisor has no ownership plist; preserved")
         print("[metal] supervisor is not installed")
         return
-    if _supervisor_loaded():
-        _launchctl("bootout", _supervisor_job())
+    if not _owns_supervisor(installed):
+        print("[metal] another checkout's supervisor preserved")
+        return
+    _stop_supervisor()
     installed.unlink()
     SUPERVISOR_PLIST.unlink(missing_ok=True)
     print(f"[metal] supervisor removed: label={SUPERVISOR_LABEL}")
@@ -454,15 +475,19 @@ def uninstall_supervisor() -> None:
 def _tracked_pid() -> int | None:
     try:
         pid = int(PID_PATH.read_text(encoding="utf-8").strip())
-    except (FileNotFoundError, ValueError):
+    except FileNotFoundError:
         return None
+    except ValueError as exc:
+        raise RuntimeError("invalid Metal pid file; preserved") from exc
+    if pid <= 1:
+        raise RuntimeError("invalid Metal pid file; refusing to signal a process group")
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         PID_PATH.unlink(missing_ok=True)
         return None
-    except PermissionError:
-        return None
+    except PermissionError as exc:
+        raise RuntimeError("cannot inspect tracked Metal process; pid file preserved") from exc
     return pid
 
 
@@ -505,6 +530,8 @@ def _await_readiness(
 
 
 def _start_supervised(config: dict[str, Any]) -> None:
+    if not _owns_supervisor(_installed_plist()):
+        raise RuntimeError("another checkout's launchd supervisor is installed; preserved")
     try:
         payload = _health_payload(config)
     except (OSError, urllib.error.URLError):
@@ -566,12 +593,13 @@ def stop_background() -> None:
     if supervisor_installed():
         # KeepAlive가 SIGTERM을 즉시 되살리므로 bootout만이 실제 정지다. plist는
         # 남겨 다음 start가 재사용한다. 영구 제거는 uninstall-supervisor가 소유한다.
-        if _supervisor_loaded():
-            _launchctl("bootout", _supervisor_job())
+        if _owns_supervisor(_installed_plist()):
+            _stop_supervisor()
             print(f"[metal] runtime stopped under launchd: label={SUPERVISOR_LABEL}")
-        else:
-            print(f"[metal] launchd job is not loaded: label={SUPERVISOR_LABEL}")
-        return
+            return
+        print("[metal] another checkout's supervisor preserved")
+    elif platform.system() == "Darwin" and _supervisor_loaded():
+        raise RuntimeError("loaded launchd supervisor has no ownership plist; preserved")
     pid = _tracked_pid()
     if pid is None:
         print("[metal] no managed runtime process")
@@ -625,6 +653,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--listen-host", default=None)
     args = parser.parse_args(argv)
     try:
+        if args.action == "stop":
+            stop_background()
+            return 0
+        if args.action == "uninstall-supervisor":
+            uninstall_supervisor()
+            return 0
         config = _config()
         if args.action == "doctor":
             doctor(config)
@@ -636,12 +670,8 @@ def main(argv: list[str] | None = None) -> int:
             status(config)
         elif args.action == "start-background":
             start_background(config, listen_host=args.listen_host or "0.0.0.0")
-        elif args.action == "stop":
-            stop_background()
         elif args.action == "install-supervisor":
             install_supervisor(config, listen_host=args.listen_host or "0.0.0.0")
-        elif args.action == "uninstall-supervisor":
-            uninstall_supervisor()
         else:
             command = server_command(config, listen_host=args.listen_host)
             if args.action == "command":
@@ -649,7 +679,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 os.chdir(_model_aliases(config)[0].parent)
                 os.execv(command[0], command)
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (OSError, RuntimeError, ValueError, plistlib.InvalidFileException, subprocess.CalledProcessError) as exc:
         print(f"[metal] fail: {exc}", file=sys.stderr)
         return 2
     return 0

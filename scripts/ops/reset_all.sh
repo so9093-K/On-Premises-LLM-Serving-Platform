@@ -44,12 +44,12 @@ else
   exit 2
 fi
 
-# launchd supervisor는 ~/Library/LaunchAgents/에 있어 .runtime 삭제로 사라지지 않는다.
-# 남겨두면 KeepAlive가 방금 지운 venv와 model alias를 계속 다시 실행하려 하고, 그
-# crash loop가 재부팅마다 되살아난다. 파일을 지우기 전에 등록을 해제한다.
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  "${PYTHON_BIN:-python3}" scripts/runtime/macos_mlx_runtime.py uninstall-supervisor || \
-    echo "[reset] launchd supervisor uninstall skipped" >&2
+  reset_python="${PYTHON_BIN:-$(command -v python3 || command -v python)}"
+  if ! command -v "$reset_python" >/dev/null 2>&1; then
+    reset_python="$(command -v python3 || command -v python)"
+  fi
+  "$reset_python" scripts/runtime/macos_mlx_runtime.py uninstall-supervisor
 fi
 
 FORCE_CLEAN_RUNNING=1 bash scripts/ops/clean_project.sh --logs

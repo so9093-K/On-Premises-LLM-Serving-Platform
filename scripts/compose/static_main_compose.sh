@@ -52,6 +52,7 @@ fi
 
 # The source env is only Compose interpolation input.  The generated projection is
 # the sole env_file received by the Gateway container.
+export COMPOSE_CHECKOUT_ROOT="$(pwd -P)"
 export COMPOSE_PROJECT_NAME="$STATIC_COMPOSE_PROJECT_NAME"
 export DEPLOYMENT_TARGET
 export GATEWAY_RUNTIME_ENV_FILE
@@ -166,6 +167,9 @@ fi
 COMPOSE_PROFILE_ARGS=()
 if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" && "$COMPOSE_ACTION" == "down" ]]; then
   COMPOSE_PROFILE_ARGS=(--profile gpu-observation)
+fi
+if [[ "$COMPOSE_ACTION" == "down" ]]; then
+  exec "$PYTHON_BIN" scripts/ops/compose_ownership.py down
 fi
 exec docker compose \
   "${COMPOSE_PROFILE_ARGS[@]}" \

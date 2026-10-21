@@ -27,6 +27,7 @@ compose_context_init() {
   fi
   project_name="${project_name:-ai-model-serving-platform}"
 
+  COMPOSE_CHECKOUT_ROOT="$(cd "$root" && pwd -P)"
   COMPOSE_PROJECT_NAME="$project_name"
   COMPOSE_PROJECT_NAME_EFFECTIVE="$project_name"
   COMPOSE_SERVICE_ENV_FILE="$ENV_FILE_ABS"
@@ -36,28 +37,19 @@ compose_context_init() {
   )
 
   export \
-    ENV_FILE COMPOSE_FILE ENV_FILE_ABS COMPOSE_FILE_ABS \
+    COMPOSE_CHECKOUT_ROOT ENV_FILE COMPOSE_FILE ENV_FILE_ABS COMPOSE_FILE_ABS \
     COMPOSE_PROJECT_NAME COMPOSE_PROJECT_NAME_EFFECTIVE COMPOSE_SERVICE_ENV_FILE
 }
 
 # 동일 Docker daemon에서 다른 working directory가 같은 Compose project name을
 # 사용 중이면 up/down/restart는 그 컨테이너를 재생성·중지할 수 있으므로 항상 거부한다.
 compose_context_assert_mutation_safe() {
-  local expected_dir actual_dir container_id
+  local python_bin="${PYTHON_BIN:-$(command -v python3 || command -v python)}"
+  local ownership_tool
   command -v docker >/dev/null 2>&1 || return 0
-
-  expected_dir="$(readlink -f "$(dirname "$COMPOSE_FILE_ABS")")"
-  while IFS= read -r container_id; do
-    [[ -n "$container_id" ]] || continue
-    actual_dir="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$container_id" 2>/dev/null || true)"
-    [[ -n "$actual_dir" ]] || continue
-    actual_dir="$(readlink -f "$actual_dir" 2>/dev/null || printf '%s' "$actual_dir")"
-    if [[ "$actual_dir" != "$expected_dir" ]]; then
-      echo "[compose] refusing to mutate project '$COMPOSE_PROJECT_NAME_EFFECTIVE': it has a container from $actual_dir" >&2
-      echo "[compose] current command uses $expected_dir. Choose a unique COMPOSE_PROJECT_NAME for this environment." >&2
-      return 2
-    fi
-  done < <(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME_EFFECTIVE" 2>/dev/null || true)
+  ownership_tool="$(cd "$(dirname "${BASH_SOURCE[0]}")/../ops" && pwd -P)/compose_ownership.py"
+  "$python_bin" "$ownership_tool" --root "$COMPOSE_CHECKOUT_ROOT" \
+    assert-project --project "$COMPOSE_PROJECT_NAME_EFFECTIVE"
 }
 
 compose_context_run() {
