@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_docker_lookup_filter_requires_compose_project() -> None:
     backend = DockerMainModelBackend(
         "/var/run/docker.sock",
-        gateway_url="http://gateway:9600",
+        gateway_url="http://gateway:9400",
     )
 
     with pytest.raises(RuntimeError, match="COMPOSE_PROJECT is required"):
@@ -36,7 +36,7 @@ def test_docker_lookup_filter_includes_project_and_service_scope() -> None:
     backend = DockerMainModelBackend(
         "/var/run/docker.sock",
         "platform",
-        gateway_url="http://gateway:9600",
+        gateway_url="http://gateway:9400",
     )
 
     assert json.loads(backend._filters("main-llm-vllm")) == {
@@ -57,7 +57,7 @@ def test_creation_template_copies_only_allowlisted_container_fields():
             "User": "",
             "Labels": {"com.docker.compose.service": "main-llm-vllm"},
             "Healthcheck": {"Test": ["CMD", "true"]},
-            "ExposedPorts": {"9601/tcp": {}},
+            "ExposedPorts": {"9401/tcp": {}},
             "Cmd": ["--model", "untrusted/current"],
             "Image": "untrusted:tag",
             "Hostname": "must-not-copy",
@@ -68,7 +68,7 @@ def test_creation_template_copies_only_allowlisted_container_fields():
             "RestartPolicy": {"Name": "no"},
             "DeviceRequests": [{"Count": -1, "Capabilities": [["gpu"]]}],
             "Privileged": False,
-            "PortBindings": {"9601/tcp": [{"HostPort": "9999"}]},
+            "PortBindings": {"9401/tcp": [{"HostPort": "9999"}]},
         },
         "NetworkSettings": {
             "Networks": {
@@ -85,7 +85,7 @@ def test_creation_template_copies_only_allowlisted_container_fields():
     assert "Image" not in template["config"]
     assert "Hostname" not in template["config"]
     assert template["host_config"]["PortBindings"] == {
-        "9601/tcp": [{"HostPort": "9999"}]
+        "9401/tcp": [{"HostPort": "9999"}]
     }
     assert template["host_config"]["DeviceRequests"][0]["Capabilities"] == [["gpu"]]
     assert template["networking_config"]["EndpointsConfig"]["compose_default"] == {
@@ -100,7 +100,7 @@ def test_creation_template_preserves_private_network_without_host_binding():
             "Entrypoint": ["vllm", "serve"],
             "Env": [],
             "Labels": {"com.docker.compose.service": "main-llm-vllm"},
-            "ExposedPorts": {"9601/tcp": {}},
+            "ExposedPorts": {"9401/tcp": {}},
         },
         "HostConfig": {
             "NetworkMode": "compose_default",
@@ -122,7 +122,7 @@ def test_replace_and_rollback_preserve_inspected_compile_cache(monkeypatch, moun
     import json
 
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     mount = (
         ["platform_main-vllm-cache:/root/.cache/vllm:rw"] if mount_field == "Binds"
         else [{"Type": "volume", "Source": "platform_main-vllm-cache",
@@ -174,7 +174,7 @@ def test_prepare_uses_profile_identity_and_shared_cache_path(tmp_path, monkeypat
     profile = catalog.profiles["gemma4-12b-unified-fp8"]
     backend = DockerMainModelBackend(
         "/var/run/docker.sock",
-        gateway_url="http://gateway:9600",
+        gateway_url="http://gateway:9400",
         cache_dir=str(tmp_path),
     )
     asyncio.run(backend.prepare(catalog, profile))
@@ -191,7 +191,7 @@ def test_prepare_uses_profile_identity_and_shared_cache_path(tmp_path, monkeypat
 def test_observed_profile_requires_matching_runtime_image(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(service):
         assert service == catalog.runtime["compose_service"]
@@ -214,7 +214,7 @@ def test_observed_profile_requires_matching_runtime_image(monkeypatch):
 def test_observed_profile_rejects_missing_or_truncated_revision(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(_service):
         return "container-1"
@@ -240,7 +240,7 @@ def test_observed_profile_rejects_missing_or_truncated_revision(monkeypatch):
 def test_observed_profile_accepts_matching_command_and_runtime_image(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(service):
         assert service == catalog.runtime["compose_service"]
@@ -288,7 +288,7 @@ def test_observed_profile_rejects_same_model_with_different_engine_limits(monkey
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
     command = list(profile.command)
     command[command.index(flag) + 1] = value
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _serve_container(monkeypatch, backend, command=command, image=profile.image)
 
     assert asyncio.run(backend.observed_profile(catalog)) is None
@@ -304,7 +304,7 @@ def test_observed_profile_requires_the_host_resolved_resource_policy(monkeypatch
     selected = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml", **host_policy)
     profile_id = "gemma4-e4b-it"
     assert reference.profiles[profile_id].command != selected.profiles[profile_id].command
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     _serve_container(
         monkeypatch,
@@ -332,7 +332,7 @@ def test_reconcile_does_not_reopen_gate_for_drifted_engine_arguments(monkeypatch
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
     command = list(profile.command)
     command[command.index("--max-model-len") + 1] = "8192"
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _serve_container(monkeypatch, backend, command=command, image=profile.image, started_at="restarted")
     canaries = []
 
@@ -361,7 +361,7 @@ def test_reconcile_does_not_reopen_gate_for_drifted_engine_arguments(monkeypatch
 def test_observe_runtime_reports_container_health_and_profile(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(service):
         assert service == catalog.runtime["compose_service"]
@@ -405,7 +405,7 @@ def test_observe_runtime_reports_container_health_and_profile(monkeypatch):
 def test_observe_runtime_does_not_guess_engine_version_without_image_label(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(_service):
         return "container-1"
@@ -467,7 +467,7 @@ def test_distribution_image_digest_matches_repository_and_does_not_guess_ambiguo
 
 def test_observed_started_at_returns_container_state_started_at(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(service):
         assert service == catalog.runtime["compose_service"]
@@ -485,7 +485,7 @@ def test_observed_started_at_returns_container_state_started_at(monkeypatch):
 
 def test_observed_started_at_rejects_exited_container_with_stale_start_time(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     async def _id(service):
         return "old-container-id"
     async def _inspect(container_id):
@@ -497,7 +497,7 @@ def test_observed_started_at_rejects_exited_container_with_stale_start_time(monk
 
 def test_observed_started_at_returns_none_when_container_absent(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
 
     async def fake_container_id(service):
         return None
@@ -514,7 +514,7 @@ class _FakeResponse:
 
     def raise_for_status(self):
         if self._status_error:
-            request = httpx.Request("POST", "http://main-llm-vllm:9601/v1/chat/completions")
+            request = httpx.Request("POST", "http://main-llm-vllm:9401/v1/chat/completions")
             response = httpx.Response(500, request=request)
             raise httpx.HTTPStatusError("server error", request=request, response=response)
 
@@ -583,7 +583,7 @@ def test_validate_only_runs_canaries_for_deployed_modalities(monkeypatch):
     # 아예 발송되면 안 된다(런타임이 지원 안 하는 modality에 요청을 보내는 것 자체가 오류).
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _patch_healthy_container(monkeypatch, backend)
 
     calls: list[str] = []
@@ -597,7 +597,7 @@ def test_validate_only_runs_canaries_for_deployed_modalities(monkeypatch):
 def test_validate_rejects_canary_model_mismatch(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _patch_healthy_container(monkeypatch, backend)
 
     calls: list[str] = []
@@ -616,7 +616,7 @@ def test_validate_runs_all_four_canaries_when_all_deployed(monkeypatch):
     # switch-time boot canary도 네 종류 모두 실행해야 한다.
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["qwen2.5-omni-7b-thinker"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _patch_healthy_container(monkeypatch, backend)
 
     calls: list[str] = []
@@ -630,7 +630,7 @@ def test_validate_runs_all_four_canaries_when_all_deployed(monkeypatch):
 def test_validate_raises_when_image_canary_returns_no_content(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _patch_healthy_container(monkeypatch, backend)
 
     calls: list[str] = []
@@ -650,7 +650,7 @@ def test_validate_raises_when_image_canary_returns_http_error(monkeypatch):
     # raise_for_status()를 거쳐 같은 방식(예외 -> switch 실패 -> rollback)으로 처리돼야 한다.
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]
-    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
     _patch_healthy_container(monkeypatch, backend)
 
     calls: list[str] = []
@@ -673,7 +673,7 @@ def test_adaptive_replacement_uses_target_image_and_engine_limits(monkeypatch, p
     from tests.support.main_model import _SHARED_IMAGE
     import json
     catalog,_,_ = load_adaptive_catalog(ROOT, {'VLLM_IMAGE':_SHARED_IMAGE})
-    backend = DockerMainModelBackend('/var/run/docker.sock','own-project',gateway_url='http://gateway:9600')
+    backend = DockerMainModelBackend('/var/run/docker.sock','own-project',gateway_url='http://gateway:9400')
     backend.gpu_uuid = "GPU-00000000-0000-0000-0000-000000000002"
     backend._template = {'name':'own-main','config':{'Entrypoint':['wrong-engine'],'Env':['WRONG=1']},
                          'host_config':{'Binds':['/own/models:/models:ro'],'PortBindings':{}},'networking_config':{}}

@@ -12,16 +12,16 @@ services:
     image: ${PLATFORM_IMAGE:?Set PLATFORM_IMAGE to a tested platform image tag}
     pull_policy: ${PLATFORM_PULL_POLICY:-never}
     restart: unless-stopped
-    command: [python, -m, uvicorn, ai_model_serving.apps.mlx_metrics_exporter:app, --host, 0.0.0.0, --port, "9616"]
+    command: [python, -m, uvicorn, ai_model_serving.apps.mlx_metrics_exporter:app, --host, 0.0.0.0, --port, "9416"]
     environment:
       # 포트와 경로는 configs/macos_mlx_runtime.yaml이 소유한다. 여기서는 컨테이너가
       # native runtime을 부르는 host 이름만 넘긴다.
       MLX_RUNTIME_METRICS_HOST: host.docker.internal
     extra_hosts:
       - host.docker.internal:host-gateway
-    expose: ["9616"]
+    expose: ["9416"]
     healthcheck:
-      test: [CMD-SHELL, "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9616/health')\""]
+      test: [CMD-SHELL, "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9416/health')\""]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -76,7 +76,7 @@ services:
     # gateway와 같다 — 실효값은 운영자 .env의 GRAFANA_BIND_ADDR가 결정하고,
     # 아래 loopback은 아무것도 선언하지 않았을 때의 fallback이다.
     ports:
-      - ${GRAFANA_BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-9610}:3000
+      - ${GRAFANA_BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-9410}:3000
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in the operator env}

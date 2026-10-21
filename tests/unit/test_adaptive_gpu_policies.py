@@ -140,7 +140,7 @@ def test_uuid_and_policy_remain_bound_between_plan_and_execution():
             resource_reader=reader,
             selection_policy=policy,
             gpu_policies=resolver,
-            gateway_url="http://gateway:9600",
+            gateway_url="http://gateway:9400",
         )
         backend.bind_gpu(assignment)
         await backend._admit_gpu(assignment.profile)
@@ -236,7 +236,7 @@ def test_fresh_resource_and_uuid_checks_also_guard_restart_canary(
             resource_reader=reader,
             selection_policy=policy,
             gpu_policies=resolver,
-            gateway_url="http://gateway:9600",
+            gateway_url="http://gateway:9400",
         )
         backend.bind_gpu(assignment)
         monkeypatch.setattr(DockerMainModelBackend, "validate", AsyncMock())

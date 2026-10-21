@@ -36,7 +36,30 @@ make render-runtime-assets  # Runtime 생성물의 원본 변경 시
 
 ### 포트 네임스페이스 변경
 
-`make ports BASE=9700`은 단순 Runtime 환경변수 설정이 아니라 저장소의 추적된 설정·소스·문서와 생성 산출물을 함께 변경하는 **checkout 작업**이다. 먼저 `make setup-dev`로 Python 검증 환경을 준비하고 프로젝트 지정 Node.js/npm을 설치한다. 명령은 변경 계획을 출력한 다음 확인을 받고, Console의 API 예제 소스가 바뀌면 프런트엔드도 다시 빌드한다. 변경 diff와 `make check`를 확인한 뒤 배포 환경에서 `make up`으로 적용한다. 외부 Nginx·Tailscale Serve·방화벽은 운영자가 별도로 변경한다.
+포트 정책의 원본은 `configs/services.yaml`의 `port_namespace.base`와 `offsets`다.
+기본 대역은 9400이며, 저장소 업데이트나 `make up`은 대역 변경 명령을 대신 실행하지 않는다.
+서비스별 값·Compose·OpenAPI·Console 예제는 이 정책과 일치해야 하며 `make validate`가 불일치를 거부한다.
+
+접속 포트만 변경하려면 `.env`의 `GATEWAY_PORT`와 필요한 경우 `GRAFANA_PORT`를 수정하고
+`make up`을 실행한다. 내부 Runtime 포트를 포함한 전체 대역 변경은 다음 절차를 따른다.
+
+```bash
+make setup-dev
+make ports BASE=9700 PLAN=1  # 변경 포트와 파일 목록만 확인
+make ports BASE=9700 YES=1   # 파일 변경·생성물 재생성·검증
+git diff                    # 검토 후 변경을 커밋하고 배포
+make up                     # 이미지와 실행 서비스를 새 대역에 맞춤
+make status
+```
+
+프로젝트 지정 Node.js/npm도 필요하다. `YES=1` 없이 실행하면 적용 전에 대화형 확인을 받는다.
+`PLAN=1`은 파일과 실행 서비스를 변경하지 않는다. 실제 변경은 추적된 설정·소스·문서와
+Console 산출물을 포함하는 **checkout 작업**이다. 검증에 실패하면 변경 전 파일 상태를 복원한다.
+기동 실패 시 실행 상태까지 자동으로 되돌린다는 뜻은 아니므로 `make status`와 `make logs`로 확인한다.
+
+사용자가 지정한 Host 포트는 자동 덮어쓰지 않으며 충돌 시 명시적으로 정리해야 한다.
+외부 Runtime URL, 인증키, 모델 캐시와 과거 ADR·촬영 기록은 변경 대상에서 제외된다.
+외부 Nginx·Tailscale Serve·방화벽·클라이언트 주소는 운영자가 별도로 반영한다.
 
 ## 3. 테스트·검증
 

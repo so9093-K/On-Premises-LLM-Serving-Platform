@@ -107,9 +107,7 @@ wait_for_gateway_ready() {
   local start=$SECONDS deadline attempt=0 now elapsed remaining tmp code not_ready
   deadline=$((SECONDS + READY_FULL_TIMEOUT_SECONDS))
 
-  echo "[ready-full] gateway /ready: vLLM 모델 로딩 대기 중 (최대 ${READY_FULL_TIMEOUT_SECONDS}s) ..."
-  echo "[ready-full] tip: vLLM 컨테이너는 main-llm → embedding → risk-prompt 순으로 기동합니다 (enabled runtime healthcheck 기준)." >&2
-  echo "[ready-full] tip: 최초 실행은 HuggingFace 다운로드·캐시·quantization 초기화가 겹쳐 30분을 넘을 수 있습니다. 필요하면 READY_FULL_TIMEOUT_SECONDS를 늘리세요." >&2
+  echo "[ready-full] gateway /ready: 필수 Runtime 준비 대기 중 (최대 ${READY_FULL_TIMEOUT_SECONDS}s) ..."
 
   while true; do
     attempt=$((attempt + 1))
@@ -139,10 +137,13 @@ import json, sys
 try:
     data = json.load(open(sys.argv[1]))
     entries = []
+    required = data.get("required_not_ready_dependencies")
     for dep in data.get("dependencies", []):
         if not isinstance(dep, dict) or dep.get("status") == "ready":
             continue
         name = dep.get("name", "?")
+        if isinstance(required, list) and name not in required:
+            continue
         message = dep.get("message")
         if message:
             message = " ".join(str(message).split())
@@ -234,7 +235,7 @@ PY
 
 wait_for_probe "gateway /health" "$GATEWAY_BASE_URL/health" 200
 
-# /health 통과 후 vLLM upstream이 모두 로드될 때까지 /ready를 기다린다.
+# /health 통과 후 필수 dependency가 준비될 때까지 /ready를 기다린다.
 # compose 서비스에는 로컬 run/*.pid 파일이 없으므로, readiness는 HTTP로 폴링한다.
 wait_for_gateway_ready "$GATEWAY_BASE_URL/ready" "$ADMIN_API_KEY"
 

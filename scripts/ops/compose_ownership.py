@@ -50,6 +50,11 @@ def assert_project_owned(root: Path, project: str) -> None:
             owner = (document.get("Labels") or {}).get(CHECKOUT_LABEL)
             if owner and owner != str(root.resolve()):
                 raise RuntimeError(f"refusing to mutate project '{project}': {kind} {resource} belongs to another checkout")
+            if kind == "network" and not owner and document.get("Containers"):
+                raise RuntimeError(
+                    f"legacy network {resource} has active endpoints and no checkout label; "
+                    "run make down, then make up to migrate the empty network without deleting volumes"
+                )
 
 
 def owned_resources(root: Path, kind: str) -> list[str]:

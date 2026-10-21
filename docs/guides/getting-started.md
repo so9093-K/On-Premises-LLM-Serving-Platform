@@ -148,7 +148,7 @@ make status
 ```
 
 **성공 기준:** `Platform READY`, Gateway 준비 상태와 선택한 target을 확인합니다.
-출력된 실제 주소를 우선 사용합니다. 기본 Console은 `http://127.0.0.1:9600/admin/console/`입니다.
+출력된 실제 주소를 우선 사용합니다. 기본 Console은 `http://127.0.0.1:9400/admin/console/`입니다.
 `/health` 200은 프로세스 생존 확인이며 모델의 실제 응답 성공을 대신하지 않습니다.
 
 ![캐시를 재사용한 실제 make up 완료 출력과 중지된 Embedding 주의 항목](../../assets/screenshots/guides/startup-output.png)

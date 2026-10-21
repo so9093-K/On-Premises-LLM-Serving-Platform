@@ -28,14 +28,14 @@ make status
 
 외부 llama.cpp·관리형 CPU·외부 vLLM 연결은 [배포 환경](#deployment-targets)과 [빠른 시작 가이드](docs/guides/getting-started.md#1-실행-환경-선택)를 참고하세요.
 
-준비되면 Control Plane `http://127.0.0.1:9600/admin/console/`에서 상태와 Playground를 확인하고, Gateway `http://127.0.0.1:9600`으로 OpenAI 호환 API를 호출합니다.
+준비되면 Control Plane `http://127.0.0.1:9400/admin/console/`에서 상태와 Playground를 확인하고, Gateway `http://127.0.0.1:9400`으로 OpenAI 호환 API를 호출합니다.
 
 ```bash
-curl -sS http://127.0.0.1:9600/v1/chat/completions -H "Content-Type: application/json" \
+curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application/json" \
   -d '{"model": "local-main", "messages": [{"role": "user", "content": "안녕하세요"}], "max_tokens": 128}'
 ```
 
-프로젝트 관리 포트의 기본 Namespace는 `9600`입니다. `make ports BASE=9600`으로 기존 기본값을 이관하거나 `make ports BASE=9700`으로 대역을 변경한 뒤, `make up`으로 런타임에 반영할 수 있습니다. 포트 정책은 [ADR-0058](docs/adr/0058-port-namespace-policy.md)을 참고하세요.
+프로젝트 관리 포트의 기본 Namespace는 `9400`입니다. 접속 포트만 바꾸려면 `.env`의 `GATEWAY_PORT`를 수정하고 `make up`으로 적용하세요. 내부 Runtime까지 전체 대역을 바꾸는 `make ports BASE=9700`은 소스·설정·문서도 변경하는 개발 도구입니다. [포트 변경 절차](docs/guides/developer-guide.md#포트-네임스페이스-변경)를 참고하세요.
 
 일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 인증이 활성화된 환경에서는 사용자 API Key가 필요합니다.
 

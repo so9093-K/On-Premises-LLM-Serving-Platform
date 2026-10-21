@@ -16,12 +16,12 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '9600'
+    - '9400'
     ports:
-    - ${GATEWAY_BIND_ADDR:-0.0.0.0}:${GATEWAY_PORT:-9600}:9600
+    - ${GATEWAY_BIND_ADDR:-0.0.0.0}:${GATEWAY_PORT:-9400}:9400
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
-      HEALTHCHECK_PORT: '9600'
+      HEALTHCHECK_PORT: '9400'
       APP_CONFIG_ROOT: /app
       PYTHONPATH: /app/src
       PLATFORM_STATE_DIR: /var/lib/ai-model-serving
@@ -60,11 +60,11 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '9605'
+    - '9405'
     ports: []
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
-      HEALTHCHECK_PORT: '9605'
+      HEALTHCHECK_PORT: '9405'
       APP_CONFIG_ROOT: /app
       PYTHONPATH: /app/src
       ADMIN_API_KEY_REQUIRED: '${ADMIN_API_KEY_REQUIRED:-true}'
@@ -72,7 +72,7 @@ services:
       STRICT_ADMIN_ENDPOINT_SECURITY: '${STRICT_ADMIN_ENDPOINT_SECURITY:-true}'
       REQUEST_EVENT_LOG_DIR: /var/log/ai-model-serving
     expose:
-    - '9605'
+    - '9405'
     volumes:
     - ../../.runtime/request-events:/var/log/ai-model-serving
     - ../../configs:/app/configs:ro
@@ -97,7 +97,7 @@ services:
     # 실어 준다. 여기 사본을 두면 검증 없이 어긋난다
     # (실제로 mm-processor-kwargs와 structured-outputs-config가 어긋나 있었다).
     expose:
-    - '9601'
+    - '9401'
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
@@ -112,7 +112,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9601/health')"
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9401/health')"
       interval: 30s
       timeout: 10s
       retries: 20
@@ -136,7 +136,7 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '9602'
+    - '9402'
     - --runner
     - pooling
     - --max-model-len
@@ -148,7 +148,7 @@ services:
     - --gpu-memory-utilization
     - '0.04'
     expose:
-    - '9602'
+    - '9402'
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
@@ -164,7 +164,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9602/health')"
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9402/health')"
       interval: 30s
       timeout: 10s
       retries: 10
@@ -188,7 +188,7 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '9603'
+    - '9403'
     - --runner
     - pooling
     - --trust-remote-code
@@ -201,7 +201,7 @@ services:
     - --gpu-memory-utilization
     - '0.06'
     expose:
-    - '9603'
+    - '9403'
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
@@ -217,7 +217,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9603/health')"
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9403/health')"
       interval: 30s
       timeout: 10s
       retries: 10
@@ -241,7 +241,7 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '9604'
+    - '9404'
     - --max-model-len
     - '8192'
     - --max-num-seqs
@@ -267,7 +267,7 @@ services:
       embedding-ko-vllm:
         condition: service_healthy
     expose:
-    - '9604'
+    - '9404'
     env_file: ${COMPOSE_SERVICE_ENV_FILE:?Set COMPOSE_SERVICE_ENV_FILE through the Compose command wrapper}
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
@@ -280,7 +280,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9604/health')"
+      - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9404/health')"
       interval: 30s
       timeout: 10s
       retries: 10
@@ -387,7 +387,7 @@ services:
     - prometheus
     - loki
     ports:
-    - ${GRAFANA_BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-9610}:3000
+    - ${GRAFANA_BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-9410}:3000
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD
@@ -438,7 +438,7 @@ services:
       # 찾는다. 위 `name:`과 기본값이 어긋나면 Runtime Controller가 아무 컨테이너도 찾지 못해
       # 런타임 start/stop이 조용히 아무 일도 하지 않는다. 기본값을 같이 둔다.
       COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-ai-model-serving-platform}
-      GATEWAY_INTERNAL_URL: http://gateway:9600
+      GATEWAY_INTERNAL_URL: http://gateway:9400
       MAIN_MODEL_STATE_PATH: /var/lib/ai-model-serving/main-model-state.json
       MAIN_MODEL_BOOT_PROFILE: ${MAIN_MODEL_BOOT_PROFILE:-}
       MAIN_MODEL_PROFILE_LOCKED: ${MAIN_MODEL_PROFILE_LOCKED:-false}

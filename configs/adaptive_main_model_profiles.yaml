@@ -9,7 +9,7 @@ profiles:
     catalog: configs/main_model_profiles.yaml
 runtime:
   compose_service: main-llm-vllm
-  container_port: 9601
+  container_port: 9401
   models_path: /v1/models
   chat_path: /v1/chat/completions
   drain_timeout_seconds: 90

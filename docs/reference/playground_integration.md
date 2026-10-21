@@ -24,7 +24,7 @@ Playground는 공개 `/v1/chat/completions`을 호출합니다. 각 요청의 **
 4. 개발 환경의 Gateway 주소를 환경변수로 지정합니다.
 
 ```sh
-export GATEWAY_URL=http://127.0.0.1:9600
+export GATEWAY_URL=http://127.0.0.1:9400
 # 인증된 배포는 공개 API 용 사용자 키만 지정합니다.
 export API_KEY='your-public-api-key'
 python3 client.py

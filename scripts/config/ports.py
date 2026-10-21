@@ -8,13 +8,16 @@ import re
 import socket
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-POLICY = ROOT / "configs" / "services.yaml"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.lib.atomic_file import atomic_write  # noqa: E402
 
 # 내부/Host 포트를 가진 프로젝트 서비스만 이 정책에 속한다.
 # 서드파티 엔진의 고유 포트(예: Grafana 3000, DCGM 9400)는 제외한다.
@@ -36,10 +39,9 @@ INTERNAL_PORT_SERVICES = (
 )
 HOST_PORT_SERVICES = ("gateway", "risk_signal_service", "grafana")
 LEGACY_ENV_PORTS = {"GATEWAY_PORT": (9400, 0), "RISK_SIGNAL_SERVICE_PORT": (9405, 5), "GRAFANA_PORT": (9411, 10)}
-# v1(94xx)의 원래 역할·포트 배치다. 현재 Namespace와는 별도로 이관 입력으로만 읽는다.
-LEGACY_RUNTIME_PORT_OFFSETS = {9400: 0, 9401: 1, 9402: 2, 9406: 3,
-                               9403: 4, 9405: 5, 9411: 10, 9416: 16, 9480: 80}
 GENERATED = (
+    "ops/grafana/dashboards/service_overview.macos-metal.json",
+    "ops/grafana/dashboards/request_log_explorer.macos-metal.json",
     "ops/prometheus/prometheus.yml",
     "ops/prometheus/prometheus.macos-metal.yml",
     "specs/openapi.gateway.yaml",
@@ -59,6 +61,7 @@ def read_policy(root: Path) -> tuple[int, dict[str, int]]:
     offsets = policy.get("offsets")
     if not isinstance(base, int) or not isinstance(offsets, dict):
         raise ValueError("port_namespace.base/offsets 형식이 올바르지 않습니다")
+    assert_base(base)
     if offsets != REQUIRED_OFFSETS:
         raise ValueError("지원되지 않는 Port Namespace offset 정책입니다")
     services = doc.get("services", {})
@@ -129,6 +132,14 @@ def replace_ports(content: str, mapping: dict[int, int], path: str) -> str:
 
     # 프로젝트 소유 포트와 같은 숫자를 사용하는 upstream DCGM은 변경하지 않는다.
     guarded: dict[str, str] = {}
+    # A requested destination in a command example is an operator choice, not
+    # the current namespace. Preserve it across repeated/round-trip migrations.
+    def keep_command_base(match: re.Match) -> str:
+        token = f"__REQUESTED_BASE_{len(guarded)}__"
+        guarded[token] = match.group()
+        return token
+
+    content = re.sub(r"\bBASE=\d+\b", keep_command_base, content)
     if path == "configs/services.yaml":
         match = re.search(r"(?ms)^  dcgm_exporter:\n.*?(?=^  [a-z_]+:|\Z)", content)
         if match:
@@ -157,7 +168,7 @@ def replace_ports(content: str, mapping: dict[int, int], path: str) -> str:
                                   "| **DCGM Exporter** | __UPSTREAM_DCGM_PORT__ |")
         guarded["__UPSTREAM_DCGM_PORT__"] = "`9400`"
 
-    expr = re.compile(r"(?<![0-9])(?:" + "|".join(map(str, sorted(mapping, reverse=True))) + r")(?![0-9])")
+    expr = re.compile(r"(?<![0-9A-Za-z_])(?:" + "|".join(map(str, sorted(mapping, reverse=True))) + r")(?![0-9A-Za-z_])")
     content = expr.sub(lambda m: str(mapping[int(m.group())]), content)
     for token, original in guarded.items():
         content = content.replace(token, original)
@@ -173,11 +184,12 @@ def tracked_paths(root: Path) -> list[str]:
 
 def env_changes(content: str, old_base: int, new_base: int) -> str:
     # 운영자 소유의 사용자 지정 포트는 자동 덮어쓰지 않는다.
-    # 94xx에서 새 체크아웃의 96xx로 업데이트한 환경만 명시적으로 이관한다.
-    # 레거시 94xx 기본값은 새 대역으로 직접 이관할 수 있다.
-    # 현재 Namespace와 숫자가 겹치는 경우에는 현재 역할 배치를 우선한다.
-    mapping = {port: new_base + offset for port, offset in LEGACY_RUNTIME_PORT_OFFSETS.items()}
-    mapping.update(port_mapping(old_base, new_base, REQUIRED_OFFSETS))
+    # 레거시 94xx 값도 서비스 역할로 구분해 명시적으로 이관한다.
+    runtime_ports = {
+        "gateway": (0, 9400), "main-llm-vllm": (1, 9401),
+        "embedding-vllm": (2, 9402), "embedding-ko-vllm": (3, 9406),
+        "prompt-injection-detector-runtime": (4, 9403), "risk-signal-service": (5, 9405),
+    }
     result: list[str] = []
     for line in content.splitlines(keepends=True):
         match = re.fullmatch(r"([A-Z][A-Z0-9_]*)=(.*?)(\r?\n)?", line)
@@ -199,41 +211,39 @@ def env_changes(content: str, old_base: int, new_base: int) -> str:
             # 변경 요청 자체가 없는 경우에는 운영자 override를 그대로 둔다.
         elif name.endswith(("_BASE_URL", "_URL")):
             # 프로젝트 관리 서비스의 Docker DNS URL만 변경한다.
-            if re.search(r"//(?:gateway|main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime|risk-signal-service):", value):
-                value = replace_ports(value, mapping, ".env")
+            parsed = urlsplit(value)
+            role = runtime_ports.get(parsed.hostname or "")
+            if parsed.scheme in {"http", "https"} and role:
+                offset, legacy = role
+                if parsed.port in {old_base + offset, new_base + offset, legacy}:
+                    # Replace only the authority port, never path/query digits,
+                    # credentials, or an external hostname embedded in a URL.
+                    authority = parsed.netloc.rsplit(":", 1)[0] + f":{new_base + offset}"
+                    value = urlunsplit(parsed._replace(netloc=authority))
         result.append(f"{name}={value}{ending or ''}")
     return "".join(result)
 
 
-def atomic_write(path: Path, content: bytes) -> None:
-    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
-    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".port-change-", delete=False) as temporary:
-        temp_path = Path(temporary.name)
-        temporary.write(content)
-        temporary.flush()
-        os.fsync(temporary.fileno())
-    try:
-        os.chmod(temp_path, mode)
-        os.replace(temp_path, path)
-    finally:
-        temp_path.unlink(missing_ok=True)
-
-
-def preflight_bind(new_base: int, old_base: int) -> list[str]:
+def preflight_bind(new_base: int, old_base: int, root: Path = ROOT) -> list[str]:
     warnings: list[str] = []
     if new_base == old_base:
         return warnings
+    from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
+
+    env = load_strict_env_file(root / ".env") if (root / ".env").is_file() else {}
     for service_name in ("gateway", "grafana"):
         port = new_base + REQUIRED_OFFSETS[service_name]
-        with socket.socket() as sock:
+        key = f"{service_name.upper()}_BIND_ADDR"
+        address = os.environ.get(key, env.get(key, "0.0.0.0"))
+        with socket.socket(socket.AF_INET6 if ":" in address else socket.AF_INET) as sock:
             try:
-                sock.bind(("0.0.0.0", port))
+                sock.bind((address, port))
             except OSError:
                 warnings.append(f"{service_name} 신규 포트 {port}: 현재 사용 중일 수 있습니다")
     return warnings
 
 
-def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
+def run(root: Path, new_base: int, yes: bool, *, validate: bool = True, plan: bool = False) -> int:
     assert_base(new_base)
     old_base, offsets = read_policy(root)
     mapping = port_mapping(old_base, new_base, offsets)
@@ -260,12 +270,18 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
     print(f"[ports] Port Namespace: {old_base} → {new_base}")
     for name, offset in offsets.items():
         print(f"  {name:37s} {old_base + offset} → {new_base + offset}")
-    conflicts = preflight_bind(new_base, old_base)
+    conflicts = preflight_bind(new_base, old_base, root)
     if conflicts:
         for conflict in conflicts:
             print(f"[ports] 충돌: {conflict}", file=sys.stderr)
         return 2
     print(f"[ports] 변경 대상 {len(changes)}개 파일; 런타임 적용은 make up이 담당합니다")
+    print("[ports] 소스·설정·문서와 .env를 변경합니다. 실행 중 서비스는 make up 전까지 기존 포트를 사용합니다.")
+    for path in sorted(changes):
+        print(f"  {path.relative_to(root)}")
+    if plan:
+        print("[ports] 계획만 표시했습니다. 적용하려면 PLAN=1 없이 다시 실행하세요")
+        return 0
     # 확인 프롬프트 사이에 다른 운영자가 수정한 파일을 덮어쓰지 않는다.
     planned_originals = {path: path.read_bytes() for path in changes}
     if not yes:
@@ -278,11 +294,10 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
 
     if any(path.read_bytes() != original for path, original in planned_originals.items()):
         raise ValueError("포트 변경 계획 이후 파일이 수정됐습니다. 명령을 다시 실행하세요")
-    originals: dict[Path, bytes] = planned_originals
+    originals: dict[Path, bytes | None] = dict(planned_originals)
     for name in GENERATED:
         path = root / name
-        if path.is_file():
-            originals.setdefault(path, path.read_bytes())
+        originals.setdefault(path, path.read_bytes() if path.is_file() else None)
 
     console_dir = root / "src/ai_model_serving/static/control-plane"
     if validate and mapping and any(
@@ -320,10 +335,13 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
                 if file.is_file() and file not in originals:
                     file.unlink()
         for path, data in originals.items():
-            atomic_write(path, data)
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                atomic_write(path, data)
         print("[ports] 검증 실패: 설정을 기존 상태로 복구했습니다", file=sys.stderr)
         raise
-    print(f"[ports] 적용 완료: BASE={new_base}. make up으로 반영하세요")
+    print(f"[ports] 파일 변경 완료: BASE={new_base}. 실행 중 서비스 반영은 make up이 필요합니다")
     return 0
 
 
@@ -331,9 +349,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Port Namespace 일괄 변경")
     parser.add_argument("--base", type=int, required=True, help="프로젝트 Port Namespace 시작 번호")
     parser.add_argument("--yes", action="store_true", help="확인 프롬프트만 건너뜀")
+    parser.add_argument("--plan", action="store_true", help="변경 계획만 표시하고 파일과 서비스를 유지")
     args = parser.parse_args()
     try:
-        return run(ROOT, args.base, args.yes)
+        return run(ROOT, args.base, args.yes, plan=args.plan)
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         print(f"[ports] 오류: {exc}", file=sys.stderr)
         return 2

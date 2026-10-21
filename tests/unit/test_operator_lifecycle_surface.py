@@ -110,7 +110,7 @@ def test_app_only_status_uses_process_health_instead_of_model_readiness(
     monkeypatch.setattr(
         platform_cli,
         "_gateway_probe",
-        lambda values, path: ("http://127.0.0.1:9600/health", path == "/health"),
+        lambda values, path: ("http://127.0.0.1:9400/health", path == "/health"),
     )
 
     class Result:
@@ -163,6 +163,39 @@ def test_full_stack_status_fails_closed_on_bare_not_ready(
     output = capsys.readouterr().out
     assert "Gateway       NOT_READY" in output
     assert "Gateway is not ready" in output
+
+
+@pytest.mark.parametrize("main_ready", [True, False])
+def test_full_stack_status_distinguishes_required_and_optional_runtimes(monkeypatch, capsys, main_ready):
+    target = platform_cli.load_deployment_target(platform_cli.TARGETS_PATH, "linux-nvidia-dynamic")
+    monkeypatch.setattr(platform_cli, "_env_values", lambda: {"BUILD_PROFILE": "compose", "ACCESS_PROFILE": "local"})
+    ready = {
+        "status": "ready" if main_ready else "not_ready",
+        "required_not_ready_dependencies": [] if main_ready else ["main_llm_vllm"],
+        "optional_not_ready_dependencies": ["embedding_vllm"],
+        "dependencies": [
+            {"name": "main_llm_vllm", "status": "ready" if main_ready else "not_ready"},
+            {"name": "embedding_vllm", "status": "not_ready", "message": "MODEL_UNAVAILABLE"},
+        ],
+    }
+    runtimes = {"runtimes": [{"service_key": "embedding", "state": "stopped", "container_status": "created"}]}
+    responses = iter([(200 if main_ready else 503, ready), (200, runtimes)])
+    monkeypatch.setattr(platform_cli, "_gateway_json", lambda *args, **kwargs: next(responses))
+    assert platform_cli.status_target(target) == (0 if main_ready else 1)
+    output = capsys.readouterr().out
+    assert "STOPPED / created" in output
+    assert ("Attention" in output) == (not main_ready)
+    assert "embedding_vllm: MODEL_UNAVAILABLE" not in output
+
+
+@pytest.mark.parametrize("payload", [{}, {"status": "not_ready", "dependencies": []}])
+def test_status_does_not_treat_http_200_without_ready_status_as_success(monkeypatch, capsys, payload):
+    target = platform_cli.load_deployment_target(platform_cli.TARGETS_PATH, "linux-nvidia-dynamic")
+    monkeypatch.setattr(platform_cli, "_env_values", lambda: {"BUILD_PROFILE": "compose"})
+    responses = iter([(200, payload), (200, {})])
+    monkeypatch.setattr(platform_cli, "_gateway_json", lambda *args, **kwargs: next(responses))
+    assert platform_cli.status_target(target) == 1
+    assert "Gateway       NOT_READY" in capsys.readouterr().out
 
 
 def test_access_change_plan_uses_visible_step(

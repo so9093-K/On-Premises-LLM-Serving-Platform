@@ -96,7 +96,7 @@ if [[ "$DEPLOYMENT_TARGET" == "linux-cpu-managed" || "$DEPLOYMENT_TARGET" == "li
 import shlex,sys
 from pathlib import Path
 from ai_model_serving.main_model.cpu import cpu_runtime_command
-port = 9601 if sys.argv[1] == "linux-adaptive" else None
+port = 9401 if sys.argv[1] == "linux-adaptive" else None
 print(shlex.join(cpu_runtime_command(Path.cwd(), port=port)))
 ' "$DEPLOYMENT_TARGET")"
   CPU_MEMORY_LIMIT_BYTES="$("$PYTHON_BIN" -c 'import yaml; print(int(yaml.safe_load(open("configs/cpu_model_artifact.yaml"))["runtime"]["memory_limit_mib"])*1024*1024)')"
@@ -165,6 +165,14 @@ if [[ "$COMPOSE_ACTION" == "up" ]]; then
   fi
 fi
 COMPOSE_PROFILE_ARGS=()
+if [[ "$COMPOSE_ACTION" == "up" || "$COMPOSE_ACTION" == "create" ]]; then
+  VOLUME_FILE_ARGS=()
+  for compose_file in "${COMPOSE_FILE_PATHS[@]}"; do
+    VOLUME_FILE_ARGS+=(--compose-file "$ROOT/$compose_file")
+  done
+  compose_context_preserve_volumes "${VOLUME_FILE_ARGS[@]}"
+  COMPOSE_FILES+=("${COMPOSE_VOLUME_ARGS[@]}")
+fi
 if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" && "$COMPOSE_ACTION" == "down" ]]; then
   COMPOSE_PROFILE_ARGS=(--profile gpu-observation)
 fi

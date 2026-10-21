@@ -6,7 +6,7 @@ from typing import Any
 
 from .api_examples import GATEWAY_CHAT_REQUEST_EXAMPLES, GATEWAY_RESPONSES_REQUEST_EXAMPLES
 
-_DEFAULT_GATEWAY_URL = "http://127.0.0.1:9600"
+_DEFAULT_GATEWAY_URL = "http://127.0.0.1:9400"
 
 
 def _python_openai_sample(*, resource: str, payload: dict[str, Any], result_expression: str) -> str:

@@ -13,7 +13,7 @@ from ai_model_serving.access_profile import access_profile_env_values
 def write_env(tmp_path: Path, **overrides: str) -> Path:
     values = {
         **access_profile_env_values("edge"),
-        "GATEWAY_PORT": "9600",
+        "GATEWAY_PORT": "9400",
         "API_KEYS": "api-only-long-secret",
         "API_KEY": "api-only-long-secret",
         "ADMIN_API_KEYS": "admin-only-long-secret",
@@ -36,7 +36,7 @@ def test_edge_loopback_and_separate_keys_allow_preflight(tmp_path):
     ("EXPOSURE_AUDIENCE", "private_lan"),
     ("GATEWAY_BIND_ADDR", "0.0.0.0"),
     ("GRAFANA_BIND_ADDR", "0.0.0.0"),
-    ("GATEWAY_PORT", "9601"),
+    ("GATEWAY_PORT", "9401"),
     ("API_KEY_REQUIRED", "false"),
     ("ADMIN_API_KEY_REQUIRED", "false"),
     ("ADMIN_ENDPOINTS_INTERNAL_ONLY", "true"),

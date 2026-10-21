@@ -172,7 +172,7 @@ def test_cpu_gpu_docker_replacement_restores_device_policy_across_controller_res
         for target in (CPU, GPU):
             # 각각 새 Backend 인스턴스를 써서 메모리 내 template에 의존하지 않음을 확인한다.
             backend = DockerMainModelBackend(
-                "/var/run/docker.sock", "manual", gateway_url="http://gateway:9600"
+                "/var/run/docker.sock", "manual", gateway_url="http://gateway:9400"
             )
             monkeypatch.setattr(backend, "_container_id", container)
             monkeypatch.setattr(backend, "_inspect", inspect)

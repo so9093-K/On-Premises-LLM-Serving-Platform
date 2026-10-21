@@ -706,9 +706,9 @@ def status_target(target: DeploymentTarget) -> int:
     print(f"Target        {target.target_id}")
     access = values.get("ACCESS_PROFILE") or "legacy/custom"
     print(f"Access        {access}")
-    if code == 200:
+    if code == 200 and ready_status == "ready":
         gateway_status = "READY"
-    elif code == 503:
+    elif code in (200, 503):
         gateway_status = "NOT_READY"
     elif code == 0:
         gateway_status = "UNAVAILABLE"
@@ -744,17 +744,22 @@ def status_target(target: DeploymentTarget) -> int:
     attention: list[str] = []
     if isinstance(ready, dict):
         deps = ready.get("dependencies")
+        required = ready.get("required_not_ready_dependencies")
         if isinstance(deps, list):
             for item in deps:
                 if not isinstance(item, dict) or item.get("status") == "ready":
                     continue
                 name = item.get("name")
+                if isinstance(required, list) and name not in required:
+                    continue
                 detail = item.get("message") or item.get("status")
                 attention.append(f"{name}: {detail}")
     if code == 0:
         attention.append("Gateway is not reachable")
     elif code == 503 and not attention:
         attention.append("Gateway is not ready")
+    elif code == 200 and ready_status != "ready" and not attention:
+        attention.append("Gateway readiness did not confirm ready status")
     elif code not in (200, 503):
         attention.append(f"Gateway readiness returned HTTP {code}")
 

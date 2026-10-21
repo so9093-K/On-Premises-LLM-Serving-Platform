@@ -41,7 +41,7 @@ Admin Key를 팀원 API 사용자와 공유하지 않는다.
 ## 서버 운영자: 접속 환경 구성
 
 이하 설정 절차는 **Ubuntu/Linux GPU 서버의 Host 운영자만** 수행한다. 개인 관리자만 원격으로 사용하는 경우 **HTTPS 443만** 구성한다.
-팀원에게 API를 제공할 때에만 **Nginx 9680 및 Tailscale HTTPS 8443**을 추가한다.
+팀원에게 API를 제공할 때에만 **Nginx 9480 및 Tailscale HTTPS 8443**을 추가한다.
 공유기 포트포워딩·Funnel을 통한 일반 인터넷 공개는 지원 범위가 아니다.
 `ACCESS=edge`는 Gateway Loopback·인증 설정이며 Tailscale 연결을 자동 구성하지 않는다.
 
@@ -52,7 +52,7 @@ Admin Key를 팀원 API 사용자와 공유하지 않는다.
 | `ACCESS=edge` | 기존 플랫폼 | Gateway·Grafana Loopback, API/Admin 별도 Bearer 인증 |
 | Tailscale Serve | 서버 운영자 | Tailnet HTTPS 443(관리자), 8443(팀원) |
 | Tailnet Grants | Tailnet 관리자 | 사용자/기기별 TCP 포트 접근 허용·거부 |
-| Team Nginx | 이 저장소의 선택형 host adapter | 127.0.0.1:9680, 공개 API 경로·메서드만 전달 |
+| Team Nginx | 이 저장소의 선택형 host adapter | 127.0.0.1:9480, 공개 API 경로·메서드만 전달 |
 | Gateway | 기존 플랫폼 | API Key·Admin Key 판정, 모델 요청 및 자원 Gate |
 | 모델 Runtime | 기존 플랫폼 | Compose 내부에서만 실행 |
 
@@ -67,7 +67,7 @@ Gateway도 Tailnet 사용자별 Role·Quota를 제공하지 않는다. 팀원에
   계획 검토 후에만 `make up ACCESS=edge CONFIRM=access`를 실행한다.
 - `make status`, `make auth-status`로 상태를 확인한다.
 - Tailscale은 서버 운영자가 설치·업데이트한다. **팀원 API를 공유할 때만** Nginx를 별도로 설치·관리한다. 프로젝트는 두 소프트웨어를 자동 설치하지 않는다.
-- 기존 Tailscale Serve/Funnel 설정을 확인하고 관리자용 HTTPS 443 충돌을 검토한다. **팀원 API를 공유할 때만** Nginx 9680·HTTPS 8443 충돌도 확인한다.
+- 기존 Tailscale Serve/Funnel 설정을 확인하고 관리자용 HTTPS 443 충돌을 검토한다. **팀원 API를 공유할 때만** Nginx 9480·HTTPS 8443 충돌도 확인한다.
 - API Key와 Admin Key는 별도 값이다. 실제 키를 Git·Issue·Screenshot·Shell history에 기록하지 않는다.
 
 ```bash
@@ -97,7 +97,7 @@ sudo systemctl enable --now nginx
 sudo systemctl reload nginx
 ```
 
-설정은 **127.0.0.1:9680만 수신**하며 Gateway **127.0.0.1:9600**으로 연결한다.
+설정은 **127.0.0.1:9480만 수신**하며 Gateway **127.0.0.1:9400**으로 연결한다.
 기존 호스트·포트와 일치하지 않으면 위 예제를 그대로 적용하지 말고 별도 검토한다.
 새 Nginx Config를 `server` 블록으로 포함하도록 작성했으므로 다른 서비스를 덮어쓰는 전체 `nginx.conf`가 아니다.
 
@@ -110,10 +110,10 @@ SSE를 위해 Proxy Response Buffering을 끈다. 요청 본문 크기와 타임
 
 Proxy만 기동한 후 먼저 로컬에서 다음 조건을 확인한다.
 
-- 유효한 **API Key**로 `127.0.0.1:9680/v1/models` 요청은 성공한다(모델이 준비된 경우).
+- 유효한 **API Key**로 `127.0.0.1:9480/v1/models` 요청은 성공한다(모델이 준비된 경우).
 - Key가 없으면 `401`이 반환된다.
 - `/admin/console/`, `/admin/*`, `/ready`, `/metrics`, `/internal/*`은 차단된다.
-- `127.0.0.1:9600`과 `127.0.0.1:9680`은 LAN 인터페이스에 수신하지 않는다.
+- `127.0.0.1:9400`과 `127.0.0.1:9480`은 LAN 인터페이스에 수신하지 않는다.
 - 팀원 진입점에서 `/v1/*` 전체를 포괄 허용하지 않는다.
 
 ## 4. Tailnet 접근 정책
@@ -151,14 +151,14 @@ Tailscale 버전에서 Serve HTTPS 포트 및 `--bg` 동작을 확인한다.
 ```bash
 tailscale serve status
 tailscale funnel status
-tailscale serve --bg --https=443 http://127.0.0.1:9600
+tailscale serve --bg --https=443 http://127.0.0.1:9400
 tailscale serve status
 ```
 
 팀원 API를 공유할 때만 **3절의 Nginx를 먼저 검증하고**, HTTPS 8443을 추가한다.
 
 ```bash
-tailscale serve --bg --https=8443 http://127.0.0.1:9680
+tailscale serve --bg --https=8443 http://127.0.0.1:9480
 tailscale serve status
 ```
 
@@ -181,7 +181,7 @@ tailscale serve status
 | 팀원 8443 → POST Chat | 실제 모델 준비 시 응답 수신 |
 | 팀원 443 → 관리자 HTTPS | 네트워크 연결 차단 |
 | 팀원 8443 → /admin/* | 404 등 거부 |
-| 팀원 → Gateway 9600 · Grafana 9610 · SSH 22 | 차단 |
+| 팀원 → Gateway 9400 · Grafana 9410 · SSH 22 | 차단 |
 | Team API Key 없이 허용 API 호출 | 401 |
 | Team Key 제거 후 기존 키로 요청 | 401 |
 | 서버 재부팅 | Serve·Nginx·Gateway 재기동 및 동일 차단 계약 유지 |
@@ -205,7 +205,7 @@ tailscale serve status
 tailscale funnel status
 ```
 
-`status`는 Tailscale 명령 결과를 조회할 뿐이다. 반환 코드 0만으로 실제 Serve Target, Funnel 비활성, 사용자별 Grants, 원격 연결 성공이나 안전성을 증명하지 않는다. 운영자는 **443이 이 플랫폼의 관리자 Gateway(127.0.0.1:9600), 8443이 팀원 Proxy(127.0.0.1:9680)에 속하는지** 기존 Serve 설정과 함께 확인한다. 각 포트를 다른 서비스가 사용한다면 해제하지 않는다.
+`status`는 Tailscale 명령 결과를 조회할 뿐이다. 반환 코드 0만으로 실제 Serve Target, Funnel 비활성, 사용자별 Grants, 원격 연결 성공이나 안전성을 증명하지 않는다. 운영자는 **443이 이 플랫폼의 관리자 Gateway(127.0.0.1:9400), 8443이 팀원 Proxy(127.0.0.1:9480)에 속하는지** 기존 Serve 설정과 함께 확인한다. 각 포트를 다른 서비스가 사용한다면 해제하지 않는다.
 
 ### 7.2 이 플랫폼의 Serve Listener만 해제
 
