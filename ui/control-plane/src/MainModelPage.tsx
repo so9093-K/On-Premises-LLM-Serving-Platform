@@ -66,7 +66,7 @@ function inputLabel(value: string): string {
     text: '텍스트',
     image: '이미지',
     audio: '오디오',
-    video: '비디오',
+    video: '영상',
   };
   return labels[value] ?? value;
 }

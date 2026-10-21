@@ -170,7 +170,7 @@ test('model feature labels come from the public model contract', () => {
     '텍스트',
     '이미지',
     '오디오',
-    '비디오',
+    '영상',
     '도구',
     '추론',
     '구조화 출력',
@@ -184,10 +184,10 @@ test('model feature labels come from the public model contract', () => {
 
 test('Gemma, Qwen and Metal UI projection follows only the public model contract', () => {
   assert.deepEqual(modelFeatureLabels(MAIN), [
-    '텍스트', '이미지', '오디오', '비디오', '도구', '추론', '구조화 출력',
+    '텍스트', '이미지', '오디오', '영상', '도구', '추론', '구조화 출력',
   ]);
   assert.deepEqual(modelFeatureLabels(QWEN), [
-    '텍스트', '이미지', '오디오', '비디오', '구조화 출력',
+    '텍스트', '이미지', '오디오', '영상', '구조화 출력',
   ]);
   assert.deepEqual(modelFeatureLabels(METAL), [
     '텍스트', '이미지', '도구', '추론',
@@ -380,7 +380,7 @@ test('multimodal attachments follow public modalities and request limits', () =>
   );
   assert.match(
     classifyAttachment(MAIN, { name: 'bad.txt', mimeType: 'text/plain', sizeBytes: 1 }).error,
-    /인식할 수 있는/,
+    /사용할 수 있는/,
   );
 
   const tooLarge = {

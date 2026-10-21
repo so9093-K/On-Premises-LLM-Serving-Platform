@@ -80,6 +80,25 @@ def test_console_only_serves_assets_declared_by_generated_manifest(tmp_path: Pat
     assert client.get('/admin/console/assets/%2e%2e/index.html').status_code == 404
 
 
+def test_console_video_sample_has_video_mime_and_supports_byte_ranges() -> None:
+    """영상은 CSP가 허용하는 정적 파일이며 재생·탐색에 필요한 바이트 범위를 제공한다."""
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / 'src/ai_model_serving/static/control-plane/asset-manifest.json').read_text())
+    asset = next(entry['file'] for entry in manifest.values() if entry.get('file', '').endswith('.webm'))
+    sample = (root / 'assets/demos/inputs/sample-video.webm').read_bytes()
+    client = _client()
+    url = '/admin/console/' + asset
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.headers['content-type'] == 'video/webm'
+    assert response.content == sample
+    assert "default-src 'self'" in response.headers['content-security-policy']
+    partial = client.get(url, headers={'Range': 'bytes=0-31'})
+    assert partial.status_code == 206
+    assert partial.headers['content-range'] == f'bytes 0-31/{len(sample)}'
+    assert partial.content == sample[:32]
+
+
 def test_console_client_route_falls_back_to_spa_entry() -> None:
     client = _client()
     root = client.get('/admin/console/')

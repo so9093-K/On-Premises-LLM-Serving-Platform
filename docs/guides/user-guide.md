@@ -56,6 +56,8 @@ Playground는 배포가 제공하는 기능별 화면(**Chat** · **Embedding** 
 3. **보내기**로 요청을 실행하고 응답·Request ID를 확인합니다.
 4. 필요하면 **중지**하고, 완료된 요청은 **코드로 사용하기**에서 내보냅니다. [API 요청 재현](api-integration.md#replay)을 참고하세요.
 
+영상 입력을 지원하는 모델에서는 **영상 분석** 예제로 8초 무음 합성 영상을 미리 재생할 수 있습니다. 현재 모델의 입력 상한과 장면 설명을 확인하고 **입력에 적용 → 보내기**로 도형의 등장 순서를 질문합니다. 영상 선택·재생·입력 적용만으로는 추론하지 않습니다. 미지원 모델이나 예제의 형식·용량·길이·해상도를 허용하지 않는 모델에서는 적용할 수 없습니다. [영상 예제 사용 안내](../reference/playground_video_sample.md)을 참고하세요.
+
 ![Playground 모델 응답](../../assets/screenshots/guides/playground-after.png)
 
 *Playground · 모델 응답*

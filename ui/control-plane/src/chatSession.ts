@@ -206,7 +206,7 @@ const INPUT_MODALITY_LABELS: Record<string, string> = {
   text: '텍스트',
   image: '이미지',
   audio: '오디오',
-  video: '비디오',
+  video: '영상',
 };
 
 export function inputModalityLabel(value: string): string {
@@ -256,7 +256,7 @@ export function classifyAttachment(
   else if (mimeType.startsWith('audio/')) modality = 'audio';
   else if (stringList(mediaLimit(model, 'audio').allowed_formats).includes(extension)) modality = 'audio';
 
-  if (modality === null) return { error: '현재 모델 계약에서 인식할 수 있는 이미지·오디오·비디오 파일이 아닙니다.' };
+  if (modality === null) return { error: '현재 모델에서 사용할 수 있는 이미지·오디오·영상 파일이 아닙니다.' };
   if (!(model.input_modalities ?? []).includes(modality)) {
     return { error: `현재 모델은 ${inputModalityLabel(modality)} 입력을 지원하지 않습니다.` };
   }

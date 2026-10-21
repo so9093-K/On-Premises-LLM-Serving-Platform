@@ -1776,8 +1776,6 @@ a.overview-action-tile:hover {
   font-size: 0.75rem;
 }
 .playground-example-prompt {
-  max-height: 5.5rem;
-  overflow: auto;
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -1805,7 +1803,22 @@ a.overview-action-tile:hover {
   min-width: 0;
   height: 3.375rem;
 }
-.playground-example-audio:focus-visible {
+.playground-example-video {
+  display: block;
+  width: min(100%, 32rem);
+  max-height: 18rem;
+  min-width: 0;
+  border-radius: 0.375rem;
+  background: #111;
+}
+.playground-example-technical .playground-example-limits {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--console-text-muted);
+  overflow-wrap: anywhere;
+}
+.playground-example-audio:focus-visible,
+.playground-example-video:focus-visible {
   outline: 2px solid var(--pf-t--global--color--brand--default, #73b7e3);
   outline-offset: 2px;
 }
@@ -1860,7 +1873,6 @@ a.overview-action-tile:hover {
   .playground-example-card { min-height: 3.25rem; padding: 0.5rem; }
   .playground-example-description { display: none; }
   .playground-example-mark { width: 1.5rem; height: 1.5rem; }
-  .playground-example-prompt { max-height: 4.5rem; }
 }
 
 /* Fast-scan impact summary; the existing table keeps full technical evidence. */
