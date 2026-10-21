@@ -37,7 +37,7 @@ def test_call_totals_and_call_rates_have_distinct_dimensions() -> None:
     assert "[$__rate_interval]" in PANELS[5]["targets"][0]["expr"]
 
 
-def test_current_gpu_is_not_a_historical_average_or_vram_percentage() -> None:
+def test_gpu_endpoint_is_not_a_historical_average_or_vram_percentage() -> None:
     assert PANELS[1]["targets"][0]["instant"] is True
     assert PANELS[1]["targets"][0]["expr"] == "max(gpu_utilization_ratio)"
     assert PANELS[1]["fieldConfig"]["defaults"]["unit"] == "percentunit"

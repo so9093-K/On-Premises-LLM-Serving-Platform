@@ -37,7 +37,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "현재 GPU 사용률",
+      "title": "GPU 사용률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -94,7 +94,7 @@
         },
         "overrides": []
       },
-      "description": "GPU별 사용률 중 현재 최댓값입니다. GPU가 연산 중이었던 시간 비율이며 VRAM 사용량과 다릅니다."
+      "description": "조회 종료 시점의 GPU별 사용률 중 최댓값입니다. GPU가 연산 중이었던 시간 비율이며 VRAM 사용량과 다릅니다."
     },
     {
       "id": 2,
