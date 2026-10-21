@@ -10,7 +10,7 @@ Control Plane Playground에서 예제 입력을 직접 구성하려면 [예제�
 | [이미지 분석](#image-analysis) | Playground → Chat Completions | 예시 그래프의 최대·최소값 읽기 |
 | [이미지 텍스트 읽기 / OCR](#ocr) | Playground → Chat Completions | 가상 주문서의 5개 항목 추출 |
 | [시스템 프롬프트와 인젝션 입력](#system-prompt) | Playground → Chat Completions | 역할 변경·프롬프트 공개 요구에 대한 모델 응답 |
-| [임베딩과 문장 유사도](#embedding) | Embeddings → Retrieval API | 1024차원 벡터 생성과 cosine similarity 정렬 |
+| [임베딩과 문서 관련도](#embedding) | Playground → Embeddings → Retrieval API | 1024차원 벡터 생성과 문서 관련도 순위 |
 
 <a id="document-analysis"></a>
 
@@ -109,28 +109,26 @@ Playground의 시스템 프롬프트:
 
 <a id="embedding"></a>
 
-## 임베딩과 문장 유사도
+## 임베딩과 문서 관련도
 
-[![실제 API 호출로 벡터를 생성하고 GPU 메모리 관련 문장을 유사도순으로 정렬한 촬영용 뷰어](../../assets/demos/embedding-poster.png)](../../assets/demos/embedding.gif)
+[![Playground에서 GPU 메모리 질문과 후보 문서를 입력하고 실제 관련도 순위를 확인한 화면](../../assets/demos/embedding-poster.png)](../../assets/demos/embedding.gif)
 
 [GIF 재생](../../assets/demos/embedding.gif)
 
-**화면:** 데모용 API 뷰어(Control Plane 외부) · **경로:** 실제 Gateway Embeddings/Retrieval API
+**화면:** Control Plane → Playground → Embedding · **경로:** 실제 Gateway Embeddings/Retrieval API
+
+텍스트 변환으로 벡터를 만든 뒤 **문서 관련도 순위**에서 검색 질문·후보 문서·상위 결과 개수를 입력합니다. 두 요청 모두 실제 모델을 호출했습니다.
 
 `POST /v1/embeddings`:
 
 ```json
 {
   "model": "local-embed-ko",
-  "input": [
-    "CUDA out of memory가 발생했습니다.",
-    "서비스 인증 토큰을 갱신했습니다.",
-    "KV cache 사용량이 증가했습니다."
-  ]
+  "input": "GPU 메모리가 부족해 모델 로딩이 실패했습니다."
 }
 ```
 
-**결과:** 입력 3개 · 1024차원 벡터 3개
+**결과:** 입력 1개 · 1024차원 벡터 1개 · 15 tokens
 
 이어서 `POST /v1/retrieval/rerank` 호출:
 
@@ -159,22 +157,22 @@ Playground의 시스템 프롬프트:
 | 이미지 분석 | 11.31초 | 약 162 KiB |
 | OCR | 11.31초 | 약 264 KiB |
 | 시스템 프롬프트 | 7.87초 | 약 127 KiB |
-| 임베딩 | 9.82초 | 약 103 KiB |
+| 임베딩 | 10.77초 | 약 154 KiB |
+
+이미지 분석·OCR·시스템 프롬프트 데모의 촬영 조건:
 
 - 촬영일: 2026-10-15, Linux/NVIDIA managed target, RTX 4090.
 - UI / 촬영용 Gateway source `25462454`, bundle `index-JT9ch5SF.js`.
   연결한 Controller/Risk service source는 `1b6cea4a`이며 전체 stack 재배포 검증은 아니다.
 - Chat 모델: `google/gemma-4-E4B-it`, revision `ee0ef6023621cff504d758262d4e04895a5af4a2`,
   `rtx4090-24gb`, `max_tokens=256`, streaming, 추론 출력은 모델 기본값(끔).
-- Korean embedding: `dragonkue/snowflake-arctic-embed-l-v2.0-ko`,
-  revision `55ec6e9358a56d56af759bc8372e970caf8c305f`, served model `local-embed-ko`.
-- Chat viewport 1280×800, API 뷰어 1280×900, Chromium, dark theme, device scale 1.
+- Chat viewport 1280×800, Chromium, dark theme, device scale 1.
 - GIF는 약 4 fps의 실제 화면 표본을 사용한다. 촬영 시각 간격을 유지하고 배속하지 않았다.
   이미지 분석·OCR 앞에는 입력 이미지를 3초간 보여주는 소개 장면을 추가했다.
 - GIF palette 변환 외에 응답·수치·상태를 수정하지 않았다. 각 데모는 한 번의 실행이며 성능 benchmark가 아니다.
 - 정지 이미지: 동일 실행의 마지막 화면.
 - 인증 화면, API/Admin key, 내부 주소와 민감 로그를 공개 자산에서 제외했다.
-- 촬영 후 데모용 Gateway·저장소·API 뷰어·Embedding Runtime 종료.
+- 촬영 후 데모용 Gateway·저장소 종료.
 
 문서 해석 데모는 별도 촬영 조건을 사용했다.
 
@@ -188,6 +186,21 @@ Playground의 시스템 프롬프트:
   배속하지 않았다. 앞에 입력 문서를 3초간 보여주는 소개 장면을 추가했고, 완료 후에는 한 번의 교환 전체가
   보이도록 스크롤한 화면을 유지했다.
 - GIF 64색 palette 변환 외에 응답·수치·상태를 수정하지 않았다. 정지 이미지는 동일 실행의 마지막 화면이다.
+
+임베딩 데모의 촬영 조건:
+
+- 촬영일: 2026-10-21, `linux-nvidia-dynamic`, RTX 4090.
+- Console source `b7a72458`, bundle `index-CWB5QFUh.js`. Loopback 촬영 서버에서 이 Console 빌드를 제공하고,
+  공개 요청을 실행 중인 실제 Gateway(platform image source `444eaa59`)로 전달했다. API 응답은 Mock하지 않았다.
+- Korean embedding: `dragonkue/snowflake-arctic-embed-l-v2.0-ko`,
+  revision `55ec6e9358a56d56af759bc8372e970caf8c305f`, served model `local-embed-ko`, vLLM pooling runner.
+- Chromium 141.0.7390.37, viewport 1440×1380, dark theme, device scale 1.
+- 실제 화면 표본 36개를 약 3~4 fps로 촬영했다. 표본 간 시간 간격을 유지하며 배속하지 않았다.
+  GIF는 96색 palette로 변환했고, 포스터는 같은 실행의 마지막 원본 화면이다. 응답·점수·상태를 수정하지 않았다.
+- 입력은 공개 합성 문장이다. 인증 키·내부 IP·민감 로그를 화면에 포함하지 않았다.
+  단일 실행 사례이며 성능·검색 정확도 benchmark가 아니다.
+- 촬영 코드: `scripts/media/capture_embedding_demo.py`. 원본 프레임과 요청·응답은
+  로컬 `reports/validation/embedding-demo-final/`에 보존한다. 촬영 후 보조 Runtime을 중지했다.
 
 실제 지원 기능은 [Deployment Target](../../configs/deployment_targets.yaml), 모델별 기능은
 `/v1/models`와 [모델 운영](../06_model_operations.md)에서 확인한다.

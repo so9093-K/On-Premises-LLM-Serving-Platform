@@ -2,7 +2,7 @@ import { EMBEDDINGS_PATH } from './embeddingPlayground.ts';
 import { RISK_CHECKS } from './riskPlayground.ts';
 import { RETRIEVAL_RERANK_PATH } from './retrievalPlayground.ts';
 
-// Embedding·Risk 작업 화면의 "코드로 사용하기". 전송 당시의 요청 문자열만 authority이며
+// Embedding·Retrieval·Risk 작업 화면의 "코드로 사용하기". 전송 당시의 요청 문자열만 authority이며
 // 현재 화면 입력이나 API 키를 읽지 않는다. 요청은 미디어가 없는 짧은 JSON이므로 Chat처럼
 // request.json 파일 묶음을 만들지 않고, 같은 바이트를 담은 단일 파일 예제를 만든다.
 export type PublicExportKind = 'embeddings' | 'risk' | 'retrieval';

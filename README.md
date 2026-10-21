@@ -65,7 +65,7 @@ curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application
 
 *문서 해석 · 흐름도의 판단 단계와 분기 정리*
 
-[문서 해석](docs/reference/feature_demos.md#document-analysis) · [이미지 분석](docs/reference/feature_demos.md#image-analysis) · [OCR](docs/reference/feature_demos.md#ocr) · [시스템 프롬프트 입력](docs/reference/feature_demos.md#system-prompt) · [임베딩·유사도](docs/reference/feature_demos.md#embedding)
+[문서 해석](docs/reference/feature_demos.md#document-analysis) · [이미지 분석](docs/reference/feature_demos.md#image-analysis) · [OCR](docs/reference/feature_demos.md#ocr) · [시스템 프롬프트 입력](docs/reference/feature_demos.md#system-prompt) · [임베딩·문서 순위](docs/reference/feature_demos.md#embedding)
 
 ## Scalar API Reference
 
