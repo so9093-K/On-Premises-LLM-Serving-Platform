@@ -41,3 +41,20 @@ Node 회귀 테스트는 지원·형식·개수·용량·길이·해상도 경�
 - HTTP 200, SSE `[DONE]`, `finish_reason=stop`, 사용량 2,459 입력·46 출력·2,505 총 토큰을 확인했다.
 - 실제 응답은 처음 빨간 정사각형, 이후 파란 원, 마지막 두 도형을 구분했다. 이 단일 응답으로 이동 궤적·정밀 시간 분석 성능을 주장하지 않는다.
 - 원시 요약은 로컬 검증 산출물 `reports/validation/playground-video-example.json`에 남긴다. 일반 CI는 실제 GPU 검증을 수행하지 않는다.
+
+## 기능 데모 촬영
+
+2026-10-21, 위와 같은 고정 영상과 Gemma 모델로 실행 중인 실제 Playground를 촬영했다.
+
+- Gateway/Console image source: `5cf7c7af`, bundle `index-BFaZMVLU.js`,
+  `linux-nvidia-dynamic`, RTX 4090. API 응답을 Mock하지 않았다.
+- `max_tokens=256`, `temperature=0`, streaming, 추론 출력은 모델 기본값(끔).
+  Chat HTTP 200, SSE `[DONE]`·`finish_reason=stop`, 실제 응답 세 문장을 확인했다.
+- Chromium 141.0.7390.37, 1440×1100, dark theme, device scale 1.
+  영상은 원래 속도로 재생했고, 화면 표본 53개의 시간 간격을 유지해 15.85초 GIF로 저장했다.
+- GIF는 영상의 빨강·파랑과 UI를 포함한 128색 palette를 사용한다. 포스터는 같은 실행의
+  마지막 원본 화면이다. 응답·지표·상태를 수정하지 않았으며 인증 키·내부 IP를 포함하지 않는다.
+- 촬영 코드: `scripts/media/capture_video_demo.py`. 원본 프레임·요청·응답은 로컬
+  `reports/validation/video-demo-final/`에 보존한다. 한 번의 장면 구분 사례이며 성능 측정은 아니다.
+
+[영상 분석 데모](../reference/feature_demos.md#video-analysis)에서 GIF와 실제 응답을 확인할 수 있다.
