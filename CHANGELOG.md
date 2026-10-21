@@ -6,6 +6,10 @@
 
 ### Changed
 
+- Grafana ‘오늘 사용량’은 기본적으로 브라우저 시간대의 오늘 0시부터 집계하며, 대상별 호출·거부·오류 건수는 선택 기간을 따른다. Gateway 지표만 집계하고 추정 건수·초당 처리율·조회 종료 시점 GPU 사용률을 구분한다.
+
+- Grafana 요청 로그의 도움말과 패널 이름을 간결하게 표시한다. Playground의 코드 내보내기는 파일명·줄 번호·구문 강조·복사 버튼을 갖춘 공통 코드 보기를 제공한다.
+
 - 프로젝트 관리 포트를 96xx 기본 Namespace로 이전한다. `make ports BASE=...`는 역할별 고정 Offset에 따라 관련 설정을 갱신하며, 실행 환경 반영은 `make up`이 담당한다. 기존 94xx 배포는 `.env` 및 외부 접속 URL/방화벽/Tailnet Host Adapter를 검토해야 한다. DCGM, Grafana 내부 포트 등 외부 엔진 소유 포트와 Tailnet HTTPS 443/8443은 유지한다. ([ADR-0058](docs/adr/0058-port-namespace-policy.md))
 
 ### Changed

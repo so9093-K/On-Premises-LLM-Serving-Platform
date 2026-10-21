@@ -13,11 +13,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 URL = "http://127.0.0.1:3100"
-PANELS = (
-    "런타임 HTTP 오류 (vLLM·MLX, 텍스트 파싱)",
-    "런타임 원본 로그",
-    "엔진 크래시·Traceback (텍스트 검색)",
-)
+PANEL_IDS = (3, 4, 5)
 
 
 def api(path: str, data: dict | None = None) -> dict:
@@ -62,9 +58,10 @@ def main() -> None:
         ]
     })
     dashboard = json.loads((ROOT / "ops/grafana/dashboards/request_log_explorer.json").read_text(encoding="utf-8"))
-    for title in PANELS:
-        panel = next(item for item in dashboard["panels"] if item["title"] == title)
-        expected = '"GET /ready' if title.startswith("런타임 HTTP") else "Traceback"
+    for panel_id in PANEL_IDS:
+        panel = next(item for item in dashboard["panels"] if item["id"] == panel_id)
+        title = panel["title"]
+        expected = '"GET /ready' if panel_id == 3 else "Traceback"
         for job in ("docker", "native"):
             target = next(item for item in panel["targets"] if item["refId"] == ("A" if job == "docker" else "B"))
             query = target["expr"].replace("${search_text}", ".*")

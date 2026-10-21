@@ -15,11 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD = ROOT / "ops/grafana/dashboards/request_log_explorer.json"
 REGISTRY = ROOT / "configs/services.yaml"
 
-RUNTIME_TITLES = (
-    "런타임 HTTP 오류 (vLLM·MLX, 텍스트 파싱)",
-    "런타임 원본 로그",
-    "엔진 크래시·Traceback (텍스트 검색)",
-)
+RUNTIME_PANEL_IDS = (3, 4, 5)
 
 
 def _runtime_services() -> set[str]:
@@ -33,8 +29,9 @@ def _runtime_services() -> set[str]:
 
 def test_runtime_log_panels_use_exact_registry_services_and_native_job() -> None:
     dashboard = json.loads(DASHBOARD.read_text(encoding="utf-8"))
-    for title in RUNTIME_TITLES:
-        panel = next(panel for panel in dashboard["panels"] if panel["title"] == title)
+    for panel_id in RUNTIME_PANEL_IDS:
+        panel = next(panel for panel in dashboard["panels"] if panel["id"] == panel_id)
+        title = panel["title"]
         assert len(panel["targets"]) == 2, title
         docker, native = (target["expr"] for target in panel["targets"])
         match = re.search(r'\{job="docker",service=~"([^"]+)"\}', docker)
@@ -47,7 +44,7 @@ def test_runtime_log_panels_use_exact_registry_services_and_native_job() -> None
         assert "job=~" not in docker + native
         assert "refId" in panel["targets"][0] and panel["targets"][1]["refId"] == "B"
 
-        if title.startswith("런타임 HTTP"):
+        if panel_id == 3:
             # Organize needs one frame. The Docker and native query frames
             # must be merged before organizing the table columns.
             transforms = [transform["id"] for transform in panel["transformations"]]

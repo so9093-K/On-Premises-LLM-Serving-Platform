@@ -52,12 +52,13 @@
         {
           "expr": "max(gpu_utilization_ratio)",
           "refId": "A",
-          "legendFormat": "사용률"
+          "legendFormat": "사용률",
+          "instant": true
         }
       ],
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "center",
         "textMode": "value"
       },
@@ -93,12 +94,12 @@
         },
         "overrides": []
       },
-      "description": "GPU가 연산 중이었던 시간 비율입니다. 서빙 중에는 높은 값이 정상이므로 색으로 판정하지 않습니다."
+      "description": "조회 종료 시점의 GPU별 사용률 중 최댓값입니다. GPU가 연산 중이었던 시간 비율이며 VRAM 사용량과 다릅니다."
     },
     {
       "id": 2,
       "type": "bargauge",
-      "title": "모델별 요청 (많은 순)",
+      "title": "대상별 호출 수",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -111,21 +112,29 @@
       },
       "targets": [
         {
-          "expr": "sum by (target) (rate(upstream_request_duration_seconds_count{service=\"gateway\"}[$window]))",
+          "expr": "sort_desc(sum by (target) (increase(upstream_request_duration_seconds_count{service=\"gateway\"}[$__range])))",
           "refId": "A",
-          "legendFormat": "{{target}}"
+          "legendFormat": "{{target}}",
+          "instant": true
         }
       ],
       "options": {
         "displayMode": "gradient",
         "orientation": "horizontal",
         "showUnfilled": true,
-        "valueMode": "color"
+        "valueMode": "color",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "decimals": 2,
+          "unit": "short",
+          "decimals": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -135,11 +144,12 @@
               }
             ]
           },
-          "noValue": "수집 안 됨"
+          "noValue": "수집 안 됨",
+          "min": 0
         },
         "overrides": []
       },
-      "description": "선택한 Window 동안 Gateway가 모델별로 보낸 초당 요청 수입니다. 가장 긴 막대가 주 사용 모델입니다."
+      "description": "선택 기간에 Gateway가 기록한 모델·Risk 서비스 호출 수의 추정치입니다. 외부 API 요청 수와 다릅니다."
     },
     {
       "id": 3,
@@ -157,7 +167,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (reason) (increase(request_validation_rejections_total[$window])) > 0",
+          "expr": "sum by (reason) (increase(request_validation_rejections_total{service=\"gateway\"}[$__range])) > 0",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -223,7 +233,7 @@
           }
         ]
       },
-      "description": "선택한 Window 동안 Gateway가 검증에서 거부한 요청을 사유별로 셉니다. 사용자 입력 내용은 label에 들어가지 않습니다.",
+      "description": "선택 기간에 Gateway가 검증 단계에서 거부한 요청입니다. 수집된 카운터 증가량으로 건수를 추정합니다.",
       "transformations": [
         {
           "id": "organize",
@@ -246,7 +256,7 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "토큰 처리량: 입력과 출력",
+      "title": "vLLM 토큰 처리량",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -290,12 +300,12 @@
         },
         "overrides": []
       },
-      "description": "토큰 처리량을 입력(prompt)과 출력(generation)으로 나눕니다. 입력이 치솟으면 긴 컨텍스트, 출력이 치솟으면 긴 생성 부하입니다."
+      "description": "vLLM 전체의 입력·출력 토큰 처리율(최근 5분 평균)입니다. 내부·직접 호출도 포함하며 누적 토큰 수가 아닙니다."
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "모델별 요청 추이",
+      "title": "대상별 호출률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -308,7 +318,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (target) (rate(upstream_request_duration_seconds_count{service=\"gateway\"}[$window]))",
+          "expr": "sum by (target) (rate(upstream_request_duration_seconds_count{service=\"gateway\"}[$__rate_interval]))",
           "refId": "A",
           "legendFormat": "{{target}}"
         }
@@ -328,12 +338,12 @@
         },
         "overrides": []
       },
-      "description": "모델별 요청량이 시간에 따라 어떻게 변하는지 봅니다."
+      "description": "Gateway가 기록한 대상별 호출의 초당 처리율입니다. 평균 구간은 조회 범위와 수집 간격에 따라 자동 조정됩니다."
     },
     {
       "id": 6,
       "type": "table",
-      "title": "Upstream 오류 (코드별)",
+      "title": "대상별 호출 오류 (코드별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -346,7 +356,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (target, code) (increase(upstream_errors_total[$window])) > 0",
+          "expr": "sum by (target, code) (increase(upstream_errors_total{service=\"gateway\"}[$__range])) > 0",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -412,7 +422,7 @@
           }
         ]
       },
-      "description": "선택한 Window 동안 Gateway가 런타임을 호출하다 받은 오류를 대상과 코드별로 셉니다(QUEUE_TIMEOUT, CIRCUIT_OPEN, GATEWAY_TIMEOUT 등).",
+      "description": "선택 기간에 Gateway의 대상별 호출에서 기록된 오류입니다. 대상·코드별 건수는 수집된 카운터 증가량의 추정치입니다.",
       "transformations": [
         {
           "id": "organize",
@@ -462,47 +472,11 @@
         "refresh": 1,
         "regex": "",
         "type": "datasource"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "1h",
-          "value": "1h"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Window",
-        "multi": false,
-        "name": "window",
-        "options": [
-          {
-            "selected": false,
-            "text": "1m",
-            "value": "1m"
-          },
-          {
-            "selected": false,
-            "text": "5m",
-            "value": "5m"
-          },
-          {
-            "selected": false,
-            "text": "15m",
-            "value": "15m"
-          },
-          {
-            "selected": true,
-            "text": "1h",
-            "value": "1h"
-          }
-        ],
-        "query": "1m,5m,15m,1h",
-        "type": "custom"
       }
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now/d",
     "to": "now"
   },
   "timepicker": {},
