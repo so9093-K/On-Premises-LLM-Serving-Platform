@@ -264,7 +264,7 @@ full-stack의 base Compose 정의는 `ops/compose/full-stack.private-network.yam
 | `embedding-ko-vllm` | `9603` | Korean retrieval embedding |
 | `prometheus` | `9090` | Metrics backend |
 | `grafana` | `3000` | Dashboard |
-| `dcgm-exporter` | `9600` | GPU metrics |
+| `dcgm-exporter` | `9400` | GPU metrics (upstream 고유 내부 포트) |
 | `cadvisor` | `8080` | Container metrics |
 | `loki` | `3100` | Log backend |
 | `alloy` | - | Docker log 수집 |
