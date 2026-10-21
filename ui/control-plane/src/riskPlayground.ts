@@ -13,6 +13,12 @@ export type RiskCheck = {
   feature: 'risk' | 'prompt_detection';
 };
 
+// Prompt 검사기는 모델 Runtime이다. Target feature는 선언일 뿐이고, 자원 정책으로 비활성인
+// 구성에서는 Gateway가 이 capability의 공개 모델을 /v1/models에서 제외한다.
+export const PROMPT_DETECTOR_CAPABILITY = 'risk.prompt_attack_signal';
+
+type CapabilityModel = { capabilities: readonly string[] };
+
 export const RISK_CHECKS: readonly RiskCheck[] = [
   {
     id: 'pii',
@@ -39,7 +45,7 @@ export const RISK_CHECKS: readonly RiskCheck[] = [
     id: 'assessment',
     path: '/v1/risk/assessments',
     label: '통합 Risk 평가',
-    description: '활성화된 검사기를 PII → Secret → Prompt 순서로 실행',
+    description: '활성 검사기를 순서대로 실행',
     feature: 'risk',
   },
 ];
@@ -57,8 +63,32 @@ export type RiskExample = {
 // 반환하는지는 Python 테스트가 같은 파일로 검증한다.
 export const RISK_EXAMPLES: readonly RiskExample[] = riskExamples as RiskExample[];
 
-export function availableRiskChecks(features: readonly string[]): RiskCheck[] {
-  return RISK_CHECKS.filter((check) => features.includes(check.feature));
+const DETECTOR_CHECK_LABELS: Record<RiskCheckId, string> = {
+  pii: 'PII',
+  secret: 'Secret',
+  prompt: 'Prompt Injection',
+  assessment: '통합',
+};
+
+function promptDetectorPublished(models: readonly CapabilityModel[]): boolean {
+  return models.some((model) => model.capabilities.includes(PROMPT_DETECTOR_CAPABILITY));
+}
+
+export function availableRiskChecks(features: readonly string[], models: readonly CapabilityModel[]): RiskCheck[] {
+  return RISK_CHECKS.filter((check) => features.includes(check.feature)
+    && (check.id !== 'prompt' || promptDetectorPublished(models)));
+}
+
+// Target은 Prompt 검사를 선언했지만 현재 구성에서 공개하지 않는 경우다.
+export function promptDetectorInactive(features: readonly string[], models: readonly CapabilityModel[]): boolean {
+  return features.includes('prompt_detection') && !promptDetectorPublished(models);
+}
+
+// 통합 평가 설명은 이 화면이 실행 가능하다고 판단한 검사기만 나열한다.
+export function riskCheckDescription(check: RiskCheck, checks: readonly RiskCheck[]): string {
+  if (check.id !== 'assessment') return check.description;
+  const order = checks.filter((item) => item.id !== 'assessment').map((item) => DETECTOR_CHECK_LABELS[item.id]);
+  return `활성 검사기를 ${order.join(' → ')} 순서로 실행`;
 }
 
 export function availableRiskExamples(checks: readonly RiskCheck[]): RiskExample[] {
@@ -99,6 +129,14 @@ const SYSTEM_SIGNAL_LABELS: Record<string, string> = {
   TRUNCATED_INPUT: '입력 일부만 검사',
 };
 
+const DETECTOR_SOURCE_LABELS: Record<string, string> = {
+  'pii-protection': 'PII',
+  'secret-scanner': 'Secret',
+  'risk-prompt': 'Prompt Injection',
+};
+
+export const PROMPT_DETECTOR_SOURCE = 'risk-prompt';
+
 export function riskCodeLabel(code: string): string {
   return RISK_CODE_LABELS[code] ?? code;
 }
@@ -117,6 +155,13 @@ export type RiskSignal = {
   source: string | null;
 };
 
+export type RiskDetectorRun = {
+  source: string;
+  label: string;
+  // 실행했지만 시스템 신호를 남긴 검사기다. 완료된 검사로 세지 않는다.
+  failed: boolean;
+};
+
 export type RiskInterpretation = {
   verdict: RiskVerdict;
   status: string;
@@ -126,6 +171,9 @@ export type RiskInterpretation = {
   message: string;
   signals: RiskSignal[];
   systemSignals: { code: string; retryable: boolean }[];
+  // 응답의 source_model·source에서 확인한 실제 실행 검사기다. 화면의 가용성 판단이
+  // 실제 구성과 달라도 결과의 검사 범위는 응답이 근거가 된다.
+  detectors: RiskDetectorRun[];
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -153,10 +201,19 @@ export function interpretRiskAssessment(
       spanCount: Number.isInteger(category.span_count) ? category.span_count as number : null,
       source: typeof category.source_model === 'string' ? category.source_model : null,
     }));
-  const systemSignals = body.system_signals
+  const detectedSystemSignals = body.system_signals
     .map(record)
-    .filter((signal) => signal.detected === true && typeof signal.code === 'string')
+    .filter((signal) => signal.detected === true && typeof signal.code === 'string');
+  const systemSignals = detectedSystemSignals
     .map((signal) => ({ code: signal.code as string, retryable: signal.retryable === true }));
+  const failedSources = new Set(detectedSystemSignals.map((signal) => signal.source));
+  const sources: string[] = [];
+  for (const source of [
+    ...body.categories.map((category) => record(category).source_model),
+    ...body.system_signals.map((signal) => record(signal).source),
+  ]) {
+    if (typeof source === 'string' && source && !sources.includes(source)) sources.push(source);
+  }
   // API Reference 6.6: 완료됐고 시스템 신호와 위험 신호가 모두 없을 때만 미탐지다.
   // HTTP 200이나 risk_detected=false 하나만으로 미탐지로 해석하지 않는다.
   const verdict: RiskVerdict = body.risk_detected
@@ -171,6 +228,11 @@ export function interpretRiskAssessment(
       message: typeof body.message === 'string' ? body.message : '',
       signals,
       systemSignals,
+      detectors: sources.map((source) => ({
+        source,
+        label: DETECTOR_SOURCE_LABELS[source] ?? source,
+        failed: failedSources.has(source),
+      })),
     },
     error: null,
   };

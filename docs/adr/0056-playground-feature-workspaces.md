@@ -48,8 +48,13 @@ Chat과 같은 사용자 API 키를 탭 메모리에서 공유하며 관리자 �
   차원은 `request_parameters.dimensions`에서 읽는다. 두 문장 유사도는 두 입력을 하나의
   `/v1/embeddings` 요청에 담아 같은 모델이 만든 벡터끼리만 계산한다. 기본 화면은
   벡터 일부와 차원·Usage·Request ID를 보여 주고 원본 JSON은 펼쳐서 확인한다.
-- **Risk**: PII·Secret·통합 평가는 `risk`, Prompt Injection detector는
-  `prompt_detection` feature가 있을 때만 제공한다. 모델 샘플링 설정은 표시하지 않는다.
+  `runtime_control` 배포에서는 관리자 Runtime 상태를 보조 진단으로 읽어 중지·기동 중·자원 정책상
+  사용 불가를 요청 전에 안내한다. 이 상태를 읽지 못해도 요청을 막지 않으며 최종 판단은 Gateway가 한다.
+- **Risk**: PII·Secret·통합 평가는 `risk` feature가 있을 때 제공한다. Prompt Injection
+  detector는 모델 Runtime이므로 `prompt_detection` 선언만으로 제공하지 않는다. 현재 구성의
+  `/v1/models`가 `risk.prompt_attack_signal` capability를 공개할 때만 제공하고, Target이
+  선언했지만 자원 정책 등으로 비활성인 구성에서는 그 사실과 통합 평가의 실제 범위를 안내한다.
+  모델 샘플링 설정은 표시하지 않는다.
 
 ### 3. Risk 결과는 신호와 완료 여부로만 해석한다
 
@@ -58,6 +63,11 @@ API Reference의 안전한 해석 조건과 같이 `status=completed`,
 `assessment_complete=true`, `system_signal_detected=false`, `risk_detected=false`가
 모두 참일 때만 "탐지된 신호 없음"으로 표시한다. HTTP 200이어도 `partial`·`failed`이거나
 시스템 신호가 있으면 미완료로 표시한다.
+
+미탐지는 실제로 실행된 검사기의 범위에만 해당한다. 결과는 응답 category의 `source_model`과
+system signal의 `source`에서 실행된 검사기와 실패한 검사기를 표시하며, 통합 평가에 Prompt
+검사기가 포함되지 않았으면 그 사실을 함께 표시한다. 화면의 가용성 판단과 실제 구성이 달라도
+결과의 검사 범위는 응답이 근거가 된다.
 
 ### 4. 민감한 입력을 화면 밖으로 옮기지 않는다
 

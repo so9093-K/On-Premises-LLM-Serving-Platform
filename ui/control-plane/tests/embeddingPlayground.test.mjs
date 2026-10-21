@@ -6,6 +6,7 @@ import {
   cosineSimilarity,
   embeddingCapableModels,
   embeddingDimensions,
+  embeddingRuntimeState,
   formatVectorPreview,
   summarizeEmbeddingResponse,
 } from '../src/embeddingPlayground.ts';
@@ -71,4 +72,24 @@ test('cosine similarity rejects vectors that cannot be compared', () => {
 test('long vectors are previewed instead of listing every value', () => {
   assert.equal(formatVectorPreview([0.1, -0.2], 1024), '[0.1000, -0.2000, … 1022개 생략]');
   assert.equal(formatVectorPreview([0.1, -0.2], 2), '[0.1000, -0.2000]');
+});
+
+test('runtime state is matched through the public backend service id and never guessed', () => {
+  const view = {
+    runtimes: [
+      { service_key: 'embedding', state: 'active' },
+      { service_key: 'embedding_ko', state: 'stopped' },
+    ],
+    topology: [
+      { service_key: 'embedding', service_id: 'embedding_vllm', available: true },
+      { service_key: 'embedding_ko', service_id: 'embedding_ko_vllm', available: true },
+    ],
+  };
+  assert.deepEqual(embeddingRuntimeState(embed, view), { serviceKey: 'embedding_ko', state: 'stopped' });
+  assert.deepEqual(embeddingRuntimeState({ ...embed, backend: 'embedding_vllm' }, view), { serviceKey: 'embedding', state: 'active' });
+  const unavailable = { ...view, topology: [{ service_key: 'embedding_ko', service_id: 'embedding_ko_vllm', available: false }] };
+  assert.deepEqual(embeddingRuntimeState(embed, unavailable), { serviceKey: 'embedding_ko', state: 'unavailable' });
+  // 관리자 상태를 읽지 못했거나 대응 Runtime이 없으면 안내하지 않는다.
+  assert.equal(embeddingRuntimeState(embed, null), null);
+  assert.equal(embeddingRuntimeState({ ...embed, backend: 'external' }, view), null);
 });

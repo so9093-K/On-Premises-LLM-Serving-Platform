@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button } from '@patternfly/react-core';
+import { Link } from 'react-router-dom';
 
 import { ApiError, postPublicJson } from './api';
 import { apiErrorMessage } from './apiFeedback';
+import type { PublicModel } from './chatSession';
 import { useChatSession } from './ChatSessionContext';
+import { usePublicModels } from './publicModelsQuery';
 import {
   availableRiskChecks,
   availableRiskExamples,
   buildRiskRequest,
   interpretRiskAssessment,
   MAX_RISK_PROMPT_CHARACTERS,
+  PROMPT_DETECTOR_SOURCE,
+  promptDetectorInactive,
+  riskCheckDescription,
   riskCodeLabel,
   riskPromptLength,
   systemSignalLabel,
@@ -18,6 +24,7 @@ import {
 } from './riskPlayground';
 
 type RiskRun = {
+  checkId: RiskCheckId;
   checkLabel: string;
   interpretation: RiskInterpretation;
   payload: unknown;
@@ -46,7 +53,11 @@ const VERDICT_TEXT: Record<RiskInterpretation['verdict'], { title: string; detai
 // 입력을 복제하지 않는다. 다른 메뉴나 작업 화면으로 이동하면 둘 다 사라진다.
 export function RiskPlayground({ features }: { features: readonly string[] }) {
   const { apiKey, rejectApiKey } = useChatSession();
-  const checks = availableRiskChecks(features);
+  const modelsQuery = usePublicModels(apiKey);
+  const models = useMemo(() => (modelsQuery.data?.data ?? []) as PublicModel[], [modelsQuery.data]);
+  // Prompt 검사기는 /v1/models가 공개할 때만 실행 가능하다. 목록을 읽기 전에는 노출하지 않는다.
+  const checks = availableRiskChecks(features, models);
+  const promptInactive = modelsQuery.isSuccess && promptDetectorInactive(features, models);
   const examples = availableRiskExamples(checks);
   const [checkId, setCheckId] = useState<RiskCheckId>(checks[0]?.id ?? 'pii');
   const [prompt, setPrompt] = useState('');
@@ -77,7 +88,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
         setRun(null);
         setFailure({ message: interpreted.error, requestId });
       } else {
-        setRun({ checkLabel: check.label, interpretation: interpreted.result, payload, requestId });
+        setRun({ checkId: check.id, checkLabel: check.label, interpretation: interpreted.result, payload, requestId });
       }
     } catch (reason) {
       if (controller.signal.aborted) return;
@@ -98,12 +109,15 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
   }
 
   const verdict = run ? VERDICT_TEXT[run.interpretation.verdict] : null;
+  const promptAvailable = checks.some((item) => item.id === 'prompt');
+  const promptSkipped = run !== null && run.checkId === 'assessment'
+    && !run.interpretation.detectors.some((detector) => detector.source === PROMPT_DETECTOR_SOURCE);
   return (
     <section className="playground-workspace" aria-labelledby="risk-workspace-title">
       <div className="playground-panel-heading">
         <div>
           <h2 id="risk-workspace-title">Risk</h2>
-          <p>텍스트의 PII·Secret{features.includes('prompt_detection') ? '·Prompt Injection' : ''} 위험 신호를 확인합니다. 결과는 신호이며 허용·차단 판정이 아닙니다.</p>
+          <p>텍스트의 PII·Secret{promptAvailable ? '·Prompt Injection' : ''} 위험 신호를 확인합니다. 결과는 신호이며 허용·차단 판정이 아닙니다.</p>
         </div>
       </div>
 
@@ -112,6 +126,14 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
         이동하면 지워집니다. 요청 본문 로깅(<code>LOG_REQUEST_RESPONSE_BODY</code>)이 켜진 배포에서는 마스킹된
         입력 미리보기가 Gateway 로그에 남을 수 있습니다.
       </p>
+
+      {promptInactive ? (
+        <Alert isInline variant="info" title="Prompt Injection 검사기가 현재 구성에서 비활성입니다.">
+          이 배포의 공개 모델 목록에 Prompt 검사기가 없습니다. 통합 Risk 평가는 PII·Secret만 실행하며 Prompt
+          Injection 신호를 포함하지 않습니다.
+          {features.includes('runtime_control') ? <> <Link to="/runtimes">런타임과 GPU에서 사유 확인 →</Link></> : null}
+        </Alert>
+      ) : null}
 
       {examples.length > 0 ? (
         <div className="playground-example-strip" role="group" aria-label="합성 예제">
@@ -140,7 +162,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
           {checks.map((item) => (
             <label key={item.id}>
               <input type="radio" name="risk-check" checked={check.id === item.id} onChange={() => setCheckId(item.id)} />
-              <span>{item.label}<small>{item.description}</small></span>
+              <span>{item.label}<small>{riskCheckDescription(item, checks)}</small></span>
             </label>
           ))}
         </fieldset>
@@ -197,11 +219,22 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
           <dl className="chat-facts">
             <div><dt>status</dt><dd>{run.interpretation.status}</dd></div>
             <div><dt>검사 완료</dt><dd>{run.interpretation.complete ? '예' : '아니요'}</dd></div>
+            <div>
+              <dt>실행된 검사기</dt>
+              <dd>
+                {run.interpretation.detectors.length
+                  ? run.interpretation.detectors.map((detector) => `${detector.label}${detector.failed ? '(실패)' : ''}`).join(' · ')
+                  : '확인 불가'}
+              </dd>
+            </div>
             {run.interpretation.strongestCode ? (
               <div><dt>가장 강한 신호</dt><dd>{run.interpretation.strongestCode} · {riskCodeLabel(run.interpretation.strongestCode)}</dd></div>
             ) : null}
             {run.requestId ? <div><dt>Request ID</dt><dd><code>{run.requestId}</code></dd></div> : null}
           </dl>
+          {promptSkipped ? (
+            <p className="playground-notice" role="note">Prompt Injection 검사는 이 평가에 포함되지 않았습니다. 미탐지는 실행된 검사기의 범위에만 해당합니다.</p>
+          ) : null}
           {run.interpretation.signals.length > 0 ? (
             <div className="table-scroll">
               <table className="playground-signal-table">

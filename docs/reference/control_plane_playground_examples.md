@@ -91,7 +91,7 @@ Risk 작업 화면은 Chat 예제와 별도로 합성 입력 예제를 제공한
 |---|---|---|
 | 연락처 정보 | PII 탐지 | `D2` (이메일·전화번호) |
 | 설정 파일의 자격 증명 | Secret 탐지 | `D4`, `D5` |
-| 지시 무시 시도 | Prompt Injection 탐지 (`prompt_detection` 배포만) | `A1` (모델 판정이므로 보장하지 않음) |
+| 지시 무시 시도 | Prompt Injection 탐지 (`/v1/models`가 Prompt 검사기를 공개하는 구성만) | `A1` (모델 판정이므로 보장하지 않음) |
 | 일반 업무 문장 | 통합 Risk 평가 | 없음 |
 
 이메일은 `example.com`, Access Key는 AWS 문서의 예제 키다. 예제 선택은 입력만 채우며

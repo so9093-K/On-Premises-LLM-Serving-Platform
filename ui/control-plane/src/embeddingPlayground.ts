@@ -128,6 +128,28 @@ export function summarizeEmbeddingResponse(
   };
 }
 
+type RuntimeListView = {
+  runtimes: readonly { service_key: string; state: string }[];
+  topology?: readonly { service_key: string; service_id: string; available: boolean }[];
+};
+
+export type EmbeddingRuntimeState = {
+  serviceKey: string;
+  state: 'active' | 'starting' | 'stopped' | 'unavailable';
+};
+
+// 공개 모델 목록은 Runtime의 실행 여부와 별개다. 관리자 Runtime 상태를 보조 진단으로 읽어
+// 중지·기동 중·자원 정책상 사용 불가를 요청 전에 알린다. 공개 모델의 backend는 Runtime
+// topology의 service_id다. 대응하는 Runtime을 찾지 못하면 판단하지 않는다.
+export function embeddingRuntimeState(model: PublicModel, view: RuntimeListView | null | undefined): EmbeddingRuntimeState | null {
+  const binding = view?.topology?.find((item) => item.service_id === model.backend);
+  if (!binding) return null;
+  if (!binding.available) return { serviceKey: binding.service_key, state: 'unavailable' };
+  const runtime = view?.runtimes.find((item) => item.service_key === binding.service_key);
+  if (!runtime || !['active', 'starting', 'stopped'].includes(runtime.state)) return null;
+  return { serviceKey: binding.service_key, state: runtime.state as EmbeddingRuntimeState['state'] };
+}
+
 export function formatVectorPreview(preview: readonly number[], dimensions: number): string {
   const values = preview.map((value) => value.toFixed(4)).join(', ');
   return dimensions > preview.length ? `[${values}, … ${dimensions - preview.length}개 생략]` : `[${values}]`;

@@ -62,7 +62,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const elements: Record<PlaygroundWorkspace['path'], ReactNode> = {
     chat: <ChatPage grafanaUrl={grafanaUrl} docsUrl={docsUrl} />,
-    embeddings: <EmbeddingPlayground />,
+    embeddings: <EmbeddingPlayground features={features} />,
     risk: <RiskPlayground features={features} />,
   };
 
