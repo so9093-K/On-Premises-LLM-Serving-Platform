@@ -276,11 +276,17 @@ Grafana Dashboard는 운영 목적에 따라 구분된다.
 |---|---|
 | **서비스 개요** | 메인 모델 요청 허용 여부, 요청량·오류율·지연, vLLM 부하, 오류·거부 원인 |
 | **GPU 용량과 OOM 위험** | GPU 실측 용량, OOM/재시작, Queue, KV Cache, Token 처리량, 컨테이너 자원 확인. Control Plane의 정책상 예약과 다름 |
-| **오늘 사용량** | GPU 사용률, 모델별 요청량, 요청 거부, upstream 오류, Token 처리량 확인 |
+| **오늘 사용량** | 오늘의 대상별 호출·거부·오류 건수, 현재 GPU 사용률, 호출·토큰 처리율 확인 |
 | **요청 로그** | 요청 로그, API 오류, Readiness 실패, Runtime 로그 검색 |
 | **메인 런타임 상태 (Apple Silicon)** | MLX runtime의 수집 상태, model load, active/queue, 실패, 처리량과 요청 peak memory 확인 |
 
 full-stack의 Grafana Home Dashboard는 `서비스 개요`, static Metal은 `메인 런타임 상태 (Apple Silicon)`다.
+
+`오늘 사용량`의 기본 범위는 브라우저 시간대의 오늘 0시부터 현재까지다. 기간을 바꾸면
+대상별 호출·요청 거부·호출 오류의 집계도 해당 범위를 따른다. 건수는 Prometheus
+카운터의 `increase()` 추정치이며 수집 간격·누락·재시작의 영향을 받는다. 대상별 호출 수는
+Gateway가 기록한 모델·Risk 서비스 호출 기준이므로 외부 API 요청 수와 다르다. GPU 사용률은 현재 최댓값, 호출률은 자동 평균 구간, vLLM 토큰
+처리율은 최근 5분 평균이다. 수집되지 않은 값은 0으로 대체하지 않는다.
 
 Dashboard JSON은 repository에서 관리한다.
 
@@ -323,7 +329,7 @@ runtime 시작 이후 평균 처리 시간, 최근 요청의 prefill/decode 처�
 구분한다. 최근 요청 기반 값은 새 요청이 없으면 마지막 값을 유지하므로 실시간 부하로
 오해하지 않는다. 요청 단위 원인은 같은 시간 범위를 유지한 Request Log Explorer에서 찾는다.
 
-`Usage Today`의 4개 panel이 필요하면 override의 `volumes`에 `usage_today.json` 한 줄을 추가한다.
+`Usage Today`의 Gateway panel 4개가 필요하면 override의 `volumes`에 `usage_today.json` 한 줄을 추가한다.
 
 운영 Dashboard 변경은 JSON source를 기준으로 반영한다. Grafana UI에서 실험한 변경을 유지할 경우 JSON을 export해 repository에 반영한다.
 
