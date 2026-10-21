@@ -23,6 +23,7 @@ from ...services.runtime_controller_client import (
     RuntimeControllerClient,
     RuntimeControllerRequestError,
     RuntimeControllerUnavailableError,
+    main_model_serving_open,
 )
 from ...services.main_model_inflight import MainModelInFlight
 from ...services.responses_service import ResponsesService
@@ -210,7 +211,7 @@ def build_router(
         except RuntimeControllerUnavailableError as exc:
             return None, None, runtime_controller_unavailable_response(exc)
         record_main_model_request_context(request, main_model)
-        if main_model.get("gate") != "open":
+        if not main_model_serving_open(main_model):
             operation = main_model.get("last_operation") or {}
             body = error_payload(
                 "MAIN_MODEL_SWITCH_IN_PROGRESS",
@@ -301,7 +302,7 @@ def build_router(
                         item["backend"] = active["runtime_backend"]
             if settings.deployment_target.adaptive:
                 active = (active_snapshot or {}).get("active_profile")
-                if not isinstance(active, dict) or active_snapshot.get("gate") != "open":
+                if not main_model_serving_open(active_snapshot):
                     items = [item for item in items if item.get("id") != settings.runtime("main_llm").model]
                 else:
                     for item in items:

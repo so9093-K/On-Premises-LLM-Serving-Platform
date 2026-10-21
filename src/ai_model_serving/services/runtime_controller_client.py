@@ -16,6 +16,21 @@ class RuntimeControllerRequestError(Exception):
         self.detail = detail
 
 
+def main_model_serving_open(snapshot: object) -> bool:
+    """Controller 관리형 Main Model이 지금 추론 요청을 받을 수 있는지 판정한다.
+
+    Gateway의 추론 Admission과 ``/ready``가 이 판정 하나를 공유한다. 둘이 각자
+    Gate를 해석하면 ``/ready``는 준비 완료인데 실제 요청은 503으로 거부되는 상태가
+    생긴다. Gate가 열려 있어도 검증된 활성 Profile이 없으면 어떤 실행 정책으로
+    서빙하는지 알 수 없으므로 요청을 받을 수 없는 상태로 본다.
+    """
+    return (
+        isinstance(snapshot, dict)
+        and snapshot.get("gate") == "open"
+        and isinstance(snapshot.get("active_profile"), dict)
+    )
+
+
 class RuntimeControllerClient:
     """Runtime Controller lifecycle API용 HTTP client다.
 

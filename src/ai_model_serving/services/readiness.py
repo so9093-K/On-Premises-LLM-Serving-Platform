@@ -29,6 +29,10 @@ class DependencyProbe:
     headers: Mapping[str, str] | None = None
     evaluator: ReadinessEvaluator | None = None
     required: bool = True
+    # Runtime을 호출하기 전에 이미 요청 불가로 확정된 사유다(예: 제어 Gate 차단).
+    # 이 값이 있으면 Runtime 응답과 무관하게 not_ready이며, Runtime 자체의 미준비
+    # 사유가 제어 계층의 차단 사유를 가리지 않는다.
+    blocked_reason: str | None = None
 
 
 async def collect_readiness(
@@ -40,9 +44,7 @@ async def collect_readiness(
 ) -> dict[str, Any]:
     """의존성 readiness를 확인하고 플랫폼 readiness 본문을 반환한다."""
 
-    async def _probe_one(probe: DependencyProbe) -> dict[str, Any]:
-        endpoint = dependency_endpoint(probe.client.endpoint.base_url, probe.path)
-        message = None
+    async def _probe_runtime(probe: DependencyProbe) -> tuple[str, str | None]:
         try:
             probe_json = getattr(probe.client, "probe_json", probe.client.get_json)
             coro = (
@@ -52,15 +54,19 @@ async def collect_readiness(
             )
             body = await asyncio.wait_for(coro, timeout=timeout_seconds)
             if probe.evaluator is not None:
-                status, message = probe.evaluator(body)
-            else:
-                status = READY
+                return probe.evaluator(body)
+            return READY, None
         except TimeoutError:
-            status = NOT_READY
-            message = "READINESS_TIMEOUT"
+            return NOT_READY, "READINESS_TIMEOUT"
         except ServiceError as exc:
-            status = NOT_READY
-            message = f"{exc.code}: {exc.message}"
+            return NOT_READY, f"{exc.code}: {exc.message}"
+
+    async def _probe_one(probe: DependencyProbe) -> dict[str, Any]:
+        endpoint = dependency_endpoint(probe.client.endpoint.base_url, probe.path)
+        if probe.blocked_reason is not None:
+            status, message = NOT_READY, probe.blocked_reason
+        else:
+            status, message = await _probe_runtime(probe)
         if metrics is not None:
             metrics.record_readiness(probe.name, status == READY)
         item: dict[str, Any] = {"name": probe.name, "status": status, "endpoint": endpoint}

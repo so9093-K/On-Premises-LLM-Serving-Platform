@@ -3,8 +3,124 @@
 
 from __future__ import annotations
 
+import pytest
+
 from .helpers import *  # noqa: F401,F403
+from ai_model_serving.services.runtime_controller_client import RuntimeControllerUnavailableError
 from ai_model_serving.services.runtime_state import RuntimeState
+
+
+class _ControlledMainModel:
+    """Runtime Controller의 Gate 상태를 시나리오별로 바꾸는 테스트 대역."""
+
+    def __init__(self) -> None:
+        self.state = "open"
+
+    async def main_model(self, *, observed: bool = True):
+        if self.state == "unavailable":
+            raise RuntimeControllerUnavailableError("connection refused")
+        return {
+            "public_model": "local-main",
+            "active_profile": {"id": "gemma4-26b-a4b-fp8", "runtime_backend": "vllm-cuda"},
+            "gate": "open" if self.state == "open" else "closed",
+            "last_operation": None,
+        }
+
+
+def _main_dependency(body: dict) -> dict:
+    return next(item for item in body["dependencies"] if item["name"] == "main_llm_vllm")
+
+
+def _chat(client):
+    return client.post(
+        "/v1/chat/completions",
+        headers=auth_headers(),
+        json={"model": "local-main", "messages": [{"role": "user", "content": "hello"}]},
+    )
+
+
+@pytest.mark.parametrize(
+    ("controller_state", "reason", "chat_code"),
+    [
+        ("unavailable", "MAIN_MODEL_CONTROL_UNAVAILABLE", "MAIN_MODEL_CONTROL_UNAVAILABLE"),
+        ("closed", "MAIN_MODEL_GATE_CLOSED", "MAIN_MODEL_SWITCH_IN_PROGRESS"),
+    ],
+)
+def test_controller_managed_readiness_follows_chat_admission(controller_state, reason, chat_code):
+    """Runtime이 /models에 응답해도 Chat이 거부되는 동안 /ready는 준비 완료가 아니다.
+
+    Controller 장애나 Gate 차단을 /ready가 무시하면 Load Balancer와 운영 Smoke가
+    실제로는 503만 받는 Gateway로 트래픽을 보낸다. Core 생존(/health)은 모델 제어
+    장애와 무관하게 유지된다.
+    """
+    clients = FakeGatewayClients()
+    clients.runtime_controller = _ControlledMainModel()
+    clients.runtime_controller.state = controller_state
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    ready = client.get("/ready")
+    chat = _chat(client)
+
+    assert client.get("/health").status_code == 200
+    assert ready.status_code == 503
+    assert "main_llm_vllm" in ready.json()["required_not_ready_dependencies"]
+    assert _main_dependency(ready.json())["message"] == reason
+    assert chat.status_code == 503
+    assert chat.json()["error"]["code"] == chat_code
+
+
+def test_controller_gate_reason_is_not_masked_by_runtime_failure():
+    """Gate가 닫힌 전환 중 Runtime도 내려가 있으면 원인은 제어 Gate로 보고한다."""
+    clients = FakeGatewayClients()
+    clients.runtime_controller = _ControlledMainModel()
+    clients.runtime_controller.state = "closed"
+    clients.main_llm.ready = False
+
+    body = asyncio.run(_readiness(clients, settings()))
+
+    assert _main_dependency(body)["message"] == "MAIN_MODEL_GATE_CLOSED"
+
+
+def test_controller_managed_readiness_reports_runtime_failure_when_gate_is_open():
+    """Gate가 열렸어도 모델 Runtime 자체가 응답하지 않으면 그 사유를 따로 보고한다."""
+    clients = FakeGatewayClients()
+    clients.runtime_controller = _ControlledMainModel()
+    clients.main_llm.ready = False
+
+    body = asyncio.run(_readiness(clients, settings()))
+
+    assert body["status"] == "not_ready"
+    assert _main_dependency(body)["message"].startswith("MODEL_UNAVAILABLE")
+
+
+def test_controller_managed_readiness_recovers_when_gate_reopens():
+    clients = FakeGatewayClients()
+    clients.runtime_controller = _ControlledMainModel()
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    for state in ("unavailable", "closed"):
+        clients.runtime_controller.state = state
+        assert client.get("/ready").status_code == 503
+    clients.runtime_controller.state = "open"
+
+    assert client.get("/ready").status_code == 200
+    assert _chat(client).status_code == 200
+
+
+def test_open_gate_without_active_profile_is_not_serving():
+    """검증된 활성 Profile이 없는 Gate 개방은 Chat과 /ready 모두 요청 불가로 본다."""
+
+    class GateWithoutProfile:
+        async def main_model(self, *, observed: bool = True):
+            return {"public_model": "local-main", "active_profile": None, "gate": "open", "last_operation": None}
+
+    clients = FakeGatewayClients()
+    clients.runtime_controller = GateWithoutProfile()
+    client = TestClient(create_gateway_app(settings(), clients))
+
+    assert client.get("/ready").status_code == 503
+    assert _chat(client).status_code == 503
+
 
 def test_gateway_health_and_ready():
     client = TestClient(create_gateway_app(settings(), FakeGatewayClients()))

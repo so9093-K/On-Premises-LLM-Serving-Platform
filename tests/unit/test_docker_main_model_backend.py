@@ -255,6 +255,109 @@ def test_observed_profile_accepts_matching_command_and_runtime_image(monkeypatch
     assert asyncio.run(backend.observed_profile(catalog)) == profile.profile_id
 
 
+def _serve_container(monkeypatch, backend, *, command, image, started_at="started"):
+    async def fake_container_id(_service):
+        return "container-1"
+
+    async def fake_inspect(_container_id):
+        return {
+            "State": {"Status": "running", "StartedAt": started_at},
+            "Config": {"Cmd": list(command), "Image": image},
+        }
+
+    monkeypatch.setattr(backend, "_container_id", fake_container_id)
+    monkeypatch.setattr(backend, "_inspect", fake_inspect)
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--max-model-len", "8192"),
+        ("--max-num-seqs", "8"),
+        ("--max-num-batched-tokens", "4096"),
+        ("--gpu-memory-utilization", "0.9"),
+    ],
+)
+def test_observed_profile_rejects_same_model_with_different_engine_limits(monkeypatch, flag, value):
+    """모델·Revision·이미지가 같아도 실행 자원 인자가 다르면 같은 Profile이 아니다.
+
+    신원 인자만 비교하면 다른 Context·Batch·GPU 예약으로 실행된 컨테이너가 선언된
+    Profile로 인정되고, Gateway는 실제 엔진과 다른 한도·정책으로 요청을 받는다.
+    """
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    profile = catalog.profiles["gemma4-26b-a4b-fp8"]
+    command = list(profile.command)
+    command[command.index(flag) + 1] = value
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+    _serve_container(monkeypatch, backend, command=command, image=profile.image)
+
+    assert asyncio.run(backend.observed_profile(catalog)) is None
+
+
+@pytest.mark.parametrize(
+    "host_policy",
+    [{"resource_variant": "rtx4090-24gb"}, {"gpu_memory_utilization_override": 0.5}],
+)
+def test_observed_profile_requires_the_host_resolved_resource_policy(monkeypatch, host_policy):
+    """Host가 선택한 Resource Variant·GPU 비율을 적용한 결과도 실행 계약에 속한다."""
+    reference = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    selected = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml", **host_policy)
+    profile_id = "gemma4-e4b-it"
+    assert reference.profiles[profile_id].command != selected.profiles[profile_id].command
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+
+    _serve_container(
+        monkeypatch,
+        backend,
+        command=reference.profiles[profile_id].command,
+        image=reference.profiles[profile_id].image,
+    )
+    assert asyncio.run(backend.observed_profile(selected)) is None
+
+    _serve_container(
+        monkeypatch,
+        backend,
+        command=selected.profiles[profile_id].command,
+        image=selected.profiles[profile_id].image,
+    )
+    assert asyncio.run(backend.observed_profile(selected)) == profile_id
+
+
+def test_reconcile_does_not_reopen_gate_for_drifted_engine_arguments(monkeypatch, tmp_path):
+    """같은 모델을 다른 실행 인자로 재기동한 인스턴스는 이전 Canary 결과를 승계하지 않는다."""
+    from ai_model_serving.main_model.control import MainModelManager
+    from ai_model_serving.main_model.state import MainModelStateStore
+
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
+    profile = catalog.profiles["gemma4-26b-a4b-fp8"]
+    command = list(profile.command)
+    command[command.index("--max-model-len") + 1] = "8192"
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9400")
+    _serve_container(monkeypatch, backend, command=command, image=profile.image, started_at="restarted")
+    canaries = []
+
+    async def fake_validate(_catalog, validated_profile):
+        canaries.append(validated_profile.profile_id)
+
+    monkeypatch.setattr(backend, "validate", fake_validate)
+    store = MainModelStateStore(tmp_path / "state.json", profile.profile_id)
+    store.update(
+        lambda state: state.update(
+            active_profile=profile.profile_id,
+            gate="open",
+            last_validated_container_started_at="validated",
+        )
+    )
+    manager = MainModelManager(catalog, store, backend)
+
+    with pytest.raises(RuntimeError, match="profile differs"):
+        asyncio.run(manager.reconcile_if_restarted())
+
+    assert store.read()["gate"] == "closed"
+    assert store.read()["last_validated_container_started_at"] == "validated"
+    assert canaries == []
+
+
 def test_observe_runtime_reports_container_health_and_profile(monkeypatch):
     catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml")
     profile = catalog.profiles["gemma4-26b-a4b-fp8"]

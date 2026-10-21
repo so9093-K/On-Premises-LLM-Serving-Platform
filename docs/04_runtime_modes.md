@@ -415,6 +415,19 @@ optional_not_ready_dependencies: [...]
 
 Runtime Startup Profile에서 stopped 또는 deferred로 지정된 non-main Model Runtime은 optional dependency로 처리될 수 있다.
 
+Runtime Controller가 Main Model을 관리하는 Target(`linux-nvidia-dynamic`, `linux-adaptive`)에서는
+Main dependency가 Chat·Responses 요청 Admission과 같은 판정을 따른다. Controller가 검증된
+활성 Profile로 Gate를 열었을 때만 Main Runtime 자체의 준비 상태를 확인하며, 그 전에는
+Runtime이 응답하더라도 준비 완료로 보지 않는다. Main dependency의 `message`는 원인을 구분한다.
+
+| `message` | 의미 | 같은 시점의 추론 요청 |
+|---|---|---|
+| `MAIN_MODEL_CONTROL_UNAVAILABLE` | Runtime Controller를 관측할 수 없음 | `503 MAIN_MODEL_CONTROL_UNAVAILABLE` |
+| `MAIN_MODEL_GATE_CLOSED` | 전환·재검증·중지로 Gate가 닫힘 | `503 MAIN_MODEL_SWITCH_IN_PROGRESS` |
+| `MODEL_UNAVAILABLE: ...`, `READINESS_TIMEOUT` 등 | Gate는 열렸으나 Runtime 자체가 준비되지 않음 | Upstream 오류(`MODEL_UNAVAILABLE`, `UPSTREAM_TIMEOUT` 등) |
+
+모델 제어 장애는 Core의 생존 여부를 결정하지 않으므로 `/health`는 계속 `200`이다.
+
 ### Operator readiness
 
 정상 상태 확인은 backend 종류와 무관하게 `make status` 하나를 사용한다.
