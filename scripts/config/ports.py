@@ -306,7 +306,14 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
             subprocess.run([sys.executable, "scripts/render_runtime_assets.py", "--write"], cwd=root, check=True)
             if rebuild_console:
                 subprocess.run(["make", "console-build"], cwd=root, check=True)
-            subprocess.run(["make", "validate"], cwd=root, check=True)
+            if mapping:
+                # 서비스·코드·테스트가 함께 이동하므로 lint만으로는 충분하지 않다.
+                subprocess.run(["make", "app-check"], cwd=root, check=True)
+                if rebuild_console:
+                    subprocess.run(["make", "console-check"], cwd=root, check=True)
+            else:
+                # 이미 적용된 Namespace에서 이전 .env만 갱신할 때는 설정 계약을 검증한다.
+                subprocess.run(["make", "validate"], cwd=root, check=True)
     except BaseException:
         if rebuild_console:
             for file in console_dir.rglob("*"):
