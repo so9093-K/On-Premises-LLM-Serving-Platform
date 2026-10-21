@@ -1,6 +1,20 @@
 # version은 이 레지스트리 스키마의 버전이며 패키지 배포 버전이 아니다.
 version: 0.1.0
 
+port_namespace:
+  # 최초 재정렬 이후 역할별 offset은 자동 압축하지 않는다.
+  base: 9600
+  offsets:
+    gateway: 0
+    main_llm_vllm: 1
+    embedding_vllm: 2
+    embedding_ko_vllm: 3
+    prompt_injection_detector_runtime: 4
+    risk_signal_service: 5
+    grafana: 10
+    mlx_metrics_exporter: 16
+    team_api_proxy: 80
+
 # Compose 서비스 identity와 실제 endpoint projection의 단일 기준이다.
 # container_port: Compose 네트워크 안에서 서비스가 수신하는 고정 포트다.
 # host_env_port/default_host_port: host에 직접 실행하거나 host에 publish되는 service가
@@ -19,9 +33,9 @@ services:
   # 외부 요청을 받아 Model Runtime과 Risk Signal Service로 전달하는 API 진입점.
   gateway:
     compose_service: gateway
-    container_port: 9400
+    container_port: 9600
     host_env_port: GATEWAY_PORT
-    default_host_port: 9400
+    default_host_port: 9600
     host_env_bind: GATEWAY_BIND_ADDR
     default_bind: "0.0.0.0"
     categories:
@@ -33,9 +47,9 @@ services:
   # Compose에서는 internal이지만 app-only lifecycle에서는 host process로 직접 실행한다.
   risk_signal_service:
     compose_service: risk-signal-service
-    container_port: 9405
+    container_port: 9605
     host_env_port: RISK_SIGNAL_SERVICE_PORT
-    default_host_port: 9405
+    default_host_port: 9605
     categories:
       - risk_signal_service
       - host_process
@@ -43,7 +57,7 @@ services:
   # active main-model profile을 실행하는 주 대화 모델 runtime.
   main_llm_vllm:
     compose_service: main-llm-vllm
-    container_port: 9401
+    container_port: 9601
     categories:
       - model_runtime
       - vllm_runtime
@@ -64,7 +78,7 @@ services:
   # 범용 embedding 및 retrieval용 runtime.
   embedding_vllm:
     compose_service: embedding-vllm
-    container_port: 9402
+    container_port: 9602
     categories:
       - model_runtime
       - vllm_runtime
@@ -72,7 +86,7 @@ services:
   # 한국어 retrieval embedding용 runtime.
   embedding_ko_vllm:
     compose_service: embedding-ko-vllm
-    container_port: 9406
+    container_port: 9603
     categories:
       - model_runtime
       - vllm_runtime
@@ -80,7 +94,7 @@ services:
   # prompt injection 탐지용 단일 token 분류 runtime.
   prompt_injection_detector_runtime:
     compose_service: prompt-injection-detector-runtime
-    container_port: 9403
+    container_port: 9604
     categories:
       - model_runtime
       - vllm_runtime
@@ -99,7 +113,7 @@ services:
     compose_service: grafana
     container_port: 3000
     host_env_port: GRAFANA_PORT
-    default_host_port: 9411
+    default_host_port: 9610
     host_env_bind: GRAFANA_BIND_ADDR
     default_bind: "0.0.0.0"
     categories:

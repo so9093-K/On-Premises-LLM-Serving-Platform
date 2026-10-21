@@ -11,10 +11,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ai_model_serving.access_profile import access_profile_mismatches  # noqa: E402
+from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import parse_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import is_default_secret  # noqa: E402
 
-PORT = 9400
+PORT = int(load_yaml_mapping(ROOT / 'configs/services.yaml')['services']['gateway']['default_host_port'])
 
 
 def preflight(env_file: Path) -> list[str]:
@@ -31,7 +32,7 @@ def preflight(env_file: Path) -> list[str]:
         for mismatch in access_profile_mismatches("edge", values)
     ]
     if values.get("GATEWAY_PORT", str(PORT)) != str(PORT):
-        errors.append("제공된 Nginx 설정은 Gateway 9400번 포트만 지원합니다.")
+        errors.append("제공된 Nginx 설정은 Gateway 현재 포트와 일치해야 합니다.")
     if is_default_secret(values.get("INTERNAL_SERVICE_TOKEN", "")):
         errors.append("내부 서비스 인증 토큰도 기본값일 수 없습니다.")
     for name in ("API_KEYS", "ADMIN_API_KEYS"):

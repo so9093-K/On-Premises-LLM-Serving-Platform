@@ -141,7 +141,11 @@ def validate_ports() -> None:
     Compose 내부 runtime port 일치는 load_runtime_topology()가 소유한다. 여기서는
     host-published service와 app-only host_process가 선언한 default_host_port만 본다.
     """
-    services = read_yaml('configs/services.yaml')['services']
+    policy = read_yaml('configs/services.yaml')
+    services = policy['services']
+    namespace = policy['port_namespace']
+    base = int(namespace['base'])
+    offsets = namespace['offsets']
     host_ports = service_default_host_ports()
     owners_by_port: dict[int, str] = {}
 
@@ -155,22 +159,15 @@ def validate_ports() -> None:
 
         service = services[service_id]
         categories = set(service.get('categories', []))
-        if (
-            {'public_entrypoint', 'host_process'} & categories
-            and not 9400 <= host_port <= 9409
-        ):
-            raise SystemExit(
-                f'{service_id} application host port must be in 9400..9409, got {host_port}'
-            )
-        if 'visualization' in categories and not 9410 <= host_port <= 9419:
-            raise SystemExit(
-                f'{service_id} visualization host port must be in 9410..9419, got {host_port}'
-            )
+        first = base + (10 if 'visualization' in categories else 0)
+        last = first + 9
+        if ({'public_entrypoint', 'host_process'} & categories or 'visualization' in categories) and not first <= host_port <= last:
+            raise SystemExit(f'{service_id} host port must be in {first}..{last}, got {host_port}')
+        if service_id in offsets and host_port != base + int(offsets[service_id]):
+            raise SystemExit(f'{service_id} host port must follow namespace offset, got {host_port}')
 
-    if host_ports.get('gateway') != 9400:
-        raise SystemExit(
-            f'gateway default_host_port must remain 9400, got {host_ports.get("gateway")}'
-        )
+    if host_ports.get('gateway') != base:
+        raise SystemExit(f'gateway default_host_port must remain {base}, got {host_ports.get("gateway")}')
 
     # Risk Signal Service는 vLLM topology 밖의 내부 서비스이므로 서비스 레지스트리와
     # 기본 내부 endpoint의 정합성을 여기에서 검증한다. 외부 env override는 별도 계약이다.

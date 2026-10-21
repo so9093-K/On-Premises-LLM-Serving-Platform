@@ -6,6 +6,10 @@
 
 ### Changed
 
+- 프로젝트 관리 포트를 96xx 기본 Namespace로 이전한다. `make ports BASE=...`는 역할별 고정 Offset에 따라 관련 설정을 갱신하며, 실행 환경 반영은 `make up`이 담당한다. 기존 94xx 배포는 `.env` 및 외부 접속 URL/방화벽/Tailnet Host Adapter를 검토해야 한다. DCGM, Grafana 내부 포트 등 외부 엔진 소유 포트와 Tailnet HTTPS 443/8443은 유지한다. ([ADR-0058](docs/adr/0058-port-namespace-policy.md))
+
+### Changed
+
 - Playground의 Risk Python·Node.js 재현 예제는 검사기 출처가 null이거나 누락되어도 실행할 수 있다. 부분 평가에서는 발견한 탐지 신호를 출력하면서 종료 코드 2로 평가 미완료를 알리며, 미탐지는 평가 완료·시스템 신호 없음·위험 신호 없음이 모두 확인될 때만 출력한다.
 
 - Playground Risk 화면은 Prompt Injection 검사기를 Target 선언이 아니라 현재 `/v1/models` 공개 여부로 제공한다. `rtx4090-24gb`처럼 검사기가 비활성인 구성에서는 이를 안내하고, 통합 평가 결과에 응답 근거의 실행 검사기와 Prompt 미포함을 표시해 PII·Secret만의 미탐지를 전체 미탐지처럼 보여 주지 않는다. Embedding 화면은 선택한 Runtime이 중지·기동 중·사용 불가이면 요청 전에 알린다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
