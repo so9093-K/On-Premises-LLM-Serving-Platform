@@ -186,20 +186,24 @@ export function exampleAvailability(
 export function videoExampleLimitSummary(model: PublicModel): string {
   const limits = model.request_limits?.video ?? {};
   const units = [
-    ['max_inputs', '개'], ['max_bytes', '바이트'], ['max_duration_seconds', '초'],
-    ['max_frames', '프레임'], ['max_frame_pixels', '픽셀/프레임'],
+    ['max_inputs', '요청당', '개'], ['max_bytes', '파일당', '바이트'], ['max_duration_seconds', '최대', '초'],
+    ['max_frames', '최대', '프레임'], ['max_frame_pixels', '프레임당', '픽셀'],
   ] as const;
-  return units.flatMap(([key, unit]) => {
+  return units.flatMap(([key, label, unit]) => {
     const value = limits[key];
-    return typeof value === 'number' && Number.isFinite(value) && value > 0
-      ? [`${value.toLocaleString('ko-KR')}${unit}`] : [];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return [];
+    if (key === 'max_bytes' && value >= 1024) {
+      const divisor = value >= 1024 * 1024 ? 1024 * 1024 : 1024;
+      return [`${label} ${(value / divisor).toFixed(1)} ${divisor === 1024 ? 'KiB' : 'MiB'}`];
+    }
+    return [`${label} ${value.toLocaleString('ko-KR')}${unit}`];
   }).join(' · ');
 }
 
 export function exampleAttachmentSummary(
   attachments: readonly { modality: 'image' | 'audio' | 'video' }[],
 ): string {
-  const names = { image: '이미지', audio: '오디오', video: '비디오' } as const;
+  const names = { image: '이미지', audio: '오디오', video: '영상' } as const;
   return (['image', 'audio', 'video'] as const)
     .map((modality) => {
       const count = attachments.filter((item) => item.modality === modality).length;

@@ -233,7 +233,7 @@ export function ChatSettingsPanel({ model }: { model: PublicModel }) {
             <summary>도구 호출</summary>
             <div className="chat-tool-settings-body">
               <small>
-                Console은 도구를 실행하지 않고 request/response round trip만 검증합니다.
+                도구를 직접 실행한 뒤 결과를 대화에 입력하세요.
                 {controls.tools.minItems !== null ? ` · tools 사용 시 최소 ${controls.tools.minItems}개` : ''}
                 {controls.tools.maxItems !== null ? ` · 최대 ${controls.tools.maxItems}개` : ''}
               </small>
@@ -401,7 +401,6 @@ export function ChatSettingsPanel({ model }: { model: PublicModel }) {
                       value={settings.jsonSchemaName}
                       onChange={(event) => updateSettings({ jsonSchemaName: event.currentTarget.value })}
                     />
-                    <small>이름의 최종 형식 검증은 Gateway 계약이 수행합니다.</small>
                   </div>
                   {controls.responseFormat.jsonSchema.strictRequireTrue ? (
                     <label className="chat-toggle">

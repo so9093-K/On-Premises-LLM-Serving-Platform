@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@patternfly/react-core';
 import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, videoExampleLimitSummary, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
 import type { ChatControls, PublicModel } from './chatSession';
@@ -29,9 +30,13 @@ export function PlaygroundExampleGallery({
   model, controls, selectedId, sampleUrls, validateRequest, busy, hasConversation, confirmReplace,
   error, onSelect, onApply, onCancelReplace,
 }: Props) {
+  const [failedVideoUrl, setFailedVideoUrl] = useState<string | null>(null);
   const selected = PLAYGROUND_EXAMPLES.find((item) => item.id === selectedId) ?? null;
+  const sampleAsset = selected?.sample ? EXAMPLE_SAMPLE_ASSETS[selected.sample] : null;
+  const sampleUrl = selected?.sample ? sampleUrls[selected.sample] : null;
   const availability = selected ? exampleAvailability(selected, model, controls, validateRequest) : null;
-  const videoLimits = selected?.category === 'video' ? videoExampleLimitSummary(model) : '';
+  const videoLimits = selected?.category === 'video' && model.input_modalities?.includes('video')
+    ? videoExampleLimitSummary(model) : '';
   const needsFreshConversation = selected !== null && hasConversation && exampleRequiresFreshConversation(selected);
   const unavailableReason = needsFreshConversation
     ? '새 대화에서 사용할 수 있습니다. 기존 대화를 지운 뒤 적용하세요.'
@@ -68,49 +73,59 @@ export function PlaygroundExampleGallery({
           <div className="playground-example-preview-heading">
             <h3>{selected.title}</h3>
             <div className="playground-example-tags" aria-label="적용할 입력 종류">
-              {selected.sample ? <span>{exampleAttachmentSummary([EXAMPLE_SAMPLE_ASSETS[selected.sample]])}</span> : null}
+              {sampleAsset ? <span>{exampleAttachmentSummary([sampleAsset])}</span> : null}
               {selected.systemPrompt ? <span>시스템 프롬프트</span> : null}
               {selected.schema ? <span>JSON Schema</span> : null}
               {!selected.sample && !selected.systemPrompt && !selected.schema ? <span>텍스트 입력</span> : null}
             </div>
           </div>
           <p className="playground-example-prompt">{selected.prompt}</p>
-          {selected.sample ? (
+          {sampleAsset && sampleUrl ? (
             <figure className="playground-example-sample">
-              {EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'audio' ? (
+              {sampleAsset.modality === 'audio' ? (
                 <audio
                   key={selected.sample}
                   className="playground-example-audio"
-                  src={sampleUrls[selected.sample]}
+                  src={sampleUrl}
                   controls
                   preload="metadata"
                   aria-label="예제 한국어 음성 재생"
                 >
                   오디오 재생을 지원하지 않는 브라우저입니다.
                 </audio>
-              ) : EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'video' ? (
+              ) : sampleAsset.modality === 'video' ? (
                 <video
                   key={selected.sample}
                   className="playground-example-video"
-                  src={sampleUrls[selected.sample]}
+                  src={sampleUrl}
                   controls
                   playsInline
                   preload="metadata"
                   aria-label="예제 영상 재생"
+                  onError={() => setFailedVideoUrl(sampleUrl)}
+                  onLoadedMetadata={() => setFailedVideoUrl(null)}
                 >
                   영상 재생을 지원하지 않는 브라우저입니다.
                 </video>
               ) : (
                 <img
-                  src={sampleUrls[selected.sample]}
-                  alt={EXAMPLE_SAMPLE_ASSETS[selected.sample].imageAlt ?? '예제 이미지'}
+                  src={sampleUrl}
+                  alt={sampleAsset.imageAlt ?? '예제 이미지'}
                   loading="lazy"
                 />
               )}
-              <figcaption>{EXAMPLE_SAMPLE_ASSETS[selected.sample].caption}</figcaption>
+              <figcaption>{sampleAsset.caption}</figcaption>
             </figure>
           ) : null}
-          {videoLimits ? <p className="playground-example-limits">현재 모델의 영상 입력 상한: {videoLimits}</p> : null}
+          {sampleAsset?.modality === 'video' && failedVideoUrl === sampleUrl ? (
+            <p className="playground-example-warning" role="status">영상 미리보기를 재생할 수 없습니다. 연결 상태와 브라우저의 WebM 지원 여부를 확인하세요.</p>
+          ) : null}
+          {videoLimits ? (
+            <details className="playground-example-technical">
+              <summary>영상 입력 제한</summary>
+              <p className="playground-example-limits">{videoLimits}</p>
+            </details>
+          ) : null}
           {selected.sampleSceneDescription ? (
             <details className="playground-example-technical">
               <summary>영상 장면 설명 보기</summary>

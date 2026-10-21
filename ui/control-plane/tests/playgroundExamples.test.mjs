@@ -73,6 +73,7 @@ test('image examples are unavailable to text-only models and structured example 
 
 test('example origin note reflects actual attachment modalities, not image-only assumptions', () => {
   assert.equal(exampleAttachmentSummary([{ modality: 'audio' }]), '오디오 1개');
+  assert.equal(exampleAttachmentSummary([{ modality: 'video' }]), '영상 1개');
   assert.equal(exampleAttachmentSummary([{ modality: 'image' }, { modality: 'image' }, { modality: 'audio' }]), '이미지 2개 · 오디오 1개');
   assert.equal(exampleAttachmentSummary([]), '');
 });

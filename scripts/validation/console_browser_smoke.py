@@ -398,6 +398,7 @@ def run_video_example(browser, width, height):
     page.get_by_role("button", name="영상 분석").click()
     page.get_by_text("현재 모델은 영상 입력을 지원하지 않습니다.").first.wait_for()
     assert page.get_by_role("button", name="입력에 적용").is_disabled()
+    expect(page.get_by_text("영상 입력 제한", exact=True)).to_have_count(0)
     state.update(video=True, max_duration=7)
     page.reload(wait_until="domcontentloaded")
     page.get_by_role("button", name="영상 분석").click()
@@ -414,7 +415,11 @@ def run_video_example(browser, width, height):
     page.wait_for_function("() => document.querySelector('.playground-example-video').currentTime > 0")
     video.evaluate("(el) => el.pause()")
     page.get_by_text("합성 예제 · 무음 · 8초 · 640 × 360 · 4.1 KiB").wait_for()
-    page.get_by_text("현재 모델의 영상 입력 상한:", exact=False).wait_for()
+    expect(page.locator(".playground-example-limits")).not_to_be_visible()
+    page.get_by_text("영상 입력 제한", exact=True).click()
+    expect(page.locator(".playground-example-limits")).to_contain_text("파일당 47.7 MiB")
+    prompt = page.locator(".playground-example-prompt")
+    assert prompt.evaluate("(el) => el.scrollHeight <= el.clientHeight + 1"), "예제 질문은 잘리지 않아야 한다"
     page.get_by_text("영상 장면 설명 보기").click()
     page.get_by_text("밝은 배경에서 빨간 정사각형이", exact=False).wait_for()
     assert requests == [], "영상 선택과 재생은 추론을 보내지 않아야 한다"
@@ -422,7 +427,7 @@ def run_video_example(browser, width, height):
     page.screenshot(path=str(SCREENSHOTS / f"playground-video-preview-{width}.png"), full_page=True)
     page.get_by_role("button", name="입력에 적용").click()
     page.locator(".chat-attachment-list").get_by_text("sample-video.webm").wait_for()
-    page.get_by_text("영상 분석 예제에서 시작 · 비디오 1개").wait_for()
+    page.get_by_text("영상 분석 예제에서 시작 · 영상 1개").wait_for()
     expect(page.get_by_label("메시지")).to_be_focused(timeout=3000)
     assert requests == [], "영상 예제 적용은 추론을 보내지 않아야 한다"
     page.get_by_role("button", name="보내기").click()
@@ -436,9 +441,20 @@ def run_video_example(browser, width, height):
         export.get_by_role("button", name="요청 JSON 받기").click()
     with open(json_save.value.path(), encoding="utf-8") as downloaded:
         assert json.load(downloaded) == requests[-1]
+    request_count = len(requests)
+    page.route("**/assets/sample-video-*.webm", lambda route: route.fulfill(status=404, body=""))
+    page.reload(wait_until="domcontentloaded")
+    page.get_by_role("button", name="영상 분석").click()
+    page.get_by_text("영상 미리보기를 재생할 수 없습니다.", exact=False).wait_for()
+    page.get_by_label("메시지").fill("보존할 입력")
+    page.get_by_role("button", name="입력에 적용").click()
+    page.get_by_role("button", name="교체하고 적용").click()
+    page.get_by_text("예제 파일을 가져오지 못했습니다.", exact=True).wait_for()
+    expect(page.get_by_label("메시지")).to_have_value("보존할 입력")
+    assert len(requests) == request_count, "예제 파일 실패 시 기존 입력을 유지하고 추론하지 않는다"
     assert not errors, errors
     page.close()
-    print(f"PASS 영상 Chromium {width}x{height}: 미지원·길이 제한, 실제 재생, 수동 전송, 원본 WebM과 요청 보존")
+    print(f"PASS 영상 Chromium {width}x{height}: 입력 제한·질문 표시, 실제 재생·수동 전송, 내보내기·로딩 실패 복구")
 
 
 def run_tool_result_roundtrip(browser, width, height):
