@@ -26,8 +26,8 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": true,
-      "title": "Logs Drilldown (자유 탐색)",
-      "tooltip": "이 대시보드는 gateway/risk-signal-service의 구조화 로그만 큐레이션한다. LogQL 없이 label/field를 클릭하며 자유롭게 파고들거나, 여기 없는 컨테이너/필드를 보려면 Grafana 공식 Logs Drilldown 앱(grafana-lokiexplore-app)을 쓴다.",
+      "title": "로그 탐색",
+      "tooltip": "서비스·필드별로 로그를 자유롭게 검색합니다.",
       "type": "link",
       "url": "/a/grafana-lokiexplore-app/explore"
     }
@@ -139,7 +139,7 @@
           }
         }
       ],
-      "description": "게이트웨이/risk-signal-service 전체 요청 로그(요청 한 줄 = 테이블 한 행).\n\n- 이 대시보드는 gateway/risk-signal-service 구조화 로그 + vLLM·MLX 등 runtime 원본 로그를 함께 다룬다(아래 **Non-JSON Runtime Errors**/**Raw Runtime Log**/**Engine Crash / Traceback**)\n- **main_model_profile**: Chat Completions/Responses admission에 실제 사용한 active Main Model profile id다. Runtime Controller에서 이미 읽은 control snapshot의 식별자만 기록하며 catalog 전체나 GPU identity는 포함하지 않는다.\n- **main_resource_variant**: active profile에 explicit resource-policy override가 있을 때만 기록한다. 빈 값은 reference resource policy를 뜻하며 GPU 제품 지원/미지원 판정이 아니다.\n- **prompt_tokens/completion_tokens/total_tokens**: upstream usage를 그대로 옮긴 값이다. `/v1/chat/completions`는 streaming과 non-streaming 모두, vLLM-backed prompt detector도 세 값이 모두 기록되며, `/v1/embeddings`는 completion_tokens가 없어 빈 값이다. 통합 Risk 평가는 포함된 vLLM detector 호출분을 합산한다. local detector·입력 제한 사전 차단·실패 응답은 셋 다 빈 값이다. `LOG_REQUEST_RESPONSE_BODY`와 무관하며 민감정보가 아니다.\n- **queue_wait_ms**: upstream admission slot을 기다린 시간. `latency_ms - queue_wait_ms`가 실제 upstream 처리 시간이라, 느린 요청이 대기 때문인지 추론 때문인지 가른다. upstream을 부르지 않은 요청은 빈 값이다.\n- **time_to_first_chunk_ms**: streaming 요청에서 Gateway가 upstream에 요청을 시작한 뒤 첫 SSE chunk를 관찰할 때까지의 시간이다. Prometheus `streaming_time_to_first_chunk_seconds`와 같은 관측값이며 first token/TTFT로 재해석하지 않는다. 첫 chunk 전에 실패한 요청과 non-streaming 요청은 빈 값이다.\n- **stream_status**: SSE relay 종료 사유(`completed`/`client_disconnect`/`error`). streaming은 헤더가 나간 뒤 끝나므로 status_code가 항상 200이다. 중단된 요청은 여기서만 구분된다. non-streaming 요청은 빈 값이다.\n- **upstream_response_id**: model runtime이 이 생성에 붙인 id다(vLLM은 `chatcmpl-...`). vLLM이 자기 컨테이너 로그에 `Received request`/`Added request`로 같은 값을 남기므로, 이 값을 복사해 아래 **Raw Runtime Log**에서 검색하면 시간대 추정 없이 그 요청의 runtime 로그를 찾는다. streaming/non-streaming 모두 채워지고, 단일 생성이 없는 집계 Risk 평가는 빈 값이다.\n- **client_host** 클릭 시 그 IP로 필터링\n- request_id는 모든 요청에 기록한다. 오류 코드·원인 추적은 아래 **API / Stream Errors** 패널 참고\n- `/metrics`, `/health`는 노이즈라 항상 제외\n- `LOG_REQUEST_RESPONSE_BODY=true`일 때 `/v1/chat/completions`(non-streaming), `/v1/embeddings`, `/v1/risk/detectors/*/assessments`·`/v1/risk/assessments`에서 마스킹된 요청/응답 원문(임베딩은 벡터 대신 개수/차원 요약)이 존재한다 -> 컬럼엔 없고 아래 **Request/Response 원문** 패널 참고"
+      "description": "Gateway와 Risk Signal Service의 요청을 한 행씩 확인합니다.\n\n- `request_id` 또는 클라이언트 주소로 요청을 좁히세요.\n- 지연·토큰 사용량을 확인하고, 스트리밍 요청은 `stream_status`도 확인하세요.\n- 같은 요청의 런타임 로그는 `upstream_response_id`로 검색하세요."
     },
     {
       "id": 2,
@@ -264,7 +264,7 @@
           }
         }
       ],
-      "description": "외부 API의 4xx/5xx와 HTTP 200 이후 SSE로 전달된 오류입니다. 스트림은 종료 후 기록하며 latency_ms는 전체 처리 시간입니다. `/ready`의 dependency 미준비는 아래 **Readiness Failures**에서 분리해 봅니다. 값 없음은 선택 기간·필터의 수집된 오류가 없다는 뜻이며 수집 상태 자체를 보장하지 않습니다.\n\n- **error_code**: 같은 status_code(예: 503)에 묶인 API 오류 분류. error guide의 의미·조치 기준이다.\n- **diagnostic_code**: 운영 원인 분류. upstream_errors_total의 code 라벨도 같은 분류를 사용합니다.\n- **upstream_request_id**: upstream이 제공한 별도 상관 ID\n- **error_message**: 코드만으로 부족한 요청별 설명\n- **error_cause_***: 예외 diagnostics 전체가 아니라 allowlist된 원인 요약·upstream 상태만 기록한다.\n- **request_id**/**client_host** 클릭 시 그 값으로 필터링\n- vLLM 등 JSON 아닌 로그의 에러는 아래 **Non-JSON Runtime Errors** 참고"
+      "description": "HTTP 4xx/5xx와 응답 시작 후 발생한 SSE 오류를 확인합니다.\n\n- `error_code`: API 오류 유형\n- `diagnostic_code`: 운영 원인 분류\n- `request_id`를 선택하면 해당 요청으로 필터링합니다.\n\n조회 결과가 없으면 기간과 필터를 확인하세요."
     },
     {
       "id": 7,
@@ -360,12 +360,12 @@
           }
         }
       ],
-      "description": "Gateway 또는 Risk Signal Service가 준비되지 않았을 때의 `/ready` 503입니다. API 오류 코드가 아니라 dependency 상태를 보여 줍니다.\n\n- **readiness_dependencies**: 준비되지 않은 runtime/dependency\n- **readiness_summary**: dependency별 안전한 원인 요약\n- 모델 기동·재배포 중에는 일시적으로 생길 수 있습니다. 지속되면 summary의 dependency부터 확인하세요."
+      "description": "Gateway 또는 Risk Signal Service의 `/ready` 503 응답입니다.\n\n`readiness_summary`에서 준비되지 않은 의존성을 확인하세요. 모델 기동 중에는 일시적으로 발생할 수 있습니다."
     },
     {
       "id": 3,
       "type": "table",
-      "title": "런타임 HTTP 오류 (vLLM·MLX, 텍스트 파싱)",
+      "title": "런타임 HTTP 오류",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -460,7 +460,7 @@
           }
         }
       ],
-      "description": "uvicorn access log(JSON 아님)의 4xx/5xx를 텍스트 파싱해 컬럼으로 본다(주로 vLLM 계열, best-effort).\n\n- 위 **Service** 필터와 무관하게 모델 Runtime Docker 로그 및 native MLX 로그만 검색\n- Gateway 로그는 별도 **API Errors** 패널에서 확인\n- 이 패널은 테이블이라 container_id 돋보기(+) 드릴다운 없음 -> 아래 **Raw Runtime Log**에서"
+      "description": "모델 런타임의 HTTP 4xx/5xx 로그를 확인합니다.\n\nService 필터와 별도로 vLLM·MLX 로그를 검색합니다. Gateway 오류는 **API·스트림 오류**, 원문은 **런타임 원본 로그**에서 확인하세요."
     },
     {
       "id": 4,
@@ -491,12 +491,12 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "runtime 원본 로그 전체(구조화 로그로 안 잡히는 시작 실패/크래시 등 확인용). full-stack에서는 컨테이너 stdout(job=docker), macOS Metal에서는 native MLX runtime의 stdout(job=native)이다.\n\n- 모델 Runtime 컨테이너와 native MLX 로그만 대상(Grafana 등 운영 서비스 제외) -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**에 키워드(예: `ValueError`, `18.65 GiB`) 입력 시 그 문자열이 포함된 줄만 남음\n- 로그 줄 펼쳐서 **container_id** 옆 돋보기(+) 클릭 -> 전 패널에 ad-hoc filter 적용(container_id로 좁히는 유일한 진입점)\n- docker.sock 미사용 -> 컨테이너 이름 아닌 container_id(해시)로만 구분"
+      "description": "모델 런타임의 시작·추론·종료 로그입니다. Service 필터와 별도로 검색합니다.\n\n- Search Text에 오류 문구나 `upstream_response_id`를 입력하세요.\n- 로그를 펼치고 `container_id`를 선택해 컨테이너를 좁히세요.\n\n런타임 원문에는 민감정보가 포함될 수 있습니다."
     },
     {
       "id": 5,
       "type": "logs",
-      "title": "엔진 크래시·Traceback (텍스트 검색)",
+      "title": "엔진 오류·Traceback",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -522,12 +522,12 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "HTTP 상태 코드 없이 죽는 크래시(엔진 초기화 실패, Python traceback 등)를 키워드로 찾는다.\n\n- 모델 Runtime 컨테이너와 native MLX 로그만 대상 -> 위 **Service** 필터 영향 안 받음\n- 위 **Search Text**로 추가로 좁힐 수 있음(예: 특정 모델/에러 문구)\n- Traceback은 stdout 한 줄마다 별도 로그 라인으로 저장돼 여러 줄에 걸쳐 나타남 -- container_id 돋보기(+)로 좁혀서 순서대로 읽는다\n- best-effort 키워드 매칭이라 놓치는 크래시가 있을 수 있음 -> 안 잡히면 **Raw Runtime Log**에서 시간대로 직접 확인"
+      "description": "초기화 실패·Python traceback 등 엔진 오류를 검색합니다.\n\nSearch Text로 오류 문구를 좁히세요. 결과가 없으면 **런타임 원본 로그**에서 같은 시간대를 확인하세요."
     },
     {
       "id": 6,
       "type": "logs",
-      "title": "Request/Response 원문 (LOG_REQUEST_RESPONSE_BODY=true, /v1/chat/completions non-streaming만)",
+      "title": "요청·응답 본문",
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -549,7 +549,7 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "Line 컬럼 안에 JSON으로 묻혀 있던 request_body/response_body만 `line_format`으로 뽑아 읽기 좋게 재구성한 패널.\n\n- `LOG_REQUEST_RESPONSE_BODY=true`일 때 `/v1/chat/completions`(non-streaming), `/v1/embeddings`, 리스크 detector 엔드포인트에서 값이 존재한다 -- 임베딩은 벡터 원문이 아니라 개수/차원/모델 요약이다\n- 위 **Service**/**Request ID**/**Client Host**/**Route** 필터를 그대로 따른다\n- 텍스트가 길어질 수 있어 table이 아니라 logs 패널로 만들었다 -- 각 줄을 펼치면 원본 JSON(Line) 전체도 볼 수 있다"
+      "description": "본문 기록을 활성화한 요청의 마스킹된 본문 미리보기입니다.\n\n- `LOG_REQUEST_RESPONSE_BODY=true`가 필요합니다.\n- 비스트리밍 Chat·Embedding·Risk 요청을 지원합니다.\n- Embedding 응답은 벡터 대신 개수·차원을 표시합니다.\n\n본문이 없으면 설정과 지원 경로를 확인하세요."
     }
   ],
   "refresh": "30s",

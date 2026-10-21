@@ -16,9 +16,9 @@ DASHBOARD = ROOT / "ops/grafana/dashboards/request_log_explorer.json"
 REGISTRY = ROOT / "configs/services.yaml"
 
 RUNTIME_TITLES = (
-    "런타임 HTTP 오류 (vLLM·MLX, 텍스트 파싱)",
+    "런타임 HTTP 오류",
     "런타임 원본 로그",
-    "엔진 크래시·Traceback (텍스트 검색)",
+    "엔진 오류·Traceback",
 )
 
 

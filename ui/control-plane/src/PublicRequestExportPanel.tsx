@@ -1,5 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { Button } from '@patternfly/react-core';
+import { CodeViewer } from './CodeViewer';
+import { codeLanguage } from './codeHighlight';
 
 import {
   prettyRequestJson,
@@ -19,7 +21,7 @@ function PublicRequestExportContents({ record, completed }: { record: PublicRequ
   async function copy(text: string, label: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      setFeedback(`${label}을(를) 복사했습니다. 붙여넣는 곳의 민감정보 노출에 주의하세요.`);
+      setFeedback(label === '코드' ? '코드를 복사했습니다.' : '요청 JSON을 복사했습니다.');
     } catch {
       setFeedback(`${label} 복사에 실패했습니다. 브라우저 권한을 확인하세요.`);
     }
@@ -27,9 +29,9 @@ function PublicRequestExportContents({ record, completed }: { record: PublicRequ
 
   return (
     <div className="playground-export-content">
-      <p>전송 당시의 <strong>실제 요청 바이트</strong>를 담은 단일 파일 예제입니다. 현재 입력으로 다시 만들지 않습니다.</p>
+      <p>이 요청을 코드로 실행하세요. 예제는 한 파일로 실행할 수 있습니다.</p>
       {!completed ? (
-        <p className="playground-export-warning">이 요청은 정상 완료되지 않았습니다. 재현 예제만 제공하며 성공을 보장하지 않습니다.</p>
+        <p className="playground-export-warning">완료되지 않은 요청의 예제입니다.</p>
       ) : null}
       <p className="playground-export-warning">
         {record.kind === 'risk'
@@ -37,24 +39,25 @@ function PublicRequestExportContents({ record, completed }: { record: PublicRequ
           : '예제에 입력 텍스트가 그대로 들어갑니다.'}
         {' '}API 키는 포함하지 않으며 실행 시 <code>API_KEY</code> 환경변수에서 읽습니다.
       </p>
-      <label htmlFor={languageId}>개발 언어</label>
+      <label htmlFor={languageId}>예제 형식</label>
       <select id={languageId} value={language} onChange={(event) => { setLanguage(event.currentTarget.value as PublicExportLanguage); setFeedback(''); }}>
         {PUBLIC_EXPORT_LANGUAGES[record.kind].map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
       </select>
-      <pre className="playground-export-code"><code>{source}</code></pre>
+      <CodeViewer source={source} language={codeLanguage(language)}
+        filename={language === 'curl' ? 'client.sh' : language === 'javascript' ? 'client.mjs' : 'client.py'}
+        onCopy={() => { void copy(source, '코드'); }} />
       {record.kind === 'risk' ? (
         <p className="playground-export-hint">
-          Python·Node.js 예제는 응답의 완료 조건을 확인하고, 검사가 완료되지 않았으면 미탐지로 처리하지 않고 종료 코드 2로 끝납니다.
-          허용·차단 판단은 포함하지 않습니다.
+          Python·Node.js는 검사 미완료 시 종료 코드 2를 반환합니다. 허용·차단 정책은 호출하는 서비스에서 결정하세요.
         </p>
       ) : null}
       <div className="playground-export-actions">
-        <Button size="sm" variant="secondary" onClick={() => { void copy(source, '코드'); }}>코드 복사</Button>
         <Button size="sm" variant="secondary" onClick={() => { void copy(record.requestJson, '요청 JSON'); }}>요청 JSON 복사</Button>
       </div>
       <details className="playground-export-json">
-        <summary>전송한 Request JSON</summary>
-        <pre className="playground-export-code"><code>{pretty}</code></pre>
+        <summary>요청 JSON 보기</summary>
+        <CodeViewer source={pretty} language="json" filename="request.json"
+          onCopy={() => { void copy(record.requestJson, '요청 JSON'); }} />
       </details>
       <p role="status" aria-live="polite" className="playground-export-feedback">{feedback}</p>
     </div>

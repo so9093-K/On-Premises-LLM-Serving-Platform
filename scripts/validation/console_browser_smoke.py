@@ -32,7 +32,7 @@ bootstrap = {
     "configuration": {"write_available": True, "revision": 7},
     "platform": {"version": "test-build"},
     "monitoring": {"grafana_available": True, "available": True},
-    "links": {"grafana": "http://127.0.0.1:9411", "docs": None},
+    "links": {"grafana": "http://127.0.0.1:9410", "docs": None},
 }
 schema = {
     "version": 2,
@@ -340,8 +340,15 @@ def run_audio_example(browser, width, height):
     import zipfile
     export = page.locator(".playground-export").last
     export.locator("summary").first.click()
-    export.get_by_label("개발 언어").select_option("javascript")
+    export.get_by_label("예제 형식").select_option("javascript")
     assert "readFile" in export.locator(".playground-export-code").first.inner_text()
+    viewer = export.locator(".code-viewer").first
+    assert viewer.locator(".code-viewer-file").inner_text() == "client.mjs"
+    assert viewer.locator(".syntax-keyword").count() > 0
+    viewer.get_by_role("button", name="코드 복사").click()
+    assert page.evaluate("navigator.clipboard.readText()") == viewer.locator("pre code").inner_text()
+    viewer.get_by_role("region", name="client.mjs 코드 내용").focus()
+    expect(viewer.get_by_role("region", name="client.mjs 코드 내용")).to_be_focused()
     export.get_by_role("button", name="요청 JSON 복사").click()
     assert json.loads(page.evaluate("navigator.clipboard.readText()")) == outgoing.value.post_data_json
     with page.expect_download() as json_save:
@@ -765,7 +772,7 @@ def run_playground_workspaces(browser, width, height):
     export = page.locator(".playground-export")
     assert export.locator(".playground-export-code").count() == 0, "Export code must be generated only on demand"
     export.locator("summary", has_text="코드로 사용하기").click()
-    export.get_by_label("개발 언어").select_option("python")
+    export.get_by_label("예제 형식").select_option("python")
     code = export.locator(".playground-export-code").first.inner_text()
     assert "/v1/risk/detectors/pii/assessments" in code and pii_prompt in code and "API_KEY" in code
     assert "assessment incomplete" in code
@@ -848,7 +855,7 @@ def run_playground_workspaces(browser, width, height):
     page.get_by_text("문서 관련도 요청이 완료되지 않았습니다.", exact=False).wait_for()
     expect(ranking).to_have_count(0)
     export.locator("summary", has_text="코드로 사용하기").click()
-    expect(export.get_by_text("이 요청은 정상 완료되지 않았습니다.", exact=False)).to_be_visible()
+    expect(export.get_by_text("완료되지 않은 요청의 예제입니다.")).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Embedding overflow at {width}"
     assert errors == [], errors
     print(f"PASS playground Chromium {width}x{height}: Core Risk-only workspace, inactive prompt detector scope, stopped Embedding notice, Embedding comparison, on-demand code export")

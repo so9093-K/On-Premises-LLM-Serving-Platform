@@ -19,11 +19,13 @@
   "dependencies": {
     "@patternfly/react-core": "6.6.1",
     "@tanstack/react-query": "5.102.8",
+    "prismjs": "1.30.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.3"
   },
   "devDependencies": {
+    "@types/prismjs": "1.26.6",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "6.1.1",
