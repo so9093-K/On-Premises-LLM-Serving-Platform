@@ -47,12 +47,12 @@
 
 | 서비스 | Compose 서비스 | Container Port | 기본 Host Port | 역할 |
 |---|---|---:|---:|---|
-| Gateway | `gateway` | `9400` | `9400` | 외부 API 진입점 |
-| Main Model Runtime | `main-llm-vllm` | `9401` | `9401` | Chat / Responses generation |
-| Embedding Runtime | `embedding-vllm` | `9402` | `9402` | 일반 Embedding |
-| Prompt Injection Detector Runtime | `prompt-injection-detector-runtime` | `9403` | `9403` | Prompt Injection / Leaking signal inference |
-| Risk Signal Service | `risk-signal-service` | `9405` | `9405` | PII·Secret·Prompt Injection 신호 정규화 |
-| Korean Embedding Runtime | `embedding-ko-vllm` | `9406` | `9406` | Retrieval용 한국어 Embedding |
+| Gateway | `gateway` | `9600` | `9600` | 외부 API 진입점 |
+| Main Model Runtime | `main-llm-vllm` | `9601` | `9601` | Chat / Responses generation |
+| Embedding Runtime | `embedding-vllm` | `9602` | `9602` | 일반 Embedding |
+| Prompt Injection Detector Runtime | `prompt-injection-detector-runtime` | `9604` | `9604` | Prompt Injection / Leaking signal inference |
+| Risk Signal Service | `risk-signal-service` | `9605` | `9605` | PII·Secret·Prompt Injection 신호 정규화 |
+| Korean Embedding Runtime | `embedding-ko-vllm` | `9603` | `9603` | Retrieval용 한국어 Embedding |
 | Runtime Controller | `runtime-controller` | `8080` | - | Model Runtime lifecycle·Main Model 전환 관리. Compose 내부에서 사용 |
 
 ### Monitoring
@@ -60,8 +60,8 @@
 | 서비스 | Compose 서비스 | Container Port | 기본 Host Port | 역할 |
 |---|---|---:|---:|---|
 | Prometheus | `prometheus` | `9090` | `9410` | Metrics 저장 및 조회 |
-| Grafana | `grafana` | `3000` | `9411` | Metrics / Logs Dashboard |
-| DCGM Exporter | `dcgm-exporter` | `9400` | `9412` | GPU Metrics 수집 |
+| Grafana | `grafana` | `3000` | `9610` | Metrics / Logs Dashboard |
+| DCGM Exporter | `dcgm-exporter` | `9600` | `9412` | GPU Metrics 수집 |
 | cAdvisor | `cadvisor` | `8080` | `9413` | Container 자원 Metrics |
 | Loki | `loki` | `3100` | `9414` | Log 저장 및 조회 |
 | Alloy | `alloy` | - | - | Container/Application Log 수집 및 Loki 전달 |

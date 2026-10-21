@@ -223,7 +223,7 @@ make logs SERVICE=<runtime>
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/runtimes
+  http://127.0.0.1:9600/admin/runtimes
 ```
 
 Main Model state와 active profile은 Main Model Control API에서 확인한다.
@@ -248,7 +248,7 @@ Main Model 변경은 일반 lifecycle 재시작과 분리된 Control Plane opera
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model/operations/<operation_id>
+  http://127.0.0.1:9600/admin/main-model/operations/<operation_id>
 ```
 
 확인할 항목:

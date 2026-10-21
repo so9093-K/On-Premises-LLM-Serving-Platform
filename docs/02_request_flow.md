@@ -55,7 +55,7 @@ Client
   │
   │ HTTP Request
   ▼
-Gateway :9400
+Gateway :9600
   │
   ├─ Request Body Guard
   ├─ API / Admin 인증
@@ -246,7 +246,7 @@ Gateway
   ├─ Runtime용 Request 정규화
   │
   ▼
-active Main Model runtime :9401
+active Main Model runtime :9601
   │
   │ POST /v1/chat/completions
   ▼
@@ -349,9 +349,9 @@ Gateway
   ├─ Embedding Request 검증
   ├─ Runtime용 Request 정규화
   │
-  ├──────── local-embed ──────► embedding-vllm :9402
+  ├──────── local-embed ──────► embedding-vllm :9602
   │
-  └──────── local-embed-ko ───► embedding-ko-vllm :9406
+  └──────── local-embed-ko ───► embedding-ko-vllm :9603
                                    │
                                    ▼
                               Embedding Vector
@@ -365,8 +365,8 @@ Gateway
 
 | Model | Runtime | 기본 Dimension | 용도 |
 |---|---|---:|---|
-| `local-embed` | `embedding-vllm:9402` | `768` | 범용 Embedding |
-| `local-embed-ko` | `embedding-ko-vllm:9406` | `1024` | Korean Retrieval |
+| `local-embed` | `embedding-vllm:9602` | `768` | 범용 Embedding |
+| `local-embed-ko` | `embedding-ko-vllm:9603` | `1024` | Korean Retrieval |
 
 `model`을 생략하면 `local-embed`가 기본 Embedding model로 선택된다.
 
@@ -437,14 +437,14 @@ Gateway
   ├─ Internal Service Token 전달
   │
   ▼
-risk-signal-service :9405
+risk-signal-service :9605
   │
   ├─ Prompt Detector 선택
   │
   ├─ Detector Input Guard
   │
   ▼
-prompt-injection-detector-runtime :9403
+prompt-injection-detector-runtime :9604
   │
   │ POST /v1/chat/completions
   │ max_tokens=1
@@ -497,12 +497,12 @@ Gateway 뒤의 서비스는 Compose DNS와 container port로 연결된다.
 
 | 호출 | 내부 주소 | 용도 |
 |---|---|---|
-| Client → Gateway | Host `:9400` | 외부 API 진입점 |
-| Gateway → Main vLLM | `http://main-llm-vllm:9401/v1` | Chat |
-| Gateway → Embedding vLLM | `http://embedding-vllm:9402/v1` | 범용 Embedding |
-| Gateway → Embedding-KO vLLM | `http://embedding-ko-vllm:9406/v1` | Korean Embedding / Retrieval |
-| Gateway → Risk Signal Service | `http://risk-signal-service:9405` | Prompt Guard / Risk 요청 |
-| Risk Signal Service → Prompt vLLM | `http://prompt-injection-detector-runtime:9403/v1` | Prompt attack detector |
+| Client → Gateway | Host `:9600` | 외부 API 진입점 |
+| Gateway → Main vLLM | `http://main-llm-vllm:9601/v1` | Chat |
+| Gateway → Embedding vLLM | `http://embedding-vllm:9602/v1` | 범용 Embedding |
+| Gateway → Embedding-KO vLLM | `http://embedding-ko-vllm:9603/v1` | Korean Embedding / Retrieval |
+| Gateway → Risk Signal Service | `http://risk-signal-service:9605` | Prompt Guard / Risk 요청 |
+| Risk Signal Service → Prompt vLLM | `http://prompt-injection-detector-runtime:9604/v1` | Prompt attack detector |
 | Gateway → Runtime Controller | `http://runtime-controller:8080` | Runtime / Main Model control |
 
 ### Canonical host boundary
@@ -512,17 +512,17 @@ Gateway 뒤의 서비스는 Compose DNS와 container port로 연결된다.
 ```text
 Host
   │
-  ├─ :9400  Gateway
-  └─ :9411  Grafana
+  ├─ :9600  Gateway
+  └─ :9610  Grafana
 
 Compose Network
   │
   ├─ runtime-controller :8080
-  ├─ risk-signal-service :9405
-  ├─ main-llm-vllm :9401
-  ├─ embedding-vllm :9402
-  ├─ embedding-ko-vllm :9406
-  ├─ prompt-injection-detector-runtime :9403
+  ├─ risk-signal-service :9605
+  ├─ main-llm-vllm :9601
+  ├─ embedding-vllm :9602
+  ├─ embedding-ko-vllm :9603
+  ├─ prompt-injection-detector-runtime :9604
   └─ Prometheus / Loki / Alloy / DCGM / cAdvisor
 ```
 
@@ -543,7 +543,7 @@ Operator
    │ /admin/runtimes/*
    │ /admin/main-model/*
    ▼
-Gateway :9400
+Gateway :9600
    │
    │ Internal Control Request
    ▼

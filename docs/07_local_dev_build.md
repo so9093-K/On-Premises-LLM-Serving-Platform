@@ -199,8 +199,8 @@ app-only `.env`에서 `make up`은 다음 application process를 실행한다.
 ```text
 Developer Host
 │
-├─ Gateway       localhost:9400
-└─ Risk Signal Service  localhost:9405
+├─ Gateway       localhost:9600
+└─ Risk Signal Service  localhost:9605
 ```
 
 각 process를 시작한 뒤 `/health` 응답을 확인하고 실행 결과를 `run/`과 `logs/`에 기록한다.

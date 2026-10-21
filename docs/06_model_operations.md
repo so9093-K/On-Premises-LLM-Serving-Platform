@@ -53,7 +53,7 @@ Operator
    │
    │ Admin API
    ▼
-Gateway :9400
+Gateway :9600
    │
    ▼
 Runtime Controller :8080
@@ -64,7 +64,7 @@ Runtime Controller :8080
    └─ Docker lifecycle
           │
           ▼
-   main-llm-vllm :9401
+   main-llm-vllm :9601
 ```
 
 | 계층 | 역할 |
@@ -86,7 +86,7 @@ Runtime Controller :8080
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model
+  http://127.0.0.1:9600/admin/main-model
 ```
 
 주요 필드는 다음과 같다.
@@ -116,7 +116,7 @@ Docker를 읽지 못한 경우에는 응답 전체를 성공처럼 보이게
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/runtimes
+  http://127.0.0.1:9600/admin/runtimes
 ```
 
 이 API에서는 Main Model과 non-main Model Runtime의 상태, GPU budget 사용량을 함께 확인할 수 있다.
@@ -153,7 +153,7 @@ Profile의 Source of Truth는 `configs/main_model_profiles.yaml`이다. 과거 �
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model/profiles
+  http://127.0.0.1:9600/admin/main-model/profiles
 ```
 
 Profile을 선택할 때는 다음 항목을 확인한다.
@@ -248,7 +248,7 @@ curl -X POST \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"profile":"<profile-id>"}' \
-  http://127.0.0.1:9400/admin/main-model/switch
+  http://127.0.0.1:9600/admin/main-model/switch
 ```
 
 정상적으로 접수되면 `202 Accepted`와 `operation_id`를 반환한다.
@@ -318,14 +318,14 @@ Text Inference Canary
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model/operations
+  http://127.0.0.1:9600/admin/main-model/operations
 ```
 
 이 목록은 Main Model state가 보존하는 bounded recent operation projection이며 장기 audit ledger가 아니다. 개별 작업의 현재 상태는 `operation_id`로 조회한다.
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/main-model/operations/<operation-id>
+  http://127.0.0.1:9600/admin/main-model/operations/<operation-id>
 ```
 
 운영 관점에서 중요한 최종 상태는 다음 세 가지다.
@@ -344,7 +344,7 @@ terminal failure에서는 `status=failed`를 결과로 기록하면서 `stage`�
 전환이 완료되면 Gateway readiness와 실제 Chat 응답을 확인한다.
 
 ```bash
-curl http://127.0.0.1:9400/ready
+curl http://127.0.0.1:9600/ready
 ```
 
 full-stack에서는 `make status`와 Gateway `GET /ready`로 준비 상태를 확인한다.
@@ -364,7 +364,7 @@ curl -X POST \
     "profile":"<profile-id>",
     "request_id":"deploy-20260811-main-switch"
   }' \
-  http://127.0.0.1:9400/admin/main-model/switch
+  http://127.0.0.1:9600/admin/main-model/switch
 ```
 
 유효 기간 안에서 동일 `request_id`와 동일 profile을 다시 요청하면 기존 operation을 반환하고 `reused=true`로 표시한다.
@@ -389,7 +389,7 @@ GPU 상태는 다음 API에서 확인한다.
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/runtimes
+  http://127.0.0.1:9600/admin/runtimes
 ```
 
 주요 budget 정보는 `ceiling`, `used`, `free`로 제공된다. 실제 값은 `configs/gpu_budgets.yaml`을 기준으로 한다.
@@ -442,7 +442,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"desired_state":"active","force":true}' \
-  http://127.0.0.1:9400/admin/runtimes/main
+  http://127.0.0.1:9600/admin/runtimes/main
 ```
 
 GPU budget과 runtime별 reservation 설정은 [5. 설정 체계와 Source of Truth](./05_configuration.md)에서 설명한다.
@@ -460,7 +460,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"desired_state":"stopped"}' \
-  http://127.0.0.1:9400/admin/runtimes/main
+  http://127.0.0.1:9600/admin/runtimes/main
 ```
 
 중지는 다음 순서로 진행된다.
@@ -486,7 +486,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"desired_state":"active","force":false}' \
-  http://127.0.0.1:9400/admin/runtimes/main
+  http://127.0.0.1:9600/admin/runtimes/main
 ```
 
 시작 시 GPU admission과 runtime validation을 수행한 뒤 Chat gate를 연다.
@@ -585,7 +585,7 @@ Main Model 외 controllable runtime도 Admin API에서 시작·중지할 수 있
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_API_KEY" \
-  http://127.0.0.1:9400/admin/runtimes
+  http://127.0.0.1:9600/admin/runtimes
 ```
 
 ### Runtime 중지
@@ -595,7 +595,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"desired_state":"stopped"}' \
-  http://127.0.0.1:9400/admin/runtimes/embedding
+  http://127.0.0.1:9600/admin/runtimes/embedding
 ```
 
 ### Runtime 시작
@@ -605,7 +605,7 @@ curl -X PATCH \
   -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"desired_state":"active","force":false}' \
-  http://127.0.0.1:9400/admin/runtimes/embedding
+  http://127.0.0.1:9600/admin/runtimes/embedding
 ```
 
 Start 과정에서는 prerequisite와 GPU budget을 확인하고 필요한 runtime을 startup order에 따라 시작한다.

@@ -27,7 +27,7 @@ Gateway와 로컬 Risk가 먼저 기동합니다. CPU 모델의 고정 SHA-256 �
 
 ## 선택 상태 확인
 
-Console `http://127.0.0.1:9400/admin/console/`의 **메인 모델 → 자동 CPU/GPU 선택**에서
+Console `http://127.0.0.1:9600/admin/console/`의 **메인 모델 → 자동 CPU/GPU 선택**에서
 현재 엔진과 선택 이유를 확인합니다. 같은 정보는 `/admin/main-model`의 `runtime_selection`,
 실제 활성 한도는 `/admin/serving-envelope`와 `/v1/models`에서 조회합니다.
 인증은 선택한 Access Profile의 관리자/API Key를 사용합니다.
