@@ -22,6 +22,10 @@ import {
 import { PublicRequestExportPanel } from './PublicRequestExportPanel';
 import type { PublicRequestRecord } from './publicRequestExport';
 import { usePublicModels } from './publicModelsQuery';
+import { buildRetrievalRequest, retrievalAvailable, RETRIEVAL_MAX_DOCUMENTS, RETRIEVAL_RERANK_PATH,
+  RETRIEVAL_TOP_N_MAX, summarizeRetrievalResponse, type RetrievalRequest, type RetrievalResult } from './retrievalPlayground';
+
+type RetrievalRun = { request: RetrievalRequest; result: RetrievalResult; payload: unknown; requestId: string | null };
 
 type EmbeddingRun = {
   inputs: string[];
@@ -59,8 +63,13 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
     [modelsQuery.data],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<EmbeddingMode>('single');
+  const [mode, setMode] = useState<EmbeddingMode | 'rank'>('single');
   const [inputs, setInputs] = useState(['', '']);
+  const [query, setQuery] = useState('');
+  const [documents, setDocuments] = useState([{ id: 0, text: '' }, { id: 1, text: '' }, { id: 2, text: '' }]);
+  const nextDocumentId = useRef(3);
+  const [topN, setTopN] = useState('2');
+  const [retrievalRun, setRetrievalRun] = useState<RetrievalRun | null>(null);
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<EmbeddingRun | null>(null);
   const [failure, setFailure] = useState<EmbeddingFailure | null>(null);
@@ -69,42 +78,67 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
   const abortRef = useRef<AbortController | null>(null);
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
+  const canRank = model !== null && retrievalAvailable(model, features);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => {
+    setRun(null);
+    setRetrievalRun(null);
+    setFailure(null);
+    setLastRequest(null);
+    setInputError(null);
+    setBusy(false);
+    return () => abortRef.current?.abort();
+  }, [model?.id, mode]);
+
+  useEffect(() => {
+    if (mode === 'rank' && !canRank) setMode('single');
+  }, [mode, canRank]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (model === null || busy) return;
-    const { body, error } = buildEmbeddingRequest(model, mode, inputs);
+    if (mode === 'rank' && !canRank) return;
+    const embedding = mode === 'rank' ? null : buildEmbeddingRequest(model, mode, inputs);
+    const retrieval = mode === 'rank' ? buildRetrievalRequest(model, query, documents.map((item) => item.text), topN) : null;
+    const body = retrieval?.body ?? embedding?.body;
+    const error = retrieval?.error ?? embedding?.error ?? null;
     setInputError(error);
-    if (body === null) return;
+    if (!body) return;
     // 한 번 직렬화한 문자열을 전송과 "코드로 사용하기"에 함께 쓴다.
     const requestJson = JSON.stringify(body);
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
+    setRun(null);
+    setRetrievalRun(null);
     setFailure(null);
-    setLastRequest({ kind: 'embeddings', path: EMBEDDINGS_PATH, requestJson });
+    const path = retrieval ? RETRIEVAL_RERANK_PATH : EMBEDDINGS_PATH;
+    setLastRequest({ kind: retrieval ? 'retrieval' : 'embeddings', path, requestJson });
     try {
-      const { payload, requestId } = await postPublicJson(apiKey, EMBEDDINGS_PATH, requestJson, controller.signal);
-      const summary = summarizeEmbeddingResponse(payload, body);
-      if (summary.error !== null) {
-        setRun(null);
-        setFailure({ message: summary.error, requestId });
-      } else {
-        setRun({ inputs: Array.isArray(body.input) ? [...body.input] : [body.input], result: summary.result, payload, requestId });
+      const { payload, requestId } = await postPublicJson(apiKey, path, requestJson, controller.signal);
+      if (controller.signal.aborted) return;
+      if (retrieval?.body) {
+        const summary = summarizeRetrievalResponse(payload, retrieval.body);
+        if (summary.error !== null) setFailure({ message: summary.error, requestId });
+        else setRetrievalRun({ request: retrieval.body, result: summary.result, payload, requestId });
+      } else if (embedding?.body) {
+        const summary = summarizeEmbeddingResponse(payload, embedding.body);
+        if (summary.error !== null) setFailure({ message: summary.error, requestId });
+        else setRun({ inputs: Array.isArray(embedding.body.input) ? [...embedding.body.input] : [embedding.body.input], result: summary.result, payload, requestId });
       }
     } catch (reason) {
       if (controller.signal.aborted) return;
       if (reason instanceof ApiError && reason.status === 401) rejectApiKey();
       setRun(null);
       setFailure({
-        message: apiErrorMessage(reason, 'Embedding 요청에 실패했습니다.'),
+        message: apiErrorMessage(reason, '요청에 실패했습니다.'),
         requestId: reason instanceof ApiError ? reason.requestId : null,
       });
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   }
 
@@ -129,7 +163,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
       <div className="playground-panel-heading">
         <div>
           <h2 id="embedding-workspace-title">Embedding</h2>
-          <p>텍스트를 벡터로 변환합니다. 두 문장 비교는 한 요청에서 같은 모델로 변환한 벡터끼리만 계산합니다.</p>
+          <p>텍스트를 벡터로 변환하고 문장의 유사도를 비교합니다.{features.includes('retrieval') ? ' 질문에 가까운 문서를 관련도순으로 확인할 수 있습니다.' : ''}</p>
         </div>
       </div>
 
@@ -168,9 +202,48 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
             <input type="radio" name="embedding-mode" checked={mode === 'compare'} onChange={() => setMode('compare')} />
             두 문장 유사도
           </label>
+          {features.includes('retrieval') ? (
+            <label>
+              <input type="radio" name="embedding-mode" checked={mode === 'rank'} disabled={!canRank} onChange={() => setMode('rank')} />
+              문서 관련도 순위
+            </label>
+          ) : null}
         </fieldset>
+        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다.</p> : null}
 
-        {(mode === 'compare' ? [0, 1] : [0]).map((index) => (
+        {mode === 'rank' ? (
+          <div className="playground-retrieval-inputs">
+            <div className="playground-retrieval-query">
+              <div className="playground-field">
+                <label htmlFor="retrieval-query">검색 질문</label>
+                <textarea id="retrieval-query" rows={3} value={query} disabled={busy} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="GPU 메모리 부족 원인" />
+              </div>
+              <div className="playground-field">
+                <label htmlFor="retrieval-top-n">상위 결과 개수</label>
+                <input id="retrieval-top-n" type="number" min={1} max={RETRIEVAL_TOP_N_MAX} step={1} value={topN} disabled={busy} onChange={(event) => setTopN(event.currentTarget.value)} />
+              </div>
+            </div>
+            <div className="playground-retrieval-documents" role="group" aria-label="후보 문서">
+              {documents.map((item, index) => (
+                <div className="playground-field" key={item.id}>
+                  <div className="playground-document-heading">
+                    <label htmlFor={`retrieval-document-${item.id}`}>문서 {index + 1}</label>
+                    <Button size="sm" variant="link" isDisabled={busy || documents.length <= 1} onClick={() => setDocuments((current) => current.filter((entry) => entry.id !== item.id))} aria-label={`문서 ${index + 1} 제거`}>제거</Button>
+                  </div>
+                  <textarea id={`retrieval-document-${item.id}`} rows={2} value={item.text} disabled={busy} onChange={(event) => {
+                    const text = event.currentTarget.value;
+                    setDocuments((current) => current.map((entry) => entry.id === item.id ? { ...entry, text } : entry));
+                  }} />
+                </div>
+              ))}
+              <Button size="sm" variant="secondary" isDisabled={busy || documents.length >= RETRIEVAL_MAX_DOCUMENTS} onClick={() => {
+                const id = nextDocumentId.current++;
+                setDocuments((current) => [...current, { id, text: '' }]);
+              }}>문서 추가</Button>
+              <small className="playground-hint">최대 {RETRIEVAL_MAX_DOCUMENTS}개 문서</small>
+            </div>
+          </div>
+        ) : (mode === 'compare' ? [0, 1] : [0]).map((index) => (
           <div className="playground-field" key={index}>
             <label htmlFor={`embedding-input-${index}`}>{mode === 'compare' ? `문장 ${index === 0 ? 'A' : 'B'}` : '텍스트'}</label>
             <textarea
@@ -190,13 +263,13 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         <div className="chat-composer-actions">
           {inputError ? <p className="form-error" role="alert">{inputError}</p> : <span />}
           <Button type="submit" variant="primary" isDisabled={busy}>
-            {busy ? '변환 중…' : mode === 'compare' ? '유사도 계산' : '벡터 생성'}
+            {busy ? '요청 중…' : mode === 'rank' ? '관련도 순위 확인' : mode === 'compare' ? '유사도 계산' : '벡터 생성'}
           </Button>
         </div>
       </form>
 
       {failure ? (
-        <Alert isInline variant="danger" title="Embedding 요청이 완료되지 않았습니다.">
+        <Alert isInline variant="danger" title={mode === 'rank' ? '문서 관련도 요청이 완료되지 않았습니다.' : 'Embedding 요청이 완료되지 않았습니다.'}>
           <p>{failure.message}</p>
           {failure.requestId ? <p>Request ID: <code>{failure.requestId}</code></p> : null}
         </Alert>
@@ -235,7 +308,31 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         </section>
       ) : null}
 
-      {lastRequest && !busy ? <PublicRequestExportPanel record={lastRequest} completed={run !== null && failure === null} /> : null}
+      {retrievalRun ? (
+        <section className="playground-result" aria-live="polite" aria-label="문서 관련도 결과">
+          <h3>문서 관련도 순위</h3>
+          <p className="playground-vector-input">검색 질문: {retrievalRun.request.query}</p>
+          <p className="playground-hint">Cosine similarity가 높은 순서입니다. 점수는 정답 확률이 아닙니다.</p>
+          <dl className="chat-facts">
+            <div><dt>모델</dt><dd>{retrievalRun.result.model}</dd></div>
+            <div><dt>후보 문서</dt><dd>{retrievalRun.request.documents.length}개</dd></div>
+            <div><dt>반환 결과</dt><dd>{retrievalRun.result.results.length}개</dd></div>
+            {retrievalRun.requestId ? <div><dt>Request ID</dt><dd><code>{retrievalRun.requestId}</code></dd></div> : null}
+          </dl>
+          {retrievalRun.result.results.length === 0 ? <p>반환된 문서가 없습니다.</p> : null}
+          <ol className="playground-retrieval-results">
+            {retrievalRun.result.results.map((item, rank) => (
+              <li key={item.index}>
+                <div className="playground-document-heading"><strong>{rank + 1}위 · 문서 {item.index + 1}</strong><span>관련도 {item.score.toFixed(4)}</span></div>
+                <p>{item.document}</p>
+              </li>
+            ))}
+          </ol>
+          <details className="playground-raw"><summary>원본 응답 JSON 보기</summary><pre>{JSON.stringify(retrievalRun.payload, null, 2)}</pre></details>
+        </section>
+      ) : null}
+
+      {lastRequest && !busy ? <PublicRequestExportPanel key={lastRequest.kind} record={lastRequest} completed={(run !== null || retrievalRun !== null) && failure === null} /> : null}
     </section>
   );
 }

@@ -73,6 +73,8 @@ Playground는 배포가 제공하는 기능별 화면(**Chat** · **Embedding** 
 3. 벡터 일부·차원·토큰·Request ID를 확인하고, 필요하면 **원본 응답 JSON 보기**를 펼칩니다.
 4. **코드로 사용하기**에서 같은 요청을 보내는 cURL·Python·Node.js·OpenAI SDK 예제를 복사합니다.
 
+Retrieval을 지원하는 배포와 모델에서는 **문서 관련도 순위**를 선택할 수 있습니다. 검색 질문과 후보 문서(최대 32개), 상위 결과 개수를 입력하고 **관련도 순위 확인**을 누릅니다. 응답 순위·원본 문서 번호·점수와 실제 요청 당시의 질문을 확인합니다. 점수는 cosine similarity이며 정답 확률이 아닙니다. 이 모드의 **코드로 사용하기**는 cURL·Python·Node.js 예제를 제공합니다.
+
 유사도는 같은 요청·같은 모델의 두 벡터로만 계산하며 정답 확률이 아닙니다. 선택한 Embedding Runtime이 중지·기동 중이면 요청 전에 안내가 표시되며, 중지된 상태로 요청하면 `MODEL_UNAVAILABLE`이 반환됩니다. [Runtime·GPU 관리](#runtime-states)에서 시작합니다.
 
 ### Risk

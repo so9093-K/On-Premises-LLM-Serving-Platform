@@ -14,6 +14,7 @@ const run = promisify(execFile);
 const TRICKY = "it's \"quoted\" \\ back\nslash · 한글 😀 $HOME `cmd`";
 const EMBEDDING = { kind: 'embeddings', path: '/v1/embeddings', requestJson: JSON.stringify({ model: 'local-embed-ko', input: [TRICKY, '두 번째'] }) };
 const RISK = { kind: 'risk', path: '/v1/risk/assessments', requestJson: JSON.stringify({ prompt: TRICKY }) };
+const RETRIEVAL = { kind: 'retrieval', path: '/v1/retrieval/rerank', requestJson: JSON.stringify({ model: 'local-embed-ko', query: TRICKY, documents: ['관련 문서', TRICKY], top_n: 1 }) };
 
 const EMBEDDING_RESPONSE = {
   object: 'list',
@@ -77,6 +78,18 @@ async function runExample(t, record, language, env) {
 }
 
 for (const language of ['curl', 'python', 'javascript']) {
+  test(`${language} 문서 순위 예제는 실제 질문·문서를 그대로 전송하고 Gateway 순서를 출력한다`, async (t) => {
+    const { received, url } = await fakeGateway(t, { model: 'local-embed-ko', score_mode: 'dense_cosine', results: [
+      { index: 1, document: TRICKY, score: 0.8 },
+    ] });
+    const result = await runExample(t, RETRIEVAL, language, { GATEWAY_URL: url, API_KEY: 'only-in-env' });
+    assert.equal(received.length, 1);
+    assert.equal(received[0].path, RETRIEVAL.path);
+    assert.equal(received[0].body, RETRIEVAL.requestJson);
+    assert.equal(received[0].headers.authorization, 'Bearer only-in-env');
+    if (language !== 'curl') assert.match(result.stdout, /rank=1 index=1 score=0.8000/);
+    assert.doesNotMatch(publicExportSource(RETRIEVAL, language), /only-in-env/);
+  });
   test(`${language} Embedding example resends the exact request bytes with the key only from the environment`, async (t) => {
     const { received, url } = await fakeGateway(t, EMBEDDING_RESPONSE);
     const result = await runExample(t, EMBEDDING, language, { GATEWAY_URL: url, API_KEY: 'only-in-env' });
@@ -212,6 +225,9 @@ test('Python OpenAI SDK Embedding example keeps standard fields and forwards Gat
 });
 
 test('Risk offers no SDK example and records that do not match their API are rejected', () => {
+  assert.deepEqual(PUBLIC_EXPORT_LANGUAGES.retrieval.map((item) => item.id), ['curl', 'python', 'javascript']);
+  assert.throws(() => publicExportSource(RETRIEVAL, 'python-sdk'), /제공하지 않는/);
+  assert.throws(() => publicExportSource({ ...RETRIEVAL, path: '/v1/retrieval/score' }, 'python'), /Retrieval 요청/);
   assert.deepEqual(PUBLIC_EXPORT_LANGUAGES.risk.map((item) => item.id), ['curl', 'python', 'javascript']);
   assert.throws(() => publicExportSource(RISK, 'python-sdk'), /제공하지 않는/);
   assert.throws(() => publicExportSource({ ...RISK, path: '/v1/chat/completions' }, 'curl'), /Risk 요청/);

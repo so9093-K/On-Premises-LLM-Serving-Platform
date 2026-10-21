@@ -712,11 +712,18 @@ def run_playground_workspaces(browser, width, height):
         if path == "/v1/models":
             return send(route, {"object": "list", "data": [{
                 "id": "local-embed-ko", "backend": "embedding_ko_vllm",
-                "capabilities": ["embeddings"], "input_modalities": ["text"],
+                "capabilities": ["embeddings", "retrieval_rerank"], "input_modalities": ["text"],
                 "request_parameters": {"dimensions": {"type": "integer", "enum": [3]}},
             }]})
         body = json.loads(route.request.post_data)
         requests.append((path, body))
+        if path == "/v1/retrieval/rerank":
+            if state.get("retrieval_error"):
+                return send(route, {"error": {"code": "MODEL_UNAVAILABLE", "message": "runtime stopped"}}, status=503)
+            return send(route, {"model": body["model"], "score_mode": "dense_cosine", "results": [
+                {"index": 1, "document": body["documents"][1], "score": 0.8},
+                {"index": 0, "document": body["documents"][0], "score": 0.1},
+            ]}, headers={"X-Request-Id": "req_retrieval"})
         if path == "/v1/embeddings":
             return send(route, {"object": "list", "model": body["model"], "data": [
                 {"object": "embedding", "index": 0, "embedding": [1, 0, 0]},
@@ -778,7 +785,7 @@ def run_playground_workspaces(browser, width, height):
 
     # 이전 Chat 주소는 Playground의 Chat 화면으로 이동한다. Target이 prompt_detection을 선언해도
     # /v1/models가 Prompt 검사기를 공개하지 않으면 실행 가능한 것처럼 보이지 않아야 한다.
-    bootstrap["deployment"]["features"] = ["chat", "embeddings", "risk", "prompt_detection", "runtime_control"]
+    bootstrap["deployment"]["features"] = ["chat", "embeddings", "retrieval", "risk", "prompt_detection", "runtime_control"]
     state["aggregate"] = "local_only"
     page.goto(URL + "chat", wait_until="domcontentloaded")
     page.wait_for_url("**/admin/console/playground/chat")
@@ -814,6 +821,34 @@ def run_playground_workspaces(browser, width, height):
     assert "/v1/embeddings" in curl and "CUDA out of memory" in curl and "API_KEY" in curl
     assert embedding_export.get_by_role("option", name="Python OpenAI SDK (Integration)").count() == 1
     page.screenshot(path=str(SCREENSHOTS / f"playground-embedding-{width}.png"), full_page=True)
+    count = len(requests)
+    page.get_by_role("radio", name="문서 관련도 순위").check()
+    expect(page.get_by_role("region", name="Embedding 결과")).to_have_count(0)
+    expect(page.locator(".playground-export")).to_have_count(0)
+    assert len(requests) == count, "작업 선택만으로 요청하지 않는다"
+    page.get_by_label("검색 질문", exact=True).fill("GPU 메모리")
+    for index, text in enumerate(["인증 토큰 갱신", "CUDA 오류\n메모리 부족", "KV cache"]):
+        page.get_by_label(f"문서 {index + 1}", exact=True).fill(text)
+    page.get_by_label("상위 결과 개수").fill("2")
+    page.get_by_role("button", name="관련도 순위 확인").click()
+    ranking = page.get_by_role("region", name="문서 관련도 결과")
+    ranking.get_by_text("1위 · 문서 2", exact=True).wait_for()
+    ranking.get_by_text("관련도 0.8000", exact=True).wait_for()
+    ranking.get_by_text("req_retrieval", exact=True).wait_for()
+    assert requests[-1] == ("/v1/retrieval/rerank", {"model": "local-embed-ko", "query": "GPU 메모리", "documents": ["인증 토큰 갱신", "CUDA 오류\n메모리 부족", "KV cache"], "top_n": 2})
+    page.get_by_label("검색 질문", exact=True).fill("수정한 질문")
+    export = page.locator(".playground-export")
+    export.locator("summary", has_text="코드로 사용하기").click()
+    assert export.get_by_role("option", name="Python OpenAI SDK (Integration)").count() == 0
+    code = export.locator(".playground-export-code").first.inner_text()
+    assert "/v1/retrieval/rerank" in code and "GPU 메모리" in code and "수정한 질문" not in code
+    page.screenshot(path=str(SCREENSHOTS / f"playground-retrieval-{width}.png"), full_page=True)
+    state["retrieval_error"] = True
+    page.get_by_role("button", name="관련도 순위 확인").click()
+    page.get_by_text("문서 관련도 요청이 완료되지 않았습니다.", exact=False).wait_for()
+    expect(ranking).to_have_count(0)
+    export.locator("summary", has_text="코드로 사용하기").click()
+    expect(export.get_by_text("이 요청은 정상 완료되지 않았습니다.", exact=False)).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Embedding overflow at {width}"
     assert errors == [], errors
     print(f"PASS playground Chromium {width}x{height}: Core Risk-only workspace, inactive prompt detector scope, stopped Embedding notice, Embedding comparison, on-demand code export")

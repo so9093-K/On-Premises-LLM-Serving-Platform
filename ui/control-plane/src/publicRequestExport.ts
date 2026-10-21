@@ -1,10 +1,11 @@
 import { EMBEDDINGS_PATH } from './embeddingPlayground.ts';
 import { RISK_CHECKS } from './riskPlayground.ts';
+import { RETRIEVAL_RERANK_PATH } from './retrievalPlayground.ts';
 
 // Embedding·Risk 작업 화면의 "코드로 사용하기". 전송 당시의 요청 문자열만 authority이며
 // 현재 화면 입력이나 API 키를 읽지 않는다. 요청은 미디어가 없는 짧은 JSON이므로 Chat처럼
 // request.json 파일 묶음을 만들지 않고, 같은 바이트를 담은 단일 파일 예제를 만든다.
-export type PublicExportKind = 'embeddings' | 'risk';
+export type PublicExportKind = 'embeddings' | 'risk' | 'retrieval';
 export type PublicExportLanguage = 'curl' | 'python' | 'javascript' | 'python-sdk';
 
 export type PublicRequestRecord = {
@@ -27,6 +28,11 @@ export const PUBLIC_EXPORT_LANGUAGES: Readonly<Record<PublicExportKind, readonly
     { id: 'python', label: 'Python (HTTP)' },
     { id: 'javascript', label: 'Node.js (fetch)' },
   ],
+  retrieval: [
+    { id: 'curl', label: 'cURL (Bash)' },
+    { id: 'python', label: 'Python (HTTP)' },
+    { id: 'javascript', label: 'Node.js (fetch)' },
+  ],
 };
 
 const RISK_PATHS = new Set(RISK_CHECKS.map((check) => check.path));
@@ -42,6 +48,10 @@ function validatedRecord(record: PublicRequestRecord): void {
   }
   if (record.kind === 'risk' && (!RISK_PATHS.has(record.path) || typeof body.prompt !== 'string')) {
     throw new Error('Risk 요청이 아닙니다.');
+  }
+  if (record.kind === 'retrieval' && (record.path !== RETRIEVAL_RERANK_PATH || typeof body.model !== 'string'
+    || typeof body.query !== 'string' || !Array.isArray(body.documents) || body.documents.some((item) => typeof item !== 'string'))) {
+    throw new Error('Retrieval 요청이 아닙니다.');
   }
 }
 
@@ -61,7 +71,7 @@ const POLICY_NOTE = '허용·차단은 이 신호를 받은 호출 서비스의 
 function curlScript(record: PublicRequestRecord): string {
   return [
     '#!/usr/bin/env bash',
-    `# Playground에서 전송한 ${record.kind === 'risk' ? 'Risk' : 'Embedding'} 요청을 그대로 다시 보낸다.`,
+    `# Playground에서 전송한 ${record.kind === 'risk' ? 'Risk' : record.kind === 'retrieval' ? 'Retrieval' : 'Embedding'} 요청을 그대로 다시 보낸다.`,
     '# API 키는 API_KEY 환경변수에서만 읽는다.',
     ...(record.kind === 'risk' ? [RISK_RULE, `# ${POLICY_NOTE}`] : []),
     'set -euo pipefail',
@@ -103,6 +113,16 @@ const PYTHON_SEND = (record: PublicRequestRecord) => [
 ];
 
 function pythonScript(record: PublicRequestRecord): string {
+  if (record.kind === 'retrieval') {
+    return [
+      '"""Playground에서 전송한 문서 관련도 요청을 다시 보낸다."""',
+      ...PYTHON_SEND(record),
+      'print("model:", result["model"], "score_mode:", result["score_mode"])',
+      'for rank, item in enumerate(result["results"], 1):',
+      '    print(f"rank={rank} index={item[\'index\']} score={item[\'score\']:.4f}")',
+      '    print(item["document"])',
+    ].join('\n') + '\n';
+  }
   if (record.kind === 'embeddings') {
     return [
       '"""Playground에서 전송한 Embedding 요청을 Python 표준 라이브러리로 다시 보낸다."""',
@@ -158,6 +178,17 @@ function javascriptScript(record: PublicRequestRecord): string {
     'const result = JSON.parse(text);',
     '',
   ];
+  if (record.kind === 'retrieval') {
+    return [
+      '// Playground에서 전송한 문서 관련도 요청을 다시 보낸다. Node.js 18+, .mjs로 저장해 실행한다.',
+      ...send,
+      "console.log('model:', result.model, 'score_mode:', result.score_mode);",
+      'for (const [rank, item] of result.results.entries()) {',
+      '  console.log(`rank=${rank + 1} index=${item.index} score=${item.score.toFixed(4)}`);',
+      '  console.log(item.document);',
+      '}',
+    ].join('\n') + '\n';
+  }
   if (record.kind === 'embeddings') {
     return [
       '// Playground에서 전송한 Embedding 요청을 다시 보낸다. Node.js 18+, .mjs로 저장해 실행한다.',
