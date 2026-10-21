@@ -10,90 +10,32 @@
 
 ## 빠른 시작
 
-Git, Python·uv, Docker와 해당 환경의 모델 실행 자원이 필요합니다. 설치 조건은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
+Git, Python·uv, Docker가 필요합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
 
 ```bash
 git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
+make up TARGET=<아래 Target> ACCESS=local
+make status
 ```
 
-**Linux / 기본 서비스 (GPU 및 모델 불필요)**
+| 내 환경 | `TARGET` |
+|---|---|
+| GPU·모델 없이 기본 서비스만 (Gateway·Control Plane·PII/Secret Risk) | `linux-core` |
+| Linux, CPU/GPU 자동 선택 | `auto` |
+| Linux + NVIDIA, 플랫폼 관리형 vLLM | `linux-nvidia-dynamic` |
+| macOS Apple Silicon (MLX-VLM) | `macos-metal-static` |
+
+외부 llama.cpp·관리형 CPU·외부 vLLM 연결은 [배포 환경](#deployment-targets)과 [빠른 시작 가이드](docs/guides/getting-started.md#1-실행-환경-선택)를 참고하세요.
+
+준비되면 Control Plane `http://127.0.0.1:9400/admin/console/`에서 상태와 Playground를 확인하고, Gateway `http://127.0.0.1:9400`으로 OpenAI 호환 API를 호출합니다.
 
 ```bash
-make up TARGET=linux-core ACCESS=local
+curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"model": "local-main", "messages": [{"role": "user", "content": "안녕하세요"}], "max_tokens": 128}'
 ```
 
-Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. Control Plane의
-Playground → Risk에서 PII·Secret 탐지를 바로 확인할 수 있습니다. `/ready`는
-활성 모델 대신 Core 서비스의 준비 상태를 검사하며, Chat/Responses 요청은
-`MODEL_UNAVAILABLE`로 거부합니다. GPU가 존재해도 자원이 부족하면 이 구성을
-사용할 수 있습니다. GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
-
-**Linux / CPU 추론 (외부 llama.cpp Server 필요)**
-
-```bash
-make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
-```
-
-먼저 CPU-only `llama-server`를 실행하고, Gateway가 위 주소에 접근할 수 있게 구성해야 합니다.
-모델은 운영자가 다운로드·검증하며 Gateway는 외부 Runtime의 lifecycle을 소유하지 않습니다.
-`configs/cpu_main_model_profiles.yaml`의 Text Chat·Streaming Profile은 아직 실환경 검증 전입니다.
-GPU 자원 부족 시 자동 Fallback이나 Target 전환은 지원하지 않습니다.
-
-**Linux / 자동 CPU·GPU 운영**
-
-```bash
-make up TARGET=auto ACCESS=local
-```
-
-처음 실행하는 Linux에서는 `linux-adaptive`를 선택합니다. Core를 먼저 시작하고,
-고정 CPU 모델로 서빙한 뒤 GPU 자원이 안정적으로 확보되면 실제 GPU 모델 적재와
-응답을 검증하여 전환합니다. GPU 장애·메모리 부족 시 CPU 복구를 시도합니다.
-전환 중에는 신규 요청이 일시 거부되고, CPU에서는 텍스트와 축소된 한도를 제공합니다.
-기존 `.env`의 Target은 유지합니다. [자동 Runtime 운영 가이드](docs/guides/adaptive-runtime.md)
-
-**Linux / 관리형 CPU 모델 (llama.cpp)**
-
-```bash
-make up TARGET=linux-cpu-managed ACCESS=local
-```
-
-플랫폼이 고정된 Qwen3 0.6B GGUF를 다운로드하고 SHA-256으로 검증한 뒤
-CPU-only llama.cpp 컨테이너를 실행합니다. GPU나 CUDA는 필요하지 않습니다.
-모델 최초 다운로드에는 네트워크 연결과 충분한 RAM·디스크 여유가 필요합니다.
-GPU 모델에서의 자동 전환은 아직 수행하지 않으며, 서버 실추론 Qualification 전까지
-`unverified`로 유지합니다.
-
-**Linux / NVIDIA** — 플랫폼이 관리하는 vLLM Runtime
-
-```bash
-make up TARGET=linux-nvidia-dynamic ACCESS=local
-```
-
-**macOS / Apple Silicon** — 별도로 관리하는 MLX-VLM Main Runtime
-
-```bash
-make up TARGET=macos-metal-static ACCESS=local
-```
-
-실행 후 `make status`로 준비 상태를 확인합니다. `ACCESS=local`은 같은 Host의 Loopback 접속입니다.
-
-- **Control Plane:** `http://127.0.0.1:9400/admin/console/`
-- **Gateway:** `http://127.0.0.1:9400`
-
-모델이 준비됐다면 로컬 기본 인증 설정에서 API를 호출할 수 있습니다.
-
-```bash
-curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "local-main",
-    "messages": [{"role": "user", "content": "안녕하세요"}],
-    "max_tokens": 128
-  }'
-```
-
-인증이 활성화된 환경에서는 사용자 API Key가 필요합니다. 일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 모델 접근 승인, `HF_TOKEN`, GPU 자원 설정은 [설치 가이드](docs/guides/getting-started.md)를 참고하세요.
+일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 인증이 활성화된 환경에서는 사용자 API Key가 필요합니다.
 
 ## 시스템 구성
 
