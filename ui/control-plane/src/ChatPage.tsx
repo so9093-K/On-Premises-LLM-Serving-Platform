@@ -15,6 +15,7 @@ import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
 import diagramSampleUrl from './playgroundAssets/sample-diagram.png';
 import audioSampleUrl from './playgroundAssets/sample-audio.wav';
+import videoSampleUrl from './playgroundAssets/sample-video.webm?no-inline';
 import {
   attachmentAccept,
   buildChatRequest,
@@ -31,7 +32,7 @@ import {
   type PublicModel,
 } from './chatSession';
 
-const SAMPLE_URLS = { chart: chartSampleUrl, order: orderSampleUrl, diagram: diagramSampleUrl, audio: audioSampleUrl };
+const SAMPLE_URLS = { chart: chartSampleUrl, order: orderSampleUrl, diagram: diagramSampleUrl, audio: audioSampleUrl, video: videoSampleUrl };
 
 type ChatPageProps = {
   grafanaUrl: string | null;

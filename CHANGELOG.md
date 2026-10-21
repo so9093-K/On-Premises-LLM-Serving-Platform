@@ -24,6 +24,8 @@
 
 ### Added
 
+- Playground Chat의 영상 분석 예제는 로컬 8초 무음 합성 WebM를 재생하고, 현재 모델의 영상 입력 지원 및 크기·개수·길이·해상도 제한에 따라 적용할 수 있다. 사용자가 보내기를 눌렀을 때 기존 `video_url` Chat 요청으로 전송하며 완료된 요청을 그대로 내보낼 수 있다.
+
 - Playground의 Embedding·Risk 화면이 마지막 요청의 **코드로 사용하기**를 제공한다. 전송한 요청 바이트를 담은 cURL·Python·Node.js 단일 파일 예제이며 API 키는 `API_KEY` 환경변수에서 읽는다. Embedding은 OpenAI SDK 통합 예제를 포함하고, Risk 예제는 실행 검사기를 출력하며 완료 조건을 만족할 때만 미탐지로 보고한다. 코드는 펼칠 때만 만들고 자동 저장하지 않는다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
 
 - Control Plane Playground가 배포 기능별 Chat·Embedding·Risk 작업 화면을 제공한다. 모델이 없는 `linux-core`에서도 Playground → Risk로 PII·Secret 탐지를 확인한다. Embedding은 모델·차원·Usage와 같은 요청 두 문장의 유사도를, Risk는 신호 코드·항목·개수와 검사 완료 여부를 보여 주며 허용·차단을 판정하지 않는다. 합성 예제만 제공하고 입력·결과는 화면 밖에 저장하지 않는다. Console 주소는 `/admin/console/playground/*`이며 기존 `/admin/console/chat`은 Chat 화면으로 이동한다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))

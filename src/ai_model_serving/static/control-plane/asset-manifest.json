@@ -1,17 +1,18 @@
 {
   "index.html": {
-    "file": "assets/index-fkwYU-yu.js",
+    "file": "assets/index-C1uvl-W6.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "css": [
-      "assets/index-CX98tTE7.css"
+      "assets/index-EBUcVnh0.css"
     ],
     "assets": [
       "assets/sample-chart-CY3Pofix.png",
       "assets/sample-order-qJ_o8BP_.png",
       "assets/sample-diagram-CTWSxLvM.png",
       "assets/sample-audio-813705wS.wav",
+      "assets/sample-video-j3dZ5JRj.webm",
       "assets/RedHatTextVF-DNKNjMr3.woff2",
       "assets/RedHatTextVF-Italic-Bw8r3dX4.woff2",
       "assets/RedHatDisplayVF-D7m-OdR-.woff2",
@@ -84,5 +85,9 @@
   "src/playgroundAssets/sample-order.png": {
     "file": "assets/sample-order-qJ_o8BP_.png",
     "src": "src/playgroundAssets/sample-order.png"
+  },
+  "src/playgroundAssets/sample-video.webm": {
+    "file": "assets/sample-video-j3dZ5JRj.webm",
+    "src": "src/playgroundAssets/sample-video.webm"
   }
 }

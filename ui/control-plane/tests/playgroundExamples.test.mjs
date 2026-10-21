@@ -123,6 +123,40 @@ test('checked-in Korean audio sample is a bounded, identical 16 kHz mono WAV in 
   assert.ok(durationSeconds >= 3.5 && durationSeconds < 15);
 });
 
+test('영상 예제는 공개 모델의 지원 형식·개수·크기·길이·프레임 해상도 한도를 따른다', () => {
+  const video = get('video');
+  const asset = EXAMPLE_SAMPLE_ASSETS.video;
+  const limits = {
+    allowed_mime_types: ['video/webm'], max_inputs: 1, max_bytes: asset.bytes,
+    max_duration_seconds: asset.durationSeconds, max_frame_pixels: asset.width * asset.height,
+  };
+  const model = { ...chat, input_modalities: ['text', 'video'], request_limits: { video: limits } };
+  assert.equal(availability(video, model).available, true);
+  assert.match(availability(video, chat).reason, /영상 입력/);
+  for (const [patch, reason] of [
+    [{ allowed_mime_types: ['video/mp4'] }, /WebM/],
+    [{ max_inputs: 0 }, /첨부/],
+    [{ max_bytes: asset.bytes - 1 }, /크기/],
+    [{ max_duration_seconds: asset.durationSeconds - 1 }, /길이/],
+    [{ max_frame_pixels: asset.width * asset.height - 1 }, /해상도/],
+  ]) {
+    const result = availability(video, { ...model, request_limits: { video: { ...limits, ...patch } } });
+    assert.equal(result.available, false);
+    assert.match(result.reason, reason);
+  }
+  const bundled = readFileSync(new URL(`../src/playgroundAssets/${asset.filename}`, import.meta.url));
+  assert.equal(bundled.length, asset.bytes);
+  assert.deepEqual(bundled, readFileSync(new URL(`../../../assets/demos/inputs/${asset.filename}`, import.meta.url)));
+  assert.equal(bundled.subarray(0, 4).toString('hex'), '1a45dfa3');
+  const url = `data:video/webm;base64,${bundled.toString('base64')}`;
+  const result = buildChatRequest(model, DEFAULT_CHAT_SETTINGS, [], video.prompt, [{
+    id: 'sample-video', name: asset.filename, modality: 'video', mimeType: asset.mimeType, sizeBytes: asset.bytes, data: url,
+  }]);
+  assert.equal(result.error, null);
+  assert.deepEqual(result.body.messages.at(-1).content.at(-1), { type: 'video_url', video_url: { url } });
+  assert.equal(exampleRequiresFreshConversation(video), false);
+});
+
 test('only example-owned settings are reset; advanced settings are preserved by patch', () => {
   const current = { ...DEFAULT_CHAT_SETTINGS, temperature: '0.4', systemPrompt: 'old', toolDrafts: [{ id: 'a', name: 'legacy', description: '', parametersText: '{}', strict: null }] };
   const next = { ...current, ...exampleSettingsPatch(get('structured'), DEFAULT_CHAT_SETTINGS) };

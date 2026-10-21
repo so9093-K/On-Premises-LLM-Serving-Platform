@@ -1,5 +1,5 @@
 import { Button } from '@patternfly/react-core';
-import { exampleAvailability, exampleRequiresFreshConversation, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
+import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, videoExampleLimitSummary, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
 import type { ChatControls, PublicModel } from './chatSession';
 
 type Props = {
@@ -21,6 +21,7 @@ const CATEGORY_MARK: Record<PlaygroundExample['category'], string> = {
   text: 'Aa',
   image: '▧',
   audio: '♫',
+  video: '▷',
   structured: '{}',
 };
 
@@ -30,6 +31,7 @@ export function PlaygroundExampleGallery({
 }: Props) {
   const selected = PLAYGROUND_EXAMPLES.find((item) => item.id === selectedId) ?? null;
   const availability = selected ? exampleAvailability(selected, model, controls, validateRequest) : null;
+  const videoLimits = selected?.category === 'video' ? videoExampleLimitSummary(model) : '';
   const needsFreshConversation = selected !== null && hasConversation && exampleRequiresFreshConversation(selected);
   const unavailableReason = needsFreshConversation
     ? '새 대화에서 사용할 수 있습니다. 기존 대화를 지운 뒤 적용하세요.'
@@ -66,7 +68,7 @@ export function PlaygroundExampleGallery({
           <div className="playground-example-preview-heading">
             <h3>{selected.title}</h3>
             <div className="playground-example-tags" aria-label="적용할 입력 종류">
-              {selected.sample ? <span>{EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'audio' ? '오디오 1개' : '이미지 1개'}</span> : null}
+              {selected.sample ? <span>{exampleAttachmentSummary([EXAMPLE_SAMPLE_ASSETS[selected.sample]])}</span> : null}
               {selected.systemPrompt ? <span>시스템 프롬프트</span> : null}
               {selected.schema ? <span>JSON Schema</span> : null}
               {!selected.sample && !selected.systemPrompt && !selected.schema ? <span>텍스트 입력</span> : null}
@@ -86,6 +88,18 @@ export function PlaygroundExampleGallery({
                 >
                   오디오 재생을 지원하지 않는 브라우저입니다.
                 </audio>
+              ) : EXAMPLE_SAMPLE_ASSETS[selected.sample].modality === 'video' ? (
+                <video
+                  key={selected.sample}
+                  className="playground-example-video"
+                  src={sampleUrls[selected.sample]}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label="예제 영상 재생"
+                >
+                  영상 재생을 지원하지 않는 브라우저입니다.
+                </video>
               ) : (
                 <img
                   src={sampleUrls[selected.sample]}
@@ -95,6 +109,13 @@ export function PlaygroundExampleGallery({
               )}
               <figcaption>{EXAMPLE_SAMPLE_ASSETS[selected.sample].caption}</figcaption>
             </figure>
+          ) : null}
+          {videoLimits ? <p className="playground-example-limits">현재 모델의 영상 입력 상한: {videoLimits}</p> : null}
+          {selected.sampleSceneDescription ? (
+            <details className="playground-example-technical">
+              <summary>영상 장면 설명 보기</summary>
+              <p>{selected.sampleSceneDescription}</p>
+            </details>
           ) : null}
           {selected.sampleTranscript ? (
             <details className="playground-example-technical">

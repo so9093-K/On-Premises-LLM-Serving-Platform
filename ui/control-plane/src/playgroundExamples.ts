@@ -1,14 +1,17 @@
 import type { ChatControls, ChatSettings, PublicModel } from './chatSession';
 
-export type ExampleSampleId = 'chart' | 'order' | 'diagram' | 'audio';
+export type ExampleSampleId = 'chart' | 'order' | 'diagram' | 'audio' | 'video';
 
 export type ExampleSampleAsset = {
-  modality: 'image' | 'audio';
+  modality: 'image' | 'audio' | 'video';
   filename: string;
   mimeType: string;
   bytes: number;
   caption: string;
   imageAlt?: string;
+  durationSeconds?: number;
+  width?: number;
+  height?: number;
 };
 
 // The sizes are pinned to the canonical public demo assets. Binary integrity
@@ -18,12 +21,14 @@ export const EXAMPLE_SAMPLE_ASSETS: Readonly<Record<ExampleSampleId, ExampleSamp
   order: { modality: 'image', filename: 'sample-order.png', mimeType: 'image/png', bytes: 34473, caption: 'sample-order.png', imageAlt: '예제 가상 주문서' },
   diagram: { modality: 'image', filename: 'sample-diagram.png', mimeType: 'image/png', bytes: 114841, caption: 'sample-diagram.png', imageAlt: '이상 점수와 임계치로 설비 이상을 판단하는 처리 흐름도' },
   audio: { modality: 'audio', filename: 'sample-audio.wav', mimeType: 'audio/wav', bytes: 158350, caption: 'sample-audio.wav' },
+  video: { modality: 'video', filename: 'sample-video.webm', mimeType: 'video/webm', bytes: 4226, durationSeconds: 8, width: 640, height: 360, caption: '합성 예제 · 무음 · 8초 · 640 × 360 · 4.1 KiB' },
 };
 export const EXAMPLE_SAMPLE_BYTES: Readonly<Record<ExampleSampleId, number>> = {
   chart: EXAMPLE_SAMPLE_ASSETS.chart.bytes,
   order: EXAMPLE_SAMPLE_ASSETS.order.bytes,
   diagram: EXAMPLE_SAMPLE_ASSETS.diagram.bytes,
   audio: EXAMPLE_SAMPLE_ASSETS.audio.bytes,
+  video: EXAMPLE_SAMPLE_ASSETS.video.bytes,
 };
 
 export type PlaygroundExample = {
@@ -31,10 +36,11 @@ export type PlaygroundExample = {
   title: string;
   description: string;
   prompt: string;
-  category: 'text' | 'image' | 'audio' | 'structured';
+  category: 'text' | 'image' | 'audio' | 'video' | 'structured';
   sample?: ExampleSampleId;
   systemPrompt?: string;
   sampleTranscript?: string;
+  sampleSceneDescription?: string;
   schema?: { name: string; value: string };
 };
 
@@ -90,6 +96,15 @@ export const PLAYGROUND_EXAMPLES: readonly PlaygroundExample[] = [
     sampleTranscript: '그들은 세시에 나갔어요. 그들은 세시간을 나갔다 왔어요.',
   },
   {
+    id: 'video',
+    title: '영상 분석',
+    description: '무음 영상의 도형과 장면 변화를 순서대로 설명',
+    category: 'video',
+    sample: 'video',
+    prompt: '영상에서 처음 보이는 도형, 나중에 추가되는 도형, 마지막 장면에 남아 있는 도형을 각각 한국어 한 문장으로 설명해 주세요. 색상과 모양을 구분하고, 보이지 않는 내용이나 소리는 추측하지 마세요.',
+    sampleSceneDescription: '밝은 배경에서 빨간 정사각형이 오른쪽으로 이동합니다. 파란 원이 오른쪽에 나타나고, 이후 빨간 정사각형이 아래로 이동합니다. 마지막에는 두 도형이 함께 보입니다. 소리는 없습니다.',
+  },
+  {
     id: 'system-prompt',
     title: '역할 지정',
     description: '시스템 프롬프트로 답변 범위 설정',
@@ -118,16 +133,13 @@ export function exampleAvailability(
   }
   if (example.sample) {
     const asset = EXAMPLE_SAMPLE_ASSETS[example.sample];
-    const label = asset.modality === 'image' ? '이미지' : '오디오';
+    const label = { image: '이미지', audio: '오디오', video: '영상' }[asset.modality];
     if (!(model.input_modalities ?? []).includes(asset.modality)) {
       return { available: false, reason: `현재 모델은 ${label} 입력을 지원하지 않습니다.` };
     }
-    const maxBytes = asset.modality === 'image'
-      ? model.request_limits?.image?.max_bytes
-      : model.request_limits?.audio?.max_bytes;
-    const maxInputs = asset.modality === 'image'
-      ? model.request_limits?.image?.max_inputs
-      : model.request_limits?.audio?.max_inputs;
+    const limits = model.request_limits?.[asset.modality];
+    const maxBytes = limits?.max_bytes;
+    const maxInputs = limits?.max_inputs;
     if (typeof maxBytes === 'number' && asset.bytes > maxBytes) {
       return { available: false, reason: `현재 모델의 ${label} 크기 제한을 초과하는 예제입니다.` };
     }
@@ -139,10 +151,23 @@ export function exampleAvailability(
       if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes(asset.mimeType)) {
         return { available: false, reason: '현재 모델은 예제 PNG 이미지 형식을 지원하지 않습니다.' };
       }
-    } else {
+    } else if (asset.modality === 'audio') {
       const allowed = model.request_limits?.audio?.allowed_formats;
       if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes('wav')) {
         return { available: false, reason: '현재 모델은 예제 WAV 오디오 형식을 지원하지 않습니다.' };
+      }
+    } else {
+      const allowed = limits?.allowed_mime_types;
+      if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes(asset.mimeType)) {
+        return { available: false, reason: '현재 모델은 예제 WebM 영상 형식을 지원하지 않습니다.' };
+      }
+      if (typeof limits?.max_duration_seconds === 'number' && asset.durationSeconds !== undefined
+        && asset.durationSeconds > limits.max_duration_seconds) {
+        return { available: false, reason: '현재 모델의 영상 길이 제한을 초과하는 예제입니다.' };
+      }
+      if (typeof limits?.max_frame_pixels === 'number' && asset.width !== undefined && asset.height !== undefined
+        && asset.width * asset.height > limits.max_frame_pixels) {
+        return { available: false, reason: '현재 모델의 영상 프레임 해상도 제한을 초과하는 예제입니다.' };
       }
     }
   }
@@ -156,6 +181,19 @@ export function exampleAvailability(
     if (error) return { available: false, reason: error };
   }
   return { available: true, reason: null };
+}
+
+export function videoExampleLimitSummary(model: PublicModel): string {
+  const limits = model.request_limits?.video ?? {};
+  const units = [
+    ['max_inputs', '개'], ['max_bytes', '바이트'], ['max_duration_seconds', '초'],
+    ['max_frames', '프레임'], ['max_frame_pixels', '픽셀/프레임'],
+  ] as const;
+  return units.flatMap(([key, unit]) => {
+    const value = limits[key];
+    return typeof value === 'number' && Number.isFinite(value) && value > 0
+      ? [`${value.toLocaleString('ko-KR')}${unit}`] : [];
+  }).join(' · ');
 }
 
 export function exampleAttachmentSummary(
