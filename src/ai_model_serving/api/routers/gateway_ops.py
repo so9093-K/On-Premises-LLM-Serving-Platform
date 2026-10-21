@@ -17,6 +17,7 @@ from ...status import NOT_READY, READY
 from ...services.runtime_controller_client import (
     RuntimeControllerRequestError,
     RuntimeControllerUnavailableError,
+    main_model_serving_open,
 )
 from ..error_responses import (
     runtime_controller_request_error_response,
@@ -101,18 +102,22 @@ async def _readiness(
     # 선언된 식별자와 갈라지고, /ready만 옛 이름을 계속 광고하게 된다.
     probes = list(embedding_probes)
     main_evaluator = None
+    main_blocked_reason = None
     if settings.deployment_target.control_mode == "managed_cpu":
         main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
     if getattr(clients, "runtime_controller", None) is not None:
+        # Controller 관리형 Target의 추론 요청은 Controller가 검증해 연 Gate를 통과해야
+        # 한다. Runtime이 /models에 응답해도 Controller를 관측할 수 없거나 Gate가 닫혀
+        # 있으면 실제 요청은 503이므로, /ready도 같은 판정으로 준비 완료를 보류한다.
         try:
             snapshot = await asyncio.wait_for(clients.runtime_controller.main_model(observed=False), timeout_seconds)
         except (RuntimeControllerRequestError, RuntimeControllerUnavailableError, TimeoutError):
-            snapshot = {}
-        profile = snapshot.get("active_profile") or {}
-        if snapshot.get("gate") == "closed" or (settings.deployment_target.adaptive and (snapshot.get("gate") != "open" or not profile)):
-            main_evaluator = lambda body: (NOT_READY, "MAIN_MODEL_GATE_CLOSED")
-        elif profile.get("runtime_backend") == "llama-cpp":
-            main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
+            main_blocked_reason = "MAIN_MODEL_CONTROL_UNAVAILABLE"
+        else:
+            if not main_model_serving_open(snapshot):
+                main_blocked_reason = "MAIN_MODEL_GATE_CLOSED"
+            elif snapshot["active_profile"].get("runtime_backend") == "llama-cpp":
+                main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
     if settings.feature_enabled("chat"):
         probes.insert(0, DependencyProbe(
             settings.runtime_service_id("main_llm"),
@@ -120,6 +125,7 @@ async def _readiness(
             "models",
             evaluator=main_evaluator,
             required=await runtime_required("main_llm"),
+            blocked_reason=main_blocked_reason,
         ))
     risk_signal_service = getattr(clients, "risk_signal_service", None)
     if settings.feature_enabled("risk") and risk_signal_service is not None:
