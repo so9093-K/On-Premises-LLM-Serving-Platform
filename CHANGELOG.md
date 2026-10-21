@@ -8,6 +8,8 @@
 
 - Runtime Controller가 관리하는 Target의 `/ready`는 Chat·Responses 요청 Admission과 같은 Gate 판정을 따른다. Controller 장애 중에는 Main Runtime이 응답하더라도 `503`이며, Main dependency의 `message`로 Controller 관측 불가(`MAIN_MODEL_CONTROL_UNAVAILABLE`)·Gate 차단(`MAIN_MODEL_GATE_CLOSED`)·Runtime 자체의 미준비를 구분한다. `/health`는 모델 제어 장애와 무관하게 `200`을 유지한다. ([Runtime 모드](docs/04_runtime_modes.md))
 
+- GPU Dynamic의 Main Profile 판정은 Adaptive와 같이 Catalog가 확정한 이미지와 최종 실행 인자 전체를 비교한다. 모델·Revision이 같아도 Context·Batch·Sequence·GPU 예약 또는 Resource Variant 적용 결과가 다르면 Profile 불일치로 Gate를 닫고 이전 Canary 결과를 승계하지 않는다. Catalog나 Host 자원 설정이 바뀌어 실행 인자가 달라진 기존 Main 컨테이너는 Controller 기동 시 선언된 Profile로 재생성·재검증되며 그동안 추론 요청은 차단된다. ([ADR-0050](docs/adr/0050-resource-scoped-serving-authority.md))
+
 - Adaptive CPU 복구 준비가 실패하면 기존 GPU를 보존하고 압력·장애 중 요청 차단을 유지한다. 압력 해소 뒤 안정 관측과 동일 GPU Canary 성공으로 요청을 재개한다. GPU 정책은 전체 VRAM으로 선택하고 UUID로 할당하며 관측값·정책·선택 근거를 Console에 구분해 표시한다. 기존 숫자 인덱스 Adaptive 상태는 CPU 복구 후 새 UUID Admission을 요구한다. RTX 6000 Ada는 합성 관측 기반 준비 범위이며 실장비 미검증이다. ([GPU Host 준비](docs/guides/gpu-host-preparation.md))
 
 - 관리형 Linux 배포는 모델 image·캐시 준비 전에 Core를 기동한다. 추론 준비 실패 시 운영 UI와 로컬 Risk를 유지하고 `/ready`는 실제 모델 준비 실패를 보고한다.

@@ -114,11 +114,19 @@ Runtime Controller가 새 인스턴스·인스턴스 소멸·이전 검증 지�
 Main Model 요청 Gate를 먼저 닫고 Canary를 다시 수행한다.
 
 Controller 초기화, 명시적 시작, 재시작 감지, Profile 전환, Rollback에서 Gate를
-열기 전에 **실행 중인 컨테이너의 시작 신원과 실제 Model Profile(모델·Revision·이미지)**
-이 Canary 전후에 모두 일치해야 한다. `local-main`이라는 공개 API Alias의 응답
-성공만으로 실제 모델 신원을 증명할 수 없다. 관측 실패, 신원 변경, 검증 실패가
-발생하면 Gate를 닫은 채 유지한다. Controller 시작 시에는 저장된 이전
-`gate=open`을 현재 인스턴스의 검증 근거로 승계하지 않는다.
+열기 전에 **실행 중인 컨테이너의 시작 신원과 실제 Model Profile**이 Canary 전후에
+모두 일치해야 한다. `local-main`이라는 공개 API Alias의 응답 성공만으로 실제 모델
+신원을 증명할 수 없다. 관측 실패, 신원 변경, 검증 실패가 발생하면 Gate를 닫은 채
+유지한다. Controller 시작 시에는 저장된 이전 `gate=open`을 현재 인스턴스의 검증
+근거로 승계하지 않는다.
+
+실제 Model Profile은 Catalog가 확정한 **실행 계약**, 즉 Runtime 이미지와 최종
+실행 인자로 판정한다. 실행 인자에는 모델·Revision 신원과 함께 Resource Variant와
+Host GPU 비율 override를 적용한 뒤의 Context·Batch·Sequence·GPU 메모리 예약 값이
+들어 있다. Compose 기동과 Controller 재생성은 모두 이 인자를 그대로 사용하므로,
+같은 모델을 다른 자원 정책으로 실행한 인스턴스는 어떤 Profile로도 인정하지 않고
+이전 Canary 결과를 승계하지 않는다. Docker가 부여하는 메타데이터·Label·환경변수는
+실행 계약이 아니므로 비교 대상이 아니다.
 
 재검증 실패는 상한이 있는 Backoff 정책에 따라 재시도한다.
 일시적인 Docker Inspect 실패 자체는 인스턴스 교체의 확정 증거는 아니지만,

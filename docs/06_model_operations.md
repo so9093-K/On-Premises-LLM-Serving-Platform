@@ -12,8 +12,10 @@ AI Model Serving Platform의 Main Model 운영은 **현재 상태 확인 → 프
 
 Runtime Controller가 다시 시작되거나 Main Runtime이 외부에서 교체되면 이전
 `gate=open` 기록을 현재 인스턴스에 대한 검증 증거로 재사용하지 않는다.
-현재 Profile의 모델·Revision·이미지와 실행 중 컨테이너의 시작 신원을 Canary
-전후에 확인한다. Docker 시작 신원·Profile의 관측 자체가 실패해도
+현재 Profile의 실행 계약(이미지와 Resource Variant·GPU 비율까지 적용된 최종 실행
+인자)과 실행 중 컨테이너의 시작 신원을 Canary 전후에 확인한다. 같은 모델이라도
+Context·Batch·GPU 예약 인자가 다르게 실행됐다면 Profile 불일치로 보고 Gate를
+닫는다. Docker 시작 신원·Profile의 관측 자체가 실패해도
 기존 Gate 개방은 폐기하며, 관측 복구 후 Canary를 통과해야 다시 개방한다.
 공개 모델 별칭 `local-main`의 API 성공만으로 실제 프로필 일치를 보증하지 않는다.
 

@@ -196,37 +196,27 @@ class DockerMainModelBackend:
     def _profile_from_inspected(
         catalog: MainModelCatalog, inspected: dict[str, Any]
     ) -> str | None:
+        """실행 중인 컨테이너가 일치하는 Catalog Profile의 실행 계약을 찾는다.
+
+        Profile의 실행 계약은 Catalog가 확정한 Runtime 이미지와 최종 argv다. argv에는
+        모델·Revision 신원과 함께 Resource Variant·Host GPU 비율 override를 적용한 뒤의
+        Context·Batch·Sequence·GPU 메모리 예약 인자가 들어 있다. Compose boot override와
+        Controller의 재생성은 모두 이 argv를 그대로 ``Cmd``로 쓰므로, 같은 모델을 다른
+        자원 정책으로 실행한 컨테이너는 어떤 Profile로도 인정하지 않는다. 그래야 이전
+        Canary 결과가 다른 실행 정책의 인스턴스로 승계되지 않는다. Docker가 부여하는
+        메타데이터·Label·환경변수는 실행 계약이 아니므로 비교하지 않는다.
+        """
         config = inspected.get("Config", {})
         command = list(config.get("Cmd") or [])
         image = config.get("Image")
-        if catalog.runtime.get("adaptive"):
-            return next((profile.profile_id for profile in catalog.profiles.values()
-                         if image == profile.image and command == list(profile.command)), None)
-        for profile in catalog.profiles.values():
-            if profile.runtime_backend == "llama-cpp" and image == profile.image and command == list(profile.command):
-                return profile.profile_id
-
-        def command_value(flag: str) -> str | None:
-            if flag not in command:
-                return None
-            index = command.index(flag) + 1
-            return command[index] if index < len(command) else None
-
-        model = command_value("--model")
-        revision = command_value("--revision")
-        # Catalog는 고정된 --model·--revision 실행 인자를 생성한다.
-        # 신원 인자가 누락되거나 잘렸다면 이미지와 공개 모델 별칭이 같더라도
-        # 올바른 Profile로 조용히 인정해서는 안 된다.
-        if not model or not revision:
-            return None
-        for profile in catalog.profiles.values():
-            if (
-                profile.model_id == model
-                and revision == profile.revision
-                and image == profile.image
-            ):
-                return profile.profile_id
-        return None
+        return next(
+            (
+                profile.profile_id
+                for profile in catalog.profiles.values()
+                if image == profile.image and command == list(profile.command)
+            ),
+            None,
+        )
 
     async def observe_runtime(self, catalog: MainModelCatalog) -> dict[str, Any]:
         """Docker inspect 한 번으로 실제 main runtime 상태를 읽는다."""
@@ -285,7 +275,7 @@ class DockerMainModelBackend:
             "status": status,
             "container_state": container_state,
             "health": health,
-            "profile_id": self._profile_from_inspected(catalog, inspected),
+            "profile_id": profile_id,
             "image_ref": image_ref,
             "image_id": image_id,
             "image_digest": image_digest,
