@@ -59,7 +59,7 @@ Client / Application
 | **Prompt Injection Detector Runtime** | `9604` | Prompt detector model inference |
 | **Prometheus** | `9090` | Metrics 수집·저장 |
 | **Grafana** | `3000` | Metrics / logs 시각화 |
-| **DCGM Exporter** | `9600` | GPU telemetry |
+| **DCGM Exporter** | `9400` | GPU telemetry (NVIDIA Exporter 자체 포트) |
 | **cAdvisor** | `8080` | Container telemetry |
 | **Loki** | `3100` | Log 저장·조회 |
 | **Alloy** | host publish 없음 | Container log 수집·전달 |
