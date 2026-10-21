@@ -3,7 +3,7 @@ import 'prismjs/components/prism-bash.js';
 import 'prismjs/components/prism-python.js';
 import 'prismjs/components/prism-json.js';
 
-// React owns the DOM. Use only the tokenizer, never Prism's HTML/DOM renderer.
+// React가 DOM을 소유한다. Prism은 HTML 렌더링 없이 토큰화만 담당한다.
 Prism.manual = true;
 
 export type CodeLanguage = 'bash' | 'python' | 'javascript' | 'json';

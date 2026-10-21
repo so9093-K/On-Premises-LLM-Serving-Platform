@@ -1,4 +1,4 @@
-"""Keep dashboard period, counter scope and displayed dimensions consistent."""
+"""조회 기간·서비스 범위·표시 단위의 일관성을 보호한다."""
 from __future__ import annotations
 
 import json
@@ -24,7 +24,7 @@ def test_gateway_totals_follow_selected_period_without_cross_service_counts(pane
     assert target["instant"] is True
     assert "increase(" in target["expr"] and "[$__range]" in target["expr"]
     assert 'service="gateway"' in target["expr"]
-    # Missing telemetry must not be converted into a successful zero count.
+    # 수집 누락을 정상적인 0건으로 바꾸지 않는다.
     assert "or vector(0)" not in target["expr"]
     assert "timeFrom" not in PANELS[panel_id] and "timeShift" not in PANELS[panel_id]
 
