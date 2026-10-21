@@ -36,6 +36,9 @@ INTERNAL_PORT_SERVICES = (
 )
 HOST_PORT_SERVICES = ("gateway", "risk_signal_service", "grafana")
 LEGACY_ENV_PORTS = {"GATEWAY_PORT": (9400, 0), "RISK_SIGNAL_SERVICE_PORT": (9405, 5), "GRAFANA_PORT": (9411, 10)}
+# v1(94xx)의 원래 역할·포트 배치다. 현재 Namespace와는 별도로 이관 입력으로만 읽는다.
+LEGACY_RUNTIME_PORT_OFFSETS = {9400: 0, 9401: 1, 9402: 2, 9406: 3,
+                               9403: 4, 9405: 5, 9411: 10, 9416: 16, 9480: 80}
 GENERATED = (
     "ops/prometheus/prometheus.yml",
     "ops/prometheus/prometheus.macos-metal.yml",
@@ -117,6 +120,16 @@ def replace_ports(content: str, mapping: dict[int, int], path: str) -> str:
     if path.startswith("ops/prometheus/"):
         content = re.sub(r"dcgm-exporter:9400\b", "__UPSTREAM_DCGM_TARGET__", content)
         guarded["__UPSTREAM_DCGM_TARGET__"] = "dcgm-exporter:9400"
+    # 문서의 DCGM Exporter도 자체 내부 포트 9400을 사용한다.
+    # 프로젝트 BASE를 다시 9400으로 내린 후 상향 변경해도 따라 움직이면 안 된다.
+    if path == "docs/04_runtime_modes.md":
+        content = content.replace("| `dcgm-exporter` | `9400` |",
+                                  "| `dcgm-exporter` | __UPSTREAM_DCGM_PORT__ |")
+        guarded["__UPSTREAM_DCGM_PORT__"] = "`9400`"
+    if path == "docs/appendix.md":
+        content = content.replace("| DCGM Exporter | `dcgm-exporter` | `9400` |",
+                                  "| DCGM Exporter | `dcgm-exporter` | __UPSTREAM_DCGM_PORT__ |")
+        guarded["__UPSTREAM_DCGM_PORT__"] = "`9400`"
 
     expr = re.compile(r"(?<![0-9])(?:" + "|".join(map(str, sorted(mapping, reverse=True))) + r")(?![0-9])")
     content = expr.sub(lambda m: str(mapping[int(m.group())]), content)
@@ -135,11 +148,10 @@ def tracked_paths(root: Path) -> list[str]:
 def env_changes(content: str, old_base: int, new_base: int) -> str:
     # 운영자 소유의 사용자 지정 포트는 자동 덮어쓰지 않는다.
     # 94xx에서 새 체크아웃의 96xx로 업데이트한 환경만 명시적으로 이관한다.
-    mapping = port_mapping(old_base, new_base, REQUIRED_OFFSETS)
-    if new_base == old_base == 9600:
-        mapping = {9400: 9600, 9405: 9605, 9411: 9610,
-                   9401: 9601, 9402: 9602, 9403: 9604, 9406: 9603,
-                   9416: 9616, 9480: 9680}
+    # 레거시 94xx 기본값은 새 대역으로 직접 이관할 수 있다.
+    # 현재 Namespace와 숫자가 겹치는 경우에는 현재 역할 배치를 우선한다.
+    mapping = {port: new_base + offset for port, offset in LEGACY_RUNTIME_PORT_OFFSETS.items()}
+    mapping.update(port_mapping(old_base, new_base, REQUIRED_OFFSETS))
     result: list[str] = []
     for line in content.splitlines(keepends=True):
         match = re.fullmatch(r"([A-Z][A-Z0-9_]*)=(.*?)(\r?\n)?", line)
@@ -153,7 +165,7 @@ def env_changes(content: str, old_base: int, new_base: int) -> str:
             target = new_base + offset
             if value.isdigit():
                 old_value = int(value)
-                if old_value in (expected, target) or (new_base == old_base == 9600 and old_value == legacy):
+                if old_value in (expected, target, legacy):
                     value = str(target)
                 else:
                     raise ValueError(f".env의 {name}={old_value}은 운영자 지정 포트이므로 자동 변경하지 않습니다")
