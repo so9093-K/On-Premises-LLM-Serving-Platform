@@ -16,7 +16,7 @@ info:
     \ `text` | 2,048 / 256 |\n\n공개 이름은 `local-main`을 유지합니다. 실제 모델·입력·한도는 전환 후 `GET\
     \ /v1/models`의 `display_name`, `upstream_model_id`, `backend`, `context_window`,\
     \ `request_parameters`를 다시 확인하세요.\n\n## 첫 호출\n\n아래 로컬 주소를 실제 Gateway 주소로 바꾸세요.\
-    \ 사용자 인증이 활성화돼 있으면 `API_KEY`도 설정해야 합니다.\n\n```bash\nGATEWAY_URL='http://127.0.0.1:9400'\n\
+    \ 사용자 인증이 활성화돼 있으면 `API_KEY`도 설정해야 합니다.\n\n```bash\nGATEWAY_URL='http://127.0.0.1:9600'\n\
     curl --fail-with-body \"$GATEWAY_URL/v1/chat/completions\" \\\n  -H \"Authorization:\
     \ Bearer $API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n\
     \    \"model\": \"local-main\",\n    \"messages\": [\n      {\"role\": \"user\"\
@@ -89,13 +89,13 @@ paths:
                 dependencies:
                 - name: main_llm_vllm
                   status: ready
-                  endpoint: http://main-llm-vllm:9401/v1/models
+                  endpoint: http://main-llm-vllm:9601/v1/models
                 - name: embedding_vllm
                   status: ready
-                  endpoint: http://embedding-vllm:9402/v1/models
+                  endpoint: http://embedding-vllm:9602/v1/models
                 - name: risk-signal-service
                   status: ready
-                  endpoint: http://risk-signal-service:9405/ready
+                  endpoint: http://risk-signal-service:9605/ready
         '401':
           description: '관리자 API 키 필요
 
@@ -132,10 +132,10 @@ paths:
                 dependencies:
                 - name: main_llm_vllm
                   status: ready
-                  endpoint: http://main-llm-vllm:9401/v1/models
+                  endpoint: http://main-llm-vllm:9601/v1/models
                 - name: risk-signal-service
                   status: not_ready
-                  endpoint: http://risk-signal-service:9405/ready
+                  endpoint: http://risk-signal-service:9605/ready
                   message: 'waiting for Risk Signal Service dependencies: prompt_injection_detector_runtime'
       security:
       - adminBearerAuth: []
@@ -1708,7 +1708,7 @@ paths:
       - lang: Python
         label: OpenAI Python SDK
         source: "import os\nfrom openai import OpenAI\n\ngateway_url = os.environ.get(\"\
-          GATEWAY_URL\", \"http://127.0.0.1:9400\").rstrip(\"/\")\nclient = OpenAI(\n\
+          GATEWAY_URL\", \"http://127.0.0.1:9600\").rstrip(\"/\")\nclient = OpenAI(\n\
           \    api_key=os.environ.get(\"API_KEY\", \"local-open\"),\n    base_url=f\"\
           {gateway_url}/v1\",\n)\n\nresponse = client.chat.completions.create(**{'model':\
           \ 'local-main', 'messages': [{'role': 'user', 'content': '안녕하세요. 한 문장으로\
@@ -1716,7 +1716,7 @@ paths:
       - lang: JavaScript
         label: OpenAI JavaScript SDK
         source: "import OpenAI from \"openai\";\n\nconst configuredGatewayUrl = process.env.GATEWAY_URL\
-          \ ?? \"http://127.0.0.1:9400\";\nconst gatewayUrl = configuredGatewayUrl.endsWith(\"\
+          \ ?? \"http://127.0.0.1:9600\";\nconst gatewayUrl = configuredGatewayUrl.endsWith(\"\
           /\")\n  ? configuredGatewayUrl.slice(0, -1)\n  : configuredGatewayUrl;\n\
           const client = new OpenAI({\n  apiKey: process.env.API_KEY ?? \"local-open\"\
           ,\n  baseURL: `${gatewayUrl}/v1`,\n});\n\nconst response = await client.chat.completions.create({\n\
@@ -2053,14 +2053,14 @@ paths:
       - lang: Python
         label: OpenAI Python SDK
         source: "import os\nfrom openai import OpenAI\n\ngateway_url = os.environ.get(\"\
-          GATEWAY_URL\", \"http://127.0.0.1:9400\").rstrip(\"/\")\nclient = OpenAI(\n\
+          GATEWAY_URL\", \"http://127.0.0.1:9600\").rstrip(\"/\")\nclient = OpenAI(\n\
           \    api_key=os.environ.get(\"API_KEY\", \"local-open\"),\n    base_url=f\"\
           {gateway_url}/v1\",\n)\n\nresponse = client.responses.create(**{'model':\
           \ 'local-main', 'input': '안녕하세요. 한 문장으로 인사해주세요.'})\nprint(response.output_text)\n"
       - lang: JavaScript
         label: OpenAI JavaScript SDK
         source: "import OpenAI from \"openai\";\n\nconst configuredGatewayUrl = process.env.GATEWAY_URL\
-          \ ?? \"http://127.0.0.1:9400\";\nconst gatewayUrl = configuredGatewayUrl.endsWith(\"\
+          \ ?? \"http://127.0.0.1:9600\";\nconst gatewayUrl = configuredGatewayUrl.endsWith(\"\
           /\")\n  ? configuredGatewayUrl.slice(0, -1)\n  : configuredGatewayUrl;\n\
           const client = new OpenAI({\n  apiKey: process.env.API_KEY ?? \"local-open\"\
           ,\n  baseURL: `${gatewayUrl}/v1`,\n});\n\nconst response = await client.responses.create({\n\

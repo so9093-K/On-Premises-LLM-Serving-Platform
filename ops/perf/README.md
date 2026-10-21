@@ -52,9 +52,9 @@ Main 성능 결과와 분리해서 실패 항목을 확인한다. 기능 검증�
 두 Target 모두 다음 정보를 확인한다. 인증된 배포는 사용자 API와 Admin 조회에 각각 맞는 키를 사용한다.
 
 ```bash
-curl --fail http://127.0.0.1:9400/ready
-curl --fail http://127.0.0.1:9400/admin/serving-envelope
-curl --fail http://127.0.0.1:9400/v1/models
+curl --fail http://127.0.0.1:9600/ready
+curl --fail http://127.0.0.1:9600/admin/serving-envelope
+curl --fail http://127.0.0.1:9600/v1/models
 ```
 
 이미 다른 Deployment Target이 설정된 `.env`를 덮어쓰지 않는다. 인증된 배포는
@@ -77,7 +77,7 @@ Linux는 catalog 기본값 대신 **실제 활성 profile**에서 읽는다. 아
 
 ```bash
 mkdir -p reports/perf/linux-local/setup
-curl --fail http://127.0.0.1:9400/admin/main-model \
+curl --fail http://127.0.0.1:9600/admin/main-model \
   --output reports/perf/linux-local/setup/main-model.json
 export PERF_TOKENIZER="$(.venv/bin/python -c 'import json; print(json.load(open("reports/perf/linux-local/setup/main-model.json"))["active_profile"]["upstream_model_id"])')"
 export PERF_TOKENIZER_REVISION="$(.venv/bin/python -c 'import json; print(json.load(open("reports/perf/linux-local/setup/main-model.json"))["active_profile"]["revision"])')"
@@ -91,7 +91,7 @@ Compose 파일 디렉터리 기준이다. AIPerf의 기본 사용자 cache에 �
 ```bash
 export HF_HUB_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
-export PERF_CHAT_URL=http://127.0.0.1:9400/v1/chat/completions
+export PERF_CHAT_URL=http://127.0.0.1:9600/v1/chat/completions
 ```
 
 `HF_HUB_OFFLINE=1`은 먼저 모델·Tokenizer가 캐시된 상태에서 쓴다. AIPerf 0.13.0은
@@ -173,7 +173,7 @@ AIPerf의 정의를 따르며 Gateway 최근 트래픽의 nearest-rank 규칙과
 `ops/perf/uv.lock`/Workload의 SHA-256, 소스 Commit 및 dirty 여부를 결과 경로에 보관한다.
 이 저장소에 별도의 Manifest/Result Schema나 승격 도구를 만들지 않는다.
 
-Mac에서는 Native `http://127.0.0.1:9401/metrics`의 `summary`, `latest`, `server`와
+Mac에서는 Native `http://127.0.0.1:9601/metrics`의 `summary`, `latest`, `server`와
 Prometheus의 MLX Exporter를 함께 확인한다. 측정 중 1초 간격으로 Native Queue와
 Gateway `/metrics`의 `upstream_admission_waiting`/`inflight`를 관측했다.
 관측 주기는 Sample 사이의 순간적인 최대값을 보장하지 않는다.
