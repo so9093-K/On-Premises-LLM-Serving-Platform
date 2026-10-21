@@ -1,5 +1,6 @@
 """프로젝트 포트 대역 변경의 Offset 및 외부 엔진 격리 계약."""
 import pytest
+import yaml
 
 from scripts.config import ports
 
@@ -117,3 +118,29 @@ def test_documentation_does_not_publish_internal_only_services():
     ):
         actual = next(line for line in appendix.splitlines() if line.startswith(row))
         assert actual.split("|")[4].strip() == "-", actual
+
+
+def test_read_policy_rejects_drift_in_monitoring_and_nginx(tmp_path):
+    for filename in ("configs/services.yaml", "configs/monitoring.yaml", "ops/access/team-api.nginx.conf"):
+        target = tmp_path / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / filename).read_bytes())
+    base, offsets = read_policy(tmp_path)
+    assert base >= 1024
+    assert offsets == REQUIRED_OFFSETS
+
+    monitoring_path = tmp_path / "configs/monitoring.yaml"
+    current = yaml.safe_load(monitoring_path.read_text(encoding="utf-8"))
+    current["monitoring_stack"]["mlx_metrics_exporter"]["internal_port"] += 1
+    monitoring_path.write_text(yaml.safe_dump(current), encoding="utf-8")
+    with pytest.raises(ValueError, match="MLX Metrics"):
+        read_policy(tmp_path)
+    monitoring_path.write_bytes((ROOT / "configs/monitoring.yaml").read_bytes())
+
+    proxy = tmp_path / "ops/access/team-api.nginx.conf"
+    original = proxy.read_text(encoding="utf-8")
+    wrong_listener = original.replace(f"listen 127.0.0.1:{base + offsets['team_api_proxy']};", "listen 127.0.0.1:9999;")
+    assert wrong_listener != original
+    proxy.write_text(wrong_listener, encoding="utf-8")
+    with pytest.raises(ValueError, match="Nginx 팀원 Listener"):
+        read_policy(tmp_path)
