@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ai_model_serving.risk_input import detector_prompt_char_budget
+from scripts.config.ports import read_policy
 from .common import (
     ROOT,
     read_yaml,
@@ -141,6 +142,12 @@ def validate_ports() -> None:
     Compose 내부 runtime port 일치는 load_runtime_topology()가 소유한다. 여기서는
     host-published service와 app-only host_process가 선언한 default_host_port만 본다.
     """
+    # 신규 Port Namespace 계약은 Host뿐 아니라 내부 Runtime과 운영 어댑터까지 검증한다.
+    try:
+        read_policy(ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"Port Namespace 정책 불일치: {exc}") from exc
+
     policy = read_yaml('configs/services.yaml')
     services = policy['services']
     namespace = policy['port_namespace']
