@@ -49,7 +49,8 @@ def test_dcgm_table_port_remains_upstream_when_reusing_original_94xx_base():
     mapping = port_mapping(9400, 9600, REQUIRED_OFFSETS)
     docs = {
         "docs/04_runtime_modes.md": "| `dcgm-exporter` | `9400` | GPU metrics |\n",
-        "docs/appendix.md": "| DCGM Exporter | `dcgm-exporter` | `9400` | `9412` | GPU |\n",
+        "docs/appendix.md": "| DCGM Exporter | `dcgm-exporter` | `9400` | - | GPU |\n",
+        "docs/03_system_components.md": "| **DCGM Exporter** | `9400` | GPU telemetry |\n",
     }
     for path, original in docs.items():
         assert replace_ports(original, mapping, path) == original
@@ -100,3 +101,19 @@ def test_single_command_changes_namespace_idempotently_and_restores(tmp_path, mo
     assert env_path.read_bytes() == first_env
     assert ports.run(tmp_path, current_base, yes=True, validate=False) == 0
     assert ports.read_policy(tmp_path)[0] == current_base
+
+
+def test_documentation_does_not_publish_internal_only_services():
+    # 외부 제품의 내부 포트와 Compose Host publish 여부를 혼동하면 운영자가 방화벽을 잘못 열 수 있다.
+    components = (ROOT / "docs/03_system_components.md").read_text(encoding="utf-8")
+    appendix = (ROOT / "docs/appendix.md").read_text(encoding="utf-8")
+    assert "| **DCGM Exporter** | `9400` |" in components
+    for row in (
+        "| Main Model Runtime | `main-llm-vllm` |",
+        "| Korean Embedding Runtime | `embedding-ko-vllm` |",
+        "| Prompt Injection Detector Runtime | `prompt-injection-detector-runtime` |",
+        "| Prometheus | `prometheus` |",
+        "| DCGM Exporter | `dcgm-exporter` |",
+    ):
+        actual = next(line for line in appendix.splitlines() if line.startswith(row))
+        assert actual.split("|")[4].strip() == "-", actual
