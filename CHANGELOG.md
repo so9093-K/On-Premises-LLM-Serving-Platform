@@ -6,6 +6,8 @@
 
 ### Changed
 
+- Playground의 Risk Python·Node.js 재현 예제는 검사기 출처가 null이거나 누락되어도 실행할 수 있다. 부분 평가에서는 발견한 탐지 신호를 출력하면서 종료 코드 2로 평가 미완료를 알리며, 미탐지는 평가 완료·시스템 신호 없음·위험 신호 없음이 모두 확인될 때만 출력한다.
+
 - Playground Risk 화면은 Prompt Injection 검사기를 Target 선언이 아니라 현재 `/v1/models` 공개 여부로 제공한다. `rtx4090-24gb`처럼 검사기가 비활성인 구성에서는 이를 안내하고, 통합 평가 결과에 응답 근거의 실행 검사기와 Prompt 미포함을 표시해 PII·Secret만의 미탐지를 전체 미탐지처럼 보여 주지 않는다. Embedding 화면은 선택한 Runtime이 중지·기동 중·사용 불가이면 요청 전에 알린다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
 
 - Runtime Controller가 관리하는 Target의 `/ready`는 Chat·Responses 요청 Admission과 같은 Gate 판정을 따른다. Controller 장애 중에는 Main Runtime이 응답하더라도 `503`이며, Main dependency의 `message`로 Controller 관측 불가(`MAIN_MODEL_CONTROL_UNAVAILABLE`)·Gate 차단(`MAIN_MODEL_GATE_CLOSED`)·Runtime 자체의 미준비를 구분한다. `/health`는 모델 제어 장애와 무관하게 `200`을 유지한다. ([Runtime 모드](docs/04_runtime_modes.md))

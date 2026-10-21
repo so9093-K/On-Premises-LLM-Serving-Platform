@@ -107,6 +107,53 @@ for (const language of ['curl', 'python', 'javascript']) {
 }
 
 for (const language of ['python', 'javascript']) {
+  test(`${language} Risk 예제는 null·누락된 검사기 출처를 제외하고 문자열 출처만 정렬한다`, async (t) => {
+    for (const knownSource of [false, true]) {
+      const categories = riskResponse().categories.map(({ source_model, ...category }, index) => (
+        index === 0 ? { ...category, source_model: null } : category
+      ));
+      if (knownSource) categories.push(...riskResponse().categories);
+      const { url } = await fakeGateway(t, riskResponse({ categories }));
+      const result = await runExample(t, RISK, language, { GATEWAY_URL: url });
+      assert.match(result.stdout, knownSource
+        ? /executed detectors: pii-protection, secret-scanner/
+        : /executed detectors: unknown/);
+      assert.match(result.stdout, /no risk signal from the executed detectors/);
+    }
+  });
+
+  test(`${language} Risk 예제는 부분 평가의 탐지 신호를 출력하고 종료 코드 2를 반환한다`, async (t) => {
+    for (const knownSource of [true, false]) {
+      const systemSignals = [
+        { code: 'INFERENCE_TIMEOUT', detected: true, retryable: true, source: null },
+        { code: 'INFERENCE_ERROR', detected: true, retryable: true },
+      ];
+      if (knownSource) systemSignals.push({ code: 'INFERENCE_TIMEOUT', detected: true, retryable: true, source: 'risk-prompt' });
+      const { url } = await fakeGateway(t, riskResponse({
+        status: 'partial',
+        assessment_complete: false,
+        risk_detected: true,
+        model_risk_detected: true,
+        attention_required: true,
+        system_signal_detected: true,
+        strongest_code: 'D2',
+        categories: [{
+          code: 'D2', family: 'data_exposure', detected: true, confidence: null, label: 'EMAIL_ADDRESS', span_count: 1,
+          ...(knownSource ? { source_model: 'pii-protection' } : {}),
+        }],
+        system_signals: systemSignals,
+      }));
+      await assert.rejects(runExample(t, RISK, language, { GATEWAY_URL: url }), (error) => {
+        assert.equal(error.code, 2);
+        assert.match(error.stdout, /signal D2 EMAIL_ADDRESS count=1/);
+        assert.match(error.stdout, knownSource ? /executed detectors: pii-protection, risk-prompt/ : /executed detectors: unknown/);
+        assert.match(error.stderr, /assessment incomplete/);
+        assert.doesNotMatch(error.stdout, /no risk signal/);
+        return true;
+      });
+    }
+  });
+
   test(`${language} Risk example reports the executed scope and never treats an incomplete 200 as no-signal`, async (t) => {
     const complete = await fakeGateway(t, riskResponse());
     const clean = await runExample(t, RISK, language, { GATEWAY_URL: complete.url });
