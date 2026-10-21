@@ -18,7 +18,7 @@ Accepted
 
 ## Consequences
 
-운영자는 단일 명령으로 Port Namespace를 변경하고 검증할 수 있다. 포트 변경은 클라이언트 URL과 프로세스 가용성에 영향을 줄 수 있으므로 운영자는 변경 계획을 확인하고 `make up`으로 재수렴한다. 외부 Host 프록시는 해당 운영자가 별도 적용한다.
+운영자는 단일 명령으로 Port Namespace를 변경하고 검증할 수 있다. 이 명령은 체크아웃 소스와 생성 파일을 갱신하는 Maintainer 도구이며, Source/Console 빌드 및 정적 검증을 위한 개발 도구가 필요하다. 포트 변경은 클라이언트 URL과 프로세스 가용성에 영향을 줄 수 있으므로 운영자는 변경 계획을 확인하고 `make up`으로 재수렴한다. 외부 Host 프록시는 해당 운영자가 별도 적용한다.
 
 ## Operational impact
 
