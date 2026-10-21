@@ -35,6 +35,7 @@ make runtime-validate
 | `make test` | application logic이 예상한 동작을 수행하는가? | Gateway, Risk, Auth, Runtime Control |
 | target readiness gate | 현재 실행된 서비스가 요청을 받을 준비가 되었는가? | Process, Dependency, Inference Path |
 | `make runtime-validate` | 실제 vLLM API·고급 요청·모니터링 연결이 동작하는가? | Full-stack Runtime |
+| `make cpu-runtime-validate` | 실제 관리형 CPU 모델의 신원·한도·Chat·Streaming이 일치하는가? | 활성 llama.cpp Main 모델 |
 
 저장소는 자체 성능 Runner·Baseline 승격·SLO 판정을 두지 않는다
 ([ADR-0042](./adr/0042-remove-qualification-evidence-and-benchmark.md)). 명시적인 수동 성능
@@ -722,6 +723,11 @@ CI에서는 동일한 `run_validate.sh`와 `run_test.sh`를 기본 quality gate�
 `tests/unit/test_adaptive_runtime.py`는 자원 관측 오류, 안정 관측, 실패 유예,
 운영자 중지 의도, 활성 정책·Readiness를 결정론적으로 검증한다.
 CPU 실추론은 `make cpu-runtime-validate BASE_URL=http://127.0.0.1:9400`으로 확인한다.
+이 명령은 `/v1/models`의 CPU Backend·모델 ID·텍스트 입력·문맥/출력 한도를 설정과
+대조한 뒤 Chat과 SSE 응답·종료를 검사한다. 실제 전환과 이 검증이 통과하면
+[모델 운영의 절차](06_model_operations.md#qualification-선언)에 따라 CPU 프로필의
+Qualification을 선언할 수 있다. [CPU 검증 기록](resources/manual_cpu_model_validation.md)은
+프로필 검증 범위를 기록하며, GPU 없는 호스트의 Target 설치 검증과는 구분한다.
 실제 전환·SSE 보호·관측 장애 복구의 호스트별 결과는
 [수동 검증 기록](resources/adaptive_runtime_validation.md)을 참조한다.
 이 기록은 장비 범위를 설명하며 Qualification 선언과 일반 CI를 대체하지 않는다.

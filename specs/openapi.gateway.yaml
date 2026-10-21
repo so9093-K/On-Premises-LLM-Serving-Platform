@@ -4538,9 +4538,9 @@ paths:
                       upstream_model_id: Qwen/Qwen3-0.6B-GGUF
                       revision: 1208e45d782fe18602c5eaf10e5758d5b0f24c03
                       compatibility:
-                        status: unknown
+                        status: compatible
                       qualification:
-                        status: unverified
+                        status: verified
                       capabilities:
                         deployed_input:
                         - text
@@ -4841,10 +4841,9 @@ paths:
                 value:
                   profile: qwen2.5-omni-7b-thinker
               cpu_gguf_text:
-                summary: Qwen3-0.6B-GGUF (unverified)
+                summary: Qwen3-0.6B-GGUF (verified)
                 value:
                   profile: cpu-gguf-text
-                  confirm_unverified: true
         required: true
       responses:
         '202':

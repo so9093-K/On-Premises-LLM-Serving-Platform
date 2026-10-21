@@ -15,9 +15,10 @@ profiles:
     display_name: Local GGUF Text Chat (CPU / llama.cpp)
     served_model_name: local-main
     compatibility:
-      status: unknown
+      status: compatible
     qualification:
-      status: unverified
+      # Linux/Ryzen 9 7900X3D 실측(2026-10-21): docs/resources/manual_cpu_model_validation.md
+      status: verified
     capabilities:
       deployed_input: [text]
     gateway_policy:

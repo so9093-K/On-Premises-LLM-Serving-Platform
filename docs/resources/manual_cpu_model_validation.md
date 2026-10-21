@@ -65,5 +65,21 @@ Controller 재시작 뒤 GPU 장치 복원은 별도 결정론적 Backend 테스
 이 의존성을 제거하고 실제 Compose 병합 검사로 Gateway 기동이 Main에 종속되지 않도록
 검증했다. Core만 다시 적용해 운영 UI 접근과 기존 GPU 추론 준비 상태를 확인했다.
 
-단일 RTX 4090 호스트의 기능 검증이다. 장시간 부하·모든 오류 주입과 RTX 6000 Ada
-실장비 검증을 뜻하지 않는다. CPU 프로필의 `unverified`를 유지한다.
+이 시점에는 단일 RTX 4090 호스트의 기능 검증으로 기록하고 CPU 프로필의 `unverified`를 유지했다.
+장시간 부하·모든 오류 주입과 RTX 6000 Ada 실장비 검증을 뜻하지 않는다.
+
+## CPU 프로필 Qualification — 2026-10-21
+
+`494fd74a` 기반 변경을 Linux x86_64 / AMD Ryzen 9 7900X3D에서 검증했다.
+모델·GGUF 무결성은 `configs/cpu_model_artifact.yaml`, 엔진은 고정 llama.cpp
+`server-b10454` Digest를 사용했다.
+
+- 실제 Gateway API로 GPU→Qwen CPU 전환 완료, 고정 revision과 Gate open 확인.
+- Docker inspect: GPU DeviceRequests 없음, RAM 4 GiB, PIDs 256.
+- `make cpu-runtime-validate` 통과: CPU Backend·모델 ID·텍스트 입력·문맥 2,048·최대 출력
+  256 일치, Chat 응답 및 SSE 응답·종료 이벤트·`[DONE]` 확인.
+- 기존 GPU `gemma4-e4b-it` 복귀 완료, Runtime ready·Gate open·Gateway `/ready` 200.
+
+공통 CPU 프로필을 `compatible` / `verified`로 선언한다. Deployment Target의
+Qualification은 별개로 유지한다. 실행 요약은 로컬
+`reports/validation/qwen-cpu-qualification.json`에 보존한다.
