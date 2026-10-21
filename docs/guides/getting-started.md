@@ -16,13 +16,16 @@ cd On-Premises-LLM-Serving-Platform
 
 | 내 환경 | 선택할 Target | 먼저 준비할 것 | 모델 실행·제어 |
 |---|---|---|---|
+| Linux · GPU·모델 없이 기본 서비스 | `linux-core` | Python 3.12–3.13, uv, Docker | 모델 Runtime 없음. Gateway·Control Plane·Scalar·PII/Secret Risk만 실행 |
+| Linux · 관리형 CPU 모델 | `linux-cpu-managed` | Python 3.12–3.13, uv, Docker, 모델 다운로드용 네트워크와 RAM·디스크 여유 | 플랫폼이 고정 GGUF와 llama.cpp CPU 컨테이너 관리, `unverified` |
+| Linux · 외부 llama.cpp CPU 서버 | `linux-cpu-static` | Python 3.12–3.13, uv, Docker, 실행 중인 CPU-only `llama-server` | Main lifecycle은 외부 관리, `unverified` |
 | Linux · CPU/GPU 자동 선택 | `linux-adaptive` 또는 최초 `auto` | Python 3.12–3.13, uv, Docker, CPU 여유 RAM 4 GiB 이상; GPU 사용 시 Driver·Toolkit·모델 권한 | [CPU 복구·GPU 복귀](adaptive-runtime.md) |
 | Linux amd64 + NVIDIA | `linux-nvidia-dynamic` | Python 3.12–3.13, uv, Docker, NVIDIA driver·Container Toolkit, Bash 4+ | 플랫폼이 vLLM lifecycle과 GPU admission 관리 |
 | Apple Silicon | `macos-metal-static` | Python 3.13.12, uv, Docker, 모델에 충분한 unified memory | native MLX-VLM, Main lifecycle은 외부 관리 |
 | Linux + 이미 실행 중인 외부 Main | `linux-nvidia-static` | Python 3.12–3.13, uv, Docker, 접근 가능한 Main endpoint와 맞는 profile | Main lifecycle은 외부 관리; target qualification은 `unverified` |
 
 전체 기능과 선언은 [Deployment Target](../../configs/deployment_targets.yaml)이 소유합니다.
-기본 Chat/Responses와 PII·Secret Risk를 공통 제공하고,
+모든 Target은 PII·Secret Risk를, 모델 Runtime이 있는 Target은 Chat/Responses를 제공하고,
 Embedding·Retrieval·모델 기반 Prompt Injection Detector는 `linux-nvidia-dynamic`의 범위입니다.
 Adaptive는 Main 자동 선택과 로컬 Risk를 제공합니다.
 리소스 정책에 따라 일부 supporting Runtime은 제외될 수 있습니다.
@@ -92,7 +95,36 @@ Mac에서는 같은 방식으로 token을 준비한 뒤 Mac용 명령을 실행�
 최초 실행의 다운로드·빌드는 오래 걸릴 수 있고, 이후에도 source 변경 시 다시 빌드할 수 있습니다.
 고정된 설치 시간을 약속하지 않습니다.
 
-외부 Runtime을 연결한다면:
+GPU·모델 없이 기본 서비스만 실행한다면:
+
+```bash
+make up TARGET=linux-core ACCESS=local
+```
+
+`/ready`는 활성 모델 대신 Core 서비스의 준비 상태를 검사하며 Chat/Responses 요청은
+`MODEL_UNAVAILABLE`로 거부합니다. Control Plane의 Playground → Risk에서 PII·Secret 탐지를 확인할 수 있습니다.
+GPU가 있어도 자원이 부족하면 이 구성을 사용할 수 있으며, GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
+
+관리형 CPU 모델을 실행한다면:
+
+```bash
+make up TARGET=linux-cpu-managed ACCESS=local
+```
+
+플랫폼이 고정된 Qwen3 0.6B GGUF를 다운로드하고 SHA-256으로 검증한 뒤 CPU-only llama.cpp 컨테이너를
+실행합니다. GPU나 CUDA는 필요하지 않습니다. 서버 실추론 Qualification 전까지 `unverified`이며
+GPU 모델로의 자동 전환은 [자동 Runtime 운영](adaptive-runtime.md)의 `linux-adaptive`가 담당합니다.
+
+외부 llama.cpp CPU 서버를 연결한다면, 먼저 CPU-only `llama-server`를 실행하고 Gateway가 접근할 수 있는 주소를 지정합니다:
+
+```bash
+make up TARGET=linux-cpu-static ACCESS=local MAIN_URL=http://host.docker.internal:8080/v1
+```
+
+모델 다운로드·검증과 Runtime lifecycle은 운영자가 소유합니다. `configs/cpu_main_model_profiles.yaml`의
+Text Chat·Streaming Profile은 실환경 검증 전이며, GPU 자원 부족 시 자동 Fallback이나 Target 전환은 하지 않습니다.
+
+외부 vLLM Runtime을 연결한다면:
 
 ```bash
 make up TARGET=linux-nvidia-static MAIN_URL='http://<gateway에서-접근가능한-host>:8000/v1' ACCESS=local
