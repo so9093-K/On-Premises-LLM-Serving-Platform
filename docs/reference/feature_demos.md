@@ -9,6 +9,7 @@ Control Plane Playground에서 예제 입력을 직접 구성하려면 [예제�
 | [문서 해석](#document-analysis) | Playground → 예제 「문서 해석」 → Chat Completions | 흐름도의 판단 단계와 분기 정리 |
 | [이미지 분석](#image-analysis) | Playground → Chat Completions | 예시 그래프의 최대·최소값 읽기 |
 | [이미지 텍스트 읽기 / OCR](#ocr) | Playground → Chat Completions | 가상 주문서의 5개 항목 추출 |
+| [영상 분석](#video-analysis) | Playground → 예제 「영상 분석」 → Chat Completions | 도형의 색상·모양과 등장 순서 구분 |
 | [시스템 프롬프트와 인젝션 입력](#system-prompt) | Playground → Chat Completions | 역할 변경·프롬프트 공개 요구에 대한 모델 응답 |
 | [임베딩과 문서 관련도](#embedding) | Playground → Embeddings → Retrieval API | 1024차원 벡터 생성과 문서 관련도 순위 |
 
@@ -75,6 +76,30 @@ Total: USD 24.00
 ```
 
 **입력:** 가상 주문서 · **경로:** 멀티모달 모델의 이미지 입력(전용 OCR API 아님).
+
+<a id="video-analysis"></a>
+
+## 영상 분석
+
+[![Playground에서 합성 영상을 재생하고 도형의 등장 순서를 질문한 실제 모델 응답](../../assets/demos/video-analysis-poster.png)](../../assets/demos/video-analysis.gif)
+
+[GIF 재생](../../assets/demos/video-analysis.gif) · [입력 영상](../../assets/demos/inputs/sample-video.webm) · [예제 사용 안내](playground_video_sample.md)
+
+**입력:** 빨간 사각형과 파란 원이 등장하는 8초 무음 합성 영상.
+Playground → Chat → 예제 보기 → **영상 분석**에서 미리 재생한 뒤 **입력에 적용 → 보내기**로 실행했습니다.
+
+> 영상에서 처음 보이는 도형, 나중에 추가되는 도형, 마지막 장면에 남아 있는 도형을 각각 한국어 한 문장으로 설명해 주세요. 색상과 모양을 구분하고, 보이지 않는 내용이나 소리는 추측하지 마세요.
+
+실제 모델 응답:
+
+```text
+영상에서 처음 보이는 도형은 빨간색 사각형입니다.
+나중에 추가되는 도형은 파란색 원입니다.
+마지막 장면에 남아 있는 도형은 빨간색 사각형과 파란색 원입니다.
+```
+
+영상 입력을 지원하는 모델에서 사용할 수 있습니다. 촬영 환경과 원본 정보는
+[영상 샘플 제작 및 검증](../resources/playground_video_validation.md#기능-데모-촬영)에 기록했습니다.
 
 <a id="system-prompt"></a>
 
@@ -156,6 +181,7 @@ Playground의 시스템 프롬프트:
 | 문서 해석 | 15.81초 | 약 463 KiB |
 | 이미지 분석 | 11.31초 | 약 162 KiB |
 | OCR | 11.31초 | 약 264 KiB |
+| 영상 분석 | 15.85초 | 약 340 KiB |
 | 시스템 프롬프트 | 7.87초 | 약 127 KiB |
 | 임베딩 | 10.77초 | 약 154 KiB |
 
