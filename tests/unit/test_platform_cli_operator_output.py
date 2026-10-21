@@ -177,16 +177,16 @@ def test_ready_output_points_to_surfaces_the_gateway_reports(
     bootstrap = {"links": {"docs": "/docs", "grafana": "http://127.0.0.1:3000/"}}
     monkeypatch.setattr(platform_cli, "_gateway_json", lambda values, path, admin=False: (200, bootstrap))
 
-    platform_cli._print_next_steps({"GATEWAY_PORT": "9400"})
+    platform_cli._print_next_steps({"GATEWAY_PORT": "9600"})
     lines = capsys.readouterr().out.splitlines()
     assert lines == [
-        "[platform]   Console   http://127.0.0.1:9400/admin/console/",
-        "[platform]   API docs  http://127.0.0.1:9400/docs",
+        "[platform]   Console   http://127.0.0.1:9600/admin/console/",
+        "[platform]   API docs  http://127.0.0.1:9600/docs",
         "[platform]   Grafana   http://127.0.0.1:3000/",
         "[platform]   Next      make status · make logs · make down",
     ]
 
     # 문서를 끈 환경이나 Grafana가 없는 target에서는 없는 주소를 안내하지 않는다.
     monkeypatch.setattr(platform_cli, "_gateway_json", lambda values, path, admin=False: (200, {"links": {"docs": None, "grafana": None}}))
-    platform_cli._print_next_steps({"GATEWAY_PORT": "9400"})
+    platform_cli._print_next_steps({"GATEWAY_PORT": "9600"})
     assert [line.split()[1] for line in capsys.readouterr().out.splitlines()] == ["Console", "Next"]

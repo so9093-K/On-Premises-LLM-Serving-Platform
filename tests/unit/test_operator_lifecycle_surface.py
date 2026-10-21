@@ -110,7 +110,7 @@ def test_app_only_status_uses_process_health_instead_of_model_readiness(
     monkeypatch.setattr(
         platform_cli,
         "_gateway_probe",
-        lambda values, path: ("http://127.0.0.1:9400/health", path == "/health"),
+        lambda values, path: ("http://127.0.0.1:9600/health", path == "/health"),
     )
 
     class Result:

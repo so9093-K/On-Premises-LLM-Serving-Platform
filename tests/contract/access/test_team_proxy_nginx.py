@@ -71,8 +71,8 @@ def proxy(tmp_path_factory):
     thread = threading.Thread(target=upstream.serve_forever, daemon=True)
     thread.start()
     conf = (CONFIG.read_text(encoding="utf-8")
-            .replace("127.0.0.1:9480", f"127.0.0.1:{team_port}")
-            .replace("127.0.0.1:9400", f"127.0.0.1:{gateway_port}"))
+            .replace("127.0.0.1:9680", f"127.0.0.1:{team_port}")
+            .replace("127.0.0.1:9600", f"127.0.0.1:{gateway_port}"))
     (tmp / "team.conf").write_text(conf, encoding="utf-8")
     (tmp / "nginx.conf").write_text(
         f"worker_processes 1;\npid {tmp}/nginx.pid;\nerror_log {tmp}/error.log;\n"

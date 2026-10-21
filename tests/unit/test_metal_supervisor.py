@@ -41,7 +41,7 @@ def test_supervisor_plist_takes_its_command_from_server_command(monkeypatch, sup
     실행 명령의 단일 기준은 server_command이고 plist는 그 결과를 감싸기만 한다.
     """
     installed, calls = supervised
-    command = ["/venv/bin/mlx_vlm.server", "--model", "local-main", "--port", "9401"]
+    command = ["/venv/bin/mlx_vlm.server", "--model", "local-main", "--port", "9601"]
     monkeypatch.setattr(metal, "server_command", lambda config, *, listen_host: command)
     monkeypatch.setattr(metal, "_supervisor_loaded", lambda: False)
     monkeypatch.setattr(metal, "_await_readiness", lambda *a, **k: None)
