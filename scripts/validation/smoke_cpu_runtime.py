@@ -86,7 +86,7 @@ def smoke(base_url: str, token: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify a running CPU LLM through the Gateway.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:9400")
+    parser.add_argument("--base-url", default="http://127.0.0.1:9600")
     parser.add_argument("--api-key", default=os.environ.get("API_KEY", ""))
     args = parser.parse_args()
     try:

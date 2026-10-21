@@ -16,7 +16,7 @@ AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 .PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev cpu-runtime-validate
 
-PUBLIC_TARGETS := up status down logs reset purge
+PUBLIC_TARGETS := up status ports down logs reset purge
 QUALITY_TARGETS := check
 PLATFORM_CLI := "$(CURDIR)/.venv/bin/python" scripts/platform_cli.py
 PLATFORM_TARGET_ARG = $(if $(TARGET),--target "$(TARGET)",)
@@ -151,3 +151,8 @@ console-build: ## Control Plane frontend 의존성 설치 후 checked-in runtime
 console-check: ## Control Plane type/API/generated asset drift 검증
 	npm --prefix ui/control-plane ci
 	npm --prefix ui/control-plane run check
+
+.PHONY: ports
+ports: ## BASE=<대역 시작 포트> 프로젝트 Port Namespace 변경
+	@if [[ -z "$(BASE)" ]]; then echo "Usage: make ports BASE=9700 [YES=1]" >&2; exit 2; fi
+	@"$(PYTHON)" scripts/config/ports.py --base "$(BASE)" $(if $(filter 1,$(YES)),--yes,)

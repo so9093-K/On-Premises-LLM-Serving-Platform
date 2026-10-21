@@ -25,12 +25,12 @@
     {
       "src": "operator@example.com",
       "accept": ["tag:llm-server:443", "tag:llm-server:8443"],
-      "deny": ["tag:llm-server:9400", "tag:llm-server:9411"]
+      "deny": ["tag:llm-server:9600", "tag:llm-server:9610"]
     },
     {
       "src": "teammate@example.com",
       "accept": ["tag:llm-server:8443"],
-      "deny": ["tag:llm-server:443", "tag:llm-server:9400", "tag:llm-server:9411", "tag:llm-server:22"]
+      "deny": ["tag:llm-server:443", "tag:llm-server:9600", "tag:llm-server:9610", "tag:llm-server:22"]
     }
   ]
 }

@@ -34,6 +34,10 @@ make console-build          # Control Plane 변경 시
 make render-runtime-assets  # Runtime 생성물의 원본 변경 시
 ```
 
+### 포트 네임스페이스 변경
+
+`make ports BASE=9700`은 단순 Runtime 환경변수 설정이 아니라 저장소의 추적된 설정·소스·문서와 생성 산출물을 함께 변경하는 **checkout 작업**이다. 먼저 `make setup-dev`로 Python 검증 환경을 준비하고 프로젝트 지정 Node.js/npm을 설치한다. 명령은 변경 계획을 출력한 다음 확인을 받고, Console의 API 예제 소스가 바뀌면 프런트엔드도 다시 빌드한다. 변경 diff와 `make check`를 확인한 뒤 배포 환경에서 `make up`으로 적용한다. 외부 Nginx·Tailscale Serve·방화벽은 운영자가 별도로 변경한다.
+
 ## 3. 테스트·검증
 
 | 범위 | 명령 |

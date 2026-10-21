@@ -114,7 +114,7 @@ def error_codes_from_specs(endpoints: Sequence[EndpointSpec]) -> dict[RouteKey, 
 
 
 # ---------------------------------------------------------------------------
-# Gateway 엔드포인트 (port 9400)
+# Gateway 엔드포인트 (port 9600)
 # ---------------------------------------------------------------------------
 
 GATEWAY_ENDPOINTS: list[EndpointSpec] = [
@@ -685,7 +685,7 @@ GATEWAY_ENDPOINTS: list[EndpointSpec] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Risk Signal Service 엔드포인트 (port 9405)
+# Risk Signal Service 엔드포인트 (port 9605)
 # ---------------------------------------------------------------------------
 
 RISK_SIGNAL_SERVICE_ENDPOINTS: list[EndpointSpec] = [

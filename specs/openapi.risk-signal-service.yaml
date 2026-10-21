@@ -98,7 +98,7 @@ paths:
                 dependencies:
                 - name: prompt_injection_detector_runtime
                   status: ready
-                  endpoint: http://prompt-injection-detector-runtime:9403/v1/models
+                  endpoint: http://prompt-injection-detector-runtime:9604/v1/models
         '401':
           description: '관리자 API 키 필요
 
@@ -135,7 +135,7 @@ paths:
                 dependencies:
                 - name: prompt_injection_detector_runtime
                   status: not_ready
-                  endpoint: http://prompt-injection-detector-runtime:9403/v1/models
+                  endpoint: http://prompt-injection-detector-runtime:9604/v1/models
                   message: 'MODEL_UNAVAILABLE: Upstream unavailable: risk-prompt'
       security:
       - adminBearerAuth: []

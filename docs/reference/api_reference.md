@@ -1,12 +1,12 @@
 # API 인터페이스
 
-AI Model Serving Platform의 외부 API는 Gateway를 기준으로 제공한다. 기본 Gateway port는 `9400`이며 Chat Completions, Responses, Embedding, Retrieval, Prompt Guard, Runtime Control API를 한 곳에서 제공한다.
+AI Model Serving Platform의 외부 API는 Gateway를 기준으로 제공한다. 기본 Gateway port는 `9600`이며 Chat Completions, Responses, Embedding, Retrieval, Prompt Guard, Runtime Control API를 한 곳에서 제공한다.
 
 ```text
 Client / Application
         │
         ▼
-Gateway :9400
+Gateway :9600
         │
         ├─ /v1/*       Model API
         ├─ /health     Liveness
@@ -33,13 +33,13 @@ API 문서가 활성화된 환경에서는 다음 경로를 사용할 수 있다
 예시는 다음 주소를 기준으로 한다.
 
 ```text
-http://<gateway-host>:9400
+http://<gateway-host>:9600
 ```
 
 Shell에서 반복 호출할 때는 환경변수로 두면 편하다.
 
 ```bash
-export GATEWAY_URL="http://127.0.0.1:9400"
+export GATEWAY_URL="http://127.0.0.1:9600"
 export API_KEY="<gateway-api-key>"
 export ADMIN_API_KEY="<gateway-admin-api-key>"
 ```
@@ -1363,17 +1363,17 @@ Ready:
     {
       "name": "main_llm_vllm",
       "status": "ready",
-      "endpoint": "http://main-llm-vllm:9401/v1/models"
+      "endpoint": "http://main-llm-vllm:9601/v1/models"
     },
     {
       "name": "embedding_vllm",
       "status": "ready",
-      "endpoint": "http://embedding-vllm:9402/v1/models"
+      "endpoint": "http://embedding-vllm:9602/v1/models"
     },
     {
       "name": "risk-signal-service",
       "status": "ready",
-      "endpoint": "http://risk-signal-service:9405/ready"
+      "endpoint": "http://risk-signal-service:9605/ready"
     }
   ]
 }
@@ -1393,7 +1393,7 @@ Dependency loading:
     {
       "name": "risk-signal-service",
       "status": "not_ready",
-      "endpoint": "http://risk-signal-service:9405/ready",
+      "endpoint": "http://risk-signal-service:9605/ready",
       "message": "waiting for Risk Signal Service dependencies: prompt_injection_detector_runtime"
     }
   ]
@@ -1812,7 +1812,7 @@ retryable = true
 import os
 import requests
 
-base_url = os.environ.get("GATEWAY_URL", "http://127.0.0.1:9400")
+base_url = os.environ.get("GATEWAY_URL", "http://127.0.0.1:9600")
 api_key = os.environ.get("API_KEY")
 
 headers = {"Content-Type": "application/json"}
@@ -1848,7 +1848,7 @@ import os
 from openai import OpenAI
 
 client = OpenAI(
-    base_url=os.environ.get("GATEWAY_URL", "http://127.0.0.1:9400") + "/v1",
+    base_url=os.environ.get("GATEWAY_URL", "http://127.0.0.1:9600") + "/v1",
     api_key=os.environ.get("API_KEY", "local-open"),
 )
 
@@ -1914,7 +1914,7 @@ for chunk in stream:
 | Risk Signal Service | `/v1/risk/assessments` | Gateway | Aggregate risk assessment |
 | Runtime Controller | `/main-model*`, `/containers/*`, `/gpu-budget` | Gateway | Runtime / container control |
 
-Risk Signal Service는 기본 Compose에서 `:9405`, Runtime Controller는 `:8080` 내부 service port를 사용한다.
+Risk Signal Service는 기본 Compose에서 `:9605`, Runtime Controller는 `:8080` 내부 service port를 사용한다.
 
 ---
 

@@ -2,12 +2,14 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-0058
 
 > Current implementation note (2026-10-01): 사용자-facing `Risk Adapter` 명칭은
 > **Risk Signal Service**로 바뀌었고 ReDoc surface는 제거됐다. Host publish 경계는
 > `configs/services.yaml`, target Compose와 Access Profile projection이 소유한다.
 > 아래 본문은 이 ADR이 채택될 당시의 용어와 문서 surface를 기록한다.
+
+현재 적용 정책은 [ADR-0058](0058-port-namespace-policy.md)이 소유한다. 아래는 이전 94xx 정책의 채택 당시 기록이다.
 
 ## 결정
 

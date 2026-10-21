@@ -10,18 +10,18 @@ scrape_configs:
   bearer_token_file: /run/secrets/admin_api_key
   static_configs:
   - targets:
-    - gateway:9400
+    - gateway:9600
 - job_name: risk-signal-service
   metrics_path: /metrics
   bearer_token_file: /run/secrets/admin_api_key
   static_configs:
   - targets:
-    - risk-signal-service:9405
+    - risk-signal-service:9605
 - job_name: mlx-runtime
   metrics_path: /metrics
   static_configs:
   - targets:
-    - mlx-metrics-exporter:9416
+    - mlx-metrics-exporter:9616
     labels:
       model: local-main
       runtime_backend: mlx-vlm

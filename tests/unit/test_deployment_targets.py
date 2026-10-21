@@ -139,7 +139,7 @@ def test_deployment_target_governance_rejects_gateway_platform_state_drift(
 def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
-    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9601/v1")
     # target profile이 M5 32GB 계약의 concurrency=1을 소유하므로 generic env가
     # 더 큰 값을 갖더라도 static runtime admission은 profile 값으로 고정된다.
     monkeypatch.setenv("MAIN_MODEL_MAX_CONCURRENCY", "4")
@@ -172,7 +172,7 @@ def test_macos_target_uses_mlx_main_with_local_risk(monkeypatch) -> None:
 def test_static_serving_envelope_uses_selected_catalog_without_runtime_controller(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "macos-metal-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-26b-a4b-qat-4bit-mlx")
-    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9401/v1")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://host.docker.internal:9601/v1")
     settings = load_settings()
     clients = FakeGatewayClients()
     clients.runtime_controller = None
@@ -209,7 +209,7 @@ def test_static_linux_serving_projection_applies_selected_resource_variant(monke
     monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-e4b-it")
     monkeypatch.setenv("MAIN_MODEL_RESOURCE_VARIANT", "rtx4090-24gb")
-    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9401/v1")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9601/v1")
 
     settings = load_settings()
 
@@ -262,17 +262,17 @@ def test_macos_reasoning_uses_the_mlx_top_level_parameter_and_stays_opt_in(monke
 def test_static_settings_project_only_main_runtime(monkeypatch) -> None:
     monkeypatch.setenv("DEPLOYMENT_TARGET", "linux-nvidia-static")
     monkeypatch.setenv("MAIN_MODEL_STATIC_PROFILE", "gemma4-e4b-it")
-    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9401/v1")
+    monkeypatch.setenv("MAIN_MODEL_BASE_URL", "http://runtime.example:9601/v1")
 
     settings = load_settings()
 
     assert settings.deployment_target.target_id == "linux-nvidia-static"
     assert set(settings.runtime_endpoints) == {"main_llm"}
-    assert settings.runtime("main_llm").base_url == "http://runtime.example:9401/v1"
+    assert settings.runtime("main_llm").base_url == "http://runtime.example:9601/v1"
     assert settings.embedding_profiles == {}
     assert [detector.key for detector in settings.enabled_risk_detectors()] == ["pii", "secret"]
     assert settings.aggregate_detector_order == ("pii", "secret")
-    assert settings.risk_signal_service_base_url == "http://risk-signal-service:9405"
+    assert settings.risk_signal_service_base_url == "http://risk-signal-service:9605"
     assert settings.runtime_controller_url == ""
     assert settings.static_main_profile == "gemma4-e4b-it"
     assert settings.static_main_resource_variant is None

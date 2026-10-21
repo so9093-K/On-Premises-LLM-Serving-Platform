@@ -45,25 +45,27 @@
 
 ### Application / Model Runtime
 
-| 서비스 | Compose 서비스 | Container Port | 기본 Host Port | 역할 |
+아래 Host Port는 **Full-stack Compose의 공개 포트**를 뜻한다. App-only로 실행하는 Risk Signal Service는 별도의 Host 프로세스 포트를 사용할 수 있다.
+
+| 서비스 | Compose 서비스 | Container Port | Compose Host 공개 포트 | 역할 |
 |---|---|---:|---:|---|
-| Gateway | `gateway` | `9400` | `9400` | 외부 API 진입점 |
-| Main Model Runtime | `main-llm-vllm` | `9401` | `9401` | Chat / Responses generation |
-| Embedding Runtime | `embedding-vllm` | `9402` | `9402` | 일반 Embedding |
-| Prompt Injection Detector Runtime | `prompt-injection-detector-runtime` | `9403` | `9403` | Prompt Injection / Leaking signal inference |
-| Risk Signal Service | `risk-signal-service` | `9405` | `9405` | PII·Secret·Prompt Injection 신호 정규화 |
-| Korean Embedding Runtime | `embedding-ko-vllm` | `9406` | `9406` | Retrieval용 한국어 Embedding |
+| Gateway | `gateway` | `9600` | `9600` | 외부 API 진입점 |
+| Main Model Runtime | `main-llm-vllm` | `9601` | - | Chat / Responses generation |
+| Embedding Runtime | `embedding-vllm` | `9602` | - | 일반 Embedding |
+| Korean Embedding Runtime | `embedding-ko-vllm` | `9603` | - | Retrieval용 한국어 Embedding |
+| Prompt Injection Detector Runtime | `prompt-injection-detector-runtime` | `9604` | - | Prompt Injection / Leaking signal inference |
+| Risk Signal Service | `risk-signal-service` | `9605` | - | PII·Secret·Prompt Injection 신호 정규화 |
 | Runtime Controller | `runtime-controller` | `8080` | - | Model Runtime lifecycle·Main Model 전환 관리. Compose 내부에서 사용 |
 
 ### Monitoring
 
 | 서비스 | Compose 서비스 | Container Port | 기본 Host Port | 역할 |
 |---|---|---:|---:|---|
-| Prometheus | `prometheus` | `9090` | `9410` | Metrics 저장 및 조회 |
-| Grafana | `grafana` | `3000` | `9411` | Metrics / Logs Dashboard |
-| DCGM Exporter | `dcgm-exporter` | `9400` | `9412` | GPU Metrics 수집 |
-| cAdvisor | `cadvisor` | `8080` | `9413` | Container 자원 Metrics |
-| Loki | `loki` | `3100` | `9414` | Log 저장 및 조회 |
+| Prometheus | `prometheus` | `9090` | - | Metrics 저장 및 조회 |
+| Grafana | `grafana` | `3000` | `9610` | Metrics / Logs Dashboard |
+| DCGM Exporter | `dcgm-exporter` | `9400` | - | GPU Metrics 수집 |
+| cAdvisor | `cadvisor` | `8080` | - | Container 자원 Metrics |
+| Loki | `loki` | `3100` | - | Log 저장 및 조회 |
 | Alloy | `alloy` | - | - | Container/Application Log 수집 및 Loki 전달 |
 
 Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 target의 Grafana만 Host에 공개된다. 모델 Runtime과 운영용 backend는 Compose 내부 네트워크에서 사용한다. Runtime qualification도 내부망 one-off validator가 수행하므로 추가 host publish는 필요하지 않다.
