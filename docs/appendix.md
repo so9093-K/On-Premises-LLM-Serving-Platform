@@ -61,7 +61,7 @@
 |---|---|---:|---:|---|
 | Prometheus | `prometheus` | `9090` | `9410` | Metrics 저장 및 조회 |
 | Grafana | `grafana` | `3000` | `9610` | Metrics / Logs Dashboard |
-| DCGM Exporter | `dcgm-exporter` | `9600` | `9412` | GPU Metrics 수집 |
+| DCGM Exporter | `dcgm-exporter` | `9400` | `9412` | GPU Metrics 수집 |
 | cAdvisor | `cadvisor` | `8080` | `9413` | Container 자원 Metrics |
 | Loki | `loki` | `3100` | `9414` | Log 저장 및 조회 |
 | Alloy | `alloy` | - | - | Container/Application Log 수집 및 Loki 전달 |
