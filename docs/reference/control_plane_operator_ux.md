@@ -62,7 +62,7 @@ UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `
 
 ### Playground
 
-Playground는 Bootstrap의 `chat`·`embeddings`·`risk` feature 중 하나라도 있으면 보이며, 활성 feature에 해당하는 Chat·Embedding·Risk 작업 화면만 탭으로 제공한다. Chat이 없는 `linux-core`에서도 Risk 화면을 제공한다. 사용자 API Key는 작업 화면 사이에서 공유한다. Embedding·Risk의 입력과 결과는 해당 화면의 상태에만 두고 이동하면 지운다. Risk 결과는 신호와 검사 완료 여부만 표시하며 허용·차단을 판정하지 않는다([ADR-0056](../adr/0056-playground-feature-workspaces.md)).
+Playground는 Bootstrap의 `chat`·`embeddings`·`risk` feature 중 하나라도 있으면 보이며, 활성 feature에 해당하는 Chat·Embedding·Risk 작업 화면만 탭으로 제공한다. Chat이 없는 `linux-core`에서도 Risk 화면을 제공한다. 사용자 API Key는 작업 화면 사이에서 공유한다. Embedding·Risk의 입력과 결과는 해당 화면의 상태에만 두고 이동하면 지운다. Prompt Injection 검사기는 `/v1/models`가 공개할 때만 제공하고, Risk 결과는 신호·검사 완료 여부와 응답에 근거한 실행 검사기만 표시하며 허용·차단을 판정하지 않는다([ADR-0056](../adr/0056-playground-feature-workspaces.md)).
 
 Chat 작업 화면에서 전송한 각 요청은 **코드로 사용하기**에서 원본 요청 JSON과 Python/Node.js/cURL Exact Replay, OpenAI SDK Integration 예제를 구분하여 제공한다. 과거 요청을 현재 모델이나 Settings에서 다시 구성하지 않고 해당 Exchange의 전송 문자열을 사용한다. ZIP은 청크 단위 비동기 저장과 취소·진행률을 제공한다. 일반 다운로드는 명시적 크기 상한이 있으며 그보다 큰 파일은 지원 브라우저에서 사용자가 승인한 직접 파일 스트림으로 저장한다. 프롬프트·멀티모달·Tool 입력의 민감도를 안내한다. [프로젝트 연동 가이드](playground_integration.md)를 따른다.
 

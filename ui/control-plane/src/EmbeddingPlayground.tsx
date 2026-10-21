@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button, Spinner } from '@patternfly/react-core';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
-import { ApiError, postPublicJson } from './api';
+import { ApiError, fetchRuntimes, postPublicJson } from './api';
+import { useAdminSession } from './auth/AdminSessionContext';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import type { PublicModel } from './chatSession';
 import { useChatSession } from './ChatSessionContext';
@@ -9,6 +12,7 @@ import {
   buildEmbeddingRequest,
   embeddingCapableModels,
   embeddingDimensions,
+  embeddingRuntimeState,
   EMBEDDINGS_PATH,
   formatVectorPreview,
   summarizeEmbeddingResponse,
@@ -29,10 +33,25 @@ type EmbeddingFailure = {
   requestId: string | null;
 };
 
+const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
+  stopped: '이 Embedding Runtime은 중지돼 있어 요청이 거부됩니다. 런타임과 GPU에서 시작한 뒤 요청하세요.',
+  starting: '이 Embedding Runtime은 시작 중입니다. 준비가 끝난 뒤 요청하세요.',
+  unavailable: '현재 자원 정책에서 이 Embedding Runtime을 사용할 수 없습니다.',
+};
+
 // 입력과 결과는 이 화면의 상태에만 둔다. 다른 메뉴나 작업 화면으로 이동하면 사라진다.
-export function EmbeddingPlayground() {
+export function EmbeddingPlayground({ features }: { features: readonly string[] }) {
   const { apiKey, apiKeyRejected, rejectApiKey } = useChatSession();
+  const { token } = useAdminSession();
   const modelsQuery = usePublicModels(apiKey);
+  // Runtime 상태는 관리자 API의 보조 진단이다. 조회하지 못하면 안내만 생략하고 요청 판단은 Gateway가 한다.
+  const runtimesQuery = useQuery({
+    queryKey: ['runtime-control', 'runtimes', token === null ? 'anonymous' : 'authenticated'],
+    queryFn: () => fetchRuntimes(token),
+    enabled: features.includes('runtime_control'),
+    retry: false,
+    staleTime: 10_000,
+  });
   const models = useMemo(
     () => embeddingCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
@@ -98,6 +117,7 @@ export function EmbeddingPlayground() {
   }
 
   const dimensions = embeddingDimensions(model);
+  const runtime = embeddingRuntimeState(model, runtimesQuery.data);
   return (
     <section className="playground-workspace" aria-labelledby="embedding-workspace-title">
       <div className="playground-panel-heading">
@@ -124,6 +144,13 @@ export function EmbeddingPlayground() {
             {dimensions.length ? `${dimensions.map((value) => value.toLocaleString()).join(' · ')}차원` : '차원 정보 없음'}
           </span>
         </div>
+
+        {runtime && runtime.state !== 'active' ? (
+          <Alert isInline variant="warning" title={`${runtime.serviceKey} Runtime: ${runtime.state === 'stopped' ? '중지됨' : runtime.state === 'starting' ? '시작 중' : '사용 불가'}`}>
+            {RUNTIME_NOTICE[runtime.state]}
+            {runtime.state === 'stopped' ? <> <Link to="/runtimes">런타임과 GPU로 이동 →</Link></> : null}
+          </Alert>
+        ) : null}
 
         <fieldset className="playground-choice" disabled={busy}>
           <legend>작업</legend>

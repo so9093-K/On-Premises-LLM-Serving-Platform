@@ -6,6 +6,8 @@
 
 ### Changed
 
+- Playground Risk 화면은 Prompt Injection 검사기를 Target 선언이 아니라 현재 `/v1/models` 공개 여부로 제공한다. `rtx4090-24gb`처럼 검사기가 비활성인 구성에서는 이를 안내하고, 통합 평가 결과에 응답 근거의 실행 검사기와 Prompt 미포함을 표시해 PII·Secret만의 미탐지를 전체 미탐지처럼 보여 주지 않는다. Embedding 화면은 선택한 Runtime이 중지·기동 중·사용 불가이면 요청 전에 알린다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
+
 - Runtime Controller가 관리하는 Target의 `/ready`는 Chat·Responses 요청 Admission과 같은 Gate 판정을 따른다. Controller 장애 중에는 Main Runtime이 응답하더라도 `503`이며, Main dependency의 `message`로 Controller 관측 불가(`MAIN_MODEL_CONTROL_UNAVAILABLE`)·Gate 차단(`MAIN_MODEL_GATE_CLOSED`)·Runtime 자체의 미준비를 구분한다. `/health`는 모델 제어 장애와 무관하게 `200`을 유지한다. ([Runtime 모드](docs/04_runtime_modes.md))
 
 - GPU Dynamic의 Main Profile 판정은 Adaptive와 같이 Catalog가 확정한 이미지와 최종 실행 인자 전체를 비교한다. 모델·Revision이 같아도 Context·Batch·Sequence·GPU 예약 또는 Resource Variant 적용 결과가 다르면 Profile 불일치로 Gate를 닫고 이전 Canary 결과를 승계하지 않는다. Catalog나 Host 자원 설정이 바뀌어 실행 인자가 달라진 기존 Main 컨테이너는 Controller 기동 시 선언된 Profile로 재생성·재검증되며 그동안 추론 요청은 차단된다. ([ADR-0050](docs/adr/0050-resource-scoped-serving-authority.md))
