@@ -172,8 +172,9 @@ def env_changes(content: str, old_base: int, new_base: int) -> str:
             old_value = int(value)
             if old_value in (expected, target, legacy):
                 value = str(target)
-            else:
+            elif old_base != new_base:
                 raise ValueError(f".env의 {name}={old_value}은 운영자 지정 포트이므로 자동 변경하지 않습니다")
+            # 변경 요청 자체가 없는 경우에는 운영자 override를 그대로 둔다.
         elif name.endswith(("_BASE_URL", "_URL")):
             # 프로젝트 관리 서비스의 Docker DNS URL만 변경한다.
             if re.search(r"//(?:gateway|main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime|risk-signal-service):", value):
