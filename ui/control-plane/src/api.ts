@@ -189,7 +189,7 @@ export type PublicJsonResult = {
   requestId: string | null;
 };
 
-// Embedding·Risk 작업 화면은 일반 client와 같은 공개 API를 호출한다. 호출자가 한 번
+// Embedding·Retrieval·Risk 작업 화면은 일반 client와 같은 공개 API를 호출한다. 호출자가 한 번
 // 직렬화한 문자열을 그대로 보내므로 "코드로 사용하기"가 같은 바이트를 재현한다. 실패 응답의
 // request_id가 본문에 없으면 Gateway의 X-Request-Id로 보존한다.
 export async function postPublicJson(

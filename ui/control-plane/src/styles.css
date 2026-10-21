@@ -2001,7 +2001,8 @@ a.overview-action-tile:hover {
 .playground-field { display: grid; gap: 0.375rem; }
 .playground-field label,
 .playground-choice legend { color: var(--console-text-muted); font-size: 0.8125rem; font-weight: 600; }
-.playground-field textarea {
+.playground-field textarea,
+.playground-field input[type="number"] {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--pf-t--global--border--color--default, #8a8d90);
@@ -2011,6 +2012,18 @@ a.overview-action-tile:hover {
   color: inherit;
   font: inherit;
   resize: vertical;
+}
+.playground-retrieval-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 1rem; }
+.playground-retrieval-query,
+.playground-retrieval-documents { display: grid; align-content: start; gap: 0.625rem; min-width: 0; }
+.playground-document-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.375rem; }
+.playground-document-heading label { margin: 0; }
+.playground-retrieval-results { display: grid; gap: 0.625rem; padding: 0; margin: 0; list-style: none; }
+.playground-retrieval-results li { padding: 0.75rem; border: 1px solid var(--console-border); border-radius: 0.375rem; min-width: 0; }
+.playground-retrieval-results p { margin: 0.5rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.playground-retrieval-results .playground-document-heading span { color: var(--console-text-muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .playground-retrieval-inputs { grid-template-columns: minmax(0, 1fr); }
 }
 .playground-field small { color: var(--console-text-muted); font-size: 0.75rem; justify-self: end; }
 .playground-choice { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0; padding: 0; border: 0; min-width: 0; }

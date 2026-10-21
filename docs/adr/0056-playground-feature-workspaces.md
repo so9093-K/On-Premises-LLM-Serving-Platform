@@ -50,6 +50,11 @@ Chat과 같은 사용자 API 키를 탭 메모리에서 공유하며 관리자 �
   벡터 일부와 차원·Usage·Request ID를 보여 주고 원본 JSON은 펼쳐서 확인한다.
   `runtime_control` 배포에서는 관리자 Runtime 상태를 보조 진단으로 읽어 중지·기동 중·자원 정책상
   사용 불가를 요청 전에 안내한다. 이 상태를 읽지 못해도 요청을 막지 않으며 최종 판단은 Gateway가 한다.
+  `retrieval` feature와 모델의 `retrieval_rerank` capability가 함께 활성화되면 같은 화면에서
+  **문서 관련도 순위**를 제공한다. 질문·후보 문서·상위 개수를 `/v1/retrieval/rerank`로 전송하고
+  Gateway의 순서·점수·원본 문서 인덱스를 표시한다. 후보 개수와 상위 개수의 입력 한도는
+  공개 요청 Schema에서 읽는다. 점수를 확률로 표시하거나 화면에서 다시 순위를 계산하지 않는다.
+  결과와 내보내기는 전송 당시 요청을 기준으로 하며 작업·모델 변경 시 이전 결과를 지운다.
 - **Risk**: PII·Secret·통합 평가는 `risk` feature가 있을 때 제공한다. Prompt Injection
   detector는 모델 Runtime이므로 `prompt_detection` 선언만으로 제공하지 않는다. 현재 구성의
   `/v1/models`가 `risk.prompt_attack_signal` capability를 공개할 때만 제공하고, Target이
@@ -89,6 +94,7 @@ Embedding·Risk의 입력과 결과는 해당 작업 화면의 상태에만 둔�
 
 - Embedding은 `/v1/embeddings`가 OpenAI 호환이므로 OpenAI SDK 통합 예제를 함께 제공한다.
   Gateway 확장 필드는 `extra_body`로 전달한다.
+- 문서 순위는 플랫폼의 Retrieval API이므로 cURL·Python HTTP·Node.js fetch 예제를 제공한다.
 - Risk는 플랫폼 고유 API이므로 SDK 예제를 만들지 않는다. Python·Node.js 예제는 응답의 실행
   검사기를 출력하고, 완료 조건을 모두 만족할 때만 미탐지로 보고하며 그렇지 않으면 실패로
   끝난다. 허용·차단 판단은 넣지 않는다.
@@ -113,7 +119,7 @@ Risk 입력은 민감할 수 있으므로 코드는 사용자가 펼칠 때만 �
 ## Migration notes
 
 - 이전 `/admin/console/chat` 북마크는 `/admin/console/playground/chat`으로 이동한다.
-- Retrieval, Responses API, 모델 병렬 비교는 이 결정의 범위가 아니다.
+- Responses API, 모델 병렬 비교는 이 결정의 범위가 아니다.
 
 ## Related
 
