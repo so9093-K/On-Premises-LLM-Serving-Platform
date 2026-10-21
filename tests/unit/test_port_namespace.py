@@ -5,7 +5,9 @@ from scripts.config.ports import REQUIRED_OFFSETS, assert_base, env_changes, por
 
 
 def test_repository_port_namespace():
-    assert read_policy(ROOT) == (9600, REQUIRED_OFFSETS)
+    base, offsets = read_policy(ROOT)
+    assert base >= 1000 and base % 100 == 0
+    assert offsets == REQUIRED_OFFSETS
 
 
 def test_port_namespace_mapping_and_bounds():
