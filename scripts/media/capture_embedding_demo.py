@@ -28,7 +28,7 @@ async def capture(url: str, model: str, output: Path, evidence: Path) -> None:
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         browser_version = browser.version
-        page = await browser.new_page(viewport={"width": 1440, "height": 1100}, device_scale_factor=1)
+        page = await browser.new_page(viewport={"width": 1440, "height": 1380}, device_scale_factor=1)
         page.on("pageerror", lambda error: errors.append(str(error)))
 
         async def record(response):
@@ -58,7 +58,7 @@ async def capture(url: str, model: str, output: Path, evidence: Path) -> None:
             await asyncio.sleep(1)
             await page.get_by_role("button", name="벡터 생성", exact=True).click()
             await page.get_by_role("region", name="Embedding 결과").wait_for()
-            await asyncio.sleep(2)
+            await asyncio.sleep(2.5)
             await page.get_by_role("radio", name="문서 관련도 순위").check()
             await asyncio.sleep(0.6)
             await page.get_by_label("검색 질문", exact=True).fill("GPU 메모리 부족 원인")
@@ -71,7 +71,9 @@ async def capture(url: str, model: str, output: Path, evidence: Path) -> None:
             await asyncio.sleep(0.5)
             await page.get_by_role("button", name="관련도 순위 확인").click()
             await page.get_by_role("region", name="문서 관련도 결과").wait_for()
-            await asyncio.sleep(3)
+            await asyncio.sleep(4)
+            bounds = await page.get_by_role("region", name="문서 관련도 결과").bounding_box()
+            assert bounds is not None and bounds["y"] >= 0 and bounds["y"] + bounds["height"] <= 1380, "결과 전체가 촬영 영역 안에 있어야 한다"
             assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             assert not errors, errors
             assert [r["path"] for r in responses] == ["/v1/embeddings", "/v1/retrieval/rerank"]
@@ -100,7 +102,7 @@ async def capture(url: str, model: str, output: Path, evidence: Path) -> None:
             actual_duration += image.info.get("duration", 0)
     metadata = {"frontend_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
                 "browser": "Chromium " + browser_version,
-                "viewport": [1440, 1100], "sampled_frames": len(frames),
+                "viewport": [1440, 1380], "sampled_frames": len(frames),
                 "gif_duration_ms": actual_duration, "gif_bytes": gif.stat().st_size,
                 "requests": responses}
     (evidence / "capture.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
