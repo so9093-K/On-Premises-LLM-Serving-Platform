@@ -76,8 +76,8 @@ def read_policy(root: Path) -> tuple[int, dict[str, int]]:
 
 
 def assert_base(value: int) -> None:
-    if value < 1000 or value % 100 != 0 or value + max(REQUIRED_OFFSETS.values()) > 65535:
-        raise ValueError("BASE는 100 단위의 포트 대역 시작 번호(1000 이상)여야 합니다")
+    if value < 1100 or value % 100 != 0 or value + max(REQUIRED_OFFSETS.values()) > 65535:
+        raise ValueError("BASE는 1024 이상인 100 단위의 포트 대역 시작 번호여야 합니다")
 
 
 def port_mapping(old: int, new: int, offsets: dict[str, int]) -> dict[int, int]:
@@ -130,6 +130,10 @@ def replace_ports(content: str, mapping: dict[int, int], path: str) -> str:
         content = content.replace("| DCGM Exporter | `dcgm-exporter` | `9400` |",
                                   "| DCGM Exporter | `dcgm-exporter` | __UPSTREAM_DCGM_PORT__ |")
         guarded["__UPSTREAM_DCGM_PORT__"] = "`9400`"
+    if path == "docs/03_system_components.md":
+        content = content.replace("| **DCGM Exporter** | `9400` |",
+                                  "| **DCGM Exporter** | __UPSTREAM_DCGM_PORT__ |")
+        guarded["__UPSTREAM_DCGM_PORT__"] = "`9400`"
 
     expr = re.compile(r"(?<![0-9])(?:" + "|".join(map(str, sorted(mapping, reverse=True))) + r")(?![0-9])")
     content = expr.sub(lambda m: str(mapping[int(m.group())]), content)
@@ -163,12 +167,13 @@ def env_changes(content: str, old_base: int, new_base: int) -> str:
             legacy, offset = LEGACY_ENV_PORTS[name]
             expected = old_base + offset
             target = new_base + offset
-            if value.isdigit():
-                old_value = int(value)
-                if old_value in (expected, target, legacy):
-                    value = str(target)
-                else:
-                    raise ValueError(f".env의 {name}={old_value}은 운영자 지정 포트이므로 자동 변경하지 않습니다")
+            if not value.isdigit():
+                raise ValueError(f".env의 {name}은 정수 포트여야 합니다")
+            old_value = int(value)
+            if old_value in (expected, target, legacy):
+                value = str(target)
+            else:
+                raise ValueError(f".env의 {name}={old_value}은 운영자 지정 포트이므로 자동 변경하지 않습니다")
         elif name.endswith(("_BASE_URL", "_URL")):
             # 프로젝트 관리 서비스의 Docker DNS URL만 변경한다.
             if re.search(r"//(?:gateway|main-llm-vllm|embedding-vllm|embedding-ko-vllm|prompt-injection-detector-runtime|risk-signal-service):", value):
@@ -199,7 +204,7 @@ def preflight_bind(new_base: int, old_base: int) -> list[str]:
         port = new_base + REQUIRED_OFFSETS[service_name]
         with socket.socket() as sock:
             try:
-                sock.bind(("127.0.0.1", port))
+                sock.bind(("0.0.0.0", port))
             except OSError:
                 warnings.append(f"{service_name} 신규 포트 {port}: 현재 사용 중일 수 있습니다")
     return warnings
@@ -232,9 +237,14 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
     print(f"[ports] Port Namespace: {old_base} → {new_base}")
     for name, offset in offsets.items():
         print(f"  {name:37s} {old_base + offset} → {new_base + offset}")
-    for warning in preflight_bind(new_base, old_base):
-        print(f"[ports] 주의: {warning}")
+    conflicts = preflight_bind(new_base, old_base)
+    if conflicts:
+        for conflict in conflicts:
+            print(f"[ports] 충돌: {conflict}", file=sys.stderr)
+        return 2
     print(f"[ports] 변경 대상 {len(changes)}개 파일; 런타임 적용은 make up이 담당합니다")
+    # 확인 프롬프트 사이에 다른 운영자가 수정한 파일을 덮어쓰지 않는다.
+    planned_originals = {path: path.read_bytes() for path in changes}
     if not yes:
         if not sys.stdin.isatty():
             print("[ports] 비대화형 환경에서는 YES=1을 지정해야 합니다", file=sys.stderr)
@@ -243,7 +253,9 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
             print("[ports] 취소했습니다")
             return 0
 
-    originals: dict[Path, bytes] = {path: path.read_bytes() for path in changes}
+    if any(path.read_bytes() != original for path, original in planned_originals.items()):
+        raise ValueError("포트 변경 계획 이후 파일이 수정됐습니다. 명령을 다시 실행하세요")
+    originals: dict[Path, bytes] = planned_originals
     for name in GENERATED:
         path = root / name
         if path.is_file():
@@ -272,7 +284,7 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
             if rebuild_console:
                 subprocess.run(["make", "console-build"], cwd=root, check=True)
             subprocess.run(["make", "validate"], cwd=root, check=True)
-    except Exception:
+    except BaseException:
         if rebuild_console:
             for file in console_dir.rglob("*"):
                 if file.is_file() and file not in originals:
