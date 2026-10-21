@@ -179,7 +179,8 @@ Main Model Profile은 기술 호환성과 실제 검증 수준을 별도 축으�
 | Qualification | `verified` | maintainer가 실제 장비에서 검증을 마쳤다고 선언함 |
 | Qualification | `unverified` | 아직 실제 장비 검증을 마치지 않았음 |
 
-`configs/main_model_profiles.yaml`과 Admin API는 동일한 canonical 상태를 사용한다.
+`configs/main_model_profiles.yaml`과 여기서 참조하는 CPU 공통 프로필
+`configs/cpu_main_model_profiles.yaml`, Admin API는 동일한 canonical 상태를 사용한다.
 `compatibility.status`는 기술 호환성만, `qualification.status`는 실제 장비 검증 여부만 표현한다.
 
 전환 가능 여부는 Compatibility가 결정한다. `incompatible`은 전환할 수 없고, 그 외 전환 가능한
@@ -197,10 +198,15 @@ Deployment/Runtime Compatibility와 GPU resource admission, 그리고 start/appl
 
 ### Qualification 선언
 
-`qualification.status`는 maintainer가 `configs/main_model_profiles.yaml`에 직접 적는 선언이다.
+`qualification.status`는 maintainer가 해당 프로필의 원본 설정에 직접 적는 선언이다
+(GPU: `configs/main_model_profiles.yaml`, CPU: `configs/cpu_main_model_profiles.yaml`).
 profile을 새로 추가하거나 model ID·revision·`deployed_input`을 바꾸면 `unverified`로 두고,
-실제 장비에서 전환과 `make runtime-validate`가 통과한 뒤 `verified`로 바꾼다. 어떤 장비에서
-무엇을 확인했는지는 profile 주석과 commit/PR 설명에 남긴다.
+실제 장비에서 전환과 해당 Backend의 Live 검증이 통과한 뒤 `verified`로 바꾼다.
+vLLM full-stack은 `make runtime-validate`, 관리형 llama.cpp CPU 모델은
+`make cpu-runtime-validate`를 사용한다. CPU 검증은 공개 모델 신원·텍스트 입력·문맥/출력 한도,
+Chat 및 Streaming을 확인한다. 어떤 장비에서 무엇을 확인했는지는 profile 주석과
+commit/PR 설명에 남긴다. CPU 프로필 검증은 GPU 없는 호스트의 전체 배포 Target 검증이나
+다른 Target의 자동 전환 검증을 대신하지 않는다.
 
 별도의 machine-readable 근거 catalog, receipt, 승격 도구는 두지 않는다
 ([ADR-0042](./adr/0042-remove-qualification-evidence-and-benchmark.md)). 선언이 실제 검증을

@@ -77,7 +77,7 @@ help:
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local
 
-cpu-runtime-validate: ## 실제 GPU 없는 Linux에서 CPU llama.cpp Chat/Streaming Smoke
+cpu-runtime-validate: ## 실제 관리형 CPU llama.cpp 모델 신원·Chat·Streaming 검증
 	@"$(PYTHON)" scripts/validation/smoke_cpu_runtime.py $(if $(BASE_URL),--base-url "$(BASE_URL)",)
 
 metal-doctor: ## Apple Silicon과 고정 MLX runtime 설정 확인

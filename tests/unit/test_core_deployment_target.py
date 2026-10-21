@@ -28,7 +28,8 @@ def test_cpu_static_target_has_explicit_external_lifecycle() -> None:
     assert target.lifecycle_owner == "external"
     catalog = load_main_serving_catalog(ROOT / target.main_profile_catalog)
     assert catalog.public_model == "local-main"
-    assert catalog.profiles[catalog.default_profile].qualification["status"] == "unverified"
+    # 공통 Serving 프로필의 검증과 외부 Runtime 배포 Target의 검증은 별개다.
+    assert target.qualification_status == "unverified"
 
 
 def test_core_settings_do_not_require_main_profile(monkeypatch) -> None:

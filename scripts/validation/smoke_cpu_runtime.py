@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from ai_model_serving.contracts import validate_chat_response  # noqa: E402
+from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
 from ai_model_serving.errors import ServiceError  # noqa: E402
 
 
@@ -33,9 +34,21 @@ def _request(base_url: str, path: str, token: str, body: dict | None = None):
 def smoke(base_url: str, token: str) -> None:
     with _request(base_url, "/v1/models", token) as response:
         models = json.load(response)
-    if not any(isinstance(item, dict) and item.get("id") == "local-main"
-               for item in models.get("data", [])):
+    main = next((item for item in models.get("data", [])
+                 if isinstance(item, dict) and item.get("id") == "local-main"), None)
+    if main is None:
         raise RuntimeError("CPU model local-main is not advertised as available")
+    root = Path(__file__).resolve().parents[2]
+    artifact = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")["model"]
+    serving = load_yaml_mapping(root / "configs/cpu_main_model_profiles.yaml")
+    policy = serving["profiles"][serving["default_profile"]]["gateway_policy"]
+    if (main.get("backend") != "llama-cpp"
+            or main.get("upstream_model_id") != artifact["repo_id"]
+            or main.get("input_modalities") != ["text"]
+            or main.get("context_window") != serving["runtime"]["context_size"]
+            or main.get("request_parameters", {}).get("max_tokens", {}).get("max")
+            != policy["max_output_tokens"]):
+        raise RuntimeError("local-main does not match the managed CPU model identity and serving limits")
     payload = {
         "model": "local-main",
         "messages": [{"role": "user", "content": "안녕하세요. 짧게 인사하세요."}],

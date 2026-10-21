@@ -47,7 +47,10 @@ ADR-0026은 성능 계약(`configs/performance/`의 metrics·workloads·slo·reg
    **maintainer 선언**으로 남긴다. 공개·Admin API와 Console 표시, `confirm_unverified` 확인 절차는
    바뀌지 않는다.
 3. profile을 추가하거나 model ID·revision·`deployed_input`을 바꾸면 `unverified`로 두고, 실제 장비에서
-   전환과 `make runtime-validate`가 통과한 뒤 `verified`로 바꾼다. 어떤 장비에서 무엇을 확인했는지는
+   전환과 Backend별 Live 검증(vLLM full-stack: `make runtime-validate`, 관리형 llama.cpp CPU:
+   `make cpu-runtime-validate`)이 통과한 뒤 `verified`로 바꾼다. CPU 명령의 적용은
+   [모델 운영의 Qualification 선언](../06_model_operations.md#qualification-선언)을 따른다.
+   어떤 장비에서 무엇을 확인했는지는
    profile 주석과 commit/PR 설명에 남긴다. 선언이 실제 검증을 넘어서지 않는지는 review가 책임진다.
 4. runtime-validation report에서 qualification 전용 필드(`qualification_check_id`,
    `qualification_context`)를 뺀다. report는 check 결과와 지연만 기록한다.

@@ -57,7 +57,7 @@ function qualificationVariant(status: string): 'green' | 'orange' | 'grey' {
 
 function qualificationLabel(status: string): string {
   if (status === 'verified') return '검증됨';
-  if (status === 'unverified') return '미검증 · 확인 필요';
+  if (status === 'unverified') return '미검증';
   return status;
 }
 
@@ -333,19 +333,9 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       ) : null}
       {status.gate !== 'open' && status.runtime_state !== 'stopped' ? (
         <Alert isInline variant="warning" title="메인 모델 요청이 차단되어 있습니다.">
-          현재 Runtime이 검증·재검증 중이거나 실패 상태일 수 있습니다.
-          실제 실행 상태와 전환 작업 결과를 확인하세요. 요청 허용은 실행 인스턴스 검증 성공 후 재개됩니다.
+          런타임 상태와 전환 결과를 확인하세요. 모델 준비가 완료되면 요청이 재개됩니다.
         </Alert>
       ) : null}
-
-      <details className="context-note">
-        <summary>호환성 · 검증 · GPU 리소스</summary>
-        <p>
-          GPU 실행 가능성과 프로필 검증 상태는 서로 다른 정보입니다. 직접 검증하지 않았다는 이유만으로
-          실행 엔진이 지원되지 않는 것으로 판단하지 않으며, 호환성·자원 판단·런타임 검증을 함께 사용합니다.
-          리소스 variant는 기준 정책이 맞지 않을 때만 사용하는 명시적 override입니다.
-        </p>
-      </details>
 
       <Card>
         <CardTitle>현재 모델 상태</CardTitle>
@@ -370,7 +360,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       <Card>
         <CardTitle>사용 가능한 프로필</CardTitle>
         <CardBody>
-          <p className="configuration-help">GPU 예약 비율은 실행 정책이며 실측 VRAM 점유량이나 모델별 메모리 요구량 예측치가 아닙니다. 실행 전 판단은 실제 모델 적재 성공을 보장하지 않습니다.</p>
+          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다.</p>
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
@@ -544,7 +534,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
             {requiresConfirmation ? (
               <Alert isInline variant="warning" title="미검증 프로필 확인이 필요합니다.">
-                <p>이 확인은 실행 장비가 미지원이라는 의미가 아닙니다. 이 프로필이 아직 실제 장비에서 검증 완료로 표시되지 않았음을 확인하는 절차입니다.</p>
+                <p>실제 장비 검증이 완료되지 않은 프로필입니다.</p>
                 <label>
                   <input
                     type="checkbox"
