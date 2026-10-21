@@ -2,7 +2,9 @@
 
 Playground는 공개 `/v1/chat/completions`을 호출합니다. 각 요청의 **코드로 사용하기**는
 전송된 HTTP 요청을 다시 보내는 **Exact Replay**와 애플리케이션 개발을 위한
-**SDK Integration**을 구분합니다.
+**SDK Integration**을 구분합니다. 이 문서는 Chat 작업 화면을 다룹니다. Embedding·Risk 작업
+화면은 같은 원칙으로 전송 바이트를 담은 cURL·Python·Node.js 단일 파일 예제를 제공합니다
+([ADR-0056](../adr/0056-playground-feature-workspaces.md)).
 
 ## 입력부터 내보내기까지
 

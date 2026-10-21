@@ -102,7 +102,7 @@ Risk 작업 화면은 Chat 예제와 별도로 합성 입력 예제를 제공한
 
 Scalar API Reference 복제, Responses API 화면, Tool 자동 실행, API 코드 생성,
 모델 병렬 비교, 평가/Benchmark, Runtime 및 GPU 정책 변경은 수행하지 않는다.
-Embedding·Risk 작업 화면은 Chat 예제 갤러리와 요청 내보내기를 공유하지 않는다.
+Embedding·Risk 작업 화면은 Chat 예제 갤러리를 공유하지 않으며, 코드 예제는 Chat의 ZIP 대신 전송 바이트를 담은 단일 파일로 제공한다.
 
 관련 설계: [ADR-0047](../adr/0047-control-plane-capability-aware-chat-playground.md) ·
 [운영자 작업 중심 UX](control_plane_operator_ux.md).

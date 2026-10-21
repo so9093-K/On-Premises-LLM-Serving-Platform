@@ -658,6 +658,15 @@ def run_playground_workspaces(browser, width, height):
     result.get_by_text("위험 신호 탐지됨").wait_for()
     result.get_by_role("cell", name="EMAIL_ADDRESS").wait_for()
     assert pii_prompt not in result.inner_text(), "Risk result must not echo the input"
+    # 코드는 사용자가 펼칠 때만 만들며, 실제 전송 경로·입력과 환경변수 API 키를 사용한다.
+    export = page.locator(".playground-export")
+    assert export.locator(".playground-export-code").count() == 0, "Export code must be generated only on demand"
+    export.locator("summary", has_text="코드로 사용하기").click()
+    export.get_by_label("개발 언어").select_option("python")
+    code = export.locator(".playground-export-code").first.inner_text()
+    assert "/v1/risk/detectors/pii/assessments" in code and pii_prompt in code and "API_KEY" in code
+    assert "assessment incomplete" in code
+    assert export.get_by_role("option", name="Python OpenAI SDK (Integration)").count() == 0
     page.screenshot(path=str(SCREENSHOTS / f"playground-risk-{width}.png"), full_page=True)
     # HTTP 200이어도 partial이면 미탐지로 보여 주지 않는다.
     page.get_by_role("radio", name="통합 Risk 평가").check()
@@ -668,6 +677,7 @@ def run_playground_workspaces(browser, width, height):
     page.get_by_role("link", name="운영 개요").click()
     page.get_by_role("link", name="Playground").click()
     assert page.locator("#risk-input").input_value() == "", "Risk input must not survive leaving the screen"
+    assert page.locator(".playground-export").count() == 0, "Risk export must not survive leaving the screen"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Risk overflow at {width}"
 
     # 이전 Chat 주소는 Playground의 Chat 화면으로 이동한다. Target이 prompt_detection을 선언해도
@@ -702,10 +712,15 @@ def run_playground_workspaces(browser, width, height):
     embedding.get_by_text("0.7071").wait_for()
     assert requests[-1] == ("/v1/embeddings", {"model": "local-embed-ko", "input": ["GPU 메모리 부족", "CUDA out of memory"]})
     embedding.get_by_text("req_embed").wait_for()
+    embedding_export = page.locator(".playground-export")
+    embedding_export.locator("summary", has_text="코드로 사용하기").click()
+    curl = embedding_export.locator(".playground-export-code").first.inner_text()
+    assert "/v1/embeddings" in curl and "CUDA out of memory" in curl and "API_KEY" in curl
+    assert embedding_export.get_by_role("option", name="Python OpenAI SDK (Integration)").count() == 1
     page.screenshot(path=str(SCREENSHOTS / f"playground-embedding-{width}.png"), full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Embedding overflow at {width}"
     assert errors == [], errors
-    print(f"PASS playground Chromium {width}x{height}: Core Risk-only workspace, inactive prompt detector scope, stopped Embedding notice, Embedding comparison")
+    print(f"PASS playground Chromium {width}x{height}: Core Risk-only workspace, inactive prompt detector scope, stopped Embedding notice, Embedding comparison, on-demand code export")
     context.close()
 
 

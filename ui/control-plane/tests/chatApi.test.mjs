@@ -88,14 +88,14 @@ test('Embedding and Risk workspaces call the public API with the user key and ke
       headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'req_embed' },
     })));
 
-  const { requestId } = await postPublicJson('api-key-1', '/v1/embeddings', { model: 'local-embed', input: 'x' });
+  const { requestId } = await postPublicJson('api-key-1', '/v1/embeddings', JSON.stringify({ model: 'local-embed', input: 'x' }));
 
   assert.equal(requestId, 'req_embed');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer api-key-1');
   assert.equal(calls[0].init.body, JSON.stringify({ model: 'local-embed', input: 'x' }));
   await assert.rejects(
-    postPublicJson(null, '/v1/risk/assessments', { prompt: 'x' }),
+    postPublicJson(null, '/v1/risk/assessments', JSON.stringify({ prompt: 'x' })),
     (error) => error instanceof ApiError && error.code === 'MODEL_UNAVAILABLE' && error.requestId === 'req_risk',
   );
   assert.equal(calls[1].init.headers.Authorization, undefined);
