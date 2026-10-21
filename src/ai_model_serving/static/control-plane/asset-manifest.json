@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/index-Bphxiexs.js",
+    "file": "assets/index-DsJQ1ClO.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -10,6 +10,7 @@
     "assets": [
       "assets/sample-chart-CY3Pofix.png",
       "assets/sample-order-qJ_o8BP_.png",
+      "assets/sample-diagram-CTWSxLvM.png",
       "assets/sample-audio-813705wS.wav",
       "assets/RedHatTextVF-DNKNjMr3.woff2",
       "assets/RedHatTextVF-Italic-Bw8r3dX4.woff2",
@@ -75,6 +76,10 @@
   "src/playgroundAssets/sample-chart.png": {
     "file": "assets/sample-chart-CY3Pofix.png",
     "src": "src/playgroundAssets/sample-chart.png"
+  },
+  "src/playgroundAssets/sample-diagram.png": {
+    "file": "assets/sample-diagram-CTWSxLvM.png",
+    "src": "src/playgroundAssets/sample-diagram.png"
   },
   "src/playgroundAssets/sample-order.png": {
     "file": "assets/sample-order-qJ_o8BP_.png",

@@ -52,6 +52,11 @@ test('image examples are unavailable to text-only models and structured example 
   assert.equal(availability(get('order'), tooSmall).available, false);
   const largeEnough = { ...chat, request_limits: { image: { allowed_mime_types: ['image/png'], max_bytes: 34473 } } };
   assert.equal(availability(get('order'), largeEnough).available, true);
+  // 문서 이미지는 다른 예제보다 크다. 모델의 바이트 한도를 넘으면 선택 전에 막는다.
+  assert.equal(availability(get('diagram'), largeEnough).available, false);
+  assert.equal(availability(get('diagram'), textOnly).available, false);
+  const documentLimit = { ...chat, request_limits: { image: { allowed_mime_types: ['image/png'], max_bytes: EXAMPLE_SAMPLE_BYTES.diagram } } };
+  assert.equal(availability(get('diagram'), documentLimit).available, true);
   const restrictiveSchema = {
     ...chat, request_parameters: {
       ...chat.request_parameters,
@@ -150,7 +155,7 @@ test('system and schema examples demand a fresh conversation; other examples can
 });
 
 test('bundled image sizes are pinned to the original public demo assets', () => {
-  for (const [id, filename] of [['chart', 'sample-chart.png'], ['order', 'sample-order.png']]) {
+  for (const [id, filename] of [['chart', 'sample-chart.png'], ['order', 'sample-order.png'], ['diagram', 'sample-diagram.png']]) {
     const assetUrl = new URL(`../src/playgroundAssets/${filename}`, import.meta.url);
     const originalUrl = new URL(`../../../assets/demos/inputs/${filename}`, import.meta.url);
     const bundled = readFileSync(assetUrl);

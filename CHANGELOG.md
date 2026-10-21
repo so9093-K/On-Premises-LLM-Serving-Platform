@@ -18,6 +18,8 @@
 
 - Control Plane Playground가 배포 기능별 Chat·Embedding·Risk 작업 화면을 제공한다. 모델이 없는 `linux-core`에서도 Playground → Risk로 PII·Secret 탐지를 확인한다. Embedding은 모델·차원·Usage와 같은 요청 두 문장의 유사도를, Risk는 신호 코드·항목·개수와 검사 완료 여부를 보여 주며 허용·차단을 판정하지 않는다. 합성 예제만 제공하고 입력·결과는 화면 밖에 저장하지 않는다. Console 주소는 `/admin/console/playground/*`이며 기존 `/admin/console/chat`은 Chat 화면으로 이동한다. ([ADR-0056](docs/adr/0056-playground-feature-workspaces.md))
 
+- Playground 예제 갤러리에 흐름도의 판단 단계와 분기를 정리하는 「문서 해석」 이미지 예제를 제공한다. 모델의 이미지 형식·크기 한도를 넘으면 선택 전에 비활성화한다. README 대표 데모는 이 예제를 실제 Gateway·모델로 실행한 GIF이며 응답의 판독 차이를 함께 기록한다. ([기능 데모](docs/reference/feature_demos.md#document-analysis))
+
 - GPU Dynamic에서 고정 CPU 모델을 수동 선택하고 기존 GPU 모델로 복귀할 수 있다. 기존 Gate·Drain·Canary·Rollback과 재시작 의도를 사용하며, CPU는 GPU 장치 없이 RAM 제한으로 실행한다. Control Plane·Scalar·Playground는 실제 모델명·CPU/GPU 엔진·입력/토큰 한도와 수동/자동 모드를 구분한다. 기존 배포는 `make up`으로 Controller와 CPU cache mount를 반영해야 한다. ([ADR-0055](docs/adr/0055-manual-cpu-profile-in-gpu-dynamic.md))
 
 - 첫 Linux 설치의 `TARGET=auto`는 Core를 먼저 기동하는 `linux-adaptive`를 선택한다. 관리형 CPU 서빙·GPU 자원 관측·Gate/Drain/Canary를 거친 자동 복귀와 CPU 복구를 제공하며, 운영자 중지 의도와 실패 재시도 시각을 유지한다. 기존 `.env`의 Target은 유지한다. CPU 전환 후 지원 입력·파라미터·한도는 활성 모델 목록을 따른다. ([ADR-0054](docs/adr/0054-managed-cpu-gpu-runtime-selection.md))

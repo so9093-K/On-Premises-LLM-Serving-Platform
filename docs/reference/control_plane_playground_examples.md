@@ -27,6 +27,7 @@ Control Plane Playground의 Chat 작업 화면은 공개 `/v1/models`와 `/v1/ch
 | 한국어 요약 | Chat | User Prompt |
 | 그래프 분석 | Chat, Image | User Prompt, `sample-chart.png` |
 | 주문서 정보 추출 | Chat, Image | User Prompt, `sample-order.png` |
+| 문서 해석 | Chat, Image (PNG 약 112 KiB 이상 허용) | User Prompt, `sample-diagram.png` |
 | 오디오 분석 | Chat, Audio, WAV 허용 | User Prompt, `sample-audio.wav` |
 | 역할 지정 | Chat | System Prompt, User Prompt |
 | JSON 정보 추출 | Chat, JSON Schema response_format | User Prompt, JSON Schema |

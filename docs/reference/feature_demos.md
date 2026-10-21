@@ -6,10 +6,39 @@ Control Plane Playground에서 예제 입력을 직접 구성하려면 [예제�
 
 | 기능 | 실행 경로 | 확인한 결과 |
 |---|---|---|
+| [문서 해석](#document-analysis) | Playground → 예제 「문서 해석」 → Chat Completions | 흐름도의 판단 단계와 분기 정리 |
 | [이미지 분석](#image-analysis) | Playground → Chat Completions | 예시 그래프의 최대·최소값 읽기 |
 | [이미지 텍스트 읽기 / OCR](#ocr) | Playground → Chat Completions | 가상 주문서의 5개 항목 추출 |
 | [시스템 프롬프트와 인젝션 입력](#system-prompt) | Playground → Chat Completions | 역할 변경·프롬프트 공개 요구에 대한 모델 응답 |
 | [임베딩과 문장 유사도](#embedding) | Embeddings → Retrieval API | 1024차원 벡터 생성과 cosine similarity 정렬 |
+
+<a id="document-analysis"></a>
+
+## 문서 해석
+
+[![흐름도를 첨부한 문서 해석 예제를 적용하고 실제 응답을 확인한 Playground 정지 화면](../../assets/demos/document-analysis-poster.png)](../../assets/demos/document-analysis.gif)
+
+[GIF 재생](../../assets/demos/document-analysis.gif) · [입력 문서](../../assets/demos/inputs/sample-diagram.png)
+
+**입력:** 이상 점수와 임계치로 설비 이상을 판단하는 과정을 설명한 흐름도. 수치나 운영 데이터를 포함하지 않습니다.
+Playground의 「문서 해석」 예제를 그대로 적용했습니다.
+
+> 이 흐름도를 읽고 한국어로 답해 주세요. 이상을 판단하는 세 단계를 번호를 붙여 한 줄씩 적고, 이어서 임계치를 넘지 않을 때와 넘을 때의 처리를 각각 한 줄로 적어 주세요. 수식이나 LaTeX 기호는 쓰지 말고 추가 설명은 생략하세요.
+
+실제 모델 응답:
+
+```text
+이상 판단 세 단계:
+1. 학습된 정상 패턴과의 일치성 계산
+2. 상태 변화 또는 급격하게 정상 패턴에서 벗어나거나 특정 상태를 보일 때 이상 점수 증가
+3. 특정 임계치를 넘어서 때 이상 판단
+
+임계치를 넘지 않을 때 처리: 정상 상태 유지
+임계치를 넘을 때 처리: '상태 변화' 감지 및 이상 발생 알림 후 선제적 유지 보수/대응
+```
+
+**결과:** 세 판단 단계와 두 분기를 순서대로 정리했습니다. 원문의 「이질성」을 「일치성」으로 읽는 등
+세부 표현은 원문과 다릅니다. `temperature=0`에서 같은 응답이 재현됩니다. **경로:** 멀티모달 모델의 이미지 입력(전용 문서 분석 API 아님).
 
 <a id="image-analysis"></a>
 
@@ -126,6 +155,7 @@ Playground의 시스템 프롬프트:
 
 | GIF | 재생 길이 | 파일 크기 |
 |---|---:|---:|
+| 문서 해석 | 15.81초 | 약 463 KiB |
 | 이미지 분석 | 11.31초 | 약 162 KiB |
 | OCR | 11.31초 | 약 264 KiB |
 | 시스템 프롬프트 | 7.87초 | 약 127 KiB |
@@ -145,6 +175,19 @@ Playground의 시스템 프롬프트:
 - 정지 이미지: 동일 실행의 마지막 화면.
 - 인증 화면, API/Admin key, 내부 주소와 민감 로그를 공개 자산에서 제외했다.
 - 촬영 후 데모용 Gateway·저장소·API 뷰어·Embedding Runtime 종료.
+
+문서 해석 데모는 별도 촬영 조건을 사용했다.
+
+- 촬영일: 2026-10-21, `linux-nvidia-dynamic`, RTX 4090.
+- 실행 중인 로컬 Gateway·Runtime(platform image source `38d8582a`)에 이 예제를 포함한 Console 빌드를
+  연결했다. 공개 API 요청은 같은 Gateway를 거쳤다.
+- Chat 모델: `google/gemma-4-E4B-it`, revision `ee0ef6023621cff504d758262d4e04895a5af4a2`,
+  `rtx4090-24gb`, `max_tokens=256`, `temperature=0`, streaming, 추론 출력은 모델 기본값(끔).
+- 측정값: 첫 토큰 44ms, 전체 1.15초, 입력 1,137 · 출력 99 tokens. 한 번의 실행이며 성능 benchmark가 아니다.
+- Chromium headless 156, viewport 1280×800, dark theme, device scale 1. 약 4 fps의 실제 화면 표본이며
+  배속하지 않았다. 앞에 입력 문서를 3초간 보여주는 소개 장면을 추가했고, 완료 후에는 한 번의 교환 전체가
+  보이도록 스크롤한 화면을 유지했다.
+- GIF 64색 palette 변환 외에 응답·수치·상태를 수정하지 않았다. 정지 이미지는 동일 실행의 마지막 화면이다.
 
 실제 지원 기능은 [Deployment Target](../../configs/deployment_targets.yaml), 모델별 기능은
 `/v1/models`와 [모델 운영](../06_model_operations.md)에서 확인한다.

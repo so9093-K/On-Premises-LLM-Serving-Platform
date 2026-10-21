@@ -1,6 +1,6 @@
 import type { ChatControls, ChatSettings, PublicModel } from './chatSession';
 
-export type ExampleSampleId = 'chart' | 'order' | 'audio';
+export type ExampleSampleId = 'chart' | 'order' | 'diagram' | 'audio';
 
 export type ExampleSampleAsset = {
   modality: 'image' | 'audio';
@@ -16,11 +16,13 @@ export type ExampleSampleAsset = {
 export const EXAMPLE_SAMPLE_ASSETS: Readonly<Record<ExampleSampleId, ExampleSampleAsset>> = {
   chart: { modality: 'image', filename: 'sample-chart.png', mimeType: 'image/png', bytes: 24099, caption: 'sample-chart.png', imageAlt: '예제 요청 수 막대그래프' },
   order: { modality: 'image', filename: 'sample-order.png', mimeType: 'image/png', bytes: 34473, caption: 'sample-order.png', imageAlt: '예제 가상 주문서' },
+  diagram: { modality: 'image', filename: 'sample-diagram.png', mimeType: 'image/png', bytes: 114841, caption: 'sample-diagram.png', imageAlt: '이상 점수와 임계치로 설비 이상을 판단하는 처리 흐름도' },
   audio: { modality: 'audio', filename: 'sample-audio.wav', mimeType: 'audio/wav', bytes: 158350, caption: 'sample-audio.wav' },
 };
 export const EXAMPLE_SAMPLE_BYTES: Readonly<Record<ExampleSampleId, number>> = {
   chart: EXAMPLE_SAMPLE_ASSETS.chart.bytes,
   order: EXAMPLE_SAMPLE_ASSETS.order.bytes,
+  diagram: EXAMPLE_SAMPLE_ASSETS.diagram.bytes,
   audio: EXAMPLE_SAMPLE_ASSETS.audio.bytes,
 };
 
@@ -69,6 +71,14 @@ export const PLAYGROUND_EXAMPLES: readonly PlaygroundExample[] = [
     category: 'image',
     sample: 'order',
     prompt: '이미지에서 Order ID, Item, Quantity, Unit price, Total을 읽어 각 항목을 한 줄씩 정확히 적어주세요. 설명은 생략하세요.',
+  },
+  {
+    id: 'diagram',
+    title: '문서 해석',
+    description: '흐름도의 판단 단계와 분기 정리',
+    category: 'image',
+    sample: 'diagram',
+    prompt: '이 흐름도를 읽고 한국어로 답해 주세요. 이상을 판단하는 세 단계를 번호를 붙여 한 줄씩 적고, 이어서 임계치를 넘지 않을 때와 넘을 때의 처리를 각각 한 줄로 적어 주세요. 수식이나 LaTeX 기호는 쓰지 말고 추가 설명은 생략하세요.',
   },
   {
     id: 'audio',

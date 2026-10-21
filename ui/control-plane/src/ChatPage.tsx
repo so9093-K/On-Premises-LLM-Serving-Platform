@@ -13,6 +13,7 @@ import { usePublicModels } from './publicModelsQuery';
 import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
 import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
+import diagramSampleUrl from './playgroundAssets/sample-diagram.png';
 import audioSampleUrl from './playgroundAssets/sample-audio.wav';
 import {
   attachmentAccept,
@@ -29,6 +30,8 @@ import {
   type ChatAttachment,
   type PublicModel,
 } from './chatSession';
+
+const SAMPLE_URLS = { chart: chartSampleUrl, order: orderSampleUrl, diagram: diagramSampleUrl, audio: audioSampleUrl };
 
 type ChatPageProps = {
   grafanaUrl: string | null;
@@ -204,7 +207,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       const sampleAttachments: ChatAttachment[] = [];
       if (example.sample) {
         const asset = EXAMPLE_SAMPLE_ASSETS[example.sample];
-        const assetUrl = { chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }[example.sample];
+        const assetUrl = SAMPLE_URLS[example.sample];
         const response = await fetch(assetUrl, { credentials: 'same-origin' });
         if (!response.ok) throw new Error('예제 파일을 가져오지 못했습니다.');
         const blob = await response.blob();
@@ -399,7 +402,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 model={model}
                 controls={chatControls(model)}
                 selectedId={selectedExampleId}
-                sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }}
+                sampleUrls={SAMPLE_URLS}
                 validateRequest={validateExampleRequest}
                 busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                 hasConversation={exchanges.length > 0}
