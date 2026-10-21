@@ -26,7 +26,11 @@ def preserve_volumes(root: Path, project: str, config: dict) -> Path:
     suffix = hashlib.sha256(project.encode()).hexdigest()[:16]
     manifest = state / f"volume-reuse-{suffix}.json"
     prior = json.loads(manifest.read_text()) if manifest.exists() else {}
+    if not isinstance(prior, dict):
+        raise RuntimeError(f"invalid volume reuse manifest: {manifest}")
     recorded = prior.get("volumes", {}) if prior.get("checkout") == str(root) else {}
+    if not isinstance(recorded, dict):
+        raise RuntimeError(f"invalid volume reuse manifest: {manifest}")
     existing = set(docker("volume", "ls", "-q").splitlines())
     reused = {}
     updated = dict(recorded)
@@ -41,8 +45,11 @@ def preserve_volumes(root: Path, project: str, config: dict) -> Path:
         owner = labels.get(CHECKOUT_LABEL)
         if owner and owner != str(root):
             raise RuntimeError(f"volume {name} belongs to another checkout; preserved")
-        for setting, actual in (("driver", "Driver"), ("driver_opts", "Options")):
-            if spec.get(setting) and spec[setting] != document.get(actual):
+        for setting, expected, actual in (
+            ("driver", spec.get("driver") or "local", document.get("Driver")),
+            ("driver_opts", spec.get("driver_opts") or {}, document.get("Options") or {}),
+        ):
+            if expected != actual:
                 raise RuntimeError(f"volume {name}: {setting} changed; explicit migration required")
         users = docker("ps", "-aq", "--filter", f"volume={name}").split()
         for container in users:

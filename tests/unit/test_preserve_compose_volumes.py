@@ -98,6 +98,13 @@ def test_changed_driver_options_require_explicit_migration(inventory):
         reuse.preserve_volumes(root, "project", config)
 
 
+def test_removing_driver_options_does_not_silently_reuse_old_storage(inventory):
+    root, volume, _, config = inventory
+    volume["Options"] = {"type": "tmpfs"}
+    with pytest.raises(RuntimeError, match="explicit migration"):
+        reuse.preserve_volumes(root, "project", config)
+
+
 @pytest.mark.skipif(not shutil.which("docker"), reason="Docker Compose unavailable")
 def test_override_merges_as_external_without_incompatible_labels(inventory, tmp_path):
     root, _, _, config = inventory
