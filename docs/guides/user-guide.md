@@ -45,6 +45,10 @@ make auth-status
 
 ## 3. Playground
 
+Playground는 배포가 제공하는 기능별 화면(**Chat** · **Embedding** · **Risk**)을 탭으로 보여 줍니다. 모델이 없는 `linux-core`에서도 **Risk** 화면으로 PII·Secret 탐지를 확인할 수 있습니다. 사용자 API Key는 세 화면이 함께 사용하며 탭 메모리에만 유지됩니다.
+
+### Chat
+
 현재 모델이 Chat을 지원하고 요청 Gate가 열려 있어야 합니다.
 
 1. 현재 모델과 지원 입력 기능을 확인합니다.
@@ -57,6 +61,24 @@ make auth-status
 *Playground · 모델 응답*
 
 `STREAM_INCOMPLETE`는 부분 응답이므로 완성된 답변으로 사용하지 마세요. Tool 호출 결과는 사용자가 직접 제공해야 하며 Console이 함수를 자동 실행하지 않습니다. 422 오류는 모델의 입력·파라미터 제한을 확인하세요.
+
+### Embedding
+
+`linux-nvidia-dynamic`처럼 Embedding Runtime을 제공하는 배포에서 보입니다.
+
+1. Embedding 모델과 벡터 차원을 확인합니다.
+2. **텍스트 변환**으로 벡터를 만들거나, **두 문장 유사도**로 두 문장을 한 요청에서 변환해 cosine similarity를 확인합니다.
+3. 벡터 일부·차원·토큰·Request ID를 확인하고, 필요하면 **원본 응답 JSON 보기**를 펼칩니다.
+
+유사도는 같은 요청·같은 모델의 두 벡터로만 계산하며 정답 확률이 아닙니다. Embedding Runtime이 중지돼 있으면 `MODEL_UNAVAILABLE`이 표시되므로 [Runtime·GPU 관리](#runtime-states)에서 시작합니다.
+
+### Risk
+
+1. 합성 예제를 선택하거나 검사할 텍스트를 입력합니다. 예제 선택만으로는 요청하지 않습니다.
+2. **PII 탐지** · **Secret 탐지** · **통합 Risk 평가**를 고르고 **검사**를 누릅니다. Prompt Injection 탐지는 해당 모델 Runtime이 있는 배포에서만 보입니다.
+3. 결과의 신호 코드·항목·개수와 **검사 완료** 여부를 확인합니다.
+
+**결과는 위험 신호이며 허용·차단 판정이 아닙니다.** HTTP 200이어도 `status`가 `partial`·`failed`이거나 검사가 완료되지 않았으면 미탐지로 해석하지 않습니다. 실제 개인정보나 운영 Secret 대신 합성 값을 사용하세요. 입력과 결과는 화면을 벗어나면 지워지지만, `LOG_REQUEST_RESPONSE_BODY`가 켜진 배포에서는 마스킹된 입력 미리보기가 Gateway 로그에 남을 수 있습니다.
 
 <a id="runtime-states"></a>
 

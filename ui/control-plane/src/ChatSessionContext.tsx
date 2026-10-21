@@ -40,6 +40,8 @@ type ChatSessionValue = {
   apiKey: string | null;
   setApiKey: (key: string | null) => void;
   apiKeyRejected: boolean;
+  // Embedding·Risk 화면의 401도 Chat과 같은 API 키 입력 흐름을 사용한다.
+  rejectApiKey: () => void;
   exchanges: Exchange[];
   settings: ChatSettings;
   updateSettings: (patch: Partial<ChatSettings>) => void;
@@ -74,6 +76,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     setApiKeyState(key);
     setApiKeyRejected(false);
   }, []);
+
+  const rejectApiKey = useCallback(() => setApiKeyRejected(true), []);
 
   const updateSettings = useCallback((patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -196,6 +200,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       apiKey,
       setApiKey,
       apiKeyRejected,
+      rejectApiKey,
       exchanges,
       settings,
       updateSettings,
@@ -205,7 +210,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       stop,
       clear,
     }),
-    [apiKey, setApiKey, apiKeyRejected, exchanges, settings, updateSettings, busy, send, sendToolResults, stop, clear],
+    [apiKey, setApiKey, apiKeyRejected, rejectApiKey, exchanges, settings, updateSettings, busy, send, sendToolResults, stop, clear],
   );
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>;
 }

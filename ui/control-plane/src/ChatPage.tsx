@@ -1,19 +1,19 @@
 import { modelRuntimeLabel } from './uiText';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { Alert, Button, Spinner } from '@patternfly/react-core';
 import { conversationEndNearViewport } from './chatScroll';
 
-import { fetchPublicModels } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { useChatSession } from './ChatSessionContext';
 import { chatAttachmentFromFile, AttachmentList } from './ChatAttachments';
 import { ExchangeView } from './ChatExchangeView';
 import { ChatSettingsPanel } from './ChatSettingsPanel';
 import { PlaygroundExampleGallery } from './PlaygroundExampleGallery';
+import { usePublicModels } from './publicModelsQuery';
 import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, exampleSettingsConflict, exampleSettingsPatch, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, type PlaygroundExample } from './playgroundExamples';
 import chartSampleUrl from './playgroundAssets/sample-chart.png';
 import orderSampleUrl from './playgroundAssets/sample-order.png';
+import diagramSampleUrl from './playgroundAssets/sample-diagram.png';
 import audioSampleUrl from './playgroundAssets/sample-audio.wav';
 import {
   attachmentAccept,
@@ -30,6 +30,8 @@ import {
   type ChatAttachment,
   type PublicModel,
 } from './chatSession';
+
+const SAMPLE_URLS = { chart: chartSampleUrl, order: orderSampleUrl, diagram: diagramSampleUrl, audio: audioSampleUrl };
 
 type ChatPageProps = {
   grafanaUrl: string | null;
@@ -53,46 +55,9 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
   );
 }
 
-function ApiKeyForm({ rejected }: { rejected: boolean }) {
-  const { setApiKey } = useChatSession();
-  const [draft, setDraft] = useState('');
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const key = draft.trim();
-    if (!key) return;
-    setApiKey(key);
-    setDraft('');
-  }
-
-  return (
-    <Card className="chat-key-card">
-      <CardTitle>API 키 필요</CardTitle>
-      <CardBody>
-        <p>
-          이 Gateway의 공개 API는 Bearer 인증을 요구합니다. 관리자 키가 아니라 API 사용자에게 발급한
-          키를 입력하세요. 키는 이 탭의 메모리에만 있고 새로고침하면 사라집니다.
-        </p>
-        <form className="auth-form" onSubmit={submit}>
-          <label htmlFor="chat-api-key">API 키</label>
-          <input
-            id="chat-api-key"
-            type="password"
-            autoComplete="off"
-            value={draft}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-          />
-          {rejected ? <p className="form-error" role="alert">API 키가 유효하지 않습니다.</p> : null}
-          <Button type="submit" variant="primary" isDisabled={!draft.trim()}>사용</Button>
-        </form>
-      </CardBody>
-    </Card>
-  );
-}
-
 export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear, setApiKey } = session;
+  const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear } = session;
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
@@ -111,14 +76,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const followRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
-  const modelsQuery = useQuery({
-    queryKey: ['public-models', apiKey],
-    queryFn: () => fetchPublicModels(apiKey),
-    retry: false,
-    staleTime: 30_000,
-    // API 키를 바꿔 다시 불러오는 동안 대화 화면이 사라지지 않게 이전 목록을 유지한다.
-    placeholderData: (previous) => previous,
-  });
+  const modelsQuery = usePublicModels(apiKey);
   const models = useMemo(
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
@@ -249,7 +207,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       const sampleAttachments: ChatAttachment[] = [];
       if (example.sample) {
         const asset = EXAMPLE_SAMPLE_ASSETS[example.sample];
-        const assetUrl = { chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }[example.sample];
+        const assetUrl = SAMPLE_URLS[example.sample];
         const response = await fetch(assetUrl, { credentials: 'same-origin' });
         if (!response.ok) throw new Error('예제 파일을 가져오지 못했습니다.');
         const blob = await response.blob();
@@ -366,11 +324,11 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   }
 
   return (
-    <section className="chat-page">
-      <div className="page-heading">
+    <section className="chat-page" aria-labelledby="chat-workspace-title">
+      <div className="playground-panel-heading">
         <div>
-          <h1>Playground</h1>
-          <p>Chat Completions · 대화는 현재 탭에만 유지됩니다.</p>
+          <h2 id="chat-workspace-title">Chat Completions</h2>
+          <p>대화와 첨부는 현재 탭에만 유지됩니다.</p>
         </div>
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
@@ -379,7 +337,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
-          {apiKey !== null ? <Button variant="secondary" onClick={() => setApiKey(null)}>API 키 지우기</Button> : null}
           {exchanges.length > 0 ? <Button variant="secondary" onClick={() => {
             cancelExamplePreparation();
             clear();
@@ -389,8 +346,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
           }}>대화 지우기</Button> : null}
         </div>
       </div>
-
-      {needsKey ? <ApiKeyForm rejected={apiKey !== null} /> : null}
 
       {modelsQuery.isPending ? (
         <div className="inline-loading"><Spinner size="md" aria-label="모델 목록 불러오는 중" /> 모델 목록을 불러오는 중…</div>
@@ -447,7 +402,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 model={model}
                 controls={chatControls(model)}
                 selectedId={selectedExampleId}
-                sampleUrls={{ chart: chartSampleUrl, order: orderSampleUrl, audio: audioSampleUrl }}
+                sampleUrls={SAMPLE_URLS}
                 validateRequest={validateExampleRequest}
                 busy={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                 hasConversation={exchanges.length > 0}

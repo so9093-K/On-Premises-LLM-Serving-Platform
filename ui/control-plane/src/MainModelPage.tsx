@@ -12,6 +12,7 @@ import {
   type MainModelProfile,
 } from './api';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
+import { playgroundPath } from './navigation';
 import {
   formatTokenLimits,
   MAIN_MODEL_TERMINAL_QUERY_KEYS,
@@ -578,7 +579,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               <>
                   <OperationProgress operation={operationQuery.data} />
                   {chatEnabled && operationQuery.data.status === 'completed' ? (
-                    <p className="operation-follow-up"><Link to="/chat">Playground에서 새 모델 응답 확인 →</Link></p>
+                    <p className="operation-follow-up"><Link to={playgroundPath('chat')}>Playground에서 새 모델 응답 확인 →</Link></p>
                   ) : null}
                 </>
             ) : null}

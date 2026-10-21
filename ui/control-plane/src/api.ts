@@ -184,6 +184,36 @@ export async function fetchPublicModels(apiKey: string | null): Promise<PublicMo
   return jsonRequest<PublicModelListResponse>('/v1/models', apiKey);
 }
 
+export type PublicJsonResult = {
+  payload: unknown;
+  requestId: string | null;
+};
+
+// Embedding·Risk 작업 화면은 일반 client와 같은 공개 API를 호출한다. 실패 응답의
+// request_id가 본문에 없으면 Gateway의 X-Request-Id로 보존한다.
+export async function postPublicJson(
+  apiKey: string | null,
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<PublicJsonResult> {
+  const response = await fetch(path, {
+    method: 'POST',
+    cache: 'no-store',
+    signal,
+    headers: adminHeaders(apiKey, true),
+    body: JSON.stringify(body),
+  });
+  const requestId = response.headers.get('X-Request-Id');
+  if (!response.ok) {
+    const error = await apiError(response);
+    throw error.requestId !== null || requestId === null
+      ? error
+      : new ApiError(error.message, error.status, error.code, error.details, requestId);
+  }
+  return { payload: await response.json() as unknown, requestId };
+}
+
 export async function postChatCompletion(
   apiKey: string | null,
   request: PreparedChatRequest,

@@ -11,6 +11,7 @@ import {
   type RuntimeListResponse,
 } from './api';
 import { serviceOverviewDashboardUrl } from './activityDiagnostics';
+import { playgroundPath } from './navigation';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { trafficTiles, trafficWindowLabel, type TrafficTone } from './trafficSummary';
 import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
@@ -286,8 +287,13 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         <CardBody>
           <div className="overview-action-grid">
             {bootstrap.deployment.features.includes('chat') ? (
-              <Link className="overview-action-tile" to="/chat">
+              <Link className="overview-action-tile" to={playgroundPath('chat')}>
                 <strong>모델 응답 테스트 →</strong>
+              </Link>
+            ) : null}
+            {bootstrap.deployment.features.includes('risk') ? (
+              <Link className="overview-action-tile" to={playgroundPath('risk')}>
+                <strong>PII·Secret 탐지 테스트 →</strong>
               </Link>
             ) : null}
             {modelSwitchingEnabled ? (

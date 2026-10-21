@@ -568,6 +568,102 @@ def run_manual_cpu_selection(browser, width, height):
     context.close()
 
 
+def run_playground_workspaces(browser, width, height):
+    """Core의 Risk 단독 Playground와 Dynamic의 Embedding 비교를 Mock 공개 API로 확인한다."""
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    errors = []
+    requests = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    state = {"traffic_failure": False, "revision": 7, "value": 300, "active_profile": False, "risk_status": "completed"}
+    bootstrap["deployment"]["features"] = ["risk"]
+    install_routes(page, state)
+    pii_prompt = "gildong.hong@example.com"
+
+    def risk_response(path):
+        if path.endswith("/pii/assessments"):
+            return {
+                "assessment_id": "risk_pii", "status": "completed", "risk_detected": True,
+                "attention_required": True, "model_risk_detected": True, "system_signal_detected": False,
+                "assessment_complete": True, "strongest_code": "D2", "message": "Risk signal detected.",
+                "categories": [{"code": "D2", "family": "data_exposure", "detected": True, "confidence": None,
+                                "label": "EMAIL_ADDRESS", "span_count": 1, "source_model": "pii-protection"}],
+                "system_signals": [],
+            }
+        return {
+            "assessment_id": "risk_all", "status": "partial", "risk_detected": False,
+            "attention_required": False, "model_risk_detected": False, "system_signal_detected": False,
+            "assessment_complete": False, "strongest_code": None, "message": "No model risk signal detected.",
+            "categories": [], "system_signals": [],
+        }
+
+    def handle_public(route):
+        from urllib.parse import urlsplit
+        path = urlsplit(route.request.url).path
+        if path == "/v1/models":
+            return send(route, {"object": "list", "data": [{
+                "id": "local-embed-ko", "backend": "embedding_ko_vllm",
+                "capabilities": ["embeddings"], "input_modalities": ["text"],
+                "request_parameters": {"dimensions": {"type": "integer", "enum": [3]}},
+            }]})
+        body = json.loads(route.request.post_data)
+        requests.append((path, body))
+        if path == "/v1/embeddings":
+            return send(route, {"object": "list", "model": body["model"], "data": [
+                {"object": "embedding", "index": 0, "embedding": [1, 0, 0]},
+                {"object": "embedding", "index": 1, "embedding": [1, 1, 0]},
+            ], "usage": {"prompt_tokens": 9, "total_tokens": 9}}, headers={"X-Request-Id": "req_embed"})
+        return send(route, risk_response(path), headers={"X-Request-Id": "req_risk"})
+
+    page.route("**/v1/**", handle_public)
+    page.goto(URL, wait_until="domcontentloaded")
+    # Chat이 없는 Core에서도 Playground가 보이고 Risk 화면만 연다.
+    page.get_by_role("link", name="Playground").click()
+    page.wait_for_url("**/admin/console/playground/risk")
+    tabs = page.get_by_role("navigation", name="Playground 기능")
+    assert tabs.get_by_role("link").all_inner_texts() == ["Risk"]
+    assert page.get_by_role("radio", name="Prompt Injection 탐지").count() == 0
+    page.get_by_role("button", name="연락처 정보").click()
+    assert pii_prompt in page.locator("#risk-input").input_value()
+    assert page.get_by_role("radio", name="PII 탐지").is_checked()
+    assert requests == [], "Applying an example must not send a request"
+    page.get_by_role("button", name="검사", exact=True).click()
+    result = page.get_by_role("region", name="Risk 결과")
+    result.get_by_text("위험 신호 탐지됨").wait_for()
+    result.get_by_role("cell", name="EMAIL_ADDRESS").wait_for()
+    assert pii_prompt not in result.inner_text(), "Risk result must not echo the input"
+    page.screenshot(path=str(SCREENSHOTS / f"playground-risk-{width}.png"), full_page=True)
+    # HTTP 200이어도 partial이면 미탐지로 보여 주지 않는다.
+    page.get_by_role("radio", name="통합 Risk 평가").check()
+    page.get_by_role("button", name="검사", exact=True).click()
+    result.get_by_text("검사가 완료되지 않음").wait_for()
+    assert result.get_by_text("탐지된 위험 신호 없음").count() == 0
+    assert [path for path, _ in requests] == ["/v1/risk/detectors/pii/assessments", "/v1/risk/assessments"]
+    page.get_by_role("link", name="운영 개요").click()
+    page.get_by_role("link", name="Playground").click()
+    assert page.locator("#risk-input").input_value() == "", "Risk input must not survive leaving the screen"
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Risk overflow at {width}"
+
+    # 이전 Chat 주소는 Playground의 Chat 화면으로 이동하고, Embedding 비교는 한 요청에 담는다.
+    bootstrap["deployment"]["features"] = ["chat", "embeddings", "risk"]
+    page.goto(URL + "chat", wait_until="domcontentloaded")
+    page.wait_for_url("**/admin/console/playground/chat")
+    page.get_by_role("navigation", name="Playground 기능").get_by_role("link", name="Embedding").click()
+    page.get_by_role("radio", name="두 문장 유사도").check()
+    page.locator("#embedding-input-0").fill("GPU 메모리 부족")
+    page.locator("#embedding-input-1").fill("CUDA out of memory")
+    page.get_by_role("button", name="유사도 계산").click()
+    embedding = page.get_by_role("region", name="Embedding 결과")
+    embedding.get_by_text("0.7071").wait_for()
+    assert requests[-1] == ("/v1/embeddings", {"model": "local-embed-ko", "input": ["GPU 메모리 부족", "CUDA out of memory"]})
+    embedding.get_by_text("req_embed").wait_for()
+    page.screenshot(path=str(SCREENSHOTS / f"playground-embedding-{width}.png"), full_page=True)
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), f"Embedding overflow at {width}"
+    assert errors == [], errors
+    print(f"PASS playground Chromium {width}x{height}: Core Risk-only workspace, no auto-send, partial result, Embedding comparison")
+    context.close()
+
+
 def main():
     for _ in range(40):
         try:
@@ -593,6 +689,8 @@ def main():
             run_adaptive_selection(browser, 390, 844)
             run_manual_cpu_selection(browser, 1440, 900)
             run_manual_cpu_selection(browser, 390, 844)
+            run_playground_workspaces(browser, 1440, 900)
+            run_playground_workspaces(browser, 390, 844)
         finally:
             browser.close()
 

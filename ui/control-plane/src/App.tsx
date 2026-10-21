@@ -5,15 +5,15 @@ import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ApiError, fetchBootstrap, type BootstrapResponse, verifyAdminToken } from './api';
 import { useAdminSession } from './auth/AdminSessionContext';
-import { ChatPage } from './ChatPage';
 import { ChatSessionProvider } from './ChatSessionContext';
 import { ConfigurationPage } from './ConfigurationPage';
 import { MainModelPage } from './MainModelPage';
 import { OperationsPage } from './OperationsPage';
 import { OverviewPage } from './OverviewPage';
 import { PageErrorBoundary } from './PageErrorBoundary';
+import { PlaygroundPage } from './PlaygroundPage';
 import { RuntimePage } from './RuntimePage';
-import { NAVIGATION_GROUPS, visibleNavigationSections, type NavigationPath } from './navigation';
+import { NAVIGATION_GROUPS, playgroundPath, visibleNavigationSections, type NavigationPath } from './navigation';
 import { deploymentTargetLabel, t } from './uiText';
 
 // The generated OpenAPI literal version is the compile-time contract for the Console.
@@ -107,7 +107,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
     '/runtimes': <RuntimePage token={token} onUnauthorized={clearToken} grafanaUrl={bootstrap.links.grafana} />,
     '/operations': <OperationsPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} runtimeBackend={bootstrap.deployment.runtime_backend} />,
     '/configuration': <ConfigurationPage token={token} onUnauthorized={clearToken} deploymentFeatures={bootstrap.deployment.features} />,
-    '/chat': <ChatPage grafanaUrl={bootstrap.links.grafana} docsUrl={bootstrap.links.docs} />,
+    '/playground': <PlaygroundPage features={bootstrap.deployment.features} grafanaUrl={bootstrap.links.grafana} docsUrl={bootstrap.links.docs} />,
   };
   const externalLinks = [
     [t('link.apiDocs'), bootstrap.links.docs],
@@ -152,8 +152,16 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
           <PageErrorBoundary resetKey={location.pathname}>
             <Routes>
               {sections.map((section) => (
-                <Route key={section.path} path={section.path} element={pages[section.path]} />
+                <Route
+                  key={section.path}
+                  path={'nested' in section ? `${section.path}/*` : section.path}
+                  element={pages[section.path]}
+                />
               ))}
+              {sections.some((section) => section.path === '/playground') ? (
+                // 이전 Chat 전용 주소의 북마크를 Playground의 Chat 화면으로 잇는다.
+                <Route path="/chat" element={<Navigate to={playgroundPath('chat')} replace />} />
+              ) : null}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </PageErrorBoundary>

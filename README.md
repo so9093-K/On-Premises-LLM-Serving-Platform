@@ -23,7 +23,8 @@ cd On-Premises-LLM-Serving-Platform
 make up TARGET=linux-core ACCESS=local
 ```
 
-Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. `/ready`는
+Gateway, Control Plane, Scalar, PII·Secret Risk Service를 실행합니다. Control Plane의
+Playground → Risk에서 PII·Secret 탐지를 바로 확인할 수 있습니다. `/ready`는
 활성 모델 대신 Core 서비스의 준비 상태를 검사하며, Chat/Responses 요청은
 `MODEL_UNAVAILABLE`로 거부합니다. GPU가 존재해도 자원이 부족하면 이 구성을
 사용할 수 있습니다. GPU 모델을 자동으로 중지하거나 CPU 모델로 전환하지 않습니다.
@@ -112,17 +113,17 @@ curl --fail-with-body -sS http://127.0.0.1:9400/v1/chat/completions \
 
 *Playground · 모델 응답*
 
-모델 상태·요청 지표를 조회하고, Playground에서 모델 요청과 코드 내보내기를 수행할 수 있습니다. 지원되는 Managed Target에서는 Runtime 제어와 모델 전환 영향 검토도 제공합니다.
+모델 상태·요청 지표를 조회하고, Playground에서 배포가 제공하는 Chat·Embedding·Risk 요청과 Chat 코드 내보내기를 수행할 수 있습니다. 지원되는 Managed Target에서는 Runtime 제어와 모델 전환 영향 검토도 제공합니다.
 
 [Control Plane 사용법](docs/guides/user-guide.md) · [모델 운영](docs/06_model_operations.md)
 
 ## 기능 데모
 
-![Playground 이미지 분석 데모](assets/demos/image-analysis.gif)
+![Playground 문서 해석 데모](assets/demos/document-analysis.gif)
 
-*이미지 분석 · 그래프의 최대·최소값*
+*문서 해석 · 흐름도의 판단 단계와 분기 정리*
 
-[이미지 분석](docs/reference/feature_demos.md#image-analysis) · [OCR](docs/reference/feature_demos.md#ocr) · [시스템 프롬프트 입력](docs/reference/feature_demos.md#system-prompt) · [임베딩·유사도](docs/reference/feature_demos.md#embedding)
+[문서 해석](docs/reference/feature_demos.md#document-analysis) · [이미지 분석](docs/reference/feature_demos.md#image-analysis) · [OCR](docs/reference/feature_demos.md#ocr) · [시스템 프롬프트 입력](docs/reference/feature_demos.md#system-prompt) · [임베딩·유사도](docs/reference/feature_demos.md#embedding)
 
 ## Scalar API Reference
 
