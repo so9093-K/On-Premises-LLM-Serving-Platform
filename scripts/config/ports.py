@@ -88,7 +88,8 @@ def managed_path(path: str) -> bool:
         return False
     if path.startswith(("docs/adr/", "docs/resources/", "assets/")):
         return False
-    if path in {"CHANGELOG.md", "scripts/config/ports.py"}:
+    if path in {"CHANGELOG.md", "scripts/config/ports.py"} or path.startswith("src/ai_model_serving/static/"):
+        # Browser 배포 파일은 Vite가 생성하는 산출물이다. 문자열 치환하지 않는다.
         return False
     return path.startswith((
         "configs/", "ops/compose/", "ops/access/", "ops/prometheus/",
@@ -235,13 +236,35 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True) -> int:
         path = root / name
         if path.is_file():
             originals.setdefault(path, path.read_bytes())
+
+    console_dir = root / "src/ai_model_serving/static/control-plane"
+    if validate and mapping and any(
+        str(path.relative_to(root)).startswith("ui/control-plane/src/") for path in changes
+    ):
+        # Console 소스가 변경되면 Vite hash/manifest도 함께 갱신해야 한다.
+        # 정적 JS를 숫자 치환하면 hash drift와 배포 UI 불일치가 발생한다.
+        if not subprocess.run(["npm", "--version"], cwd=root, capture_output=True).returncode == 0:
+            raise ValueError("Console 산출물 재생성에 Node.js/npm이 필요합니다")
+        for file in console_dir.rglob("*"):
+            if file.is_file():
+                originals.setdefault(file, file.read_bytes())
+        rebuild_console = True
+    else:
+        rebuild_console = False
+
     try:
         for path, data in changes.items():
             atomic_write(path, data)
         if validate:
             subprocess.run([sys.executable, "scripts/render_runtime_assets.py", "--write"], cwd=root, check=True)
+            if rebuild_console:
+                subprocess.run(["make", "console-build"], cwd=root, check=True)
             subprocess.run(["make", "validate"], cwd=root, check=True)
     except Exception:
+        if rebuild_console:
+            for file in console_dir.rglob("*"):
+                if file.is_file() and file not in originals:
+                    file.unlink()
         for path, data in originals.items():
             atomic_write(path, data)
         print("[ports] 검증 실패: 설정을 기존 상태로 복구했습니다", file=sys.stderr)
