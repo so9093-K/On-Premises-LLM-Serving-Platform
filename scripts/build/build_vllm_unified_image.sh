@@ -73,6 +73,7 @@ build_args=(
   --label "ai_model_serving.build_platform=${TARGET_PLATFORM}"
   --label "ai_model_serving.vllm_version=${VLLM_VERSION}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"
+  --label "${PROJECT_CHECKOUT_LABEL_KEY}=$(pwd -P)"
   --label "ai_model_serving.artifact=vllm-unified"
 )
 if [[ "$PROJECT_BUILD_NO_CACHE" == "1" ]]; then

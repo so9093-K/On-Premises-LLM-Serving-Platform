@@ -71,3 +71,5 @@ services:
 
 volumes:
   main-vllm-cache:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}

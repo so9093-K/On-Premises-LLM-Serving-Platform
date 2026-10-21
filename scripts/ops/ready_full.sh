@@ -26,14 +26,8 @@ fi
 GATEWAY_BASE_URL="http://${GATEWAY_PROBE_HOST}:${GATEWAY_PORT:-$(service_default_host_port gateway)}"
 READY_FULL_TIMEOUT_SECONDS="${READY_FULL_TIMEOUT_SECONDS:-1800}"
 READY_FULL_INTERVAL_SECONDS="${READY_FULL_INTERVAL_SECONDS:-10}"
-# runtime-controller를 재생성하면(배포마다 PLATFORM_IMAGE가 bump됨) main-model inference
-# gate가 닫힌다. boot reconcile이 persisted profile을 재검증할 때까지 gateway는
-# main-model chat에 503을 반환한다. /ready에는 이 gate 상태가 반영되지 않으므로,
-# ready-full은 엄격한 smoke gate 전에 chat이 실제로 서빙될 때까지 기다린다.
-# 이 budget은 model-load budget(READY_FULL_TIMEOUT_SECONDS)과 동일하게 맞춘다:
-# boot reconcile이 main model을 교체해야 하는 경우(observed != persisted target)
-# gate는 단 몇 초가 아니라 모델 전체 reload 시간만큼 닫혀 있기 때문이다. fast path
-# (gate가 이미 열려 있는 경우)는 이 상한과 무관하게 즉시 반환된다.
+# /ready는 Controller가 검증한 활성 Main 상태를 반영한다.
+# 아래 Chat probe는 실제 추론 경로를 추가 확인하며 모델 적재와 같은 대기 예산을 쓴다.
 READY_FULL_MAIN_MODEL_TIMEOUT_SECONDS="${READY_FULL_MAIN_MODEL_TIMEOUT_SECONDS:-${READY_FULL_TIMEOUT_SECONDS}}"
 # main-model gate probe도 일반 Gateway 경로를 통과한다. 이 probe만 30초로 고정하면
 # 정상적인 queue 대기보다 먼저 끊겨 readiness가 거짓 실패할 수 있으므로 Gateway
@@ -179,10 +173,7 @@ PY
   done
 }
 
-# control-plane 재배포 후 main-model inference gate가 다시 열리기를 기다린다(실패 시
-# fatal). gate가 닫혀 있는 동안 gateway는 main-model chat에 503(MAIN_MODEL_SWITCH_IN_PROGRESS)을
-# 반환하므로, 실제 chat 경로를 200이 나올 때까지 폴링한다. gate-closed 503은 그저
-# "계속 기다려라"는 의미일 뿐이며, 진짜 timeout이 발생했을 때만 배포를 실패 처리한다.
+# 전환 중인 Main 모델이 실제 Chat 요청을 처리할 때까지 기다린다.
 wait_for_main_model_ready() {
   local url="$GATEWAY_BASE_URL/v1/chat/completions"
   # 1 token은 Gemma가 assistant text를 emit하기 전에 finish_reason=length로 끝날 수
@@ -250,9 +241,7 @@ wait_for_gateway_ready "$GATEWAY_BASE_URL/ready" "$ADMIN_API_KEY"
 # 엄격한 smoke gate 전에 readiness dependency 목록을 출력한다.
 bash scripts/ops/status_services.sh --full || true
 
-# control-plane 재배포 후 runtime-controller가 main-model gate를 닫았다가 boot reconcile로
-# 다시 연다. gate가 닫혀 있는 동안 main-model chat은 503이고 /ready엔 반영되지 않으므로,
-# smoke(엄격 gate) 전에 chat이 실제로 200을 줄 때까지 기다린다.
+# /ready 통과 뒤 실제 Chat 경로도 확인한다. 두 probe 사이에 전환이 시작될 수 있다.
 wait_for_main_model_ready
 
 bash scripts/ops/smoke_test.sh

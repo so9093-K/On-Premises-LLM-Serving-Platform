@@ -235,10 +235,11 @@ def test_compose_mutation_rejects_foreign_checkout_but_allows_current_checkout(
     bin_dir.mkdir()
     docker = bin_dir / "docker"
     docker.write_text(
-        "#!/bin/sh\n"
-        "if [ \"$1\" = \"ps\" ]; then echo container-1; exit 0; fi\n"
-        "if [ \"$1\" = \"inspect\" ]; then printf '%s\\n' \"$FAKE_DOCKER_WORKING_DIR\"; exit 0; fi\n"
-        "exit 0\n",
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "if sys.argv[1] == 'ps': print('container-1')\n"
+        "if sys.argv[1:3] == ['container', 'inspect']:\n"
+        " print(json.dumps([{'Config': {'Labels': {'com.docker.compose.project.working_dir': os.environ['FAKE_DOCKER_WORKING_DIR']}}}]))\n",
         encoding="utf-8",
     )
     docker.chmod(0o755)
@@ -250,11 +251,12 @@ def test_compose_mutation_rejects_foreign_checkout_but_allows_current_checkout(
             "PYTHON_BIN": sys.executable,
             "COMPOSE_FILE": str(compose_file),
             "COMPOSE_PROJECT_NAME": "shared-project",
+            "FAKE_CHECKOUT_ROOT": str(current_compose_dir.parents[1]),
         }
     )
     command = (
         'source scripts/lib/compose_context.sh; '
-        'compose_context_init "$PWD"; '
+        'compose_context_init "$FAKE_CHECKOUT_ROOT"; '
         'compose_context_assert_mutation_safe'
     )
 

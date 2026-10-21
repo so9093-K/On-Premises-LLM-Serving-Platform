@@ -63,6 +63,7 @@ build_args+=(
   --label "ai_model_serving.source_state=${SOURCE_STATE}"
   --label "ai_model_serving.build_platform=${EFFECTIVE_PLATFORM}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"
+  --label "${PROJECT_CHECKOUT_LABEL_KEY}=$(pwd -P)"
   --label "ai_model_serving.artifact=platform"
 )
 build_args+=(-t "$IMAGE")

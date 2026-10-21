@@ -63,7 +63,7 @@ make down
 | `validation/validate_contracts.py` | OpenAPI refs, generated OpenAPI schema injection, JSON Schema, config, release hygiene 정책을 검증한다. |
 | `validation/run_test.sh` | Python 버전과 test 환경을 고정하고 unit/contract test를 실행한다. |
 | `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`(생성)와 `validation/governance/versioning.py`(검증)가 같은 표를 읽으므로 두 목록이 갈라질 수 없다. |
-| `lib/project_image_ownership.sh` | 로컬 build image의 ownership label과 legacy local repository 이름을 build/reset에 공통 제공한다. |
+| `lib/project_image_ownership.sh` | 로컬 build image의 프로젝트·checkout 소유권 label을 정의한다. |
 | `lib/gateway_runtime_state.sh` | `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
 | `build/reset_version.py` | 프로젝트 버전을 `lib/version_refs.py`가 선언한 모든 자리에 한 번에 반영한다. 선언된 자리가 파일에서 사라졌으면 조용히 넘기지 않고 실패한다. |
 | `build/check_python.py` | 현재 interpreter가 `>=3.12,<3.14`인지 fail-fast로 확인한다. |
@@ -74,6 +74,7 @@ make down
 | `validation/runtime_validation.py` | 실제 runtime 검증 결과를 `reports/runtime/` 아래에 기록한다. |
 | `models/check_hf_model_config.py` | 고정 vLLM runtime 환경에서 Transformers `AutoConfig`만 로드해 engine·GPU 이전 config loader 문제를 분리한다. |
 | `ops/down_all.sh` | `.env`와 Compose project name에 의존하지 않고 이 checkout의 host process와 Compose container/network를 정지한다. |
+| `ops/compose_ownership.py` | 로그·변경 검사·종료·삭제에 공통 checkout 소유권 규칙을 적용한다. 앱 의존성 없이 실행한다. |
 | `ops/clean_project.sh` | build/test 산출물과 runtime report를 정리한다. 실행 중인 host process가 있으면 중단하며 `--dry-run`, `--logs`만 지원한다. |
 | `ops/reset_all.sh` | 기본 실행은 project-local 초기화 plan만 출력하고, 정확한 확인값에서 해당 state만 삭제한다. Docker build cache와 전역 model cache는 보존한다. |
 

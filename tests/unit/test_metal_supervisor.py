@@ -9,6 +9,9 @@ macOS에서 MLX-VLM은 컨테이너가 아니라 호스트 프로세스라 Compo
 from __future__ import annotations
 
 import plistlib
+import subprocess
+import platform
+import uuid
 
 import pytest
 
@@ -64,8 +67,18 @@ def test_install_refuses_while_a_pidfile_runtime_is_tracked(monkeypatch, supervi
 
 def test_installed_supervisor_owns_start_and_stop_instead_of_the_pid_file(monkeypatch, supervised):
     installed, calls = supervised
-    installed.write_bytes(plistlib.dumps({"Label": metal.SUPERVISOR_LABEL}))
-    monkeypatch.setattr(metal, "_supervisor_loaded", lambda: True)
+    installed.write_bytes(plistlib.dumps({
+        "Label": metal.SUPERVISOR_LABEL,
+        "WorkingDirectory": str(metal.ROOT / ".runtime/metal/models"),
+    }))
+    loaded = [True]
+    monkeypatch.setattr(metal, "_supervisor_loaded", lambda: loaded[0])
+
+    def launchctl(*args):
+        calls.append(args)
+        loaded[0] = args[0] != "bootout"
+
+    monkeypatch.setattr(metal, "_launchctl", launchctl)
 
     killed: list[int] = []
     monkeypatch.setattr(metal.os, "kill", lambda pid, sig: killed.append(pid))
@@ -134,3 +147,39 @@ def test_diagnostics_read_the_log_of_whoever_owns_the_runtime(monkeypatch, super
 
     installed.write_bytes(plistlib.dumps({"Label": metal.SUPERVISOR_LABEL}))
     assert metal._log_tail() == ["launchd가 남긴 줄"]
+
+
+def test_bootout_success_without_unload_preserves_supervisor(monkeypatch, supervised):
+    installed, calls = supervised
+    installed.write_bytes(plistlib.dumps({
+        "Label": metal.SUPERVISOR_LABEL,
+        "WorkingDirectory": str(metal.ROOT / ".runtime/metal/models"),
+    }))
+    monkeypatch.setattr(metal, "_supervisor_loaded", lambda: True)
+    with pytest.raises(RuntimeError, match="still loaded"):
+        metal.uninstall_supervisor()
+    assert installed.exists()
+    assert ("bootout", metal._supervisor_job()) in calls
+
+
+def test_launchctl_inspection_error_is_not_an_absent_job(monkeypatch):
+    monkeypatch.setattr(metal.subprocess, "run", lambda *a, **k:
+                        subprocess.CompletedProcess(a[0], 1, "", "Operation not permitted"))
+    with pytest.raises(RuntimeError, match="cannot inspect"):
+        metal._supervisor_loaded()
+
+
+@pytest.mark.parametrize("pid", ["-1", "0", "1", "invalid"])
+def test_invalid_pid_never_signals_a_process_group(monkeypatch, supervised, pid):
+    metal.PID_PATH.write_text(pid)
+    def signal_process(*args):
+        pytest.fail("invalid pid must not reach os.kill")
+    monkeypatch.setattr(metal.os, "kill", signal_process)
+    with pytest.raises(RuntimeError, match="invalid Metal pid"):
+        metal._tracked_pid()
+
+
+@pytest.mark.skipif(platform.system() != "Darwin", reason="real launchctl absence check requires macOS")
+def test_real_launchctl_treats_nonexistent_job_as_absent(monkeypatch):
+    monkeypatch.setattr(metal, "SUPERVISOR_LABEL", f"com.ai-model-serving.absent-test.{uuid.uuid4().hex}")
+    assert metal._supervisor_loaded() is False

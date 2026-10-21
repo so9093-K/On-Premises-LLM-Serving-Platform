@@ -343,6 +343,10 @@ make purge SCOPE=all CONFIRM=purge
 
 `purge`는 plan-first이며 project ownership이 증명되는 artifact만 제거한다. global
 Hugging Face cache, daemon-wide BuildKit cache와 unrelated Docker resource는 제거하지 않는다.
+Docker 볼륨·네트워크·로컬 build image는 `ai_model_serving.checkout` 라벨이 현재 checkout과
+일치해야 삭제한다. 프로젝트 이름만 같거나 라벨이 없는 기존 자원은 보존한다.
+macOS launchd 해제에 실패하면 Reset은 `.env`·`.venv`·`.runtime`을 삭제하지 않는다.
+세부 소유권 규칙은 [ADR-0057](adr/0057-checkout-owned-cleanup.md)을 따른다.
 
 ---
 

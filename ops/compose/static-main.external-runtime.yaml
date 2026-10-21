@@ -1,6 +1,10 @@
 # Static target base. The Main runtime is started and supervised outside this
 # Compose project; shared overlays add local services such as Risk Signal Service.
 name: ${COMPOSE_PROJECT_NAME:-ai-model-serving-static}
+networks:
+  default:
+    labels:
+      ai_model_serving.checkout: ${COMPOSE_CHECKOUT_ROOT:-}
 
 services:
   gateway:
