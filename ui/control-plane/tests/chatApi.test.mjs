@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ApiError, fetchPublicModels, postChatCompletion } from '../src/api.ts';
+import { ApiError, fetchPublicModels, postChatCompletion, postPublicJson } from '../src/api.ts';
 import { prepareChatRequest } from '../src/publicChatRequest.ts';
 
 function withFetch(t, handler) {
@@ -75,4 +75,28 @@ test('a recorded serialized body is sent without generating a second version', a
   await postChatCompletion(null, request, new AbortController().signal);
   assert.equal(calls[0].init.body, originalWireJson);
   assert.equal(calls[0].init.headers.Accept, 'application/json');
+});
+
+test('Embedding and Risk workspaces call the public API with the user key and keep the request id', async (t) => {
+  const calls = withFetch(t, (url) => (url === '/v1/risk/assessments'
+    ? new Response(JSON.stringify({ error: { code: 'MODEL_UNAVAILABLE', message: 'not ready' } }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'req_risk' },
+    })
+    : new Response(JSON.stringify({ object: 'list', data: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'req_embed' },
+    })));
+
+  const { requestId } = await postPublicJson('api-key-1', '/v1/embeddings', { model: 'local-embed', input: 'x' });
+
+  assert.equal(requestId, 'req_embed');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer api-key-1');
+  assert.equal(calls[0].init.body, JSON.stringify({ model: 'local-embed', input: 'x' }));
+  await assert.rejects(
+    postPublicJson(null, '/v1/risk/assessments', { prompt: 'x' }),
+    (error) => error instanceof ApiError && error.code === 'MODEL_UNAVAILABLE' && error.requestId === 'req_risk',
+  );
+  assert.equal(calls[1].init.headers.Authorization, undefined);
 });

@@ -1,6 +1,6 @@
 # Playground 예제로 시작하기
 
-Control Plane의 Playground는 공개 `/v1/models`와 `/v1/chat/completions`를 그대로 사용한다.
+Control Plane Playground의 Chat 작업 화면은 공개 `/v1/models`와 `/v1/chat/completions`를 그대로 사용한다.
 이 페이지는 첫 사용자가 모델의 기능을 쉽게 확인할 수 있도록 하는 **입력 구성 도우미**이며,
 별도 모델 실행 엔진이나 API authority가 아니다.
 
@@ -80,10 +80,28 @@ Vite가 이미지와 오디오 파일을 `asset-manifest.json`에 기록해야 G
 - Desktop 1440×900, Mobile 390×844, Keyboard/Focus/Screen-reader 안내
 - `make console-check`, `make check` 및 가능한 Target의 실제 inference 확인
 
+## Risk 화면의 합성 예제
+
+Risk 작업 화면은 Chat 예제와 별도로 합성 입력 예제를 제공한다. 원본은
+`ui/control-plane/src/playgroundRiskExamples.json` 하나이며, 로컬 PII·Secret 검출기가
+기대 신호를 실제로 반환하는지 `tests/unit/test_playground_risk_examples.py`가 검증한다.
+
+| 예제 | 검사 | 기대 신호 |
+|---|---|---|
+| 연락처 정보 | PII 탐지 | `D2` (이메일·전화번호) |
+| 설정 파일의 자격 증명 | Secret 탐지 | `D4`, `D5` |
+| 지시 무시 시도 | Prompt Injection 탐지 (`prompt_detection` 배포만) | `A1` (모델 판정이므로 보장하지 않음) |
+| 일반 업무 문장 | 통합 Risk 평가 | 없음 |
+
+이메일은 `example.com`, Access Key는 AWS 문서의 예제 키다. 예제 선택은 입력만 채우며
+요청하지 않는다. Risk 결과는 신호와 완료 여부만 표시하고 입력을 결과에 복제하지 않는다.
+작업 화면 구성과 결과 해석 원칙은 [ADR-0056](../adr/0056-playground-feature-workspaces.md)을 따른다.
+
 ## 범위 제외
 
-Scalar API Reference 복제, Responses/Embedding용 별도 Playground, Tool 자동 실행,
-API 코드 생성, 모델 병렬 비교, 평가/Benchmark, Runtime 및 GPU 정책 변경은 수행하지 않는다.
+Scalar API Reference 복제, Responses API 화면, Tool 자동 실행, API 코드 생성,
+모델 병렬 비교, 평가/Benchmark, Runtime 및 GPU 정책 변경은 수행하지 않는다.
+Embedding·Risk 작업 화면은 Chat 예제 갤러리와 요청 내보내기를 공유하지 않는다.
 
 관련 설계: [ADR-0047](../adr/0047-control-plane-capability-aware-chat-playground.md) ·
 [운영자 작업 중심 UX](control_plane_operator_ux.md).

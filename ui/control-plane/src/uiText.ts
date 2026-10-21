@@ -8,7 +8,7 @@ const messages = {
   'nav.mainModel': { 'ko-KR': '메인 모델', 'en-US': 'Main Model' },
   'nav.configuration': { 'ko-KR': '설정', 'en-US': 'Configuration' },
   'nav.activity': { 'ko-KR': '운영 활동', 'en-US': 'Operations' },
-  'nav.chat': { 'ko-KR': 'Playground', 'en-US': 'Playground' },
+  'nav.playground': { 'ko-KR': 'Playground', 'en-US': 'Playground' },
   'navGroup.service': { 'ko-KR': '서비스', 'en-US': 'Serving' },
   'navGroup.operations': { 'ko-KR': '운영 및 진단', 'en-US': 'Operations & Diagnostics' },
   'navGroup.development': { 'ko-KR': '개발 및 테스트', 'en-US': 'Development & Testing' },

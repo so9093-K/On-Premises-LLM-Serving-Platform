@@ -22,7 +22,9 @@ Navigation 메뉴와 실제 Route는 같은 feature-aware 정의를 사용하므
 | 사용자가 하고 싶은 일 | 시작점 | 확인할 결과 | 실제 authority |
 | --- | --- | --- | --- |
 | 현재 서비스 확인 | 운영 개요 | Main Model·Runtime의 조회 상태와 최근 Gateway 요청·오류·지연을 먼저 확인 | Bootstrap / Runtime / Main Model / Traffic |
-| 실제 모델 응답 검증 | 빠른 작업 → Playground | 공개 API 응답, request ID, 지연 및 요청 당시 설정 | `/v1/models` 및 `/v1/chat/completions` |
+| 실제 모델 응답 검증 | 빠른 작업 → Playground · Chat | 공개 API 응답, request ID, 지연 및 요청 당시 설정 | `/v1/models` 및 `/v1/chat/completions` |
+| 벡터·유사도 확인 | Playground · Embedding | 모델·차원·Usage·request ID, 같은 요청의 두 벡터 유사도 | `/v1/models` 및 `/v1/embeddings` |
+| PII·Secret·Prompt 신호 확인 | 빠른 작업 → Playground · Risk | 신호 코드·항목·개수와 검사 완료 여부(판정 아님) | `/v1/risk/**` |
 | 모델 변경 | 메인 모델 | 기능·자원 영향 검토 → 전환 진행 → 성공/복구/실패 | Main Model Control |
 | 런타임 시작·중지 | 런타임과 GPU | 정책상 예약 및 변경 영향 Plan → Apply → Verification | Runtime Controller |
 | 설정 편집·복원 | 설정 | Schema 그룹 → 현재 값·출처 → Plan/Apply 또는 Revision Restore | Configuration Plane |
@@ -60,7 +62,9 @@ UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `
 
 ### Playground
 
-Playground에서 전송한 각 요청은 **코드로 사용하기**에서 원본 요청 JSON과 Python/Node.js/cURL Exact Replay, OpenAI SDK Integration 예제를 구분하여 제공한다. 과거 요청을 현재 모델이나 Settings에서 다시 구성하지 않고 해당 Exchange의 전송 문자열을 사용한다. ZIP은 청크 단위 비동기 저장과 취소·진행률을 제공한다. 일반 다운로드는 명시적 크기 상한이 있으며 그보다 큰 파일은 지원 브라우저에서 사용자가 승인한 직접 파일 스트림으로 저장한다. 프롬프트·멀티모달·Tool 입력의 민감도를 안내한다. [프로젝트 연동 가이드](playground_integration.md)를 따른다.
+Playground는 Bootstrap의 `chat`·`embeddings`·`risk` feature 중 하나라도 있으면 보이며, 활성 feature에 해당하는 Chat·Embedding·Risk 작업 화면만 탭으로 제공한다. Chat이 없는 `linux-core`에서도 Risk 화면을 제공한다. 사용자 API Key는 작업 화면 사이에서 공유한다. Embedding·Risk의 입력과 결과는 해당 화면의 상태에만 두고 이동하면 지운다. Risk 결과는 신호와 검사 완료 여부만 표시하며 허용·차단을 판정하지 않는다([ADR-0056](../adr/0056-playground-feature-workspaces.md)).
+
+Chat 작업 화면에서 전송한 각 요청은 **코드로 사용하기**에서 원본 요청 JSON과 Python/Node.js/cURL Exact Replay, OpenAI SDK Integration 예제를 구분하여 제공한다. 과거 요청을 현재 모델이나 Settings에서 다시 구성하지 않고 해당 Exchange의 전송 문자열을 사용한다. ZIP은 청크 단위 비동기 저장과 취소·진행률을 제공한다. 일반 다운로드는 명시적 크기 상한이 있으며 그보다 큰 파일은 지원 브라우저에서 사용자가 승인한 직접 파일 스트림으로 저장한다. 프롬프트·멀티모달·Tool 입력의 민감도를 안내한다. [프로젝트 연동 가이드](playground_integration.md)를 따른다.
 
 Playground는 첫 사용 시 [예제 갤러리](control_plane_playground_examples.md)를 제공한다. 대화가 시작되면 예제 갤러리를 닫고 화면을 이동했다 돌아와도 기존 대화 중심으로 표시한다. 예제는 현재 공개 모델의 기능에 따라 지원 여부를 표시하며, 선택 또는 입력 적용 자체는 추론 요청을 발생시키지 않는다. 샘플 이미지는 same-origin 번들 정적 자산이고, 기존 요청 검증을 통과한 뒤에만 입력에 적용한다. 기존 대화나 작성 중인 내용을 무단으로 지우지 않는다.
 
