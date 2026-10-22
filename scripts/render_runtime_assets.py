@@ -2,8 +2,6 @@
 """Source configuration과 runtime API에서 정적 배포 artifact를 생성한다.
 
 생성 대상:
-  ops/prometheus/prometheus.yml
-  ops/prometheus/prometheus.macos-metal.yml
   ops/grafana/dashboards/service_overview.macos-metal.json
   ops/grafana/dashboards/request_log_explorer.macos-metal.json
   specs/schemas/model_list_response.schema.json
@@ -13,6 +11,9 @@
   specs/openapi.risk-signal-service.yaml
 
 생성 제외 대상:
+  Prometheus 설정:
+    수집 대상 포트는 배포의 PLATFORM_PORT_BASE를 따른다. make up이 실행할 때
+    scripts/config/port_runtime.py로 .runtime/prometheus/에 생성한다.
   compose 파일 (full-stack.private-network.yaml):
     compose 파일에는 registry에서 파생할 수 없는 보일러플레이트가 있다
     (gateway env, prometheus secret, grafana env, healthcheck 등). PyYAML
@@ -43,67 +44,21 @@ sys.path.insert(0, str(ROOT))
 from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
 from ai_model_serving.domain import ModelRegistry  # noqa: E402
 from ai_model_serving.deployment_target import load_deployment_target  # noqa: E402
-from ai_model_serving.monitoring_projection import (  # noqa: E402
-    macos_metal_prometheus_config_document,
-    prometheus_scrape_config_document,
-)
 from scripts.openapi_assets import build_generated_openapi, render_static_openapi  # noqa: E402
 from scripts.openai_compatibility import render as render_openai_compatibility  # noqa: E402
 from scripts.tool_policy_reference import project_tool_policy_section  # noqa: E402
 
-_GENERATED_HEADER_YAML_WITH_MONITORING = (
-    "# 자동 생성 파일입니다. 직접 수정하지 마세요.\n"
-    "# 소스: configs/model_catalog.yaml + configs/model_serving.yaml + configs/monitoring.yaml + configs/services.yaml\n"
-    "# 명령: make render-runtime-assets\n"
-)
-
-_GENERATED_HEADER_YAML_MACOS_METAL = (
-    "# 자동 생성 파일입니다. 직접 수정하지 마세요.\n"
-    "# 소스: configs/monitoring.yaml + configs/services.yaml + configs/deployment_targets.yaml + configs/macos_mlx_runtime.yaml\n"
-    "# 명령: make render-runtime-assets\n"
-)
-
 # ── loaders ────────────────────────────────────────────────────────────────────
 
-def _load_registry_and_monitoring(
-    root: Path,
-) -> tuple[ModelRegistry, dict[str, Any], dict[str, Any], dict[str, Any], str]:
+def _load_sources(root: Path) -> tuple[ModelRegistry, dict[str, Any]]:
     registry = ModelRegistry(
         load_yaml_mapping(root / "configs/model_catalog.yaml"),
         load_yaml_mapping(root / "configs/model_serving.yaml"),
     )
-    monitoring = load_yaml_mapping(root / "configs/monitoring.yaml")
-    services = load_yaml_mapping(root / "configs/services.yaml")["services"]
-    macos_runtime = load_yaml_mapping(root / "configs/macos_mlx_runtime.yaml")
-    metal_target = load_deployment_target(
-        root / "configs/deployment_targets.yaml", "macos-metal-static"
-    )
-    return registry, monitoring, services, macos_runtime, metal_target.runtime_backend
+    return registry, load_yaml_mapping(root / "configs/macos_mlx_runtime.yaml")
 
 
 # ── renderers ──────────────────────────────────────────────────────────────────
-
-def render_prometheus_yml(registry: ModelRegistry, monitoring: dict[str, Any], services: dict[str, Any]) -> str:
-    doc = prometheus_scrape_config_document(registry=registry, monitoring=monitoring, services=services)
-    body = yaml.dump(doc, allow_unicode=True, default_flow_style=False, sort_keys=False)
-    return _GENERATED_HEADER_YAML_WITH_MONITORING + body
-
-
-def render_macos_metal_prometheus_yml(
-    monitoring: dict[str, Any],
-    services: dict[str, Any],
-    macos_runtime: dict[str, Any],
-    runtime_backend: str,
-) -> str:
-    doc = macos_metal_prometheus_config_document(
-        monitoring=monitoring,
-        services=services,
-        macos_runtime=macos_runtime,
-        runtime_backend=runtime_backend,
-    )
-    body = yaml.dump(doc, allow_unicode=True, default_flow_style=False, sort_keys=False)
-    return _GENERATED_HEADER_YAML_MACOS_METAL + body
-
 
 def render_model_list_schema_json(registry: ModelRegistry) -> str:
     doc = registry.model_list_schema_document()
@@ -171,10 +126,7 @@ def render_macos_dashboard(root: Path, name: str) -> str:
 
 def get_artifacts(
     registry: ModelRegistry,
-    monitoring: dict[str, Any],
-    services: dict[str, Any],
     macos_runtime: dict[str, Any],
-    macos_runtime_backend: str,
     root: Path,
 ) -> list[tuple[Path, str]]:
     """(파일 경로, expected 내용) 목록을 반환한다."""
@@ -191,13 +143,6 @@ def get_artifacts(
             (root / f"ops/grafana/dashboards/{name}.macos-metal.json", render_macos_dashboard(root, name))
             for name in ("service_overview", "request_log_explorer")
         ],
-        (root / "ops/prometheus/prometheus.yml", render_prometheus_yml(registry, monitoring, services)),
-        (
-            root / "ops/prometheus/prometheus.macos-metal.yml",
-            render_macos_metal_prometheus_yml(
-                monitoring, services, macos_runtime, macos_runtime_backend
-            ),
-        ),
         (
             root / "specs/schemas/model_list_response.schema.json",
             render_model_list_schema_json(registry),
@@ -232,12 +177,8 @@ def main() -> int:
     args = parser.parse_args()
 
     root = ROOT
-    registry, monitoring, services, macos_runtime, macos_runtime_backend = (
-        _load_registry_and_monitoring(root)
-    )
-    artifacts = get_artifacts(
-        registry, monitoring, services, macos_runtime, macos_runtime_backend, root
-    )
+    registry, macos_runtime = _load_sources(root)
+    artifacts = get_artifacts(registry, macos_runtime, root)
 
     if args.write:
         for path, content in artifacts:

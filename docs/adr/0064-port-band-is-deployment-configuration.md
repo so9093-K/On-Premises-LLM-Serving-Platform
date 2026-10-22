@@ -51,7 +51,7 @@ Accepted. [ADR-0058](0058-port-namespace-policy.md)의 변경 도구와
 - 내부 주소를 `.env`에서 손으로 고쳐도 실행 주소와 어긋난 상태로 남지 않는다.
 - 대역이 바뀌면 Compose 서비스는 새 설정으로 다시 만들어지고, Main 컨테이너는 Runtime
   Controller의 기존 drift 복구(같은 Profile로 재생성·검증)를 따른다. 짧은 서비스 중단이 생긴다.
-- 저장소의 `ops/prometheus/*.yml`은 기본 대역 기준본이며, 실행 중인 Prometheus 설정은 `.runtime`에 있다.
+- 저장소에 생성해 두던 `ops/prometheus/prometheus*.yml`은 실행에 쓰이지 않으므로 제거한다. Prometheus 설정은 `.runtime/prometheus/`에만 있다.
 - 팀원 Nginx 설정은 `scripts/access/remote_access.py nginx-config`로 현재 대역에 맞춰 출력한다.
 
 ## Migration notes

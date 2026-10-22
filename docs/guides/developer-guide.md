@@ -45,7 +45,7 @@ make render-runtime-assets  # Runtime 생성물의 원본 변경 시
 
 - Python 실행 경로: `ai_model_serving.port_namespace.load_port_namespace()`의 `port()`·`translate()`
 - Compose: `scripts/config/port_runtime.py`가 export하는 `${PLATFORM_PORT_<ROLE>:-<기본값>}`
-- Prometheus: `.runtime/prometheus/`에 생성되는 설정 (기준본 `ops/prometheus/*.yml`)
+- Prometheus: `monitoring_projection.py`가 만들고 `make up`이 `.runtime/prometheus/`에 쓰는 설정
 
 DCGM exporter 9400, Grafana 컨테이너 3000, Prometheus 9090처럼 외부 엔진이 소유한 포트는 대역을 따르지 않는다.
 외부 Nginx·Tailscale Serve·방화벽·클라이언트 주소는 운영자가 별도로 반영한다.

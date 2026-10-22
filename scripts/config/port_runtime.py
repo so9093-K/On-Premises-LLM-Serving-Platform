@@ -30,8 +30,8 @@ from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  
 from scripts.lib.atomic_file import atomic_write  # noqa: E402
 
 _HEADER = (
-    "# make up이 배포 포트 대역으로 생성한 파일입니다. 직접 수정하지 마세요.\n"
-    "# 기본 대역 기준본: ops/prometheus/{name}\n"
+    "# make up이 배포 포트 대역으로 생성한 {name}입니다. 직접 수정하지 마세요.\n"
+    "# 원본: configs/monitoring.yaml, configs/services.yaml, .env의 PLATFORM_PORT_BASE\n"
 )
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 
 import pytest
@@ -9,6 +10,16 @@ import yaml
 
 from ai_model_serving.main_model.boot import render_boot_override
 from scripts.compose import validate_vllm_compose as validator
+
+
+def _interpolate_defaults(value):
+    if isinstance(value, dict):
+        return {key: _interpolate_defaults(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_interpolate_defaults(item) for item in value]
+    if isinstance(value, str):
+        return re.sub(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-([^${}]*)\}", r"\1", value)
+    return value
 
 
 def boot_config(tmp_path, *, utilization="0.76", locked=False):
@@ -29,7 +40,8 @@ def boot_config(tmp_path, *, utilization="0.76", locked=False):
         state_path=state_path,
         env_path=env_path,
     )
-    effective = validator.load_yaml(validator.COMPOSE_PATH)
+    # docker compose config처럼 기본값 보간을 적용한다.
+    effective = _interpolate_defaults(validator.load_yaml(validator.COMPOSE_PATH))
     for service_name, projection in boot["services"].items():
         effective["services"][service_name].update(projection)
     # docker compose config의 effective document는 project identity와 각 named
@@ -227,7 +239,10 @@ def test_preflight_uses_same_boot_file_and_enforces_required_gpu(
     monkeypatch.setattr(preflight, "_docker_compose_available", lambda: True)
     monkeypatch.setattr(preflight, "_show_gpu", lambda: gpu_available)
     monkeypatch.setattr(preflight, "_check_main_gpu_driver", lambda document: gpu_available)
-    monkeypatch.setattr(preflight, "_port_available", lambda *_: True)
+    from scripts.ops.host_ports import PortHolder
+    monkeypatch.setattr(preflight, "port_holders", lambda root, ports: {
+        port: PortHolder("free") for port in ports
+    })
     monkeypatch.setattr(preflight, "_prompt_runtime_effective", lambda: False)
     commands = []
     validated = []

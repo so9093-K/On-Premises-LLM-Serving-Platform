@@ -512,10 +512,11 @@ Generated artifact는 원본 config를 변경한 뒤 다시 생성하는 방식�
 
 | Generated Artifact | 주요 입력 |
 |---|---|
-| `ops/prometheus/prometheus.yml` | `model_catalog.yaml` + `model_serving.yaml` + `monitoring.yaml` |
 | `specs/schemas/model_list_response.schema.json` | Model Registry projection |
 | `specs/openapi.gateway.yaml` | Gateway runtime OpenAPI + contract schema + endpoint spec |
 | `specs/openapi.risk-signal-service.yaml` | Risk Signal Service runtime OpenAPI + contract schema + endpoint spec |
+
+Prometheus 수집 설정은 저장소 산출물이 아니다. 배포 포트 대역을 따르므로 `make up`이 `.runtime/prometheus/`에 생성한다.
 
 generated artifact를 갱신할 때는 다음 명령을 사용한다.
 
