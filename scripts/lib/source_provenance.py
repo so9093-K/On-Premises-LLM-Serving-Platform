@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 # Docker COPY 입력과 해당 이미지의 빌드 제어 파일을 한곳에서 소유한다.
 _DISTRIBUTION_INPUTS = ("LICENSE", "NOTICE")
+# 배포물에 함께 담는 문서다. 로컬 복사본에 없어도 빌드·기동·검증을 막지 않는다(ADR-0062).
+OPTIONAL_DISTRIBUTION_FILES = frozenset({*_DISTRIBUTION_INPUTS, "README.md"})
 _SHARED_CONTROLS = (
     ".dockerignore", "scripts/lib/source_provenance.py",
     "scripts/lib/source_provenance.sh", "scripts/lib/project_image_ownership.sh",

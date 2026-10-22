@@ -24,7 +24,8 @@ def _uv_requirement_fixture(root: Path) -> None:
     )
 
 
-def test_runtime_profile_excludes_quality_dependencies() -> None:
+def test_runtime_profile_excludes_quality_dependencies_without_removing_dev_tools() -> None:
+    """make up은 검증 도구를 설치하지 않지만 setup-dev가 설치한 도구를 지우지도 않는다."""
     command = build_sync_command("uv", Path("/python"), "runtime")
 
     assert command == [
@@ -33,6 +34,7 @@ def test_runtime_profile_excludes_quality_dependencies() -> None:
         "--locked",
         "--no-group",
         "quality",
+        "--inexact",
         "--python",
         "/python",
     ]
