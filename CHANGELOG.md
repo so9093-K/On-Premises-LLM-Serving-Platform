@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-- `make up`은 실제 Runtime Readiness와 필수 Main Chat 가능 여부를 확인하고, 추가 모델별 대표 Smoke는 `make smoke`에서 독립적으로 수행한다. `make build-image`는 제품 이미지를 생성하며 HTTP 동작 검증은 `make image-smoke`가 담당한다. CI에서는 이미지 빌드·HTTP Smoke를 모두 필수로 검사한다. 검증 스크립트만 변경해도 정상 로컬 이미지가 불필요하게 재빌드되지 않는다.
+- `make up`은 선택한 Target의 필수 Readiness로 기동을 판단한다. 일반 전체 스택은 실제 Main Chat 경로도 확인하며, 추가 모델별 대표 Smoke는 독립된 `make smoke`에서 실행한다. `make build-image`는 제품 이미지를 생성하고 `make image-smoke`는 HTTP 동작을 검증한다. CI에서는 두 단계 모두 필수로 확인한다. 검증 스크립트는 이미지 빌드·재사용 지문에 영향을 주지 않는다. 실행 지문의 입력 범위가 변경되므로 기존 로컬 Platform 이미지는 최초 적용 시 한 번 재빌드될 수 있다.
 
 - Playground Chat은 완료된 모델 응답의 제목·목록·코드 등 일부 Markdown을 서식으로 표시하고 원문 보기·복사를 지원한다. HTML·외부 리소스는 실행하지 않고 원본 요청은 보존한다. 대화 기록 삭제 전 확인하며 작성 중인 입력·첨부는 유지한다. 입력 보관 안내는 필요할 때 펼쳐 본다.
 
