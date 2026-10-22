@@ -331,6 +331,8 @@ def safe_request_log_record(
     peer_host = request.client.host if request.client else None
     record = {
         "event": "http_request_completed",
+        # 운영자가 이벤트가 지금의 문제인지 지난 기동의 흔적인지 구분하는 기준이다.
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "service": service,
         "request_id": request_id_for(request),
         "method": request.method,

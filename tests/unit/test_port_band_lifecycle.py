@@ -49,7 +49,10 @@ def test_up_stops_before_any_service_change_when_host_port_is_taken(tmp_path, mo
     )
     monkeypatch.setattr(platform_cli, "setup_target", lambda *args: True)
     import scripts.config.ports as ports
-    monkeypatch.setattr(ports, "host_port_conflicts", lambda values: ["Gateway 9400: 다른 프로세스가 사용 중"])
+    # 9400·9500은 다른 프로그램이 쓰고 9600은 비어 있다.
+    monkeypatch.setattr(ports, "host_port_conflicts", lambda values: (
+        [] if values.get("PLATFORM_PORT_BASE") == "9600" else ["Gateway 9400: 다른 프로세스가 사용 중"]
+    ))
     for step in ("ensure_target_artifacts", "start_core", "up_managed_cpu_first", "prepare_target", "up_target"):
         monkeypatch.setattr(platform_cli, step, lambda *a, _step=step, **k: pytest.fail(f"{_step} ran"))
     target = platform_cli.load_deployment_target(platform_cli.TARGETS_PATH, "linux-nvidia-dynamic")
@@ -60,7 +63,7 @@ def test_up_stops_before_any_service_change_when_host_port_is_taken(tmp_path, mo
     message = str(error.value)
     assert "실행 중인 서비스는 바꾸지 않았습니다" in message
     assert "Gateway 9400: 다른 프로세스가 사용 중" in message
-    assert "make up PORTS=9500" in message
+    assert "make up PORTS=9600" in message
 
 
 def _status(monkeypatch, ready, *, values=None):
@@ -123,3 +126,42 @@ def test_readiness_timeout_reports_each_required_dependency(monkeypatch):
     assert "risk-signal-service: UPSTREAM_UNAVAILABLE (http://risk-signal-service:9605/ready)" in message
     assert "embedding_vllm" not in message
     assert "make logs SERVICE=main-llm-vllm" in message
+
+
+@pytest.mark.parametrize(
+    ("target", "url", "expected"),
+    [
+        # CPU Static의 llama.cpp는 대역 밖 고정 포트에서 수신한다.
+        ("linux-cpu-managed", "http://cpu-main:8080/v1", "http://cpu-main:8080/v1"),
+        # Metal Main은 Host에서 대역 포트로 수신한다.
+        ("macos-metal-static", "http://host.docker.internal:9401/v1", "http://host.docker.internal:9601/v1"),
+    ],
+)
+def test_runtime_host_alignment_only_applies_to_band_ports(target, url, expected):
+    values = {"DEPLOYMENT_TARGET": target, "PLATFORM_PORT_BASE": "9600", "MAIN_MODEL_BASE_URL": url}
+    changes = setup_env.managed_endpoint_changes(values)
+    assert changes.get("MAIN_MODEL_BASE_URL", (url, url))[1] == expected
+
+
+def test_fresh_cpu_static_env_keeps_cpu_runtime_port(tmp_path):
+    out = tmp_path / ".env"
+    assert setup_env.main([
+        "--profile", "compose", "--output", str(out), "--deployment-target", "linux-cpu-managed",
+    ]) == 0
+    _, values = setup_env.parse_env_template(out)
+    assert values["MAIN_MODEL_BASE_URL"] == "http://cpu-main:8080/v1"
+
+
+def test_app_only_rerun_does_not_treat_own_processes_as_conflicts(tmp_path, monkeypatch):
+    import os
+
+    from scripts.config import ports
+    from scripts.ops.host_ports import PortHolder
+
+    monkeypatch.setattr(ports, "ROOT", tmp_path)
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run/gateway.pid").write_text(str(os.getpid()))
+    monkeypatch.setattr(ports, "port_holders", lambda root, mapping: {port: PortHolder("process") for port in mapping})
+    values = {"BUILD_PROFILE": "local", "PLATFORM_PORT_BASE": "9400"}
+    # Gateway는 이 checkout의 프로세스이고 Risk PID 파일은 없다.
+    assert ports.host_port_conflicts(values) == ["Risk 9405: 다른 프로세스가 사용 중 (확인: ss -ltnp 'sport = :9405')"]

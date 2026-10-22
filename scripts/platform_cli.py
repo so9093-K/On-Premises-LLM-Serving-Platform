@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -287,9 +288,11 @@ def _gateway_container_problem(values: dict[str, str]) -> tuple[str, str] | None
         return None
     state = document.get("State", {})
     if not state.get("Running"):
+        if state.get("ExitCode") in (0, None):
+            return f"gateway 컨테이너가 중지돼 있습니다 ({state.get('Status', 'unknown')}).", "make up"
         return (
-            f"gateway 컨테이너가 {state.get('Status', 'unknown')} 상태입니다 (exit {state.get('ExitCode')}).",
-            "make logs SERVICE=gateway",
+            f"gateway 컨테이너가 오류로 종료됐습니다 (exit {state.get('ExitCode')}).",
+            "make logs SERVICE=gateway → make up",
         )
     bindings = (document.get("NetworkSettings", {}).get("Ports") or {}).values()
     published = sorted({
@@ -308,15 +311,16 @@ def _gateway_container_problem(values: dict[str, str]) -> tuple[str, str] | None
 
 def _assert_host_ports_available(values: dict[str, str]) -> None:
     """서비스를 바꾸기 전에 Host 포트를 다른 프로그램이 쓰고 있지 않은지 확인한다."""
-    from scripts.config.ports import host_port_conflicts
+    from scripts.config.ports import host_port_conflicts, suggest_free_base
     conflicts = host_port_conflicts(values)
     if not conflicts:
         return
-    base = load_port_namespace(ROOT, values).base
+    free = suggest_free_base(values, load_port_namespace(ROOT, values).base)
+    hint = f"\n  비어 있는 대역으로 시작하려면: make up PORTS={free}" if free is not None else ""
     raise RuntimeError(
         "Host 포트를 사용할 수 없어 시작하지 않았습니다. 실행 중인 서비스는 바꾸지 않았습니다.\n"
         + "\n".join(f"  {conflict}" for conflict in conflicts)
-        + f"\n  다른 포트 대역으로 시작하려면: make up PORTS={base + 100}"
+        + hint
     )
 
 
@@ -335,6 +339,12 @@ def setup_target(
             "doctor",
         )
     if ENV_PATH.exists():
+        from scripts.config.setup_env import managed_endpoint_changes
+        try:
+            # 동기화 단계의 출력은 성공하면 숨겨지므로 바로잡을 내부 주소를 미리 기록한다.
+            aligned = managed_endpoint_changes(_env_values())
+        except (OSError, RuntimeError, ValueError):
+            aligned = {}
         command = [
             sys.executable,
             "scripts/config/setup_env.py",
@@ -362,6 +372,11 @@ def setup_target(
                     "Review the plan, then rerun with CONFIRM=access."
                 )
                 return False
+        for key, (before, after) in sorted(aligned.items()):
+            print(
+                f"[platform] 포트 대역에 맞춰 {key}의 내부 포트를 바로잡았습니다: "
+                f"{urllib.parse.urlsplit(before).port} → {urllib.parse.urlsplit(after).port}"
+            )
         print(f"[platform] configuration ready: target={target.target_id}")
     else:
         command = [
@@ -752,7 +767,7 @@ def reconcile_up_target(
         write_env(lines, seeded, ENV_PATH)
     if port_base is not None:
         from scripts.config.ports import change_port_base
-        if change_port_base(ENV_PATH, port_base) != 0:
+        if change_port_base(ENV_PATH, port_base, retry_hint="make up PORTS={base}") != 0:
             raise RuntimeError("포트 대역을 바꾸지 않았습니다. 실행 중인 서비스는 그대로입니다.")
     values = _env_values()
     _assert_host_ports_available(values)
@@ -840,6 +855,8 @@ def status_target(target: DeploymentTarget) -> int:
             return 1
         return 0
 
+    # 설정 오류는 일부 상태를 출력하기 전에 알린다.
+    gateway_url = _gateway_base_url(values)
     code, ready = _gateway_json(values, "/ready", admin=True)
     ready_status = ready.get("status") if isinstance(ready, dict) else None
     platform_status = "READY" if code == 200 and ready_status == "ready" else "DEGRADED"
@@ -856,7 +873,7 @@ def status_target(target: DeploymentTarget) -> int:
         gateway_status = "UNAVAILABLE"
     else:
         gateway_status = f"ERROR_HTTP_{code}"
-    print(f"Gateway       {gateway_status}  {_gateway_base_url(values)}")
+    print(f"Gateway       {gateway_status}  {gateway_url}")
 
     if values.get("BUILD_PROFILE") != "local" and code:
         runtime_code, runtime_doc = _gateway_json(values, "/admin/runtimes", admin=True)
@@ -931,6 +948,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--confirm-access", action="store_true")
     parser.add_argument("--port-base", type=int)
     args = parser.parse_args(argv)
+    # 파이프·파일로 받아도 단계 출력과 오류의 순서가 섞이지 않게 한다.
+    sys.stdout.reconfigure(line_buffering=True)
     try:
         if args.confirm_access and not args.access_profile:
             raise RuntimeError("CONFIRM=access requires ACCESS=local|private|edge")
@@ -964,6 +983,10 @@ def main(argv: list[str] | None = None) -> int:
             down_target(target)
         else:
             return status_target(target)
+    except BrokenPipeError:
+        # make status | head처럼 출력을 일부만 읽어도 오류로 보이지 않게 한다.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0
     except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"[platform] ERROR: {exc}", file=sys.stderr)
         return 2

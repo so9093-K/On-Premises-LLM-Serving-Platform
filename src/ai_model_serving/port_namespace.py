@@ -40,10 +40,11 @@ HOST_PORT_OVERRIDES = {
 
 
 def validate_port_base(value: int, offsets: Mapping[str, int]) -> int:
-    if value < 1100 or value % 100 != 0 or value + max(offsets.values()) > 65535:
+    highest = (65535 - max(offsets.values())) // 100 * 100
+    if value < 1100 or value % 100 != 0 or value > highest:
         raise ValueError(
-            "포트 대역은 1100 이상, 100 단위의 시작 번호여야 합니다 "
-            f"(마지막 포트 {max(offsets.values())}번 offset이 65535를 넘지 않아야 함)"
+            f"포트 대역 {value}은 사용할 수 없습니다. "
+            f"1100~{highest} 사이의 100 단위 값을 지정하세요 (예: 9400, 9600)"
         )
     return value
 
@@ -110,8 +111,11 @@ def parse_port_base(raw: str, offsets: Mapping[str, int], default: int) -> int:
     if not value:
         return default
     if not value.isdecimal():
-        raise ValueError(f"{PORT_BASE_ENV}={raw!r}는 정수여야 합니다")
-    return validate_port_base(int(value), offsets)
+        raise ValueError(f".env의 {PORT_BASE_ENV}={raw}: 100 단위 숫자를 지정하세요 (예: 9400, 9600)")
+    try:
+        return validate_port_base(int(value), offsets)
+    except ValueError as exc:
+        raise ValueError(f".env의 {PORT_BASE_ENV}={value}: {exc}") from exc
 
 
 def port_namespace_from_services(
