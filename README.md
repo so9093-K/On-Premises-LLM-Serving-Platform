@@ -24,8 +24,7 @@ make status
 | 내 환경 | `TARGET` |
 |---|---|
 | GPU·모델 없이 기본 서비스만 (Gateway·Control Plane·PII/Secret Risk) | `linux-core` |
-| Linux, CPU/GPU 자동 선택 | `auto` |
-| Linux + NVIDIA, 플랫폼 관리형 vLLM | `linux-nvidia-dynamic` |
+| Linux, GPU 우선·CPU 복구 (GPU 복귀는 수동) | `auto` |
 | macOS Apple Silicon (MLX-VLM) | `macos-metal-static` |
 
 외부 llama.cpp·관리형 CPU·외부 vLLM 연결은 [배포 환경](#deployment-targets)과 [빠른 시작 가이드](docs/guides/getting-started.md#1-실행-환경-선택)를 참고하세요.

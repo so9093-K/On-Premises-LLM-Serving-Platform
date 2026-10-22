@@ -67,9 +67,10 @@ def test_policy_change_preserves_supporting_features_and_survives_restart(tmp_pa
     asyncio.run(scenario())
 
 
-def test_cpu_core_remain_available_without_gpu_artifact_or_observation(tmp_path):
+@pytest.mark.parametrize("mode", ["automatic", "fallback"])
+def test_cpu_core_remain_available_without_gpu_artifact_or_observation(tmp_path, mode):
     async def scenario():
-        controller = app(tmp_path, image="not-built:local", resources=UNKNOWN)
+        controller = app(tmp_path, mode, image="not-built:local", resources=UNKNOWN)
         await controller._run_initialize()
         for now in (0, 30, 60):
             await controller._adaptive_control.step(now=now)

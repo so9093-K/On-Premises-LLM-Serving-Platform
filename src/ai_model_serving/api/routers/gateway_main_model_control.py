@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ...main_model.execution_policy import EXECUTION_POLICIES
+
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -308,7 +310,7 @@ def build_router(
                                     "description": "configs/main_model_profiles.yaml의 profile ID",
                                 },
                                 "confirm_unverified": {"type": "boolean", "default": False},
-                                "execution_policy": {"type": "string", "enum": ["automatic", "cpu", "gpu"]},
+                                "execution_policy": {"type": "string", "enum": list(EXECUTION_POLICIES)},
                                 "request_id": {
                                     "type": "string",
                                     "minLength": 1,
@@ -333,7 +335,7 @@ def build_router(
                 f"unsupported fields: {sorted(unknown)}",
                 param=sorted(unknown)[0],
             )
-        if "execution_policy" in payload and payload["execution_policy"] not in ("automatic", "cpu", "gpu"):
+        if "execution_policy" in payload and payload["execution_policy"] not in EXECUTION_POLICIES:
             raise ServiceError("VALIDATION_ERROR", "invalid execution_policy", param="execution_policy")
         client = await require_runtime_controller()
         try:

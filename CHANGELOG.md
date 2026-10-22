@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 관리형 Linux의 기본 실행 정책은 GPU 우선·CPU 복구이며 GPU 복귀는 수동이다. 기존 영속 정책은 보존하며 Console에서 검토·변경한다. 실제 이미지의 CUDA/Driver 하한은 GPU 기동 전에 검사하고, CPU 템플릿은 자원 Admission 전에 GPU로 교체하지 않는다.
+
 ### Changed
 
 - vLLM 0.30.0의 CUDA 12.9 후보를 명시적으로 빌드할 수 있다. CUDA 의존성은 해시 lock으로 고정하고 패키지 일치·CUDA 연산·Triton JIT를 검증한다. 기본 CUDA 13.0 이미지와 운영 설정은 기존 참조를 유지한다. Docker 빌드에서 중첩 모델 캐시·인증 파일도 제외한다.

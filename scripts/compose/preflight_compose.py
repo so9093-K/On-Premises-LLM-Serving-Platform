@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -27,6 +28,7 @@ from ai_model_serving.main_model.boot import (  # noqa: E402
     render_boot_override,
     resolve_compose_relative_path,
 )
+from ai_model_serving.main_model.gpu_compatibility import driver_compatibility_error  # noqa: E402
 from ai_model_serving.auth_control import (  # noqa: E402
     auth_profile_network_mismatch,
     local_only_host_bind_mismatches,
@@ -256,6 +258,30 @@ def _gpu_services(document: dict[str, Any]) -> list[str]:
     return required
 
 
+def _check_main_gpu_driver(document: dict[str, Any]) -> bool:
+    """고정 GPU 기동도 실제 이미지의 드라이버 하한을 컨테이너 생성 전에 검사한다."""
+    image = document.get("services", {}).get("main-llm-vllm", {}).get("image")
+    if not image:
+        _fail("Main GPU 이미지가 없습니다")
+        return False
+    inspected = _run_status(["docker", "image", "inspect", "--format", "{{json .}}", image], capture=True)
+    drivers = _run_status(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"], capture=True)
+    try:
+        metadata = json.loads(inspected.stdout)
+        if inspected.returncode or drivers.returncode or not isinstance(metadata, dict):
+            raise ValueError("GPU metadata unavailable")
+        versions = drivers.stdout.splitlines()
+        errors = [driver_compatibility_error(metadata, version.strip()) for version in versions]
+        if not versions or any(errors):
+            error = next((error for error in errors if error), "GPU_DRIVER_COMPATIBILITY_UNKNOWN")
+            _fail(f"{error}: 선택한 GPU 이미지와 현재 드라이버의 실행 조건이 맞지 않습니다. Core는 유지됩니다. Console → 메인 모델에서 GPU 우선 · CPU 복구 또는 CPU 고정을 선택하세요.")
+            return False
+    except (ValueError, TypeError):
+        _fail("GPU_DRIVER_COMPATIBILITY_UNKNOWN: GPU 기동 전에 선택한 이미지의 CUDA 정보와 NVIDIA 드라이버를 확인하세요")
+        return False
+    return True
+
+
 def _compose_owned_ports(
     compose_args: list[str], env_file: str, project_name: str
 ) -> set[str]:
@@ -370,6 +396,8 @@ def _phase2(*, boot_override: Path) -> int:
             if gpu_services:
                 print("[preflight] effective Compose requires GPU: " + ", ".join(gpu_services))
                 if not _show_gpu():
+                    fail = True
+                elif "main-llm-vllm" in gpu_services and not _check_main_gpu_driver(effective_document):
                     fail = True
             else:
                 print("[preflight] effective Compose requires no GPU")

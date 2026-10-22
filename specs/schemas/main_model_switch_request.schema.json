@@ -24,11 +24,12 @@
     "execution_policy": {
       "type": "string",
       "enum": [
+        "fallback",
         "automatic",
         "cpu",
         "gpu"
       ],
-      "description": "자동 선택은 CPU부터 검증하며, cpu/gpu는 선택한 엔진을 유지합니다."
+      "description": "fallback은 GPU 우선·CPU 복구 후 GPU 복귀는 수동, automatic은 CPU/GPU 자동 전환, cpu/gpu는 엔진 고정입니다."
     }
   }
 }

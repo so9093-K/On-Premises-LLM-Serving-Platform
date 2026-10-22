@@ -308,6 +308,7 @@ def test_main_start_applies_only_the_reviewed_gpu_evictions(tmp_path, monkeypatc
     # Profile 변경과 달리 명시적 force로 검토한 Victim만 퇴거할 수 있다.
     import json
 
+    monkeypatch.setenv("MAIN_MODEL_EXECUTION_POLICY", "gpu")
     controller = _load_runtime_controller(tmp_path, monkeypatch)
     victim = next(iter(controller.CONTROLLABLE))
     monkeypatch.setattr(controller, "_VRAM_FRACTION", {victim: 0.50})

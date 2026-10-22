@@ -255,7 +255,7 @@ def test_model_preparation_failure_keeps_core_started(monkeypatch, target_id):
     calls = []
     target = cli.load_deployment_target(cli.TARGETS_PATH, target_id)
     monkeypatch.setattr(cli, "setup_target", lambda *args: True)
-    monkeypatch.setattr(cli, "_env_values", lambda: {"BUILD_PROFILE": "compose"})
+    monkeypatch.setattr(cli, "_env_values", lambda: {"BUILD_PROFILE": "compose", "MAIN_MODEL_EXECUTION_POLICY": "gpu"})
     monkeypatch.setattr(
         cli, "ensure_target_artifacts", lambda *args, **kwargs: calls.append("image")
     )

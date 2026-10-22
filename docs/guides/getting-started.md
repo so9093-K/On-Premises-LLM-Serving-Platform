@@ -22,15 +22,16 @@ ZIP으로 준비하려면 GitHub의 **Code → Download ZIP**으로 내려받아
 | Linux · GPU·모델 없이 기본 서비스 | `linux-core` | Python 3.12–3.13, uv, Docker | 모델 Runtime 없음. Gateway·Control Plane·Scalar·PII/Secret Risk만 실행 |
 | Linux · 관리형 CPU 모델 | `linux-nvidia-dynamic POLICY=cpu` | Python 3.12–3.13, uv, Docker, 모델 다운로드용 네트워크와 RAM·디스크 여유 | 플랫폼이 고정 GGUF와 llama.cpp CPU 컨테이너 관리, `unverified` |
 | Linux · 외부 llama.cpp CPU 서버 | `linux-cpu-static` | Python 3.12–3.13, uv, Docker, 실행 중인 CPU-only `llama-server` | Main lifecycle은 외부 관리, `unverified` |
-| Linux · CPU/GPU 자동 선택 | 최초 `auto` 또는 `linux-nvidia-dynamic POLICY=auto` | Python 3.12–3.13, uv, Docker, CPU 여유 RAM 4 GiB 이상; GPU 사용 시 Driver·Toolkit·모델 권한 | [CPU 복구·GPU 복귀](adaptive-runtime.md) |
-| Linux amd64 + NVIDIA | `linux-nvidia-dynamic` | Python 3.12–3.13, uv, Docker, NVIDIA driver·Container Toolkit, Bash 4+ | 플랫폼이 vLLM lifecycle과 GPU admission 관리 |
+| Linux · GPU 우선·CPU 복구 | `auto` 또는 `linux-nvidia-dynamic` | Python 3.12–3.13, uv, Docker, CPU 여유 RAM 4 GiB 이상; GPU 사용 시 Driver·Toolkit·모델 권한 | [CPU 복구·수동 GPU 복귀](adaptive-runtime.md) |
+| Linux amd64 · 특정 GPU 모델 고정 | `linux-nvidia-dynamic POLICY=gpu` | Python 3.12–3.13, uv, Docker, NVIDIA driver·Container Toolkit, Bash 4+ | 플랫폼이 vLLM lifecycle과 GPU admission 관리 |
 | Apple Silicon | `macos-metal-static` | Python 3.13.12, uv, Docker, 모델에 충분한 unified memory | native MLX-VLM, Main lifecycle은 외부 관리 |
 | Linux + 이미 실행 중인 외부 Main | `linux-nvidia-static` | Python 3.12–3.13, uv, Docker, 접근 가능한 Main endpoint와 맞는 profile | Main lifecycle은 외부 관리; target qualification은 `unverified` |
 
 전체 기능과 선언은 [Deployment Target](../../configs/deployment_targets.yaml)이 소유합니다.
 모든 Target은 PII·Secret Risk를, 모델 Runtime이 있는 Target은 Chat/Responses를 제공하고,
 Embedding·Retrieval·모델 기반 Prompt Injection Detector는 `linux-nvidia-dynamic`의 범위입니다.
-Main 실행 정책은 Console에서 자동·CPU 고정·GPU 고정으로 선택하며 기능 구성은 유지됩니다.
+Main 실행 정책의 기본값은 GPU 우선·CPU 복구입니다. CPU 복구 후 GPU 복귀는 수동이며,
+Console에서 CPU 고정 또는 고급 선택인 자동 전환·GPU 고정으로 변경할 수 있습니다.
 리소스 정책에 따라 일부 supporting Runtime은 제외될 수 있습니다.
 
 Linux에서는 다음으로 장치와 Docker 접근을 먼저 확인합니다.
@@ -53,7 +54,7 @@ GPU가 보인다는 것만으로 모델이 메모리에 들어가는 것은 아�
 
 예를 들어 **RTX 4090 24GB에서 E4B를 처음 설치**한다면, 기존 `.env`가 없는 상태에서
 아래처럼 환경을 생성하고 편집기로 `.env`의 `MAIN_MODEL_RESOURCE_VARIANT` 값을
-`rtx4090-24gb`로 설정한 뒤 다음 단계로 진행합니다. 다른 GPU에 같은 variant를 무조건 적용하지 않습니다.
+`rtx4090-24gb`, `MAIN_MODEL_EXECUTION_POLICY`를 `gpu`로 설정한 뒤 다음 단계로 진행합니다. 다른 GPU에 같은 variant를 무조건 적용하지 않습니다.
 
 ```bash
 make setup-dev
@@ -116,7 +117,7 @@ make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local
 
 플랫폼이 고정된 Qwen3 0.6B GGUF를 다운로드하고 SHA-256으로 검증한 뒤 CPU-only llama.cpp 컨테이너를
 실행합니다. GPU나 CUDA는 필요하지 않습니다. 서버 실추론 Qualification 전까지 `unverified`이며
-GPU 모델로의 자동 전환은 [실행 정책](adaptive-runtime.md)의 자동 선택을 사용합니다.
+GPU 사용과 CPU 복구는 [실행 정책](adaptive-runtime.md)에서 선택합니다. 기본 정책의 GPU 복귀는 수동입니다.
 
 외부 llama.cpp CPU 서버를 연결한다면, 먼저 CPU-only `llama-server`를 실행하고 Gateway가 접근할 수 있는 주소를 지정합니다:
 

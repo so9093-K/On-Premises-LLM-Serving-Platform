@@ -11,6 +11,7 @@ from typing import Awaitable, Callable
 
 from ..host_resource_probe import HostResourceSnapshot
 from .adaptive_gpu import AdaptiveGpuPolicies
+from .execution_policy import RECOVERING_POLICIES
 from .control import MainModelManager, MainModelSwitchError
 
 _TERMINAL = {"completed", "failed", "rollback_failed"}
@@ -76,7 +77,8 @@ class AdaptiveMainModelControl:
         now = time.time() if now is None else now
         state = self.manager.state_store.read()
         selection = dict(state.get("runtime_selection") or {})
-        if selection.get("mode", "automatic") != "automatic":
+        mode = selection.get("mode", "automatic")
+        if mode not in RECOVERING_POLICIES:
             return
         operation = state.get("last_operation") or {}
         if operation and operation.get("status") not in _TERMINAL:
@@ -90,9 +92,16 @@ class AdaptiveMainModelControl:
                 if operation.get("requested_profile") == self.policy["gpu_profile"]
                 else "cpu_retry_at"
             )
+            failure = {}
+            if retry_key == "gpu_retry_at":
+                error = operation.get("error")
+                failure["gpu_condition"] = error if error in {
+                    "GPU_DRIVER_INCOMPATIBLE", "GPU_DRIVER_COMPATIBILITY_UNKNOWN",
+                } else "GPU_START_FAILED"
             self._record(
                 last_failed_operation=operation["id"],
                 **{retry_key: now + self.policy["failure_cooldown_seconds"]},
+                **failure,
             )
             selection = dict(self.manager.state_store.read()["runtime_selection"])
         if state.get("runtime_state") == "stopped":
@@ -124,6 +133,8 @@ class AdaptiveMainModelControl:
             healthy = False
         cpu = profile.runtime_backend == "llama-cpp"
         if not cpu:
+            if mode == "fallback":
+                self._record(gpu_attempted=True)
             # 실행 중인 GPU의 메모리는 자기 모델이 이미 사용한다. 시작 예약량과 비교하지 않는다.
             gpu_uuid = runtime.get("gpu_device_uuid")
             device = next(
@@ -180,6 +191,8 @@ class AdaptiveMainModelControl:
                 await self.manager.reconcile_if_restarted()
             except Exception:
                 self._record(healthy_samples=0, reason_code="GPU_REVALIDATION_FAILED")
+                self._record(gpu_condition="GPU_REVALIDATION_FAILED")
+                await self._switch_cpu(now, selection, "GPU_REVALIDATION_FAILED")
                 return
             if self.manager.state_store.read().get("gate") == "open":
                 self._record(
@@ -193,6 +206,9 @@ class AdaptiveMainModelControl:
             await self._switch_cpu(now, selection, "CPU_RUNTIME_UNAVAILABLE")
             return
         await self.manager.reconcile_if_restarted()
+        if mode == "fallback" and selection.get("gpu_attempted"):
+            self._record(reason_code="CPU_FALLBACK_ACTIVE", healthy_samples=0)
+            return
         candidate, blocked_reason = self.gpu_policies.choose(observed)
         fits = candidate is not None and blocked_reason is None
         candidate_view = (
@@ -215,6 +231,10 @@ class AdaptiveMainModelControl:
             else 0
         )
         self._record(gpu_candidate=candidate_view)
+        if mode == "fallback" and not fits and blocked_reason not in {
+            "GPU_OBSERVATION_UNAVAILABLE", "GPU_ARTIFACT_UNAVAILABLE",
+        }:
+            self._record(gpu_attempted=True, gpu_condition=blocked_reason)
         reason = "GPU_RECOVERY_PENDING" if fits else blocked_reason
         if observed.gpu_observation_error:
             reason = "GPU_OBSERVATION_UNAVAILABLE"
@@ -232,12 +252,14 @@ class AdaptiveMainModelControl:
                 try:
                     await self.admit_gpu(candidate.profile.vram_fraction)
                 except Exception:
-                    self._record(reason_code="GPU_BUDGET_BLOCKED", healthy_samples=0)
+                    self._record(reason_code="GPU_BUDGET_BLOCKED", healthy_samples=0,
+                                 **({"gpu_attempted": True, "gpu_condition": "GPU_BUDGET_BLOCKED"} if mode == "fallback" else {}))
                     return
             self._record(
                 reason_code="GPU_RECOVERY_VALIDATION",
                 healthy_samples=0,
                 last_activation_at=now,
+                **({"gpu_attempted": True} if mode == "fallback" else {}),
             )
             self.manager.catalog.profiles[candidate.profile.profile_id] = (
                 candidate.profile
