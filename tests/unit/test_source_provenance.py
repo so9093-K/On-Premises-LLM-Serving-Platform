@@ -230,23 +230,34 @@ def test_runtime_manifests_cover_docker_copy_sources(monkeypatch, artifact, dock
     assert vllm_image._dockerfile_local_copy_sources() <= set(provenance.input_paths(artifact))
 
 
-def test_platform_smoke_affects_build_provenance_not_runtime_identity(tmp_path):
-    """검증 스크립트만 바뀌거나 없어져도 기존 실행 이미지는 재사용한다."""
+def test_platform_smoke_is_not_a_build_or_runtime_dependency(tmp_path, monkeypatch):
+    """검증 스크립트의 변경·누락·읽기 장애는 이미지 출처와 실행 해시에 무관하다."""
     fixture_source(tmp_path)
     script = tmp_path / "scripts/build/smoke_platform_image.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
 
-    before_runtime = provenance.runtime_digest(tmp_path, "platform")
-    before_source = provenance.source_digest(tmp_path, "platform")
+    before = provenance.read_source_provenance(tmp_path, "platform")
     assert "scripts/build/smoke_platform_image.sh" not in provenance.input_paths("platform")
-    assert "scripts/build/smoke_platform_image.sh" in provenance.input_paths("platform", distribution=True)
+    assert "scripts/build/smoke_platform_image.sh" not in provenance.input_paths("platform", distribution=True)
 
     script.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
-    assert provenance.runtime_digest(tmp_path, "platform") == before_runtime
-    assert provenance.source_digest(tmp_path, "platform") != before_source
+    original_open = Path.open
+
+    def no_smoke_read(path, *args, **kwargs):
+        if path == script:
+            pytest.fail("이미지 빌드에서 검증 스크립트를 읽었습니다")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", no_smoke_read)
+    changed = provenance.read_source_provenance(tmp_path, "platform")
+    assert changed.digest == before.digest
+    assert changed.runtime_digest == before.runtime_digest
+
     script.unlink()
-    assert provenance.runtime_digest(tmp_path, "platform") == before_runtime
+    removed = provenance.read_source_provenance(tmp_path, "platform")
+    assert removed.digest == before.digest
+    assert removed.runtime_digest == before.runtime_digest
 
 
 def test_startup_and_image_build_do_not_require_smoke_scripts():

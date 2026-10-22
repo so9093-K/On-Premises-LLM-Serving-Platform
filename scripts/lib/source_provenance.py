@@ -46,8 +46,7 @@ def input_paths(artifact: str, *, distribution: bool = False) -> tuple[str, ...]
     if distribution:
         paths += _DISTRIBUTION_INPUTS
         if artifact == "platform":
-            # 이미지 실행에는 불필요한 HTTP Smoke도 출처 기록에는 포함한다.
-            paths += ("README.md", "scripts/build/smoke_platform_image.sh")
+            paths += ("README.md",)
         else:
             paths += ("VERSION",)
     return paths
