@@ -40,7 +40,7 @@ from scripts.build.pin_local_vllm_image import (  # noqa: E402
     resolve_local_image_id,
 )
 from scripts.ops.step_progress import format_elapsed, run_with_progress  # noqa: E402
-from scripts.lib.source_provenance import SourceProvenance, read_source_provenance  # noqa: E402
+from scripts.lib.source_provenance import runtime_digest  # noqa: E402
 
 TARGETS_PATH = ROOT / "configs" / "deployment_targets.yaml"
 SERVICES_PATH = ROOT / "configs" / "services.yaml"
@@ -301,11 +301,7 @@ def _registry_digest(image: str) -> bool:
     return "@sha256:" in image
 
 
-def _source_provenance() -> SourceProvenance:
-    return read_source_provenance(ROOT)
-
-
-def _local_image_matches_source(image: str) -> bool:
+def _local_image_matches_source(image: str, artifact: str = "platform") -> bool:
     if not image or _registry_digest(image):
         return False
     inspected = subprocess.run(
@@ -323,40 +319,32 @@ def _local_image_matches_source(image: str) -> bool:
         return False
     if not isinstance(labels, dict):
         return False
-    source = _source_provenance()
-    if labels.get("ai_model_serving.source_digest") != source.digest:
-        return False
-    if source.state == "local":
-        return True
-    if source.state != "clean":
-        return False
     return (
-        labels.get("org.opencontainers.image.revision") == source.revision
-        and labels.get("ai_model_serving.source_state") == "clean"
+        labels.get("ai_model_serving.artifact") == artifact
+        and labels.get("ai_model_serving.runtime_digest") == runtime_digest(ROOT, artifact)
     )
 
 
-def ensure_target_artifacts(target: DeploymentTarget, *, include_runtime: bool = True) -> None:
+def ensure_target_artifacts(target: DeploymentTarget, *, include_runtime: bool = True,
+                            include_platform: bool = True) -> None:
     values = _env_values()
-    refs: list[tuple[str, str]] = [("Platform image", values.get("PLATFORM_IMAGE", ""))]
+    refs: list[tuple[str, str, str]] = []
+    if include_platform:
+        refs.append(("Platform image", "platform", values.get("PLATFORM_IMAGE", "")))
     if target.controllable and include_runtime:
-        refs.append(("Unified vLLM image", values.get("VLLM_IMAGE", "")))
+        refs.append(("Unified vLLM image", "vllm-unified", values.get("VLLM_IMAGE", "")))
 
-    stale = False
-    for label, image in refs:
+    stale: set[str] = set()
+    for label, artifact, image in refs:
         if _registry_digest(image):
             print(f"[platform] ✓ {label}: external immutable digest")
-            continue
-        if _local_image_matches_source(image):
-            print(f"[platform] ✓ {label}: current local source")
-            continue
-        stale = True
+        elif _local_image_matches_source(image, artifact):
+            print(f"[platform] ✓ {label}: current runtime inputs")
+        else:
+            stale.add(artifact)
 
     if stale:
-        if include_runtime:
-            build_target(target)
-        else:
-            build_target(target, include_runtime=False)
+        build_target(target, include_platform="platform" in stale, include_runtime="vllm-unified" in stale)
     else:
         print(f"[platform] ✓ Build artifacts: target={target.target_id}")
 
@@ -491,7 +479,7 @@ def up_adaptive_target(target: DeploymentTarget) -> None:
     if read_host_resource_snapshot().gpus:
         try:
             # GPU 이미지 준비 실패는 CPU 서빙과 Core 생존의 실패로 전파하지 않는다.
-            build_target(target, include_platform=False)
+            ensure_target_artifacts(target, include_platform=False)
             _static_compose(target, "Loading GPU artifact policy", "up", "-d", "--no-deps", "runtime-controller")
             _static_compose(target, "Starting GPU resource observation", "--profile", "gpu-observation", "up", "-d", "--no-deps", "resource-observer")
         except (OSError, RuntimeError, subprocess.CalledProcessError):

@@ -10,7 +10,6 @@ import pytest
 from ai_model_serving import service_logging
 from scripts import platform_cli
 from scripts.ops import platform_logs
-from scripts.lib.source_provenance import SourceProvenance
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,23 +61,20 @@ def test_invalid_log_level_fails_configuration(monkeypatch: pytest.MonkeyPatch) 
         service_logging.service_logger("operator-surface-invalid")
 
 
-def test_local_image_match_requires_current_clean_revision(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_image_reuse_depends_on_runtime_inputs_instead_of_git(monkeypatch) -> None:
     class Result:
         returncode = 0
         stdout = (
-            '{"org.opencontainers.image.revision":"abc",'
-            '"ai_model_serving.source_digest":"sha256:content",'
-            '"ai_model_serving.source_state":"clean"}'
+            '{"org.opencontainers.image.revision":"older",'
+            '"ai_model_serving.source_state":"dirty",'
+            '"ai_model_serving.artifact":"platform",'
+            '"ai_model_serving.runtime_digest":"sha256:content"}'
         )
 
     monkeypatch.setattr(platform_cli.subprocess, "run", lambda *args, **kwargs: Result())
-    monkeypatch.setattr(platform_cli, "_source_provenance", lambda: SourceProvenance("abc", "clean", "sha256:content"))
-
+    monkeypatch.setattr(platform_cli, "runtime_digest", lambda *args: "sha256:content")
     assert platform_cli._local_image_matches_source("sha256:local") is True
-
-    monkeypatch.setattr(platform_cli, "_source_provenance", lambda: SourceProvenance("abc", "dirty", "sha256:content"))
+    monkeypatch.setattr(platform_cli, "runtime_digest", lambda *args: "sha256:changed")
     assert platform_cli._local_image_matches_source("sha256:local") is False
 
 

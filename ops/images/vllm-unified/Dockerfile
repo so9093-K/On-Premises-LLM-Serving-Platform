@@ -156,4 +156,10 @@ PY
 
 # 문서 변경이 위의 무거운 dependency·patch layer를 무효화하지 않게 마지막에 둔다.
 # Base image와 설치된 dependency는 각각의 원 라이선스를 유지한다.
-COPY LICENSE NOTICE /usr/share/licenses/ai-model-serving-platform/
+RUN --mount=type=bind,target=/build-source \
+    mkdir -p /usr/share/licenses/ai-model-serving-platform \
+    && for file in LICENSE NOTICE; do \
+         if [ -f "/build-source/$file" ]; then \
+           cp "/build-source/$file" /usr/share/licenses/ai-model-serving-platform/; \
+         fi; \
+       done

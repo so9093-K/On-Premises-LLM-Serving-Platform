@@ -41,7 +41,7 @@ VLLM_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py
 TRANSFORMERS_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key transformers)"
 HUGGINGFACE_HUB_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key huggingface_hub)"
 source scripts/lib/source_provenance.sh
-read_source_provenance
+read_source_provenance vllm-unified
 
 echo "[vllm-unified-image] building ${IMAGE}"
 echo "[vllm-unified-image] source=${SOURCE_STATE} digest=${SOURCE_DIGEST} target=${TARGET_PLATFORM}"
@@ -66,6 +66,7 @@ build_args=(
   --label "org.opencontainers.image.version=${VERSION}"
   --label "ai_model_serving.source_state=${SOURCE_STATE}"
   --label "ai_model_serving.source_digest=${SOURCE_DIGEST}"
+  --label "ai_model_serving.runtime_digest=${SOURCE_RUNTIME_DIGEST}"
   --label "ai_model_serving.build_platform=${TARGET_PLATFORM}"
   --label "ai_model_serving.vllm_version=${VLLM_VERSION}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"

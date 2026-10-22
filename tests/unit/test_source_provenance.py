@@ -96,11 +96,10 @@ def test_identity_changes_with_file_content_addition_deletion_and_executable_mod
 
 @pytest.mark.parametrize("label_digest", [None, "sha256:stale", "sha256:matching"])
 def test_local_source_reuses_only_matching_content(monkeypatch, label_digest):
-    labels = {"ai_model_serving.source_digest": label_digest}
+    labels = {"ai_model_serving.runtime_digest": label_digest, "ai_model_serving.artifact": "platform"}
     monkeypatch.setattr(platform_cli.subprocess, "run", lambda *args, **kwargs:
                         subprocess.CompletedProcess(args[0], 0, stdout=json.dumps(labels), stderr=""))
-    monkeypatch.setattr(platform_cli, "_source_provenance", lambda:
-                        provenance.SourceProvenance("", "local", "sha256:matching"))
+    monkeypatch.setattr(platform_cli, "runtime_digest", lambda *args: "sha256:matching")
     assert platform_cli._local_image_matches_source("local:image") is (label_digest == "sha256:matching")
 
 
@@ -117,11 +116,11 @@ def test_bash_and_python_share_content_identity_without_a_git_binary(tmp_path):
     expected = provenance.read_source_provenance(tmp_path)
     result = subprocess.run(
         [shutil.which("bash"), "-c", 'set -euo pipefail; source scripts/lib/source_provenance.sh; '
-         'read_source_provenance; printf "%s\\t%s\\t%s\\n" "$SOURCE_REVISION" "$SOURCE_STATE" "$SOURCE_DIGEST"'],
+         'read_source_provenance; printf "%s\\t%s\\t%s\\t%s\\n" "$SOURCE_REVISION" "$SOURCE_STATE" "$SOURCE_DIGEST" "$SOURCE_RUNTIME_DIGEST"'],
         cwd=tmp_path, env={**os.environ, "PYTHON_BIN": sys.executable, "PATH": str(tools)},
         capture_output=True, text=True, check=True,
     )
-    assert result.stdout.rstrip("\n").split("\t") == [expected.revision, expected.state, expected.digest]
+    assert result.stdout.rstrip("\n").split("\t") == [expected.revision, expected.state, expected.digest, expected.runtime_digest]
     assert result.stderr == ""
 
 
@@ -135,3 +134,95 @@ def test_invalid_build_input_reports_a_short_actionable_error(tmp_path, monkeypa
     assert "소스 파일 확인 실패" in output.err
     assert "파일 형식과 읽기 권한" in output.err
     assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize("artifact", ["platform", "vllm-unified"])
+def test_document_edits_and_removal_preserve_runtime_identity(tmp_path, artifact):
+    """배포 표기 파일은 출처에 기록하되 로컬 기동의 필수 입력이 아니다."""
+    fixture_source(tmp_path)
+    initial = provenance.runtime_digest(tmp_path, artifact)
+    distribution = provenance.source_digest(tmp_path, artifact)
+    for filename in ("LICENSE", "NOTICE", "README.md"):
+        path = tmp_path / filename
+        path.write_text("distribution text\n")
+        assert provenance.runtime_digest(tmp_path, artifact) == initial
+    assert provenance.source_digest(tmp_path, artifact) != distribution
+    (tmp_path / "LICENSE").write_text("updated license\n")
+    (tmp_path / "NOTICE").unlink()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/review.md").write_text("review note\n")
+    assert provenance.runtime_digest(tmp_path, artifact) == initial
+    (tmp_path / "LICENSE").unlink()
+    (tmp_path / "README.md").unlink()
+    assert provenance.runtime_digest(tmp_path, artifact) == initial
+    assert provenance.source_digest(tmp_path, artifact) == distribution
+
+
+def test_runtime_identity_does_not_read_distribution_files_or_git(tmp_path, monkeypatch):
+    fixture_source(tmp_path)
+    (tmp_path / "LICENSE").write_text("license\n")
+    (tmp_path / ".git").mkdir()
+    original_open = Path.open
+
+    def open_runtime_only(path, *args, **kwargs):
+        if path.name in {"LICENSE", "NOTICE", "README.md"}:
+            pytest.fail("기동이 배포 문서를 읽었습니다")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_runtime_only)
+    monkeypatch.setattr(provenance.subprocess, "run", lambda *args, **kwargs: pytest.fail("Git 조회"))
+    assert provenance.runtime_digest(tmp_path).startswith("sha256:")
+
+
+@pytest.mark.parametrize("path,affected", [
+    ("src/app.py", {"platform"}),
+    ("src/static/console.js", {"platform"}),
+    ("configs/model_serving.yaml", {"platform"}),
+    ("specs/schemas/chat.json", {"platform"}),
+    ("pyproject.toml", {"platform"}),
+    ("uv.lock", {"platform"}),
+    ("ops/patches/apply_gemma4_multimodal_patches.py", {"vllm-unified"}),
+    ("ops/images/vllm-unified/requirements.media.lock", {"vllm-unified"}),
+    ("configs/vllm_unified_build.yaml", {"platform", "vllm-unified"}),
+    ("scripts/ops/down_all.sh", set()),
+    ("ui/control-plane/src/App.tsx", set()),
+])
+def test_runtime_changes_invalidate_only_consuming_images(tmp_path, path, affected):
+    fixture_source(tmp_path)
+    before = {artifact: provenance.runtime_digest(tmp_path, artifact) for artifact in provenance.ARTIFACT_INPUTS}
+    file = tmp_path / path
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text("changed runtime input\n")
+    changed = {artifact for artifact, digest in before.items()
+               if provenance.runtime_digest(tmp_path, artifact) != digest}
+    assert changed == affected
+
+
+@pytest.mark.parametrize("variable,artifact", [
+    ("VLLM_BASE_IMAGE", "vllm-unified"), ("PLATFORM_BUILD_PLATFORM", "platform"),
+])
+def test_build_overrides_are_runtime_inputs(tmp_path, monkeypatch, variable, artifact):
+    fixture_source(tmp_path)
+    monkeypatch.delenv(variable, raising=False)
+    initial = provenance.runtime_digest(tmp_path, artifact)
+    monkeypatch.setenv(variable, "different-build-input")
+    assert provenance.runtime_digest(tmp_path, artifact) != initial
+
+
+def test_image_artifact_label_must_match(monkeypatch):
+    labels = {"ai_model_serving.artifact": "vllm-unified", "ai_model_serving.runtime_digest": "matching"}
+    monkeypatch.setattr(platform_cli.subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], 0, stdout=json.dumps(labels)))
+    monkeypatch.setattr(platform_cli, "runtime_digest", lambda *args: "matching")
+    assert not platform_cli._local_image_matches_source("local:image", "platform")
+
+
+@pytest.mark.parametrize("artifact,dockerfile", [
+    ("platform", "Dockerfile"), ("vllm-unified", "ops/images/vllm-unified/Dockerfile"),
+])
+def test_runtime_manifests_cover_docker_copy_sources(monkeypatch, artifact, dockerfile):
+    """COPY 추가에 대응하지 않은 재사용 해시가 오래된 실행 파일을 허용하지 않게 한다."""
+    from scripts.validation.governance import vllm_image
+
+    monkeypatch.setattr(vllm_image, "_DOCKERFILE", ROOT / dockerfile)
+    assert vllm_image._dockerfile_local_copy_sources() <= set(provenance.input_paths(artifact))
