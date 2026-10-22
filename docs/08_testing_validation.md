@@ -16,6 +16,7 @@ Source/Artifact 정적 검증을 중복 실행하지 않고 `make test`로 호�
 운영 기동 → make up → Target Readiness (필수 서비스 상태)
 선택적 기동 후 검증 → make smoke
 ```
+
 | 단계 | 확인 질문 | 주요 대상 |
 |---|---|---|
 | `make check` | 저장소 전체 source와 generated artifact가 검증되는가? | Application + Control Plane |

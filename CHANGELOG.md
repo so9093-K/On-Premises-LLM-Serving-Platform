@@ -25,7 +25,15 @@
 - 프로젝트 운영 진입점은 `make up/status/logs/down/reset/purge` 중심이다. 변경된 설정과 포트, 준비되지 않은 서비스의 원인·진단 로그를 표시한다. 로컬 기동은 Git 저장소 메타데이터 없이도 가능하다.
 - Python 의존성은 Platform과 별도 MLX Runtime의 `pyproject.toml`·`uv.lock`을 따른다. `make up`은 실행 의존성만 준비하고 개발 검증 도구는 별도 `make setup-dev`·`make check`가 소유한다.
 - 기본 vLLM 런타임은 검토된 고정 이미지와 모델 패치를 사용한다. CUDA 12.9 후보는 명시적으로 빌드할 수 있지만 기존 운영 이미지 참조를 자동 변경하지 않는다.
-- Runtime Controller·Risk Signal Service, 설정/접근 프로필, API 오류 코드 및 요청 기록의 책임 경계를 정리했다. 과거 환경변수·서비스 별칭을 사용하는 배포는 현재 [설정 가이드](docs/05_configuration.md)를 기준으로 확인한다.
+- Runtime Controller·Risk Signal Service, 설정/접근 프로필, API 오류 코드 및 요청 기록의 책임 경계를 정리했다. 현재 환경변수와 지원 값은 [설정 가이드](docs/05_configuration.md)가 소유한다.
+
+### Migration
+
+- 기존 배포에서 `ACCESS_PROFILE`이 없다면 `make up ACCESS=local`(또는 `private`, `edge`)로 변경 내용을 먼저 검토하고, 적용 시에는 같은 명령에 `CONFIRM=access`를 추가한다. 과거 `EXPOSURE_MODE=master_open` 상태는 자동으로 이관하지 않는다. ([접근 설정](docs/05_configuration.md#59-인증과-노출-정책))
+- 기존 `linux-adaptive`·`linux-cpu-managed` 배포를 관리형 `linux-nvidia-dynamic`의 공통 CPU/GPU 정책으로 바꾸려면 `make down` 후 `make up TARGET=linux-nvidia-dynamic`을 실행한다. 기존 접근 프로필과 인증 설정은 유지한다. 이미 실행 중인 배포의 Target을 자동으로 바꾸지 않는다. ([실행 정책](docs/guides/adaptive-runtime.md))
+- 새로운 실행 설정은 `MAIN_MODEL_*`, `RUNTIME_CONTROLLER_URL`, 공유 `VLLM_IMAGE`를 기준으로 한다. 이전 키를 직접 사용하는 자동화는 현행 설정을 확인해 갱신해야 한다. 기존 배포 환경의 설정 동기화는 `make up`이 담당한다. ([환경 설정](docs/05_configuration.md#510-환경-파일))
+- Control Plane Bootstrap의 구 `control_mode=sidecar`·상태 projection과 Risk Signal Service의 과거 OpenAPI `operationId`에 의존하는 외부 클라이언트는 현행 응답·Schema에 맞춰 수정하거나 SDK를 다시 생성해야 한다. 모델·Runtime의 실제 지원 여부는 활성 API 계약으로 확인한다.
+
 
 ### Fixed
 
