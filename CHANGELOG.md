@@ -6,6 +6,8 @@
 
 ### Changed
 
+- 관리형 Linux의 Main 실행 정책을 Console에서 자동·CPU 고정·GPU 고정으로 선택한다. 최초 `TARGET=auto`는 공통 구성에서 CPU부터 검증하며 GPU 준비 실패 중에도 Core·CPU·관측을 유지한다. 기존 배포는 선택한 엔진·인증·포트·캐시를 보존한다. ([실행 정책](docs/guides/adaptive-runtime.md), [ADR-0061](docs/adr/0061-managed-linux-execution-policy.md))
+
 - 플랫폼 기동과 전체 포트 대역 변경은 Git 설치·저장소 메타데이터 없이도 동작한다. Git 정보가 없으면 로컬 소스(`local`)로 표시하며, 로컬 이미지 재사용은 빌드 입력의 내용 해시 일치를 요구한다. 이전 로컬 이미지에 해시 라벨이 없으면 다음 기동에서 캐시를 활용해 다시 빌드한다.
 
 - Grafana ‘오늘 사용량’은 기본적으로 브라우저 시간대의 오늘 0시부터 집계하며, 대상별 호출·거부·오류 건수는 선택 기간을 따른다. Gateway 지표만 집계하고 추정 건수·초당 처리율·조회 종료 시점 GPU 사용률을 구분한다.
@@ -155,6 +157,8 @@
 - `Qwen/Qwen2.5-Omni-7B` Thinker profile을 추가하고 `verified`로 승격했다. Gateway에서 text/image/audio/video 입력→text 응답, media boot canary·rollback, structured output, logprobs, logit bias와 streaming 계약을 실제 런타임으로 검증했다. tool calling은 안정적인 parser/template 경로가 없어 비활성이고, 음성 출력은 이번 플랫폼 범위에 포함하지 않는다.
 
 ### Changed
+
+- 관리형 Linux의 Main 실행 정책을 Console에서 자동·CPU 고정·GPU 고정으로 선택한다. 최초 `TARGET=auto`는 공통 구성에서 CPU부터 검증하며 GPU 준비 실패 중에도 Core·CPU·관측을 유지한다. 기존 배포는 선택한 엔진·인증·포트·캐시를 보존한다. ([실행 정책](docs/guides/adaptive-runtime.md), [ADR-0061](docs/adr/0061-managed-linux-execution-policy.md))
 
 - Control Plane의 메인 모델 목록에서 GPU 예약 정책 비율과 실제 전환 전 판단을 분리해 표시한다. 서버는 명시적 Resource Variant 거부와 공유 GPU Admission을 같은 정책으로 재사용하며, 관측 불가·예산 부족·Runtime 정리 필요 시 전환을 차단하고 이유를 안내한다. 예산 검사 통과를 실제 GPU 적재 성공으로 표시하지 않으며 기존 Runtime 검증·Rollback 계약을 유지한다.
 
@@ -586,6 +590,8 @@
 - Docker/GPU full-stack 운영을 위한 compose, Prometheus, Grafana, runtime validation report 생성 흐름을 제공한다.
 
 ### Changed
+
+- 관리형 Linux의 Main 실행 정책을 Console에서 자동·CPU 고정·GPU 고정으로 선택한다. 최초 `TARGET=auto`는 공통 구성에서 CPU부터 검증하며 GPU 준비 실패 중에도 Core·CPU·관측을 유지한다. 기존 배포는 선택한 엔진·인증·포트·캐시를 보존한다. ([실행 정책](docs/guides/adaptive-runtime.md), [ADR-0061](docs/adr/0061-managed-linux-execution-policy.md))
 
 - CHANGELOG는 짧은 release history로 유지한다.
 

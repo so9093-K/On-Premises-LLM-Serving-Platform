@@ -462,7 +462,7 @@ class DockerMainModelBackend:
         source_profile = self._profile_from_inspected(catalog, inspected) if container_id is not None else None
         if source_profile:
             source_cpu = catalog.profiles[source_profile].runtime_backend == "llama-cpp"
-        engine_change = catalog.runtime.get("adaptive") or source_cpu or profile.runtime_backend == "llama-cpp"
+        engine_change = getattr(self, "gpu_uuid", None) is not None or catalog.runtime.get("adaptive") or source_cpu or profile.runtime_backend == "llama-cpp"
         image_config = None
         if engine_change:
             # 이미지·장치 설정 오류는 기존 컨테이너 해체 전에 확인한다.
@@ -516,7 +516,7 @@ class DockerMainModelBackend:
             payload["Labels"]["ai_model_serving.runtime_backend"] = profile.runtime_backend
             if cpu:
                 host["DeviceRequests"] = []
-            elif catalog.runtime.get("adaptive"):
+            elif catalog.runtime.get("adaptive") or getattr(self, "gpu_uuid", None) is not None:
                 host["DeviceRequests"] = [{"Driver": "nvidia", "DeviceIDs": [str(self.gpu_uuid)], "Capabilities": [["gpu"]]}]
             else:
                 host["DeviceRequests"] = self._saved_gpu_device_requests(payload["Labels"])
@@ -526,7 +526,7 @@ class DockerMainModelBackend:
             host["ShmSize"] = 64 * 1024 * 1024 if cpu else 2 * 1024 * 1024 * 1024
             if not cpu:
                 payload["Env"] += ["NVIDIA_DRIVER_CAPABILITIES=compute,utility", "VLLM_CACHE_ROOT=/root/.cache/vllm"]
-                if catalog.runtime.get("adaptive"):
+                if catalog.runtime.get("adaptive") or getattr(self, "gpu_uuid", None) is not None:
                     payload["Env"].append("CUDA_VISIBLE_DEVICES=0")
             port = int(catalog.runtime["container_port"])
             payload["Healthcheck"] = {

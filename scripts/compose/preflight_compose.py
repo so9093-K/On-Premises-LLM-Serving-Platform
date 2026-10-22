@@ -365,7 +365,8 @@ def _phase2(*, boot_override: Path) -> int:
         if effective_document is None:
             fail = True
         else:
-            gpu_services = _gpu_services(effective_document)
+            cpu_first = os.environ.get("CPU_BOOTSTRAP_ONLY") == "1"
+            gpu_services = [] if cpu_first else _gpu_services(effective_document)
             if gpu_services:
                 print("[preflight] effective Compose requires GPU: " + ", ".join(gpu_services))
                 if not _show_gpu():
@@ -419,7 +420,7 @@ def _phase2(*, boot_override: Path) -> int:
         print(f"[preflight] missing: HF cache dir is not writable: {cache_path}", file=sys.stderr)
         fail = True
 
-    if not _prompt_runtime_effective():
+    if os.environ.get("CPU_BOOTSTRAP_ONLY") == "1" or not _prompt_runtime_effective():
         print("[preflight] skip: Prompt detector runtime is not in the effective topology")
     elif os.environ.get("SKIP_RISK_VLLM_IMAGE_CONFIG_CHECK", "0") != "1":
         risk = _run_status(["bash", "scripts/models/check_risk_vllm_image_config.sh"])

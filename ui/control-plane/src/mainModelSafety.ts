@@ -238,11 +238,18 @@ export function mainModelProfileSwitchable(profile: MainModelProfile): boolean {
     && profile.switch_preflight?.status === 'fits';
 }
 
+export function mainModelPolicySwitchable(profile: MainModelProfile, executionPolicy?: MainModelSwitchRequest['execution_policy']): boolean {
+  return mainModelProfileSwitchable(profile) || (executionPolicy !== undefined && profile.active === true
+    && profile.compatibility.status !== 'incompatible'
+    && (profile.switch_preflight?.status === 'current' || profile.switch_preflight?.status === 'fits'));
+}
+
 export function mainModelSwitchRequest(
   profile: MainModelProfile,
   confirmed: boolean,
+  executionPolicy?: MainModelSwitchRequest['execution_policy'],
 ): MainModelSwitchRequest {
-  if (!mainModelProfileSwitchable(profile)) {
+  if (!mainModelPolicySwitchable(profile, executionPolicy)) {
     throw new Error('selected profile cannot be switched');
   }
   if (mainModelProfileRequiresConfirmation(profile) && !confirmed) {
@@ -250,7 +257,8 @@ export function mainModelSwitchRequest(
   }
   return {
     profile: profile.id,
-    confirm_unverified: mainModelProfileRequiresConfirmation(profile),
+    confirm_unverified: mainModelProfileRequiresConfirmation(profile) || (executionPolicy === 'automatic' && confirmed),
+    ...(executionPolicy ? { execution_policy: executionPolicy } : {}),
   };
 }
 

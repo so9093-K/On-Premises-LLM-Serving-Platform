@@ -2,7 +2,7 @@
 
 ## 목표와 검증 범위
 
-`linux-adaptive`가 관측한 GPU와 적용할 리소스 정책을 확인하고, 장치를 바꾸거나
+자동 실행 정책이 관측한 GPU와 적용할 리소스 정책을 확인하고, 장치를 바꾸거나
 Controller를 재시작해도 다른 GPU·정책으로 조용히 실행되지 않도록 준비합니다.
 RTX 6000 Ada 실장비 적재·추론·장애 복구는 이번 변경에서 수행하지 않았습니다.
 48GB 관측과 정책 분기는 합성 입력으로 검증했으며 `qualification=unverified`를 유지합니다.
@@ -43,7 +43,7 @@ Compute Capability를 사용하고, 최종 모델 준비는 고정 image·모델
 24GB 정책으로 자동 축소하지 않습니다. 이 계산은 모델의 정확한 최대 요구량 예측이 아닙니다.
 여러 GPU의 여유를 합산하지 않으며 GPU 하나만 선택합니다.
 
-`linux-adaptive`의 운영자 설정 우선순위는 다음과 같습니다.
+자동 실행 정책의 운영자 설정 우선순위는 다음과 같습니다.
 
 1. `ADAPTIVE_GPU_RESOURCE_POLICY=reference` 또는 Catalog에 선언된 Variant ID.
 2. 위 값이 `auto`/빈 값이고 `MAIN_MODEL_RESOURCE_VARIANT`가 있으면 기존 명시적 Override.
@@ -57,7 +57,7 @@ MAIN_MODEL_RESOURCE_VARIANT=
 
 기존 4090 Override를 남겨 두면 운영자의 명시적 선택으로 유지합니다. `auto`만 적는 것으로
 기존 Override를 해제하지 않습니다. 잘못된 Variant는 Reference로 대체하지 않고 원인을
-표시합니다. Dynamic·Static Target의 정책 선택은 이 Adaptive 전용 설정으로 변경하지 않습니다.
+표시합니다. GPU 고정·Static의 자원 정책은 `MAIN_MODEL_RESOURCE_VARIANT`가 소유합니다.
 기존 `.env`의 Target을 바꾸기 전에 [이전 절차](adaptive-runtime.md#첫-실행)를 확인하세요.
 
 ## 3. 향후 RTX 6000 Ada 호스트 검증 순서
@@ -66,11 +66,11 @@ MAIN_MODEL_RESOURCE_VARIANT=
 
 1. 첫 절차로 제품명·UUID·SM·Driver·전체 VRAM을 확인합니다. Artifact 접근 권한,
    고정 GPU image와 CPU 모델의 디스크·RAM 여유도 확인합니다.
-2. 준비한 새 환경에서 `make up TARGET=linux-adaptive ACCESS=local`을 실행합니다.
+2. 준비한 새 환경에서 `make up TARGET=auto ACCESS=local`을 실행합니다.
    접근 정책 변경을 요구하면 표시된 Plan을 검토하고 `CONFIRM=access`로 적용합니다.
 3. Core `/health`와 Console 접속을 확인합니다. CPU 적재·검증 중 `/ready` 503은 추론이
    아직 준비되지 않았다는 뜻입니다. CPU Chat·SSE 완료를 확인합니다.
-4. **메인 모델 → 자동 CPU/GPU 선택**에서 관측된 제품명과 UUID, 후보 정책과 선택 근거를
+4. **메인 모델 → 실행 정책**에서 관측된 제품명과 UUID, 후보 정책과 선택 근거를
    확인합니다. 여유가 충분하면 안정 관측·체류 시간 뒤 GPU를 적재하고 Canary를 수행합니다.
 5. GPU 검증 성공 후 활성 Profile·정책·할당 UUID와 실제 Chat·SSE·지원 미디어를 확인합니다.
    `runtime_selection.gpu_assignment`는 고정된 선택, `resources`는 최신 관측입니다.

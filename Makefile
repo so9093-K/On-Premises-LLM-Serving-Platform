@@ -27,7 +27,7 @@ PLATFORM_ACCESS_CONFIRM_ARG = $(if $(filter access,$(CONFIRM)),--confirm-access,
 
 up: ## 필요한 준비를 수렴한 뒤 플랫폼을 사용 가능 상태로 만든다
 	@"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime
-	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG)
+	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG) $(if $(POLICY),--execution-policy "$(if $(filter auto,$(POLICY)),automatic,$(POLICY))",)
 
 status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
 	@if [[ ! -x "$(CURDIR)/.venv/bin/python" ]]; then echo "Platform UNCONFIGURED"; echo "First run: make up TARGET=<deployment-target>"; exit 1; fi

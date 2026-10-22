@@ -66,6 +66,11 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: utility
     gpus: all
     expose: ['8081']
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health',timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     pids_limit: 128
     security_opt: [no-new-privileges:true]
 

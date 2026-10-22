@@ -20,6 +20,15 @@
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "execution_policy": {
+      "type": "string",
+      "enum": [
+        "automatic",
+        "cpu",
+        "gpu"
+      ],
+      "description": "자동 선택은 CPU부터 검증하며, cpu/gpu는 선택한 엔진을 유지합니다."
     }
   }
 }

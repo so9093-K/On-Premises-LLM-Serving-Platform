@@ -271,3 +271,16 @@ def test_collect_readiness_response_matches_schema():
     assert body["required_not_ready_dependencies"] == []
     assert body["optional_not_ready_dependencies"] == ["optional_dep"]
     assert body["not_ready_dependencies"] == ["optional_dep"]
+
+
+def test_explicitly_stopped_prompt_detector_does_not_block_cpu_core_readiness():
+    clients = FakeGatewayClients()
+    clients.risk_signal_service = FakeRuntimeClient({"status": "ok", "service": "risk-signal-service"})
+    asyncio.run(clients.runtime_state.set("prompt_injection_detector", RuntimeState.stopped))
+    body = asyncio.run(_readiness(clients, settings()))
+    assert body["status"] == "ready"
+    assert clients.risk_signal_service.last_path == "/health"
+    # 중지 의도가 없거나 실제 서비스 장애이면 기존 장애 계약을 유지한다.
+    clients.risk_signal_service.ready = False
+    body = asyncio.run(_readiness(clients, settings()))
+    assert body["status"] == "not_ready"

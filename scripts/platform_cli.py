@@ -112,10 +112,12 @@ def _target(explicit: str | None, *, require_env: bool = True) -> DeploymentTarg
         explicit = candidate[0]
         print(f"[platform] initial target: {explicit} ({candidate[1]})")
     if explicit and configured and explicit != configured:
-        raise RuntimeError(
-            f"requested target {explicit!r} differs from .env target {configured!r}; "
-            "move the existing .env aside before initializing another target"
-        )
+        managed = {"linux-nvidia-dynamic", "linux-adaptive", "linux-cpu-managed", "linux-core"}
+        if explicit not in managed or configured not in managed:
+            raise RuntimeError("target ownership changes require a separate deployment directory")
+        from scripts.ops.compose_ownership import owned_container_ids
+        if owned_container_ids(ROOT):
+            raise RuntimeError("run make down before changing the deployment target; .env and caches are preserved")
     selected = explicit or configured
     if not selected:
         if require_env:
@@ -129,7 +131,7 @@ def suggested_target() -> tuple[str, str] | None:
     if sys.platform == "darwin" and platform.machine().lower() in ("arm64", "aarch64"):
         return "macos-metal-static", "Apple Silicon detected"
     if sys.platform.startswith("linux"):
-        return "linux-adaptive", "Core starts independently; CPU/GPU selection is managed continuously"
+        return "linux-nvidia-dynamic", "managed Linux platform; CPU/GPU execution policy is selectable"
     return None
 
 
@@ -426,7 +428,6 @@ def build_target(target: DeploymentTarget, *, no_cache: bool = False,
 
 
 def prepare_target(target: DeploymentTarget) -> None:
-    values = _env_values()
     if target.runtime_backend == "mlx-vlm":
         _run_step(
             "Preparing Main Model cache",
@@ -438,7 +439,12 @@ def prepare_target(target: DeploymentTarget) -> None:
         _run_step("Preparing pinned CPU GGUF model",
             sys.executable, "scripts/models/prepare_cpu_model.py")
     elif target.controllable:
-        profile = _main_profile(target, values)
+        from ai_model_serving.main_model.boot import render_boot_override
+        profile, _ = render_boot_override(
+            catalog_path=ROOT / target.main_profile_catalog,
+            state_path=ROOT / ".runtime/main-model/main-model-state.json",
+            env_path=ENV_PATH,
+        )
         _run_step(
             "Preparing Main Model cache",
             sys.executable,
@@ -505,6 +511,42 @@ def up_adaptive_target(target: DeploymentTarget) -> None:
             raise RuntimeError(f"Core remains running; Main serving readiness timed out at {url}")
         time.sleep(1)
     print(f"[platform] ready: target={target.target_id} gateway={url}")
+    _print_next_steps(values)
+
+
+def managed_execution_policy(values: dict[str, str]) -> str:
+    from ai_model_serving.main_model.state import read_main_model_state_file
+    state = read_main_model_state_file(ROOT / ".runtime/main-model/main-model-state.json") or {}
+    mode = (state.get("runtime_selection") or {}).get("mode") or values.get("MAIN_MODEL_EXECUTION_POLICY")
+    if mode:
+        return mode
+    profile = state.get("active_profile") or values.get("MAIN_MODEL_BOOT_PROFILE")
+    return "cpu" if profile == "cpu-gguf-text" else "gpu"
+
+
+def up_managed_cpu_first(target: DeploymentTarget) -> None:
+    """Core·CPU·관측을 먼저 시작하고 GPU 준비 실패를 격리한다."""
+    _run_step("Starting managed Linux platform", "bash", "scripts/compose/compose_up.sh", "--cpu-first")
+    if read_host_resource_snapshot().gpus:
+        try:
+            ensure_target_artifacts(target)
+            _run_step("Preparing GPU runtime controls", "bash", "scripts/compose/compose_up.sh", "--gpu-controls")
+        except (OSError, RuntimeError, subprocess.CalledProcessError):
+            print("[platform] GPU preparation unavailable; Core and CPU remain running")
+    values = _env_values()
+    deadline = time.monotonic() + 300
+    while True:
+        code, model = _gateway_json(values, "/admin/main-model", admin=True)
+        if code == 200 and model and model.get("runtime_state") == "stopped":
+            print("[platform] Core available; Main remains stopped")
+            break
+        _, ready = _gateway_probe(values, "/ready")
+        if ready:
+            print(f"[platform] ready: target={target.target_id}")
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Core remains running; Main readiness timed out; check make logs")
+        time.sleep(1)
     _print_next_steps(values)
 
 
@@ -588,7 +630,19 @@ def reconcile_up_target(
     main_base_url: str | None,
     access_profile: str | None,
     confirm_access: bool,
+    execution_policy: str | None = None,
 ) -> None:
+    if execution_policy is not None:
+        if target.target_id != "linux-nvidia-dynamic":
+            raise RuntimeError("POLICY requires TARGET=linux-nvidia-dynamic; existing .env is preserved")
+        if (ROOT / ".runtime/main-model/main-model-state.json").exists():
+            raise RuntimeError("use Console → Main Model to review and change the running execution policy")
+        if execution_policy in {"automatic", "cpu"}:
+            if main_profile and main_profile != "cpu-gguf-text":
+                raise RuntimeError("automatic/CPU policy starts with MODEL=cpu-gguf-text")
+            main_profile = "cpu-gguf-text"
+        elif main_profile == "cpu-gguf-text":
+            raise RuntimeError("GPU policy requires a GPU model profile")
     configured = setup_target(
         target,
         main_profile,
@@ -601,6 +655,11 @@ def reconcile_up_target(
             "configuration change requires confirmation; platform was not started"
         )
 
+    if execution_policy is not None:
+        from scripts.config.setup_env import parse_env_template, write_env
+        lines, seeded = parse_env_template(ENV_PATH)
+        seeded["MAIN_MODEL_EXECUTION_POLICY"] = execution_policy
+        write_env(lines, seeded, ENV_PATH)
     values = _env_values()
     if values.get("BUILD_PROFILE") != "local":
         if target.controllable or target.control_mode == "managed_cpu":
@@ -608,6 +667,9 @@ def reconcile_up_target(
             start_core(target)
             if target.adaptive:
                 up_adaptive_target(target)
+                return
+            if target.target_id == "linux-nvidia-dynamic" and managed_execution_policy(values) in {"automatic", "cpu"}:
+                up_managed_cpu_first(target)
                 return
             ensure_target_artifacts(target)
             prepare_target(target)
@@ -767,6 +829,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--target")
     parser.add_argument("--main-profile")
+    parser.add_argument("--execution-policy", choices=("automatic", "cpu", "gpu"))
     parser.add_argument("--main-base-url")
     parser.add_argument("--access-profile", choices=access_profile_names())
     parser.add_argument("--confirm-access", action="store_true")
@@ -775,7 +838,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.confirm_access and not args.access_profile:
             raise RuntimeError("CONFIRM=access requires ACCESS=local|private|edge")
         if args.action != "up" and (
-            args.main_profile or args.main_base_url or args.access_profile or args.confirm_access
+            args.main_profile or args.main_base_url or args.access_profile or args.confirm_access or args.execution_policy
         ):
             raise RuntimeError("MODEL, MAIN_URL, ACCESS and CONFIRM are make up options")
 
@@ -788,6 +851,7 @@ def main(argv: list[str] | None = None) -> int:
             print("[platform] stopped: checkout-owned resources")
             return 0
 
+        first_auto = args.action == "up" and args.target == "auto" and not ENV_PATH.is_file() and sys.platform.startswith("linux")
         target = _target(args.target, require_env=args.action != "up")
         if args.action == "up":
             reconcile_up_target(
@@ -796,6 +860,7 @@ def main(argv: list[str] | None = None) -> int:
                 main_base_url=args.main_base_url,
                 access_profile=args.access_profile,
                 confirm_access=args.confirm_access,
+                execution_policy=args.execution_policy or ("automatic" if first_auto else None),
             )
         elif args.action == "down":
             down_target(target)

@@ -104,14 +104,15 @@ def deployment_target_values(target_id: str, main_profile: str | None = None) ->
         values["MAIN_MODEL_STATIC_PROFILE"] = selected_profile
     else:
         values["MAIN_MODEL_BOOT_PROFILE"] = selected_profile
-    if target.gateway_runtime_host:
+    if target.gateway_runtime_host or target.controllable:
         runtime = catalog.get("runtime")
-        port = runtime.get("port") if isinstance(runtime, dict) else None
-        if not isinstance(port, int) or not (1 <= port <= 65535):
+        host = target.gateway_runtime_host or runtime.get("compose_service")
+        port = (runtime.get("port") or runtime.get("container_port")) if isinstance(runtime, dict) else None
+        if not isinstance(host, str) or not host or not isinstance(port, int) or not (1 <= port <= 65535):
             raise ValueError(
                 f"deployment target {target_id!r} profile catalog must provide runtime.port"
             )
-        values["MAIN_MODEL_BASE_URL"] = f"http://{target.gateway_runtime_host}:{port}/v1"
+        values["MAIN_MODEL_BASE_URL"] = f"http://{host}:{port}/v1"
     return values
 
 
@@ -140,7 +141,10 @@ def sync_deployment_target(
         existing["DEPLOYMENT_TARGET"] = target_id
         write_env(lines, existing, env_path)
         return
-    selected_profile = main_profile or existing.get(profile_key) or None
+    previous_target = existing.get("DEPLOYMENT_TARGET")
+    previous = load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_target) if previous_target else None
+    previous_profile = existing.get("MAIN_MODEL_STATIC_PROFILE" if previous and previous.static_serving else "MAIN_MODEL_BOOT_PROFILE")
+    selected_profile = main_profile or previous_profile or existing.get(profile_key) or None
     try:
         projected = deployment_target_values(target_id, selected_profile)
     except ValueError:
@@ -148,6 +152,8 @@ def sync_deployment_target(
             raise
         projected = deployment_target_values(target_id)
 
+    if previous_target and previous_target != target_id and (target.controllable or target.control_mode == "managed_cpu"):
+        existing["MAIN_MODEL_BASE_URL"] = projected["MAIN_MODEL_BASE_URL"]
     existing["DEPLOYMENT_TARGET"] = target_id
     existing[profile_key] = projected[profile_key]
     if main_base_url:

@@ -442,6 +442,8 @@ services:
       MAIN_MODEL_STATE_PATH: /var/lib/ai-model-serving/main-model-state.json
       MAIN_MODEL_BOOT_PROFILE: ${MAIN_MODEL_BOOT_PROFILE:-}
       MAIN_MODEL_PROFILE_LOCKED: ${MAIN_MODEL_PROFILE_LOCKED:-false}
+      MAIN_MODEL_EXECUTION_POLICY: ${MAIN_MODEL_EXECUTION_POLICY:-}
+      ADAPTIVE_GPU_RESOURCE_POLICY: ${ADAPTIVE_GPU_RESOURCE_POLICY:-auto}
       # Optional per-host override for the main model's --gpu-memory-utilization.
       MAIN_MODEL_GPU_MEMORY_UTILIZATION: ${MAIN_MODEL_GPU_MEMORY_UTILIZATION:-}
       # Optional explicit resource-policy override. Empty means the profile's
@@ -471,6 +473,27 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+  resource-observer:
+    image: ${PLATFORM_IMAGE:?Set PLATFORM_IMAGE}
+    profiles: [gpu-observation]
+    restart: unless-stopped
+    command: [python, -m, uvicorn, ai_model_serving.apps.host_resource_observer:create_host_resource_observer_app, --factory, --host, 0.0.0.0, --port, '8081']
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      INTERNAL_SERVICE_AUTH_REQUIRED: ${INTERNAL_SERVICE_AUTH_REQUIRED:-false}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      NVIDIA_DRIVER_CAPABILITIES: utility
+    gpus: all
+    volumes:
+      - ../../configs:/app/configs:ro
+    expose: ['8081']
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health',timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
 volumes:
   # Compose project-scoped, runtime-private caches survive container replacement
   # and ordinary down/up. Never share executable cache artifacts across runtimes.

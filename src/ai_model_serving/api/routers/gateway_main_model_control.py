@@ -308,6 +308,7 @@ def build_router(
                                     "description": "configs/main_model_profiles.yaml의 profile ID",
                                 },
                                 "confirm_unverified": {"type": "boolean", "default": False},
+                                "execution_policy": {"type": "string", "enum": ["automatic", "cpu", "gpu"]},
                                 "request_id": {
                                     "type": "string",
                                     "minLength": 1,
@@ -325,19 +326,22 @@ def build_router(
         payload = await request.json()
         if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str):
             raise ServiceError("VALIDATION_ERROR", "profile is required", param="profile")
-        unknown = set(payload) - {"profile", "confirm_unverified", "request_id"}
+        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy"}
         if unknown:
             raise ServiceError(
                 "VALIDATION_ERROR",
                 f"unsupported fields: {sorted(unknown)}",
                 param=sorted(unknown)[0],
             )
+        if "execution_policy" in payload and payload["execution_policy"] not in ("automatic", "cpu", "gpu"):
+            raise ServiceError("VALIDATION_ERROR", "invalid execution_policy", param="execution_policy")
         client = await require_runtime_controller()
         try:
             result = await client.switch_main_model(
                 payload["profile"],
                 confirm_unverified=payload.get("confirm_unverified") is True,
                 request_id=payload.get("request_id"),
+                **({"execution_policy": payload["execution_policy"]} if "execution_policy" in payload else {}),
             )
             return JSONResponse(result, status_code=202)
         except RuntimeControllerRequestError as exc:

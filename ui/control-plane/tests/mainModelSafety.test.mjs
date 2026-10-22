@@ -226,3 +226,15 @@ test('CPU choice describes RAM preparation without promising GPU admission', () 
   assert.throws(() => mainModelSwitchRequest(cpu, false));
   assert.deepEqual(mainModelSwitchRequest(cpu, true), { profile: 'candidate', confirm_unverified: true });
 });
+
+// 활성 모델을 재사용하는 정책 변경도 미검증 확인과 실행 전 차단을 지킨다.
+test('current profile policy change requires confirmation and rejects a blocked operation', () => {
+  const current = { ...profile('compatible', 'unverified'), active: true,
+    switch_preflight: { status: 'current', stop: [] } };
+  assert.throws(() => mainModelSwitchRequest(current, false, 'automatic'));
+  assert.deepEqual(mainModelSwitchRequest(current, true, 'automatic'), {
+    profile: 'candidate', confirm_unverified: true, execution_policy: 'automatic',
+  });
+  assert.throws(() => mainModelSwitchRequest({ ...current,
+    switch_preflight: { status: 'blocked', reason_code: 'MODEL_SWITCH_IN_PROGRESS', stop: [] } }, true, 'cpu'));
+});

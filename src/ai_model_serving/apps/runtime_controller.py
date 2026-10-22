@@ -12,14 +12,15 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from ..main_model.docker_backend import DockerMainModelBackend
+from ..main_model.adaptive import AdaptiveMainModelControl
+from ..main_model.adaptive_backend import ManagedDockerBackend, AdaptiveResourceReader
+from ..main_model.adaptive_catalog import load_adaptive_catalog
+from ..main_model.managed_catalog import load_managed_catalog
 from ..configuration import load_yaml_mapping
 from ..runtime_controller_config import RuntimeControllerConfig, load_runtime_controller_config
 from ..gpu_budget import Participant, budget_snapshot, plan_activation
 from ..service_logging import service_logger
 from ..main_model.catalog import (
-    gpu_util_override_from_mapping,
-    load_main_model_catalog,
     resource_variant_from_mapping,
 )
 from ..main_model.control import MainModelManager, MainModelSwitchError, MainModelRuntimeBackend
@@ -46,6 +47,7 @@ def create_runtime_controller_app(
     environment: Mapping[str, str] | None = None,
     executor: RuntimeExecutor | None = None,
     main_model_backend: MainModelRuntimeBackend | None = None,
+    resource_reader=None,
 ) -> FastAPI:
     """설정·Lock·Task·실행 어댑터를 인스턴스별로 조립한다.
 
@@ -183,28 +185,66 @@ def create_runtime_controller_app(
 
     context._wait_healthy = _wait_healthy
 
-    context._catalog = load_main_model_catalog(
-        context.APP_CONFIG_ROOT / "configs/main_model_profiles.yaml",
-        gpu_memory_utilization_override=gpu_util_override_from_mapping(environment),
-        resource_variant=resource_variant_from_mapping(environment),
-        env=dict(environment),
-    )
-    context._state_store = MainModelStateStore(context.MAIN_MODEL_STATE_PATH, context._catalog.default_profile)
+    context._state_store = MainModelStateStore(context.MAIN_MODEL_STATE_PATH, "cpu-gguf-text")
     try:
         context._state_store.read()
     except MainModelStateError as exc:
         context._state_store.quarantine_corrupt_state(str(exc))
+    persisted_mode = (context._state_store.read().get("runtime_selection") or {}).get("mode")
+    seed = persisted_mode or environment.get("MAIN_MODEL_EXECUTION_POLICY", "")
+    context._catalog = load_managed_catalog(context.APP_CONFIG_ROOT, environment, cpu_available=seed in {"automatic", "cpu"} or context.MAIN_MODEL_BOOT_PROFILE == "cpu-gguf-text")
+    _, selection_policy, gpu_policies = load_adaptive_catalog(context.APP_CONFIG_ROOT, environment)
+    if context.MAIN_MODEL_BOOT_PROFILE not in context._catalog.profiles and seed in {"automatic", "cpu"}:
+        context.MAIN_MODEL_BOOT_PROFILE = selection_policy["cpu_profile"]
+    observer = load_yaml_mapping(context.APP_CONFIG_ROOT / "configs/services.yaml")["services"]["host_resource_observer"]
+    reader = resource_reader or AdaptiveResourceReader(
+        f"http://{observer['compose_service']}:{observer['container_port']}", context.RUNTIME_CONTROLLER_TOKEN
+    )
+    state = context._state_store.read()
+    if seed in {"automatic", "cpu"} and state.get("active_profile") not in {None, *context._catalog.profiles}:
+        def recover_missing_artifact(value):
+            value.update(active_profile=None, gate="closed")
+            operation = value.get("last_operation") or {}
+            if operation and operation.get("status") not in {"completed", "failed", "rollback_failed"}:
+                operation.update(status="failed", error="GPU_ARTIFACT_UNAVAILABLE")
+                for item in value.get("operations", []):
+                    if item.get("id") == operation.get("id"):
+                        item.update(operation)
+        state = context._state_store.update(recover_missing_artifact)
+    if not state.get("runtime_selection"):
+        initial = environment.get("MAIN_MODEL_EXECUTION_POLICY") or (
+            "cpu" if (state.get("active_profile") or context.MAIN_MODEL_BOOT_PROFILE) == selection_policy["cpu_profile"] else "gpu"
+        )
+        if initial not in {"automatic", "cpu", "gpu"}:
+            raise ValueError("invalid MAIN_MODEL_EXECUTION_POLICY")
+        context._state_store.update(lambda s: s.update(runtime_selection={"mode": initial, "reason_code": "STARTING_CPU" if initial == "automatic" else "OPERATOR_SELECTED"}))
+    context._state_store.update(lambda s: s["runtime_selection"].update(cpu_profile=selection_policy["cpu_profile"], gpu_profile=selection_policy["gpu_profile"]))
+    engine = main_model_backend or ManagedDockerBackend(
+        context.DOCKER_SOCKET, context.COMPOSE_PROJECT,
+        gateway_url=context._CONFIG.gateway_internal_url,
+        internal_token=context.RUNTIME_CONTROLLER_TOKEN,
+        config_root=context.APP_CONFIG_ROOT, cpu_cache_dir=Path("/models"),
+        resource_reader=reader, selection_policy=selection_policy, gpu_policies=gpu_policies,
+    )
+    if isinstance(engine, ManagedDockerBackend):
+        def automatic_operation(profile=None):
+            current = context._state_store.read()
+            operation = current.get("last_operation") or {}
+            pending = operation.get("execution_policy") if (
+                operation.get("status") not in {"completed", "failed", "rollback_failed"}
+                and (profile is None or profile.profile_id == operation.get("requested_profile"))
+            ) else None
+            return (pending or (current.get("runtime_selection") or {}).get("mode")) == "automatic"
+        engine.automatic = automatic_operation
+    assignment = gpu_policies.restore((state.get("runtime_selection") or {}).get("gpu_assignment"))
+    if assignment is not None and (state.get("runtime_selection") or {}).get("mode") == "automatic":
+        context._catalog.profiles[assignment.profile.profile_id] = assignment.profile
+        if hasattr(engine, "bind_gpu"):
+            engine.bind_gpu(assignment)
     context._main_model_manager = MainModelManager(
         context._catalog,
         context._state_store,
-        (main_model_backend if main_model_backend is not None else DockerMainModelBackend(
-            context.DOCKER_SOCKET,
-            context.COMPOSE_PROJECT,
-            gateway_url=context._CONFIG.gateway_internal_url,
-            internal_token=context.RUNTIME_CONTROLLER_TOKEN,
-            config_root=context.APP_CONFIG_ROOT,
-            cpu_cache_dir=Path("/models"),
-        )),
+        engine,
         boot_profile=context.MAIN_MODEL_BOOT_PROFILE,
         profile_locked=context.MAIN_MODEL_PROFILE_LOCKED,
         idempotency_ttl_seconds=(
@@ -221,6 +261,11 @@ def create_runtime_controller_app(
     context._BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
     # 두 activation이 동시에 통과할 수 없도록 GPU-budget admission 판단을 직렬화한다.
     context._budget_lock = asyncio.Lock()
+    context._adaptive_control = AdaptiveMainModelControl(
+        context._main_model_manager, selection_policy, reader, gpu_policies=gpu_policies,
+        admit_gpu=lambda fraction: _admit_profile_switch_or_raise(fraction),
+    )
+    context._adaptive_control.mutation_lock = context._budget_lock
 
 
     def _reserved_or_unavailable(service: str, status: str) -> bool:
@@ -269,6 +314,8 @@ def create_runtime_controller_app(
         boot_fraction = context._catalog.profiles[context._main_model_manager.boot_profile].vram_fraction
         fraction = active_profile.get("vram_fraction")
         main_fraction = float(boot_fraction if fraction is None else fraction)
+        if snapshot.get("runtime_state") == "stopped" and (snapshot.get("runtime_selection") or {}).get("mode") == "automatic":
+            main_fraction = 0.0
         main_status = await _docker_reservation_status(context._MAIN_SERVICE)
         observed[context._MAIN_SERVICE] = main_status
         participants.append(
@@ -296,6 +343,8 @@ def create_runtime_controller_app(
         force: bool,
     ) -> dict[str, Any]:
         """현재 Docker/GPU snapshot에서 side-effect 없이 runtime transition을 계획한다."""
+        if context._main_model_manager.switch_in_progress():
+            raise HTTPException(409, detail={"code": "MODEL_SWITCH_IN_PROGRESS", "message": "Wait for the current model operation."})
         if service == "main":
             target_key = context._MAIN_SERVICE
             prerequisites: list[str] = []
@@ -466,7 +515,7 @@ def create_runtime_controller_app(
     # main-llm-vllm이 Runtime Controller 제어 API를 거치지 않고 재시작됐는지(예: 운영자의 수동
     # `docker restart`) 주기적으로 감지하는 간격. 매 tick마다 lock 획득 + Docker inspect
     # 호출 하나뿐이라 부담이 사실상 없어서, 놓치는 창을 줄이는 쪽으로 짧게 잡았다.
-    context._RECONCILE_POLL_INTERVAL_SECONDS = 10
+    context._RECONCILE_POLL_INTERVAL_SECONDS = selection_policy["poll_interval_seconds"]
 
 
     async def _run_reconciliation_loop() -> None:
@@ -477,7 +526,10 @@ def create_runtime_controller_app(
         while True:
             await asyncio.sleep(context._RECONCILE_POLL_INTERVAL_SECONDS)
             try:
-                await context._main_model_manager.reconcile_if_restarted()
+                if (context._state_store.read().get("runtime_selection") or {}).get("mode") == "automatic":
+                    await context._adaptive_control.step()
+                else:
+                    await context._main_model_manager.reconcile_if_restarted()
             except Exception as exc:  # noqa: BLE001
                 _logger.warning("main-model reconciliation tick failed: %s", exc)
 
@@ -551,7 +603,8 @@ def create_runtime_controller_app(
                 # Controller를 영구 unhealthy로 남기지 않는다. Gate의 개방 권위는 Manager다.
                 context._initialization_error = None
                 return {"status": "ok"}
-            raise HTTPException(503, detail=f"main model reconciliation failed: {context._initialization_error}")
+            if (state.get("runtime_selection") or {}).get("mode") != "automatic":
+                raise HTTPException(503, detail=f"main model reconciliation failed: {context._initialization_error}")
         return {"status": "ok"}
 
 
@@ -663,13 +716,27 @@ def create_runtime_controller_app(
         authorization: str | None = Header(default=None),
     ) -> JSONResponse:
         await _require_runtime_controller_token(authorization)
-        unknown = set(payload) - {"profile", "confirm_unverified", "request_id"}
+        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy"}
         if unknown:
             raise HTTPException(422, detail=f"unsupported fields: {sorted(unknown)}")
+        mode = payload.get("execution_policy")
+        if "execution_policy" in payload and mode not in ("automatic", "cpu", "gpu"):
+            raise HTTPException(422, detail="invalid execution_policy")
         profile_id = str(payload.get("profile", ""))
         target_profile = context._catalog.profiles.get(profile_id)
         try:
             async with context._budget_lock:
+                selected_mode = mode or ("cpu" if target_profile and target_profile.runtime_backend == "llama-cpp" else "gpu")
+                if selected_mode in {"automatic", "cpu"} and profile_id != selection_policy["cpu_profile"]:
+                    raise HTTPException(422, detail="automatic/cpu policy starts with the CPU profile")
+                if selected_mode == "gpu" and target_profile and target_profile.runtime_backend == "llama-cpp":
+                    raise HTTPException(422, detail="GPU policy requires a GPU profile")
+                if selected_mode == "automatic" and payload.get("confirm_unverified") is not True:
+                    gpu = context._catalog.profiles.get(selection_policy["gpu_profile"])
+                    if gpu is None or gpu.qualification.get("status") != "verified":
+                        raise HTTPException(409, detail={"code": "MODEL_PROFILE_CONFIRMATION_REQUIRED", "message": "Confirm the automatic GPU candidate before enabling automatic policy."})
+                if selected_mode == "automatic" and context.MAIN_MODEL_PROFILE_LOCKED:
+                    raise HTTPException(409, detail="MODEL_PROFILE_LOCKED")
                 # target profile이 GPU를 초과 사용하게 될 경우 (eviction plan과 함께) 거부한다.
                 # 같거나 더 작은 profile로 전환하면 main slot에 그대로 들어맞지만, 더 큰 profile은
                 # 운영자에게 먼저 무엇을 stop해야 하는지 알려준다. (여기서는 auto-evict를 하지
@@ -685,6 +752,7 @@ def create_runtime_controller_app(
                     profile_id,
                     confirm_unverified=payload.get("confirm_unverified") is True,
                     client_request_id=payload.get("request_id"),
+                    execution_policy=selected_mode,
                 )
         except MainModelSwitchError as exc:
             raise HTTPException(
@@ -749,7 +817,7 @@ def create_runtime_controller_app(
         async with context._budget_lock:
             plan = await _runtime_transition_plan("main", "stopped", force=False)
             _validate_reviewed_plan(plan, plan_digest)
-            await context._main_model_manager.stop_main()
+            await context._main_model_manager.stop_main(strict_drain=True)
         return JSONResponse({"action": "stop", "service": context._MAIN_SERVICE, "runtime_state": "stopped"})
 
 
@@ -765,7 +833,13 @@ def create_runtime_controller_app(
             plan = await _runtime_transition_plan("main", "active", force=force)
             _validate_reviewed_plan(plan, plan_digest)
             evicted = await _apply_reviewed_activation("main", plan, force=force)
-            await context._main_model_manager.start_main()
+            if (context._state_store.read().get("runtime_selection") or {}).get("mode") == "automatic" and not plan["no_op"]:
+                outcome = context._main_model_manager.request_switch(selection_policy["cpu_profile"], confirm_unverified=True)
+                result = await context._main_model_manager.wait_for_operation(outcome.operation_id)
+                if result["status"] != "completed":
+                    raise HTTPException(503, detail="CPU startup verification failed")
+            else:
+                await context._main_model_manager.start_main()
         return JSONResponse(
             {"action": "start", "service": context._MAIN_SERVICE, "runtime_state": "active", "evicted": evicted}
         )

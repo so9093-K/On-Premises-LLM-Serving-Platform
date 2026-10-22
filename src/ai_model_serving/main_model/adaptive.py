@@ -25,12 +25,14 @@ class AdaptiveMainModelControl:
         resources: Callable[[], Awaitable[HostResourceSnapshot]],
         *,
         gpu_policies: AdaptiveGpuPolicies,
+        admit_gpu: Callable[[float], Awaitable[None]] | None = None,
     ):
         self.manager = manager
         self.policy = policy
         self.resources = resources
         self.gpu_policies = gpu_policies
         self.mutation_lock = asyncio.Lock()
+        self.admit_gpu = admit_gpu
         for key in (
             "poll_interval_seconds",
             "recovery_samples",
@@ -74,6 +76,8 @@ class AdaptiveMainModelControl:
         now = time.time() if now is None else now
         state = self.manager.state_store.read()
         selection = dict(state.get("runtime_selection") or {})
+        if selection.get("mode", "automatic") != "automatic":
+            return
         operation = state.get("last_operation") or {}
         if operation and operation.get("status") not in _TERMINAL:
             return
@@ -224,6 +228,12 @@ class AdaptiveMainModelControl:
             and streak >= self.policy["recovery_samples"]
             and now - last_change >= self.policy["minimum_residency_seconds"]
         ):
+            if self.admit_gpu is not None:
+                try:
+                    await self.admit_gpu(candidate.profile.vram_fraction)
+                except Exception:
+                    self._record(reason_code="GPU_BUDGET_BLOCKED", healthy_samples=0)
+                    return
             self._record(
                 reason_code="GPU_RECOVERY_VALIDATION",
                 healthy_samples=0,

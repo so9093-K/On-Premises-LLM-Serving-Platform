@@ -44,6 +44,15 @@ OPERATION_STAGES: tuple[str, ...] = (
 _TERMINAL_STATES = frozenset({"completed", "failed", "rollback_failed"})
 
 
+def commit_execution_policy(state: dict[str, Any], operation: dict[str, Any]) -> None:
+    mode = operation.get("execution_policy")
+    if mode is not None:
+        state.setdefault("runtime_selection", {}).update(
+            mode=mode, reason_code="STARTING_CPU" if mode == "automatic" else "OPERATOR_SELECTED",
+            healthy_samples=0, failure_samples=0, gpu_retry_at=0, cpu_retry_at=0,
+        )
+
+
 def project_main_model_operation(operation: dict[str, Any]) -> dict[str, Any]:
     """내부 모델 전환 상태를 안정적인 공개 Operation 증거로 투영한다.
 
@@ -156,6 +165,7 @@ class MainModelManager:
         active = self.catalog.profiles.get(active_id) if active_id else None
         last_operation = state.get("last_operation")
         return {
+            **({"runtime_selection": state["runtime_selection"]} if state.get("runtime_selection") else {}),
             "public_model": self.catalog.public_model,
             "active_profile": active.public_view() if active else None,
             "last_known_good_profile": state.get("last_known_good_profile"),
@@ -449,11 +459,14 @@ class MainModelManager:
             if interrupted and interrupted.get("status") not in _TERMINAL_STATES:
                 await self._recover_interrupted(interrupted, observed)
                 return
-            target = self.boot_profile
-            if self.catalog.runtime.get("adaptive"):
+            mode = (self.state_store.read().get("runtime_selection") or {}).get("mode")
+            target = "cpu-gguf-text" if mode == "cpu" else self.boot_profile
+            automatic = mode == "automatic"
+            if self.catalog.runtime.get("adaptive") or mode == "cpu" or automatic:
                 runtime = await self.backend.observe_runtime(self.catalog)
                 if runtime.get("status") != "ready":
-                    self.request_switch(target, confirm_unverified=True, boot_reconcile=True)
+                    recovery = "cpu-gguf-text" if automatic else target
+                    self.request_switch(recovery, confirm_unverified=True, boot_reconcile=True)
                     return
             if observed == target:
                 await self._validate_and_record(self.catalog.profiles[target])
@@ -483,6 +496,7 @@ class MainModelManager:
                 state["active_profile"] = requested
                 state["last_known_good_profile"] = requested
                 state["gate"] = "open"
+                commit_execution_policy(state, operation)
             self.state_store.update(commit)
             self._set_operation(operation_id, "completed", recovered_after_restart=True)
             self._record_terminal(operation_id, success=True)
@@ -526,6 +540,7 @@ class MainModelManager:
         client_request_id: str,
         profile_id: str,
         now: float,
+        execution_policy: str | None = None,
     ) -> dict[str, Any] | None:
         """request_id가 idempotent하게 가리키는 기존 작업이 있으면 반환한다.
 
@@ -548,6 +563,9 @@ class MainModelManager:
                     "request_id was already used for a different profile",
                     status_code=409,
                 )
+            previous_policy = prior.get("execution_policy") or ("cpu" if self.catalog.profiles[profile_id].runtime_backend == "llama-cpp" else "gpu")
+            if execution_policy is not None and previous_policy != execution_policy:
+                raise MainModelSwitchError("SWITCH_REQUEST_ID_CONFLICT", "request_id belongs to a different execution policy", status_code=409)
             return prior
         return None
 
@@ -596,6 +614,7 @@ class MainModelManager:
         confirm_unverified: bool = False,
         boot_reconcile: bool = False,
         client_request_id: str | None = None,
+        execution_policy: str | None = None,
     ) -> SwitchOutcome:
         policy_error = self.switch_policy_error(profile_id, boot_reconcile=boot_reconcile)
         if policy_error is not None:
@@ -620,7 +639,7 @@ class MainModelManager:
                 self.state_store.read().get("operations", []),
                 client_request_id,
                 profile_id,
-                time.time(),
+                time.time(), execution_policy,
             )
             if prior is not None:
                 return SwitchOutcome(str(prior["id"]), True)
@@ -647,7 +666,7 @@ class MainModelManager:
                         value.get("operations", []),
                         client_request_id,
                         profile_id,
-                        time.time(),
+                        time.time(), execution_policy,
                     )
                     if prior is not None:
                         reused_operation_id = str(prior["id"])
@@ -671,6 +690,7 @@ class MainModelManager:
                     "updated_at": time.time(),
                     "boot_reconcile": boot_reconcile,
                     "client_request_id": client_request_id,
+                    **({"execution_policy": execution_policy} if execution_policy is not None else {}),
                 }
                 value["last_operation"] = operation
                 value.setdefault("operations", []).append(operation)
@@ -778,7 +798,7 @@ class MainModelManager:
             await self.backend.prepare(self.catalog, target)
             self.state_store.update(lambda state: state.update(gate="closed"))
             self._set_operation(operation_id, "draining")
-            if not boot_reconcile or self.catalog.runtime.get("adaptive"):
+            if not boot_reconcile or self.catalog.runtime.get("adaptive") or (self.state_store.read().get("runtime_selection") or {}).get("mode") == "automatic":
                 await self.backend.wait_for_drain(
                     float(self.catalog.runtime.get("drain_timeout_seconds", 30))
                 )
@@ -862,6 +882,7 @@ class MainModelManager:
             state["last_known_good_profile"] = target.profile_id
             state["gate"] = "open"
             state["runtime_state"] = "active"
+            commit_execution_policy(state, operation)
         self.state_store.update(commit)
         self._set_operation(operation_id, "completed")
         self._record_terminal(operation_id, success=True)

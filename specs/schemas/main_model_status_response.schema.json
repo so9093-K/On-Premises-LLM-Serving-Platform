@@ -146,14 +146,27 @@
               "anyOf": [
                 {
                   "type": "object",
-                  "required": ["name", "version"],
+                  "required": [
+                    "name",
+                    "version"
+                  ],
                   "additionalProperties": false,
                   "properties": {
-                    "name": {"type": "string", "minLength": 1},
-                    "version": {"type": ["string", "null"]}
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
                   }
                 },
-                {"type": "null"}
+                {
+                  "type": "null"
+                }
               ]
             },
             "error": {
@@ -182,7 +195,12 @@
       "additionalProperties": false,
       "properties": {
         "mode": {
-          "const": "automatic"
+          "type": "string",
+          "enum": [
+            "automatic",
+            "cpu",
+            "gpu"
+          ]
         },
         "reason_code": {
           "type": "string"
@@ -454,6 +472,12 @@
               ]
             }
           }
+        },
+        "cpu_profile": {
+          "type": "string"
+        },
+        "gpu_profile": {
+          "type": "string"
         }
       }
     }

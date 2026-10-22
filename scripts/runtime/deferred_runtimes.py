@@ -99,6 +99,7 @@ def main() -> int:
     )
     parser.add_argument("--config-root", type=Path, default=Path.cwd())
     parser.add_argument("--runtimes", default="")
+    parser.add_argument("--all", action="store_true", help="Defer all enabled supporting runtimes")
     parser.add_argument("--profile", default="")
     parser.add_argument(
         "--main-resource-variant",
@@ -109,7 +110,7 @@ def main() -> int:
 
     variant = args.main_resource_variant.strip() or None
     topology = load_runtime_topology(args.config_root, main_resource_variant=variant)
-    raw_runtimes = args.runtimes
+    raw_runtimes = ",".join(topology.service_by_key) if args.all else args.runtimes
     effective_profile = ""
     from_profile = not raw_runtimes
     if from_profile:
