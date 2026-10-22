@@ -26,8 +26,8 @@ source scripts/lib/source_provenance.sh
 read_source_provenance platform
 EFFECTIVE_PLATFORM="${TARGET_PLATFORM:-$DAEMON_PLATFORM}"
 
-# 로컬과 CI는 이 스크립트로 같은 Dockerfile build와 image 내부 app 초기화를
-# 확인한다. 로컬 기본값은 Docker daemon의 architecture이고, 운영 artifact를 만드는
+# 로컬과 CI는 이 스크립트로 같은 Dockerfile 이미지를 생성한다. 실제 app/HTTP
+# 검증은 별도의 image-smoke 명령이 담당한다. 운영 artifact를 만드는
 # 외부 자동화는 PLATFORM_BUILD_PLATFORM=linux/amd64를 명시한 뒤 registry digest를 수집한다.
 build_args=()
 if [[ -n "$TARGET_PLATFORM" ]]; then
@@ -84,6 +84,7 @@ fi
 echo "[image] building platform image ${IMAGE}"
 docker build "${build_args[@]}" .
 
-bash scripts/build/smoke_platform_image.sh "$IMAGE" "$TARGET_PLATFORM"
+# make up의 이미지 준비는 품질 검증 스크립트 실행에 의존하지 않는다.
+# 빌드된 제품의 HTTP 표면 검증은 별도 make image-smoke/CI 단계에서 수행한다.
 IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
-echo "[image] built and verified ${IMAGE} (${IMAGE_ID})"
+echo "[image] built ${IMAGE} (${IMAGE_ID})"

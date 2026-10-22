@@ -139,10 +139,11 @@ Platform Image
 Gateway / Risk Signal Service 적용
 ```
 
-Platform Image만 다시 만들 때는 다음 명령을 사용한다.
+Platform Image만 다시 만들 때는 빌드를 수행하고, 이미지 HTTP 동작 검증이 필요하면 두 번째 명령을 추가한다.
 
 ```bash
 make build-image
+make image-smoke  # 생성된 이미지의 HTTP 동작 검증이 필요한 경우
 ```
 
 관련 실행 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_build.md), API 계약은 [API Reference](./reference/api_reference.md)를 참고한다.

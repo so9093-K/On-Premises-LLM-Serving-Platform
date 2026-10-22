@@ -239,10 +239,11 @@ wait_for_probe "gateway /health" "$GATEWAY_BASE_URL/health" 200
 # compose 서비스에는 로컬 run/*.pid 파일이 없으므로, readiness는 HTTP로 폴링한다.
 wait_for_gateway_ready "$GATEWAY_BASE_URL/ready" "$ADMIN_API_KEY"
 
-# 엄격한 smoke gate 전에 readiness dependency 목록을 출력한다.
+# 실제 Main Chat 확인 전에 필수 dependency 상태를 진단용으로 출력한다.
 bash scripts/ops/status_services.sh --full || true
 
 # /ready 통과 뒤 실제 Chat 경로도 확인한다. 두 probe 사이에 전환이 시작될 수 있다.
 wait_for_main_model_ready
 
-bash scripts/ops/smoke_test.sh
+# 추가 기능별·통합 Smoke는 make smoke가 독립적으로 소유한다.
+# 기동 완료 조건은 실제 dependency readiness와 필수 Main Chat 요청 가능 여부다.

@@ -244,7 +244,7 @@ make status
 ```
 
 `make up`은 내부적으로 environment sync, 필요한 image/model cache 준비, Access Profile의 bind/auth projection,
-Main Model boot projection과 Compose preflight를 수행한다. managed dynamic target은 strict readiness와 representative smoke까지 확인하고 static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
+Main Model boot projection과 Compose preflight를 수행한다. 일반 전체 스택은 필수 Runtime readiness와 Main Chat 요청 가능 여부를 확인하고, 관리형 CPU-first와 static target은 각각의 target Readiness 계약을 따른다. 추가 모델별 대표 API 검증은 기동 성공 조건이 아닌 독립 명령 `make smoke`가 소유한다.
 세부 Compose/readiness script는 maintainer 진단용 implementation이며 operator command가 아니다.
 
 Main Model의 실제 실행 profile은 persisted runtime state와 boot policy를 반영해 결정된다.
@@ -446,31 +446,22 @@ make status
 app-only에서는 application health를, full-stack에서는 현재 active/stopped/unavailable
 Runtime 상태를 같은 표면에서 보여준다.
 
-실제 serving path까지 포함한 strict validation은 별도 operator 명령이 아니라 `make up`의
-완료 조건이다.
+기동 완료 판단과 추가 기능 검증은 별도의 계약이다. 일반 전체 스택의
+`scripts/ops/ready_full.sh`는 Gateway /health·/ready와 실제 Main Chat 요청을 확인한다.
+관리형 CPU-first 및 static target은 선택한 target의 Readiness 기준을 유지한다.
 
 ```text
-make up
-  ↓
-Gateway /ready
-  ↓
-Dependency Ready
-  ↓
-Main Model Gate
-  ↓
-Representative Smoke
+make up → target Readiness → 기동 완료
+                            ↓
+                       make smoke (독립 검증)
 ```
 
-내부 `scripts/ops/ready_full.sh`와 `scripts/ops/smoke_test.sh`는 이 계약의 implementation
-layer다. maintainer가 특정 계층만 분리 진단할 때 직접 실행할 수 있지만 일반 운영자가
-별도 lifecycle 명령으로 기억하지 않는다.
-
-Smoke는 Chat(Structured Output 포함)과 Risk 경로를 실제 요청으로 검증하고, non-main
-Model Runtime은 `GET /admin/runtimes`의 현재 desired state와 effective topology를 기준으로
-probe 대상을 결정한다. `active` Runtime의 inference 실패는 `make up` 실패이며,
-의도적으로 `stopped`이거나 resource policy로 unavailable인 Runtime은 해당 Runtime 전용
-probe를 보내지 않는다. `starting` 또는 현재 상태를 확정할 수 없는 Runtime은
-fail-closed한다.
+`make smoke`는 Chat(Structured Output 포함), Risk와 non-main Model Runtime의 대표 요청을
+실제로 검증한다. `GET /admin/runtimes`의 현재 desired state와 effective topology에서
+검증 대상을 결정하므로 `active` Runtime의 추론 실패는 Smoke 실패로 보고하고,
+의도적으로 `stopped`이거나 resource policy로 unavailable이면 전용 probe를 생략한다.
+`starting` 또는 상태를 확정할 수 없으면 검증은 fail-closed한다. 이 실패는 이미
+정상 실행 중인 서비스를 중단시키는 기동 실패로 취급하지 않는다.
 
 ---
 

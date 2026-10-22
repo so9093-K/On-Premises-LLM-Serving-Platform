@@ -19,7 +19,7 @@ _SHARED_CONTROLS = (
 ARTIFACT_INPUTS = {
     "platform": (
         "Dockerfile", "pyproject.toml", "uv.lock", "VERSION", "src", "configs", "specs/schemas",
-        "scripts/build/build_platform_image.sh", "scripts/build/smoke_platform_image.sh",
+        "scripts/build/build_platform_image.sh",
         *_SHARED_CONTROLS,
     ),
     "vllm-unified": (

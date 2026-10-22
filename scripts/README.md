@@ -56,7 +56,8 @@ make down
 | `platform_cli.py` | `up/status/down`의 target-aware operator lifecycle을 소유하고 setup/build/cache/readiness 세부 단계를 implementation script에 위임한다. |
 | `build/setup_dev.py` | Platform `uv.lock`에서 개발용 `.venv`를 동기화한다. 기존 환경이 손상됐거나 Python minor가 다르면 자동 삭제하지 않는다. |
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
-| `build/build_platform_image.sh` | Platform Dockerfile build·image import smoke 경로다. 소스 내용 해시·상태·target platform과 조회 가능한 Git 커밋을 이미지에 기록한다. |
+| `build/build_platform_image.sh` | Platform 실행 이미지를 생성하고 소스 내용 해시·상태·target platform·Git 출처를 이미지에 기록한다. 별도의 이미지 Smoke 실행은 요구하지 않는다. |
+| `build/smoke_platform_image.sh` | 생성된 이미지의 app 초기화와 실제 Gateway·Console·Docs HTTP 기능을 독립적으로 검증한다. |
 | `build/build_vllm_unified_image.sh` | Unified vLLM Docker build 경로다. `vllm_unified_build.yaml`의 target/base/pin을 사용하며 native Linux amd64 Docker daemon만 허용한다. |
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |
 | `auth/auth_plan.py` / `auth/auth_apply.py` | secret을 출력하지 않고 auth profile 변경 계획을 보여주거나 managed auth flag만 적용한다. |
@@ -70,7 +71,7 @@ make down
 | `build/check_python.py` | 현재 interpreter가 `>=3.12,<3.14`인지 fail-fast로 확인한다. |
 | `ops/up_services.sh` | 로컬 app-only Gateway/Risk Signal Service를 실행하고 `/health`를 기다린다. |
 | `ops/ready_local.sh` | app-only `/health` 상태를 strict하게 확인한다. app service가 내려가 있으면 실패하며 vLLM은 요구하지 않는다. |
-| `ops/ready_full.sh` | strict `/ready`와 smoke test를 실행한다. 실제 vLLM runtime이 필요하다. |
+| `ops/ready_full.sh` | 필수 Runtime `/ready`와 실제 Main Chat 경로를 확인한다. 전체 대표 Smoke는 실행하지 않는다. |
 | `compose/preflight_compose.sh` | full-stack compose 전 exposure config를 먼저 검증하고, 통과한 뒤 Docker, GPU 표시, effective compose host-published port, secret 상태를 점검한다. compose 내부 `expose` ports는 host port 검사 대상이 아니다. host bind와 port는 `docker compose config` 결과를 따른다. |
 | `validation/runtime_validation.py` | 실제 runtime 검증 결과를 `reports/runtime/` 아래에 기록한다. |
 | `models/check_hf_model_config.py` | 고정 vLLM runtime 환경에서 Transformers `AutoConfig`만 로드해 engine·GPU 이전 config loader 문제를 분리한다. |
@@ -82,7 +83,7 @@ make down
 ## 운영 주의사항
 
 - app-only `.env`의 `make up`은 vLLM을 시작하지 않고 Gateway/Risk Signal Service만 실행한다.
-- full-stack `make up`은 Docker/GPU/port/secret preflight와 strict readiness/smoke를 내부적으로 수행한다.
+- full-stack `make up`은 Docker/GPU/port/secret preflight와 target에 필요한 Readiness를 수행한다. 전체 대표 요청 검증은 독립된 `make smoke`가 수행한다.
 - 기본 Runtime Startup Profile은 `main_only`다. Retrieval runtime도 처음부터 필요하면
   `RUNTIME_STARTUP_PROFILE=retrieval_ready make up`을 사용한다.
 - `.runtime/prometheus/admin_api_key`가 사라져도 `.env`를 다시 만들지 않는다. 다음

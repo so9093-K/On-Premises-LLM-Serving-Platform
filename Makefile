@@ -13,11 +13,11 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image image-smoke smoke build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
 .PHONY: setup-dev doctor-dev cpu-runtime-validate
 
 PUBLIC_TARGETS := up status ports down logs reset purge
-QUALITY_TARGETS := check
+QUALITY_TARGETS := check smoke image-smoke
 PLATFORM_CLI := "$(CURDIR)/.venv/bin/python" scripts/platform_cli.py
 PLATFORM_TARGET_ARG = $(if $(TARGET),--target "$(TARGET)",)
 PLATFORM_PROFILE_ARG = $(if $(MODEL),--main-profile "$(MODEL)",)
@@ -101,8 +101,14 @@ validate: ## 정적 계약·설정·생성물 drift 검증
 test: ## 결정론적 unit·contract 테스트
 	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/run_test.sh
 
-build-image: ## 로컬 Docker platform image build (daemon 기본 architecture)
+build-image: ## 로컬 Docker Platform 이미지 생성 (실제 HTTP 검증은 별도 image-smoke)
 	bash scripts/build/build_platform_image.sh
+
+image-smoke: ## 빌드된 Platform 이미지의 Gateway·Console·Docs HTTP 표면 검증
+	@bash scripts/build/smoke_platform_image.sh "$${PLATFORM_IMAGE:-ai-model-serving-platform:$(CURRENT_VERSION)}" "$${PLATFORM_BUILD_PLATFORM:-}"
+
+smoke: ## 기동된 전체 스택의 활성 Runtime 대표 요청 검증 (make up과 독립)
+	@PYTHON_BIN="$(PYTHON)" bash scripts/ops/smoke_test.sh
 
 build-vllm-unified-image: ## native linux/amd64 Docker의 NVIDIA vLLM image build
 	bash scripts/build/build_vllm_unified_image.sh

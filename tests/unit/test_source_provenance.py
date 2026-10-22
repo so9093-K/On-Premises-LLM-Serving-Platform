@@ -185,6 +185,7 @@ def test_runtime_identity_does_not_read_distribution_files_or_git(tmp_path, monk
     ("ops/images/vllm-unified/requirements.media.lock", {"vllm-unified"}),
     ("configs/vllm_unified_build.yaml", {"platform", "vllm-unified"}),
     ("scripts/ops/down_all.sh", set()),
+    ("scripts/build/smoke_platform_image.sh", set()),
     ("ui/control-plane/src/App.tsx", set()),
 ])
 def test_runtime_changes_invalidate_only_consuming_images(tmp_path, path, affected):
@@ -227,3 +228,52 @@ def test_runtime_manifests_cover_docker_copy_sources(monkeypatch, artifact, dock
 
     monkeypatch.setattr(vllm_image, "_DOCKERFILE", ROOT / dockerfile)
     assert vllm_image._dockerfile_local_copy_sources() <= set(provenance.input_paths(artifact))
+
+
+def test_platform_smoke_is_not_a_build_or_runtime_dependency(tmp_path, monkeypatch):
+    """검증 스크립트의 변경·누락·읽기 장애는 이미지 출처와 실행 해시에 무관하다."""
+    fixture_source(tmp_path)
+    script = tmp_path / "scripts/build/smoke_platform_image.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+
+    before = provenance.read_source_provenance(tmp_path, "platform")
+    assert "scripts/build/smoke_platform_image.sh" not in provenance.input_paths("platform")
+    assert "scripts/build/smoke_platform_image.sh" not in provenance.input_paths("platform", distribution=True)
+
+    script.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    original_open = Path.open
+
+    def no_smoke_read(path, *args, **kwargs):
+        if path == script:
+            pytest.fail("이미지 빌드에서 검증 스크립트를 읽었습니다")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", no_smoke_read)
+    changed = provenance.read_source_provenance(tmp_path, "platform")
+    assert changed.digest == before.digest
+    assert changed.runtime_digest == before.runtime_digest
+
+    script.unlink()
+    removed = provenance.read_source_provenance(tmp_path, "platform")
+    assert removed.digest == before.digest
+    assert removed.runtime_digest == before.runtime_digest
+
+
+def test_startup_and_image_build_do_not_require_smoke_scripts():
+    """실행 경로는 필수 Readiness만 소유하고 추가 검증은 독립 진입점이 소유한다."""
+    readiness = (ROOT / "scripts/ops/ready_full.sh").read_text(encoding="utf-8")
+    image_build = (ROOT / "scripts/build/build_platform_image.sh").read_text(encoding="utf-8")
+    make = (ROOT / "Makefile").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/validate.yml").read_text(encoding="utf-8")
+    assert 'wait_for_gateway_ready "$GATEWAY_BASE_URL/ready"' in readiness
+    assert "wait_for_main_model_ready" in readiness
+    assert "\nbash scripts/ops/smoke_test.sh\n" not in readiness
+    assert "\nbash scripts/build/smoke_platform_image.sh " not in image_build
+    assert "smoke: ##" in make
+    assert "image-smoke: ##" in make
+    # Make는 '$'를 소비하므로 Shell에 전달할 환경변수 표기는 '$$'여야 한다.
+    assert '$${PLATFORM_IMAGE:-' in make
+    assert '$${PLATFORM_BUILD_PLATFORM:-}' in make
+    assert "run: make build-image" in workflow
+    assert "run: make image-smoke" in workflow

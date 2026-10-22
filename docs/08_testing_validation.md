@@ -286,7 +286,7 @@ app-only에서는 다음 process health를 확인한다.
 make up
 ```
 
-full-stack readiness는 다음 흐름으로 진행된다.
+일반 전체 스택의 `ready_full.sh` 경로는 다음 순서로 필수 준비 상태를 확인한다.
 
 ```text
 Gateway /health
@@ -294,19 +294,25 @@ Gateway /health
 Gateway /ready
       ↓
 Main Model serving gate
-      ↓
-Smoke Test
-Strict Smoke Test
 ```
 
 Gateway `/ready`는 enabled runtime dependency의 준비 상태를 확인한다.
 모델 로딩 중에는 dependency 상태를 표시하며 readiness polling을 이어간다.
+이 경로의 기동 성공은 필수 Serving Readiness와 실제 Main Chat 요청에 근거한다.
+관리형 CPU-first 정책은 Core와 `/ready`, 명시적 Main `stopped` 상태 등을 기준으로 판단하고,
+정적/외부 Main Runtime은 해당 target의 Gateway readiness를 따른다. 어떤 경로에서도
+전체 기능·모델별 Smoke를 기동 성공 조건으로 요구하지 않는다.
 
-### Smoke implementation — `scripts/ops/smoke_test.sh`
+### Smoke implementation — `make smoke`
 
 ```bash
-bash scripts/ops/smoke_test.sh
+make up
+make smoke
 ```
+
+`make smoke`는 필요할 때 기동된 전체 스택을 명시적으로 검증하는 독립 명령이다.
+검증 도구의 누락·장애·불합격은 제품의 필수 서비스 기동과 분리된다.
+자동화 또는 배포 정책은 `make up` 뒤 이 검증을 추가 승인 조건으로 사용할 수 있다.
 
 Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 확인한다.
 
@@ -320,9 +326,9 @@ Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 �
 | `/v1/embeddings` / `local-embed` | 현재 active인 일반 embedding path |
 | `/v1/embeddings` / `local-embed-ko` | 현재 active인 Korean retrieval embedding path |
 
-`scripts/ops/smoke_test.sh`는 `make up`의 strict serving gate 안에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
+`scripts/ops/smoke_test.sh`는 독립적인 `make smoke`에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
 
-`make up`은 내부 `ready_full.sh`의 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
+`make up`은 필수 Runtime Readiness와 실제 Main Chat 경로를 확인한다. 전체 representative Smoke는 별도 `make smoke`로 실행하며, 실패가 발생하면 검증은 실패로 보고하되 이미 정상 실행 중인 Runtime을 검증 스크립트 때문에 중단하지 않는다.
 
 ### Build와 검증의 관계
 
@@ -334,8 +340,11 @@ make up
 ```
 
 ```text
-make check  → 정적 계약 + 결정론적 테스트
-make up  → 선택 target의 저장소 소유 image
+make check   → 정적 계약 + 결정론적 테스트
+make up      → 선택 target의 실행 이미지 + 필수 Readiness
+make smoke   → 실행 중인 전체 스택의 추가 대표 API 검증
+make build-image → 실행 이미지 생성
+make image-smoke → 빌드된 이미지 HTTP 동작 검증
 ```
 
 Build 자체의 상세 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_build.md)를 참고한다.
@@ -447,7 +456,7 @@ Runtime report는 check 결과와 latency·상태 정보를 중심으로 기록�
 | Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
-| Platform `Dockerfile` / dependency | `make build-image`(image의 기본 CMD로 Gateway를 띄워 `/health`, Console, `/docs` asset을 HTTP로 확인) | image 실행 후 readiness |
+| Platform `Dockerfile` / dependency | `make build-image` → `make image-smoke` | 이미지 빌드와 기본 CMD·HTTP 동작을 별도로 확인 |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
 
@@ -675,8 +684,9 @@ make logs RAW=1
 | Unit + Contract Test | `make test` |
 | 선택 target image Build | `make up` |
 | app-only process health | `make status` |
-| full-stack readiness + smoke | `make up` |
-| 대표 API smoke | `bash scripts/ops/smoke_test.sh` |
+| full-stack readiness 및 Main Chat 확인 | `make up` |
+| 대표 API smoke | `make smoke` |
+| Platform 이미지 HTTP 동작 검증 | `make image-smoke` |
 | vLLM / monitoring 운영 검증 | `make runtime-validate` |
 | Generated artifact 재생성 | `make render-runtime-assets` |
 | Effective Compose 확인 | `bash scripts/compose/compose_config.sh` |
@@ -693,7 +703,7 @@ make logs RAW=1
 | Test entry point | `scripts/validation/run_test.sh` | Unit / Contract pytest |
 | Test source | `tests/unit/`, `tests/contract/` | 동작 / contract test |
 | Local readiness | `scripts/ops/ready_local.sh` | app-only health gate |
-| Full readiness | `scripts/ops/ready_full.sh` | full-stack readiness + smoke |
+| Full readiness | `scripts/ops/ready_full.sh` | Gateway dependency readiness + 필수 Main Chat 요청 |
 | Smoke | `scripts/ops/smoke_test.sh` | 대표 inference path |
 | Runtime validation | `scripts/validation/runtime_validation.py` | live vLLM/monitoring report |
 

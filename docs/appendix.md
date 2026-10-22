@@ -29,7 +29,7 @@
 | Implementation Status | Deployment Target이 실행 가능한 구현 상태인지 나타내는 상태. | `implementation_status` |
 | Qualification | 특정 Main Model 또는 Deployment Target을 maintainer가 실제 장비에서 검증했는지 나타내는 선언. | `qualification.status`, `qualification_status` |
 | Readiness | 서비스와 필요한 Model Runtime이 실제 요청을 처리할 준비가 된 상태. | `/ready` |
-| Smoke Test | 대표 API 요청을 실제 실행해 주요 요청 경로를 확인하는 내부 serving gate. | `scripts/ops/smoke_test.sh` |
+| Smoke Test | 기동과 독립적으로 활성 Runtime의 대표 API 요청을 검증하는 품질 확인. | `make smoke` |
 | Runtime Validation | GPU, serving engine, Model Runtime 등 실제 실행 환경을 확인하는 검증. | `make runtime-validate` |
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |
@@ -96,12 +96,14 @@ Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 ta
 | Application/config/contract 검증 | `make app-check` | [8. 테스트와 검증](./08_testing_validation.md) |
 | 저장소 전체 검증 | `make check` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Platform Image 직접 Build | `make build-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
+| Platform Image HTTP 검증 | `make image-smoke` | [8. 테스트와 검증](./08_testing_validation.md) |
+| 실행 중 Runtime 대표 Smoke | `make smoke` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Unified vLLM Image 직접 Build | `make build-vllm-unified-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
 | GPU/vLLM qualification 검증 | `make runtime-validate` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Generated artifact 갱신 | `make render-runtime-assets` | [5. 설정 체계와 Source of Truth](./05_configuration.md) |
 
-Readiness, smoke, Compose config/diagnostics와 cheap clean은 public Make alias가 아니라
-`make up`의 내부 단계 또는 maintainer script다.
+Readiness·Compose 설정 확인·진단과 정리 스크립트는 제품 기동·운영의 내부 도구다.
+Smoke는 제품 기동과 독립된 공개 검증 명령(`make smoke`, `make image-smoke`)을 사용한다.
 
 ---
 
