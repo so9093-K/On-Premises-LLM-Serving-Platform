@@ -128,6 +128,8 @@ GPU 예산에서 `paused`·`restarting`은 실제 Serving 준비와 무관하게
 시작하는 경우에도 기존 대상의 GPU 예약을 유지하며, 검토한 퇴거 대상이
 적용 시 달라졌다면 다시 계획해야 한다. 이 비율은 실측 VRAM 사용량이 아니다.
 
+Runtime 시작·중지의 Plan/Apply 요청·변경 감지·결과 확인은 [Runtime Plan/Apply 계약](./reference/runtime_transition_plan.md)을 따른다.
+
 ---
 
 ## 6.3 모델 프로파일 선택
@@ -348,7 +350,7 @@ curl http://127.0.0.1:9400/ready
 ```
 
 full-stack에서는 `make status`와 Gateway `GET /ready`로 준비 상태를 확인한다.
-`make up` 자체도 내부 full-stack readiness gate와 대표 smoke를 완료 조건으로 사용한다.
+`make up`은 선택한 Target의 필수 Readiness를 기동 완료 조건으로 사용한다. 일반 전체 스택은 Main Chat 경로도 확인하고, 추가 모델별 대표 요청 검증은 별도의 `make smoke`에서 실행한다.
 
 마지막으로 실제 Chat inference를 호출해 active Main Model의 응답을 확인한다.
 

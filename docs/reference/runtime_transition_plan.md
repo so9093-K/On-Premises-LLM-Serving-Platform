@@ -1,4 +1,6 @@
-# Runtime Transition Plan
+# Runtime Plan/Apply 계약
+
+Runtime의 시작·중지 요청을 검토하고 적용하는 API 계약이다. 실제 운영 순서는 [모델 운영](../06_model_operations.md)을 따른다.
 
 `POST /admin/runtimes/{service_key}/plans`는 런타임을 변경하지 않고 현재 GPU budget과 prerequisite 상태에서 transition 영향을 계산한다.
 
@@ -17,7 +19,7 @@ Digest가 달라지면 퇴거하지 않고 `409 CONFLICT`와
 Profile 교체의 VRAM 변화는 같은 GPU Admission 정책을 사용하지만
 Runtime Start Plan과 달리 자동 퇴거를 실행하지 않는다.
 
-Apply는 Plan에서 받은 `plan_digest` 없이는 실행되지 않는다. first-party Admin Console과 외부 자동화 모두 Plan을 먼저 요청하고 반환된 digest를 Apply에 전달한다. 이 digest는 클라이언트가 public projection을 다시 해시하기 위한 값이 아니라, sidecar가 검토 시점의 canonical transition snapshot을 apply-time 재계산과 비교하기 위한 opaque token이다.
+Apply는 Plan에서 받은 `plan_digest` 없이는 실행되지 않는다. first-party Admin Console과 외부 자동화 모두 Plan을 먼저 요청하고 반환된 digest를 Apply에 전달한다. 이 digest는 클라이언트가 public projection을 다시 해시하기 위한 값이 아니라, Runtime Controller가 검토 시점의 canonical transition snapshot을 apply-time 재계산과 비교하기 위한 opaque token이다.
 
 ## Runtime 부재와 No-op 처리
 
@@ -34,7 +36,7 @@ Gateway는 컨테이너 관측의 `unavailable` 표시와 무관하게 Stop 완�
 
 ## Apply verification과 operation history
 
-Runtime mutation은 sidecar 호출 성공만으로 완료 처리하지 않는다. Gateway는 apply 이후 컨테이너 또는 Main Model의 실제 관측 상태를 다시 읽고 목표 상태와 prerequisite/eviction effect가 수렴했는지 확인한다. 수렴하지 않거나 관측 자체가 실패하면 `RUNTIME_VERIFICATION_FAILED`로 fail-closed하며 operation record는 `verification_failed`로 남는다. destructive mutation은 자동 재실행하지 않는다.
+Runtime 변경은 Runtime Controller 호출 성공만으로 완료 처리하지 않는다. Gateway는 apply 이후 컨테이너 또는 Main Model의 실제 관측 상태를 다시 읽고 목표 상태와 prerequisite/eviction effect가 수렴했는지 확인한다. 수렴하지 않거나 관측 자체가 실패하면 `RUNTIME_VERIFICATION_FAILED`로 fail-closed하며 operation record는 `verification_failed`로 남는다. destructive mutation은 자동 재실행하지 않는다.
 
 각 Apply는 `rt_<uuid>` operation id를 만들고 actor, request id, service key, desired state, force, 검토된 `plan_digest`, before snapshot, apply result, verification을 journal에 기록한다. 배포에서는 desired-state 파일과 같은 persistent platform state root 아래 `runtime-history/`를 사용하고 temp file + fsync + atomic replace로 terminal record를 갱신한다. source-tree/test 실행처럼 persistent root가 없는 경우 동일 API를 in-memory evidence로 제공하며 record의 `durable=false`로 구분한다.
 

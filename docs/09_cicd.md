@@ -120,7 +120,7 @@ verification image와 release candidate의 구분을 먼저 확인한다.
 Platform image의 build·smoke는 현재 required gate다. 반면 Unified vLLM artifact는 크기와
 CUDA/runtime compatibility, GPU qualification을 함께 다루므로 일반 application PR의 Platform
 image gate와 같은 경로로 취급하지 않는다. Unified vLLM 자동 검증을 추가할 때는 별도 builder와
-qualification evidence를 전제로 manual/non-blocking 단계부터 시작한다.
+실제 GPU·모델 호환성 확인과 분리해 manual/non-blocking 단계부터 검토한다.
 
 ## 9.6 관련 문서
 
