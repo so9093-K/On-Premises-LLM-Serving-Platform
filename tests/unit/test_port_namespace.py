@@ -138,7 +138,7 @@ def policy_fixture(tmp_path, monkeypatch):
     path = tmp_path / "configs/services.yaml"
     path.parent.mkdir(parents=True)
     path.write_bytes((ROOT / "configs/services.yaml").read_bytes())
-    monkeypatch.setattr(ports, "tracked_paths", lambda root: ["configs/services.yaml"])
+    monkeypatch.setattr(ports, "source_paths", lambda root: ["configs/services.yaml"])
     monkeypatch.setattr(ports, "preflight_bind", lambda *args: [])
     base, _ = read_policy(tmp_path)
     return path, base, base + 100 if base < 65000 else base - 100
@@ -153,6 +153,57 @@ def test_plan_does_not_write_files_or_invoke_builds(tmp_path, monkeypatch, capsy
     output = capsys.readouterr().out
     assert "configs/services.yaml" in output
     assert "계획만" in output
+
+
+def test_archive_port_plan_and_apply_do_not_use_git_or_touch_private_files(tmp_path, monkeypatch):
+    path = tmp_path / "configs/services.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_bytes((ROOT / "configs/services.yaml").read_bytes())
+    base, _ = read_policy(tmp_path)
+    new_base = base + 100
+    files = {
+        "README.md": f"Gateway http://gateway:{base}\n",
+        ".env": f"GATEWAY_PORT={base}\nAPI_KEY=preserve\n",
+        "docs/adr/history.md": f"Past port {base}\n",
+        "configs/.env.private": f"SECRET={base}\n",
+        "configs/__pycache__/cache.json": f'{{"value":{base}}}',
+        "configs/data.bin": str(base),
+        "src/ai_model_serving/static/bundle.js": str(base),
+        "ui/control-plane/src/generated/openapi.ts": str(base),
+        "scripts/models/port.py": f"PORT = {base}\n",
+        "docs/reference/models/example.md": f"Model port {base}\n",
+    }
+    for name, content in files.items():
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    outside = tmp_path.parent / "outside.yaml"
+    outside.write_text(f"port: {base}\n")
+    (tmp_path / "configs/linked.yaml").symlink_to(outside)
+    (tmp_path / "configs/linked-dir").symlink_to(outside.parent, target_is_directory=True)
+    original = path.read_bytes()
+    monkeypatch.setattr(ports.subprocess, "run", lambda *args, **kwargs: pytest.fail("포트 조회가 Git에 의존함"))
+    monkeypatch.setattr(ports, "preflight_bind", lambda *args: [])
+    assert ports.run(tmp_path, new_base, yes=False, plan=True) == 0
+    assert path.read_bytes() == original
+    assert ports.run(tmp_path, new_base, yes=True, validate=False) == 0
+    assert read_policy(tmp_path)[0] == new_base
+    assert f"GATEWAY_PORT={new_base}" in (tmp_path / ".env").read_text()
+    assert "API_KEY=preserve" in (tmp_path / ".env").read_text()
+    assert f"gateway:{new_base}" in (tmp_path / "README.md").read_text()
+    assert (tmp_path / "scripts/models/port.py").read_text() == f"PORT = {new_base}\n"
+    assert (tmp_path / "docs/reference/models/example.md").read_text() == f"Model port {new_base}\n"
+    for name in files.keys() - {"README.md", ".env", "scripts/models/port.py", "docs/reference/models/example.md"}:
+        assert (tmp_path / name).read_text() == files[name]
+    assert outside.read_text() == f"port: {base}\n"
+
+
+def test_port_inventory_does_not_follow_a_symlink_above_a_managed_subdirectory(tmp_path):
+    outside = tmp_path.parent / "other-source"
+    (outside / "compose").mkdir(parents=True)
+    (outside / "compose/example.yaml").write_text("port: 9400\n")
+    (tmp_path / "ops").symlink_to(outside, target_is_directory=True)
+    assert ports.source_paths(tmp_path) == []
 
 
 def test_port_preflight_checks_configured_host_bind_addresses(tmp_path, monkeypatch):
@@ -203,7 +254,7 @@ def test_single_command_changes_namespace_idempotently_and_restores(tmp_path, mo
         target.write_bytes((ROOT / filename).read_bytes())
     current_base, _ = ports.read_policy(tmp_path)
     new_base = current_base + 100 if current_base < 65000 else current_base - 100
-    monkeypatch.setattr(ports, "tracked_paths", lambda root: list(source_paths))
+    monkeypatch.setattr(ports, "source_paths", lambda root: list(source_paths))
     monkeypatch.setattr(ports, "preflight_bind", lambda *args: [])
     env_path = tmp_path / ".env"
     env_path.write_text("GATEWAY_PORT=9400\nGRAFANA_PORT=9411\n", encoding="utf-8")

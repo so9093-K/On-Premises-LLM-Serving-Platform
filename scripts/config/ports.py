@@ -116,7 +116,7 @@ def managed_path(path: str) -> bool:
         return False
     if path.startswith(("docs/adr/", "docs/resources/", "assets/")):
         return False
-    if path in {"CHANGELOG.md", "scripts/config/ports.py", "tests/unit/test_port_namespace.py"} or path.startswith("src/ai_model_serving/static/"):
+    if path in {"CHANGELOG.md", "scripts/config/ports.py", "tests/unit/test_port_namespace.py"} or path.startswith(("src/ai_model_serving/static/", "ui/control-plane/src/generated/")):
         # Browser 배포 파일은 Vite가 생성하는 산출물이다. 문자열 치환하지 않는다.
         return False
     return path.startswith((
@@ -175,11 +175,42 @@ def replace_ports(content: str, mapping: dict[int, int], path: str) -> str:
     return content
 
 
-def tracked_paths(root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True
+def source_paths(root: Path) -> list[str]:
+    """Git index 없이 명시된 소스 영역의 일반 텍스트 파일만 선택한다."""
+    root = root.resolve()
+    roots = (
+        "configs", "ops/compose", "ops/access", "ops/prometheus", "ops/perf",
+        "scripts", "src", "tests", "specs", "docs",
+        "ui/control-plane/src", "ui/control-plane/tests",
     )
-    return sorted(p for p in result.stdout.decode("utf-8").split("\0") if p and managed_path(p))
+    suffixes = {".py", ".sh", ".yaml", ".yml", ".json", ".md", ".ts", ".tsx",
+                ".mjs", ".css", ".html", ".conf", ".toml", ".jinja", ".hujson"}
+    excluded = {"node_modules", "__pycache__"}
+    paths = {name for name in ("Dockerfile", "README.md", "Makefile", ".env.compose.example", ".env.local.example")
+             if (root / name).is_file() and not (root / name).is_symlink()}
+
+    def on_error(error: OSError) -> None:
+        raise error
+
+    for name in roots:
+        directory = root / name
+        parts = Path(name).parts
+        if any((root / Path(*parts[:index])).is_symlink() for index in range(1, len(parts) + 1)):
+            continue
+        if not directory.is_dir():
+            continue
+        for parent, directories, files in os.walk(directory, onerror=on_error, followlinks=False):
+            directories[:] = [d for d in directories if not d.startswith(".") and d not in excluded
+                              and not d.endswith(".egg-info") and not (Path(parent) / d).is_symlink()
+                              and managed_path((Path(parent) / d).relative_to(root).as_posix() + "/")]
+            for filename in files:
+                path = Path(parent) / filename
+                if filename.startswith(".") or path.suffix not in suffixes or path.is_symlink() or not path.is_file():
+                    continue
+                relative = path.relative_to(root).as_posix()
+                if managed_path(relative):
+                    paths.add(relative)
+    return sorted(paths)
 
 
 def env_changes(content: str, old_base: int, new_base: int) -> str:
@@ -248,7 +279,7 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True, plan: bo
     old_base, offsets = read_policy(root)
     mapping = port_mapping(old_base, new_base, offsets)
     changes: dict[Path, bytes] = {}
-    for name in tracked_paths(root):
+    for name in source_paths(root):
         path = root / name
         try:
             before = path.read_text(encoding="utf-8")

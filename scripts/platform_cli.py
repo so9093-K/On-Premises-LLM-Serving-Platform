@@ -40,6 +40,7 @@ from scripts.build.pin_local_vllm_image import (  # noqa: E402
     resolve_local_image_id,
 )
 from scripts.ops.step_progress import format_elapsed, run_with_progress  # noqa: E402
+from scripts.lib.source_provenance import SourceProvenance, read_source_provenance  # noqa: E402
 
 TARGETS_PATH = ROOT / "configs" / "deployment_targets.yaml"
 SERVICES_PATH = ROOT / "configs" / "services.yaml"
@@ -298,26 +299,8 @@ def _registry_digest(image: str) -> bool:
     return "@sha256:" in image
 
 
-def _source_provenance() -> tuple[str, str]:
-    if not (ROOT / ".git").exists():
-        return "unknown", "unknown"
-    revision = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if revision.returncode != 0:
-        return "unknown", "unknown"
-    state = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return revision.stdout.strip(), "dirty" if state.stdout.strip() else "clean"
+def _source_provenance() -> SourceProvenance:
+    return read_source_provenance(ROOT)
 
 
 def _local_image_matches_source(image: str) -> bool:
@@ -338,13 +321,15 @@ def _local_image_matches_source(image: str) -> bool:
         return False
     if not isinstance(labels, dict):
         return False
-    revision, state = _source_provenance()
-    if revision == "unknown":
+    source = _source_provenance()
+    if labels.get("ai_model_serving.source_digest") != source.digest:
+        return False
+    if source.state == "local":
         return True
-    if state != "clean":
+    if source.state != "clean":
         return False
     return (
-        labels.get("org.opencontainers.image.revision") == revision
+        labels.get("org.opencontainers.image.revision") == source.revision
         and labels.get("ai_model_serving.source_state") == "clean"
     )
 

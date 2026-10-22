@@ -40,19 +40,14 @@ PROJECT_BUILD_NO_CACHE="${PROJECT_BUILD_NO_CACHE:-0}"
 VLLM_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key vllm)"
 TRANSFORMERS_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key transformers)"
 HUGGINGFACE_HUB_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key huggingface_hub)"
-SOURCE_REVISION="unknown"
-SOURCE_STATE="unknown"
-if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  SOURCE_REVISION="$(git rev-parse HEAD)"
-  if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
-    SOURCE_STATE="dirty"
-  else
-    SOURCE_STATE="clean"
-  fi
-fi
+source scripts/lib/source_provenance.sh
+read_source_provenance
 
 echo "[vllm-unified-image] building ${IMAGE}"
-echo "[vllm-unified-image] source revision=${SOURCE_REVISION} state=${SOURCE_STATE} target=${TARGET_PLATFORM}"
+echo "[vllm-unified-image] source=${SOURCE_STATE} digest=${SOURCE_DIGEST} target=${TARGET_PLATFORM}"
+if [[ -n "$SOURCE_REVISION" ]]; then
+  echo "[vllm-unified-image] revision=${SOURCE_REVISION}"
+fi
 echo "[vllm-unified-image] base=${BASE_IMAGE} vllm=${VLLM_VERSION} transformers=${TRANSFORMERS_VERSION} huggingface_hub=${HUGGINGFACE_HUB_VERSION}"
 
 if [[ "$PULL_BASE_IMAGE" == "1" ]]; then
@@ -70,6 +65,7 @@ build_args=(
   --label "org.opencontainers.image.revision=${SOURCE_REVISION}"
   --label "org.opencontainers.image.version=${VERSION}"
   --label "ai_model_serving.source_state=${SOURCE_STATE}"
+  --label "ai_model_serving.source_digest=${SOURCE_DIGEST}"
   --label "ai_model_serving.build_platform=${TARGET_PLATFORM}"
   --label "ai_model_serving.vllm_version=${VLLM_VERSION}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"

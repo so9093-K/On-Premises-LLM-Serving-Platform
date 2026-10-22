@@ -12,6 +12,11 @@ git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 ```
 
+Git을 사용하지 않는다면 GitHub의 **Code → Download ZIP**으로 내려받아 압축을 풀고,
+`Makefile`이 있는 디렉터리에서 아래 명령을 실행합니다. Git 설치와 `.git` 정보는
+플랫폼 기동·상태 확인·종료·포트 변경의 필수 조건이 아닙니다. Git 소유권 검사에
+실패해도 실행을 위해 전역 `safe.directory` 설정을 바꿀 필요는 없습니다.
+
 ## 1. 실행 환경 선택
 
 | 내 환경 | 선택할 Target | 먼저 준비할 것 | 모델 실행·제어 |

@@ -10,7 +10,7 @@
 
 ## 빠른 시작
 
-Git, Python·uv, Docker가 필요합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
+Python·uv, Docker가 필요합니다. 소스는 Git으로 복제하거나 ZIP을 내려받아 압축 해제합니다. **실행에는 Git이 필요하지 않습니다.** 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
 
 ```bash
 git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git

@@ -56,7 +56,7 @@ make down
 | `platform_cli.py` | `up/status/down`의 target-aware operator lifecycle을 소유하고 setup/build/cache/readiness 세부 단계를 implementation script에 위임한다. |
 | `build/setup_dev.py` | Platform `uv.lock`에서 개발용 `.venv`를 동기화한다. 기존 환경이 손상됐거나 Python minor가 다르면 자동 삭제하지 않는다. |
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
-| `build/build_platform_image.sh` | Platform Dockerfile build·image import smoke 경로다. source revision/state와 target platform을 image label 및 로그에 남긴다. |
+| `build/build_platform_image.sh` | Platform Dockerfile build·image import smoke 경로다. 소스 내용 해시·상태·target platform과 조회 가능한 Git 커밋을 이미지에 기록한다. |
 | `build/build_vllm_unified_image.sh` | Unified vLLM Docker build 경로다. `vllm_unified_build.yaml`의 target/base/pin을 사용하며 native Linux amd64 Docker daemon만 허용한다. |
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |
 | `auth/auth_plan.py` / `auth/auth_apply.py` | secret을 출력하지 않고 auth profile 변경 계획을 보여주거나 managed auth flag만 적용한다. |
@@ -64,6 +64,7 @@ make down
 | `validation/run_test.sh` | Python 버전과 test 환경을 고정하고 unit/contract test를 실행한다. |
 | `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`(생성)와 `validation/governance/versioning.py`(검증)가 같은 표를 읽으므로 두 목록이 갈라질 수 없다. |
 | `lib/project_image_ownership.sh` | 로컬 build image의 프로젝트·checkout 소유권 label을 정의한다. |
+| `lib/source_provenance.py` / `lib/source_provenance.sh` | 빌드와 기동이 같은 소스 내용 해시를 사용한다. Git 정보가 없는 소스는 `local`로 표시하며 Git 설치나 전역 설정 변경을 요구하지 않는다. |
 | `lib/gateway_runtime_state.sh` | `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
 | `build/reset_version.py` | 프로젝트 버전을 `lib/version_refs.py`가 선언한 모든 자리에 한 번에 반영한다. 선언된 자리가 파일에서 사라졌으면 조용히 넘기지 않고 실패한다. |
 | `build/check_python.py` | 현재 interpreter가 `>=3.12,<3.14`인지 fail-fast로 확인한다. |
