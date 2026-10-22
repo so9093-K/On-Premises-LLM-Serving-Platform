@@ -249,13 +249,15 @@ def test_adaptive_controller_requires_internal_auth_and_locks_manual_profiles(tm
 
 
 @pytest.mark.parametrize("target_id", ["linux-cpu-managed", "linux-nvidia-dynamic"])
-def test_model_preparation_failure_keeps_core_started(monkeypatch, target_id):
+def test_model_preparation_failure_keeps_core_started(tmp_path, monkeypatch, target_id):
     from scripts import platform_cli as cli
 
     calls = []
     target = cli.load_deployment_target(cli.TARGETS_PATH, target_id)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "ENV_PATH", tmp_path / ".env")
+    cli.ENV_PATH.write_text("BUILD_PROFILE=compose\nMAIN_MODEL_EXECUTION_POLICY=gpu\n")
     monkeypatch.setattr(cli, "setup_target", lambda *args: True)
-    monkeypatch.setattr(cli, "_env_values", lambda: {"BUILD_PROFILE": "compose"})
     monkeypatch.setattr(
         cli, "ensure_target_artifacts", lambda *args, **kwargs: calls.append("image")
     )

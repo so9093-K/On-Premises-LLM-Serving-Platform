@@ -23,6 +23,9 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
+from ai_model_serving.main_model.execution_policy import (  # noqa: E402
+    CPU_FIRST_POLICIES, EXECUTION_POLICIES, resolve_execution_policy,
+)
 from ai_model_serving.deployment_target import DeploymentTarget, load_deployment_target  # noqa: E402
 from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
 from ai_model_serving.host_resource_probe import (  # noqa: E402
@@ -505,11 +508,7 @@ def up_adaptive_target(target: DeploymentTarget) -> None:
 def managed_execution_policy(values: dict[str, str]) -> str:
     from ai_model_serving.main_model.state import read_main_model_state_file
     state = read_main_model_state_file(ROOT / ".runtime/main-model/main-model-state.json") or {}
-    mode = (state.get("runtime_selection") or {}).get("mode") or values.get("MAIN_MODEL_EXECUTION_POLICY")
-    if mode:
-        return mode
-    profile = state.get("active_profile") or values.get("MAIN_MODEL_BOOT_PROFILE")
-    return "cpu" if profile == "cpu-gguf-text" else "gpu"
+    return resolve_execution_policy(state, values)
 
 
 def up_managed_cpu_first(target: DeploymentTarget) -> None:
@@ -620,14 +619,18 @@ def reconcile_up_target(
     confirm_access: bool,
     execution_policy: str | None = None,
 ) -> None:
+    if (execution_policy is None and not ENV_PATH.is_file()
+        and not (ROOT / ".runtime/main-model/main-model-state.json").exists()
+        and target.target_id == "linux-nvidia-dynamic"):
+        execution_policy = ("cpu" if main_profile == "cpu-gguf-text" else "gpu") if main_profile else "fallback"
     if execution_policy is not None:
         if target.target_id != "linux-nvidia-dynamic":
             raise RuntimeError("POLICY requires TARGET=linux-nvidia-dynamic; existing .env is preserved")
         if (ROOT / ".runtime/main-model/main-model-state.json").exists():
             raise RuntimeError("use Console → Main Model to review and change the running execution policy")
-        if execution_policy in {"automatic", "cpu"}:
+        if execution_policy in CPU_FIRST_POLICIES:
             if main_profile and main_profile != "cpu-gguf-text":
-                raise RuntimeError("automatic/CPU policy starts with MODEL=cpu-gguf-text")
+                raise RuntimeError("fallback/automatic/CPU policy starts with MODEL=cpu-gguf-text")
             main_profile = "cpu-gguf-text"
         elif main_profile == "cpu-gguf-text":
             raise RuntimeError("GPU policy requires a GPU model profile")
@@ -656,7 +659,11 @@ def reconcile_up_target(
             if target.adaptive:
                 up_adaptive_target(target)
                 return
-            if target.target_id == "linux-nvidia-dynamic" and managed_execution_policy(values) in {"automatic", "cpu"}:
+            if target.target_id == "linux-nvidia-dynamic":
+                policy = managed_execution_policy(values)
+                labels = {"fallback": "GPU 우선 · CPU 복구 · GPU 복귀는 수동", "automatic": "CPU/GPU 자동 전환", "cpu": "CPU 고정", "gpu": "GPU 고정 · CPU 자동 복구 없음"}
+                print(f"[platform] 실행 정책: {labels[policy]}")
+            if target.target_id == "linux-nvidia-dynamic" and managed_execution_policy(values) in CPU_FIRST_POLICIES:
                 up_managed_cpu_first(target)
                 return
             ensure_target_artifacts(target)
@@ -817,7 +824,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--target")
     parser.add_argument("--main-profile")
-    parser.add_argument("--execution-policy", choices=("automatic", "cpu", "gpu"))
+    parser.add_argument("--execution-policy", choices=EXECUTION_POLICIES)
     parser.add_argument("--main-base-url")
     parser.add_argument("--access-profile", choices=access_profile_names())
     parser.add_argument("--confirm-access", action="store_true")
@@ -839,7 +846,6 @@ def main(argv: list[str] | None = None) -> int:
             print("[platform] stopped: checkout-owned resources")
             return 0
 
-        first_auto = args.action == "up" and args.target == "auto" and not ENV_PATH.is_file() and sys.platform.startswith("linux")
         target = _target(args.target, require_env=args.action != "up")
         if args.action == "up":
             reconcile_up_target(
@@ -848,7 +854,7 @@ def main(argv: list[str] | None = None) -> int:
                 main_base_url=args.main_base_url,
                 access_profile=args.access_profile,
                 confirm_access=args.confirm_access,
-                execution_policy=args.execution_policy or ("automatic" if first_auto else None),
+                execution_policy=args.execution_policy,
             )
         elif args.action == "down":
             down_target(target)

@@ -34,9 +34,9 @@ make status
 실제 모델 호환성/적재 성공이 보증되지 않으며, 이 명령은
 기존 운영 중 Target을 자동 교체하지 않는다.
 
-`linux-nvidia-dynamic`의 Main 실행 정책은 자동·CPU 고정·GPU 고정이다.
-최초 `TARGET=auto`는 이 구성의 자동 정책을 선택한다. 기존 설치는 현재 엔진을 고정 정책으로
-승계하며 Console에서 정책과 모델 변경을 검토·적용한다. 자동 정책은 Core를 유지하면서
+`linux-nvidia-dynamic`의 기본 Main 실행 정책은 GPU 우선·CPU 복구이며 CPU 복구 후 GPU 복귀는 수동이다.
+Console에서 CPU 고정, 고급 선택인 자동 전환·GPU 고정으로 변경할 수 있다. 저장된 정책은 보존하며
+정책이 없는 GPU 설정은 기본 CPU 복구 정책을 사용한다. CPU 복구 정책은 Core를 유지하면서
 Main Runtime을 전환하며 Gate·Drain·Canary·Rollback을 적용한다. `linux-adaptive`는 이전
 배포의 호환 구성이며 새 설치에는 공통 관리형 구성을 사용한다.
 [ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)의 소유권·복구 계약을 따른다.

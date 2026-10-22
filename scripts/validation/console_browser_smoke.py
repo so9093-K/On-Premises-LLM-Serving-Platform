@@ -645,7 +645,7 @@ def run_manual_cpu_selection(browser, width, height):
                 "runtime_selection": {"mode": state["policy"], "reason_code": "OPERATOR_SELECTED", "cpu_profile": cpu["id"], "gpu_profile": gpu["id"]}})
         if path == "/admin/main-model/switch":
             body = route.request.post_data_json
-            if body["execution_policy"] in {"cpu", "automatic"}:
+            if body["execution_policy"] in {"fallback", "cpu", "automatic"}:
                 assert body["profile"] == "cpu-gguf-text" and body["confirm_unverified"] is True
             else:
                 assert body["execution_policy"] == "gpu" and body["profile"] == gpu["id"]
@@ -670,7 +670,8 @@ def run_manual_cpu_selection(browser, width, height):
     row.get_by_text("현재 사용 중", exact=True).wait_for()
     assert state["cpu"] and state["policy"] == "cpu"
     page.get_by_text("실행 정책 · CPU 고정", exact=False).wait_for()
-    page.get_by_role("button", name="자동 선택", exact=True).click()
+    page.locator("summary", has_text="고급 실행 정책").click()
+    page.get_by_role("button", name="자동 전환", exact=True).click()
     page.get_by_text("CPU부터 검증한 뒤 GPU 여유에 따라 모델을 전환합니다.", exact=False).wait_for()
     assert apply.is_disabled()
     page.get_by_role("checkbox").check()
@@ -681,10 +682,24 @@ def run_manual_cpu_selection(browser, width, height):
     apply.click()
     page.get_by_text("실행 정책 · GPU 고정", exact=False).wait_for()
     assert state["policy"] == "gpu" and not state["cpu"]
+    page.get_by_text("GPU 실패 시 CPU로 자동 전환하지 않습니다.", exact=False).wait_for()
+    page.get_by_role("button", name="GPU 우선 · CPU 복구", exact=True).click()
+    page.get_by_text("CPU 복구 후 GPU 복귀는 수동입니다.", exact=False).wait_for()
+    assert apply.is_disabled()
+    page.get_by_role("checkbox").check()
+    apply.click()
+    page.get_by_text("실행 정책 · GPU 우선 · CPU 복구", exact=False).wait_for()
+    assert state["policy"] == "fallback" and state["cpu"]
+    page.get_by_role("button", name="GPU 다시 확인", exact=True).click()
+    assert apply.is_disabled()
+    page.get_by_role("checkbox").check()
+    apply.click()
+    page.get_by_text("실행 정책 · GPU 우선 · CPU 복구", exact=False).wait_for()
+    assert state["policy"] == "fallback" and state["cpu"]
     assert errors == [], errors
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     page.screenshot(path=str(SCREENSHOTS / f"manual-cpu-synthetic-selected-{width}.png"), full_page=True)
-    print(f"PASS execution policy Chromium {width}x{height}: GPU → CPU → automatic → GPU, model review and confirmation")
+    print(f"PASS execution policy Chromium {width}x{height}: GPU → CPU → automatic → GPU → fallback, reviewed manual GPU retry")
     context.close()
 
 

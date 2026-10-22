@@ -257,7 +257,7 @@ export function mainModelSwitchRequest(
   }
   return {
     profile: profile.id,
-    confirm_unverified: mainModelProfileRequiresConfirmation(profile) || (executionPolicy === 'automatic' && confirmed),
+    confirm_unverified: mainModelProfileRequiresConfirmation(profile) || ((executionPolicy === 'automatic' || executionPolicy === 'fallback') && confirmed),
     ...(executionPolicy ? { execution_policy: executionPolicy } : {}),
   };
 }

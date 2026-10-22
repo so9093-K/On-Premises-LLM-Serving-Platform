@@ -3,6 +3,7 @@
 ## Status
 
 Accepted. ADR-0054의 자동 전환 계약을 공통 Runtime Controller로 확장한다.
+기본 정책과 정책 미지정 설치의 승계 규칙은 [ADR-0063](0063-gpu-preferred-cpu-recovery.md)이 대체한다.
 
 ## Context
 

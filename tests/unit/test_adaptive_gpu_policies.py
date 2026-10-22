@@ -122,7 +122,7 @@ def test_multi_gpu_selects_each_device_policy_without_adding_free_memory():
     assert assignment.profile.resource_variant is None
 
 
-def test_uuid_and_policy_remain_bound_between_plan_and_execution():
+def test_uuid_and_policy_remain_bound_between_plan_and_execution(monkeypatch):
     async def scenario():
         catalog, policy, resolver = loaded()
         assignment, reason = resolver.choose(snapshot(ADA))
@@ -143,6 +143,9 @@ def test_uuid_and_policy_remain_bound_between_plan_and_execution():
             gateway_url="http://gateway:9400",
         )
         backend.bind_gpu(assignment)
+        async def image(_):
+            return {"Config": {"Labels": {"ai_model_serving.cuda_variant": "cu130"}}}
+        monkeypatch.setattr(backend, "_inspect_image", image)
         await backend._admit_gpu(assignment.profile)
         assert backend.gpu_uuid == UUID
         observations[0] = snapshot(replace(ADA, uuid=UUID2))

@@ -11,6 +11,7 @@ import {
   type MainModelOperationResponse,
   type MainModelProfile,
 } from './api';
+import { executionPolicyPresentation, isRecoveringPolicy, type ExecutionPolicy } from './mainModelExecutionPolicy';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { playgroundPath } from './navigation';
 import {
@@ -142,7 +143,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const queryClient = useQueryClient();
   const [reviewProfileId, setReviewProfileId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [reviewPolicy, setReviewPolicy] = useState<'automatic' | 'cpu' | 'gpu' | undefined>();
+  const [reviewPolicy, setReviewPolicy] = useState<ExecutionPolicy | undefined>();
   const [actionError, setActionError] = useState<string | null>(null);
   const [operationId, setOperationId] = useState<string | null>(null);
   const authClass = token === null ? 'anonymous' : 'authenticated';
@@ -240,6 +241,10 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const selection = status.runtime_selection;
   const busy = status.last_operation !== null && !isMainModelOperationTerminal(status.last_operation);
   const selectionReasons: Record<string, string> = {
+    CPU_FALLBACK_ACTIVE: "CPU 사용 · GPU 복귀는 수동",
+    GPU_START_FAILED: "GPU 시작 또는 응답 검증 실패",
+    GPU_DRIVER_INCOMPATIBLE: "GPU 이미지와 드라이버 호환 조건 미충족",
+    GPU_DRIVER_COMPATIBILITY_UNKNOWN: "GPU 이미지·드라이버 호환성 확인 필요",
     OPERATOR_SELECTED: "선택한 모델 유지", GPU_BUDGET_BLOCKED: "GPU 예약 여유 대기 · CPU 사용",
     STARTING_CPU: "CPU 준비 중", CPU_BOOTSTRAP: "CPU 준비 중", CPU_RUNTIME_UNAVAILABLE: "CPU 복구 중",
     GPU_SERVING: "GPU 서빙 중", GPU_RECOVERY_PENDING: "GPU 자원 안정성 확인 중",
@@ -261,12 +266,27 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   };
   const gpuPolicy = active?.runtime_backend === "vllm-cuda"
     ? selection?.gpu_assignment : selection?.gpu_candidate;
-  const automaticGpu = profiles.find(profile => profile.id === selection?.gpu_profile);
+  const gpuCandidateProfile = profiles.find(profile => profile.id === selection?.gpu_profile);
   const requiresConfirmation = reviewProfile ? mainModelProfileRequiresConfirmation(reviewProfile)
-    || (reviewPolicy === 'automatic' && automaticGpu?.qualification.status !== 'verified') : false;
+    || (isRecoveringPolicy(reviewPolicy) && gpuCandidateProfile?.qualification.status !== 'verified') : false;
   const switchImpact = reviewProfile && active
     ? mainModelProfileImpact(active, reviewProfile)
     : null;
+
+  const policyAction = (mode: ExecutionPolicy) => {
+    if (!selection) return null;
+    const retry = mode === 'fallback' && selection.mode === 'fallback' && active?.runtime_backend === 'llama-cpp';
+    const target = profiles.find(profile => mode === 'gpu'
+      ? profile.id === (active?.runtime_backend === 'vllm-cuda' ? active.id : selection.gpu_profile)
+      : profile.id === (selection.cpu_profile ?? 'cpu-gguf-text'));
+    return <Button key={mode} variant="secondary"
+      isDisabled={switchMutation.isPending || busy || !target || (selection.mode === mode && !retry)}
+      onClick={() => {
+        if (target) { setReviewPolicy(mode); setReviewProfileId(target.id); setConfirmed(false); setActionError(null); }
+      }}>
+      {retry ? 'GPU 다시 확인' : executionPolicyPresentation[mode].label}
+    </Button>;
+  };
 
   return (
     <section className="runtime-page">
@@ -294,33 +314,35 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       ) : null}
       {selection ? (
         <Card>
-          <CardTitle>실행 정책 · {selection.mode === "automatic" ? "자동" : selection.mode === "cpu" ? "CPU 고정" : "GPU 고정"}</CardTitle>
+          <CardTitle>실행 정책 · {executionPolicyPresentation[selection.mode].label}</CardTitle>
           <CardBody>
             <p>활성 프로필: {active?.runtime_backend === "llama-cpp" ? "CPU · llama.cpp" : active?.runtime_backend === "vllm-cuda" ? "GPU · vLLM" : "준비 중"}</p>
-            <p>{selection.mode === "automatic" ? (selectionReasons[selection.reason_code] ?? selection.reason_code) : "선택한 엔진의 모델을 유지합니다."}</p>
+            <p>{isRecoveringPolicy(selection.mode) ? (selectionReasons[selection.reason_code] ?? selection.reason_code) : "선택한 엔진의 모델을 유지합니다."}</p>
+            <p>{executionPolicyPresentation[selection.mode].description}</p>
             <p>요청 상태: {status.gate === "open" ? "수락 중" : "새 요청 차단 중"}</p>
             {selection.observed_at ? <p>마지막 자원 관측: {new Date(selection.observed_at * 1000).toLocaleString()}</p> : null}
-            <p>전환 중에는 새 요청이 일시 거부됩니다. 진행 중인 요청이 끝난 뒤 모델을 교체하고 응답 검증에 성공하면 다시 요청을 받습니다.</p>
-            {selection.mode === "automatic" ? selection.resources?.gpus.map(gpu => (
+            {isRecoveringPolicy(selection.mode) ? selection.resources?.gpus.map(gpu => (
               <div key={gpu.uuid ?? gpu.index} style={{ overflowWrap: "anywhere" }}>
                 <p>GPU {gpu.index}: {gpu.name ?? "제품명 확인 불가"} · 실측 여유 {gpu.free_mib.toLocaleString()} / 전체 {gpu.total_mib.toLocaleString()} MiB</p>
                 <p>UUID: {gpu.uuid ?? "확인 불가"} · PCI: {gpu.pci_bus_id ?? "확인 불가"} · Compute Capability: {gpu.compute_capability ?? "확인 불가"} · Driver: {gpu.driver_version ?? "확인 불가"}</p>
               </div>
             )) : null}
-            {selection.mode === "automatic" && gpuPolicy ? (
+            {isRecoveringPolicy(selection.mode) && gpuPolicy ? (
               <div style={{ overflowWrap: "anywhere" }}>
                 <p>{active?.runtime_backend === "vllm-cuda" ? "할당 GPU" : "후보 GPU"}: {gpuPolicy.name ?? "제품명 확인 불가"} · {gpuPolicy.uuid}</p>
                 <p>리소스 정책: {gpuPolicy.resource_variant ?? "Reference"} · 선택 근거: {gpuPolicy.policy_source === "operator" ? "운영자 지정" : "전체 VRAM 용량"}</p>
               </div>
             ) : null}
-            {selection.gpu_condition && selection.reason_code.startsWith("CPU_FALLBACK_") ? <p>GPU 상태: {selectionReasons[selection.gpu_condition] ?? selection.gpu_condition}</p> : null}
+            {selection.gpu_condition && (selection.reason_code.startsWith("CPU_FALLBACK_") || selection.mode === "fallback") ? <p>GPU 상태: {selectionReasons[selection.gpu_condition] ?? selection.gpu_condition}</p> : null}
             {selection.gpu_retry_at && selection.reason_code === "GPU_FAILURE_BACKOFF" ? <p>GPU 재시도 가능 시각: {new Date(selection.gpu_retry_at * 1000).toLocaleString()}</p> : null}
             {selection.cpu_retry_at && status.gate === "closed" && selection.reason_code.startsWith("CPU_FALLBACK_") ? <p>CPU 재시도 가능 시각: {new Date(selection.cpu_retry_at * 1000).toLocaleString()}</p> : null}
             {!locked ? <div className="review-actions" aria-label="실행 정책 선택">
-              {(['automatic', 'cpu', 'gpu'] as const).map(mode => <Button key={mode} variant="secondary" isDisabled={switchMutation.isPending || busy || selection.mode === mode || (mode === 'gpu' && !profiles.some(profile => profile.runtime_backend === 'vllm-cuda'))} onClick={() => {
-                const target = profiles.find(profile => mode === 'gpu' ? (active?.runtime_backend === 'vllm-cuda' ? profile.id === active.id : profile.id === selection.gpu_profile) : profile.id === (selection.cpu_profile ?? 'cpu-gguf-text'));
-                if (target) { setReviewPolicy(mode); setReviewProfileId(target.id); setConfirmed(false); }
-              }}>{mode === 'automatic' ? '자동 선택' : mode === 'cpu' ? 'CPU 고정' : 'GPU 고정'}</Button>)}
+              {(['fallback', 'cpu'] as const).map(policyAction)}
+              <details>
+                <summary>고급 실행 정책</summary>
+                <p>자동 복귀 또는 특정 GPU 모델 유지가 필요한 경우 선택합니다.</p>
+                {(['automatic', 'gpu'] as const).map(policyAction)}
+              </details>
             </div> : null}
             {!profiles.some(profile => profile.runtime_backend === 'vllm-cuda') ? <p>GPU 이미지를 준비한 뒤 GPU 고정을 선택할 수 있습니다.</p> : null}
             <p>중지·재개: <Link to="/runtimes">런타임</Link></p>
@@ -419,10 +441,11 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
       {reviewProfile ? (
         <Card className="review-card">
-          <CardTitle>{reviewPolicy === 'automatic' ? '자동 선택 전 영향 확인' : '모델 전환 전 영향 확인'}</CardTitle>
+          <CardTitle>{isRecoveringPolicy(reviewPolicy) ? '실행 정책 변경 전 영향 확인' : '모델 전환 전 영향 확인'}</CardTitle>
           <CardBody>
-            {reviewPolicy === 'automatic' ? <p>자동 GPU 후보: {automaticGpu?.display_name ?? selection?.gpu_profile ?? '준비 필요'}{automaticGpu ? ` · ${inputList(automaticGpu.capabilities.deployed_input)} · ${formatTokenLimits(mainModelTokenLimits(automaticGpu))}` : ''}</p> : null}
-            {reviewPolicy === 'automatic' ? <Alert isInline variant="warning" title="CPU부터 검증한 뒤 GPU 여유에 따라 모델을 전환합니다.">CPU와 GPU는 서로 다른 모델이며 지원 입력과 응답이 달라집니다. GPU 준비 실패 시 CPU를 유지합니다. Embedding·Retrieval·Risk 설정은 유지됩니다.</Alert> : null}
+            {reviewPolicy ? <p>적용할 실행 정책: {executionPolicyPresentation[reviewPolicy].label} · {executionPolicyPresentation[reviewPolicy].description}</p> : null}
+            {isRecoveringPolicy(reviewPolicy) ? <p>GPU 후보: {gpuCandidateProfile?.display_name ?? selection?.gpu_profile ?? '준비 필요'}{gpuCandidateProfile ? ` · ${inputList(gpuCandidateProfile.capabilities.deployed_input)} · ${formatTokenLimits(mainModelTokenLimits(gpuCandidateProfile))}` : ''}</p> : null}
+            {isRecoveringPolicy(reviewPolicy) ? <Alert isInline variant="warning" title={reviewPolicy === "fallback" ? "GPU 사용을 검토하고, 불가능하면 CPU를 유지합니다." : "CPU부터 검증한 뒤 GPU 여유에 따라 모델을 전환합니다."}>CPU와 GPU는 서로 다른 모델이며 지원 입력과 응답이 달라집니다. GPU 준비 실패 시 CPU를 유지합니다. {reviewPolicy === "fallback" ? "CPU 복구 후 GPU 복귀는 수동입니다." : "GPU 여유가 회복되면 자동 복귀를 시도합니다."}</Alert> : null}
             {active && switchImpact ? (
               <div className="profile-impact-summary" role="group" aria-label="전환 핵심 영향">
                 <div className="profile-impact-summary-item">
@@ -448,7 +471,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                 <div className="table-scroll profile-comparison-scroll">
                   <table className="runtime-table profile-comparison-table">
                     <thead>
-                      <tr><th>항목</th><th>현재</th><th>{reviewPolicy === 'automatic' ? 'CPU 준비 단계' : '전환 대상'}</th><th>변경</th></tr>
+                      <tr><th>항목</th><th>현재</th><th>{isRecoveringPolicy(reviewPolicy) ? 'CPU 준비 단계' : '전환 대상'}</th><th>변경</th></tr>
                     </thead>
                     <tbody>
                       <tr>
@@ -549,7 +572,9 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
             {requiresConfirmation ? (
               <Alert isInline variant="warning" title="미검증 프로필 확인이 필요합니다.">
-                <p>실제 장비 검증이 완료되지 않은 프로필입니다.</p>
+                <p>{isRecoveringPolicy(reviewPolicy) && gpuCandidateProfile?.qualification.status !== 'verified'
+                  ? `GPU 후보 ${gpuCandidateProfile?.display_name ?? selection?.gpu_profile ?? ''}의 실제 장비 검증이 완료되지 않았습니다.`
+                  : '전환 대상 프로필의 실제 장비 검증이 완료되지 않았습니다.'}</p>
                 <label>
                   <input
                     type="checkbox"

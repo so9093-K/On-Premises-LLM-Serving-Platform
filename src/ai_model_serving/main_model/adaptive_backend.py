@@ -1,4 +1,4 @@
-"""명시적으로 선택한 자동 배포의 CPU/GPU 실행 어댑터."""
+"""CPU 복구 정책의 장치별 Admission과 실행 어댑터."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from .adaptive_gpu import (
 )
 from .cpu import prepare_cpu_model
 from .docker_backend import DockerMainModelBackend
+from .gpu_compatibility import driver_compatibility_error
 
 
 class AdaptiveResourceReader:
@@ -129,6 +130,9 @@ class AdaptiveDockerBackend(DockerMainModelBackend):
             raise RuntimeError("GPU_COMPATIBILITY_UNSUPPORTED")
         if not device_fits(device, profile, self.selection_policy):
             raise RuntimeError("GPU_MEMORY_ADMISSION_BLOCKED")
+        error = driver_compatibility_error(await self._inspect_image(profile.image), device.driver_version)
+        if error:
+            raise RuntimeError(error)
         if not self.gpu_policies.explicit:
             rule = next(
                 (
@@ -187,29 +191,29 @@ class AdaptiveDockerBackend(DockerMainModelBackend):
 
 
 class ManagedDockerBackend(AdaptiveDockerBackend):
-    """고정 GPU 정책은 기존 수동 전환, 자동 정책은 장치별 Admission을 사용한다."""
+    """고정 GPU 정책과 CPU 복구 정책의 Admission을 구분한다."""
 
-    automatic: Callable[[MainModelProfile | None], bool] = lambda self, profile=None: False
+    uses_gpu_admission: Callable[[MainModelProfile | None], bool] = lambda self, profile=None: False
 
     async def observe_runtime(self, catalog):
         return await super().observe_runtime(replace(catalog, runtime={**catalog.runtime, "adaptive": True}))
 
     async def prepare(self, catalog, profile):
-        if profile.runtime_backend == "llama-cpp" or self.automatic(profile):
+        if profile.runtime_backend == "llama-cpp" or self.uses_gpu_admission(profile):
             await super().prepare(catalog, profile)
         else:
             self.gpu_uuid = None
             await DockerMainModelBackend.prepare(self, catalog, profile)
 
     async def replace(self, catalog, profile):
-        if profile.runtime_backend == "llama-cpp" or self.automatic(profile):
+        if profile.runtime_backend == "llama-cpp" or self.uses_gpu_admission(profile):
             await super().replace(catalog, profile)
         else:
             self.gpu_uuid = None
             await DockerMainModelBackend.replace(self, catalog, profile)
 
     async def validate(self, catalog, profile):
-        if self.automatic(profile):
+        if self.uses_gpu_admission(profile):
             await super().validate(catalog, profile)
         else:
             await DockerMainModelBackend.validate(self, catalog, profile)

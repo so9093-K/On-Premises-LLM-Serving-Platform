@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Any, NamedTuple, Protocol
 
+from .execution_policy import RECOVERING_POLICIES
 from .catalog import MainModelCatalog, MainModelProfile, resolve_boot_profile
 from .state import MainModelStateError, MainModelStateStore, MainModelSwitchLockError
 from ..service_logging import service_logger
@@ -48,8 +49,9 @@ def commit_execution_policy(state: dict[str, Any], operation: dict[str, Any]) ->
     mode = operation.get("execution_policy")
     if mode is not None:
         state.setdefault("runtime_selection", {}).update(
-            mode=mode, reason_code="STARTING_CPU" if mode == "automatic" else "OPERATOR_SELECTED",
+            mode=mode, reason_code="STARTING_CPU" if mode in RECOVERING_POLICIES else "OPERATOR_SELECTED",
             healthy_samples=0, failure_samples=0, gpu_retry_at=0, cpu_retry_at=0,
+            gpu_attempted=False, gpu_condition=None,
         )
 
 
@@ -461,15 +463,29 @@ class MainModelManager:
                 return
             mode = (self.state_store.read().get("runtime_selection") or {}).get("mode")
             target = "cpu-gguf-text" if mode == "cpu" else self.boot_profile
-            automatic = mode == "automatic"
-            if self.catalog.runtime.get("adaptive") or mode == "cpu" or automatic:
+            recovering = mode in RECOVERING_POLICIES
+            if self.catalog.runtime.get("adaptive") or mode == "cpu" or recovering:
                 runtime = await self.backend.observe_runtime(self.catalog)
                 if runtime.get("status") != "ready":
-                    recovery = "cpu-gguf-text" if automatic else target
+                    recovery = "cpu-gguf-text" if recovering else target
+                    source = self.catalog.profiles.get(self.state_store.read().get("active_profile") or observed)
+                    if recovering and source and source.runtime_backend != "llama-cpp":
+                        self._record_gpu_fallback(mode, "GPU_RUNTIME_UNHEALTHY")
                     self.request_switch(recovery, confirm_unverified=True, boot_reconcile=True)
                     return
+                if recovering and observed == "cpu-gguf-text":
+                    # CPU 템플릿은 GPU Admission 전의 안전한 기준이다. GPU boot seed로
+                    # 즉시 교체하지 않고 자원 관측·호환성·공유 예산 검사를 거친다.
+                    target = "cpu-gguf-text"
             if observed == target:
-                await self._validate_and_record(self.catalog.profiles[target])
+                try:
+                    await self._validate_and_record(self.catalog.profiles[target])
+                except Exception:
+                    if recovering and self.catalog.profiles[target].runtime_backend != "llama-cpp":
+                        self._record_gpu_fallback(mode, "GPU_REVALIDATION_FAILED")
+                        self.request_switch("cpu-gguf-text", confirm_unverified=True, boot_reconcile=True)
+                        return
+                    raise
                 self._commit_boot(target)
                 return
             # compose 시작 과정에서는 먼저 정적으로 선언된 baseline 컨테이너가 healthy
@@ -481,6 +497,15 @@ class MainModelManager:
                 await self._validate_and_record(self.catalog.profiles[observed])
             self.state_store.update(lambda state: state.update(gate="closed"))
             self.request_switch(target, confirm_unverified=True, boot_reconcile=True)
+
+    def _record_gpu_fallback(self, mode: str, reason: str) -> None:
+        """부팅 중 GPU 실패도 수동 복귀 의도를 가진 CPU 복구로 기록한다."""
+        def update(state):
+            state.setdefault("runtime_selection", {}).update(
+                gpu_condition=reason,
+                **({"gpu_attempted": True} if mode == "fallback" else {}),
+            )
+        self.state_store.update(update)
 
     async def _recover_interrupted(
         self, operation: dict[str, Any], observed: str | None
@@ -792,26 +817,34 @@ class MainModelManager:
         target = self.catalog.profiles[operation["requested_profile"]]
         previous_id = operation.get("previous_profile")
         previous_gate = str(operation.get("previous_gate", "closed"))
+        policy_only = (operation.get("execution_policy") is not None
+                       and previous_id == target.profile_id and previous_gate == "open"
+                       and target.runtime_backend == "llama-cpp")
         entered_replace_phase = False
         try:
             self._set_operation(operation_id, "preparing")
-            await self.backend.prepare(self.catalog, target)
+            if not policy_only:
+                await self.backend.prepare(self.catalog, target)
             self.state_store.update(lambda state: state.update(gate="closed"))
             self._set_operation(operation_id, "draining")
-            if not boot_reconcile or self.catalog.runtime.get("adaptive") or (self.state_store.read().get("runtime_selection") or {}).get("mode") == "automatic":
+            if not boot_reconcile or self.catalog.runtime.get("adaptive") or (self.state_store.read().get("runtime_selection") or {}).get("mode") in RECOVERING_POLICIES:
                 await self.backend.wait_for_drain(
                     float(self.catalog.runtime.get("drain_timeout_seconds", 30))
                 )
-            self._set_operation(operation_id, "stopping")
-            # 이 지점을 지나면 이전 런타임이 해체(teardown)되는 중이므로, 이후에
-            # 실패가 발생하면 이전 gate를 그냥 다시 여는 것이 아니라 반드시 rollback해야
-            # 한다. replace()가 await되기 전에 설정한다: replace *도중* 실패해도
-            # 이미 되돌릴 수 없는(irreversible) 단계에 진입한 것으로 본다.
-            entered_replace_phase = True
-            self._set_operation(operation_id, "starting")
-            await self.backend.replace(self.catalog, target)
+            if not policy_only:
+                self._set_operation(operation_id, "stopping")
+                # replace 중 실패도 이전 Runtime을 재검증하는 Rollback이 필요하다.
+                entered_replace_phase = True
+                self._set_operation(operation_id, "starting")
+                await self.backend.replace(self.catalog, target)
             self._set_operation(operation_id, "validating")
-            await self._validate_and_record(target)
+            try:
+                await self._validate_and_record(target)
+            except Exception:
+                if policy_only:
+                    # 같은 CPU의 Canary 실패는 과거 Gate 개방으로 덮지 않는다.
+                    previous_gate = "closed"
+                raise
         except Exception as exc:
             failed_stage = str(
                 (self._operation_record(operation_id) or {}).get("stage") or "failed"

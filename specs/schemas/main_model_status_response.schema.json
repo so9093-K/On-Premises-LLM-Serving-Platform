@@ -197,6 +197,7 @@
         "mode": {
           "type": "string",
           "enum": [
+            "fallback",
             "automatic",
             "cpu",
             "gpu"
@@ -322,12 +323,6 @@
           "type": [
             "string",
             "null"
-          ],
-          "enum": [
-            "GPU_RUNTIME_UNHEALTHY",
-            "GPU_OBSERVATION_UNAVAILABLE",
-            "GPU_MEMORY_PRESSURE",
-            null
           ]
         },
         "gpu_assignment": {
@@ -478,6 +473,9 @@
         },
         "gpu_profile": {
           "type": "string"
+        },
+        "gpu_attempted": {
+          "type": "boolean"
         }
       }
     }

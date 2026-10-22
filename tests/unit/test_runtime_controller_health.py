@@ -61,6 +61,7 @@ def test_initialization_fails_closed_without_compose_project(tmp_path, monkeypat
 
 
 def test_health_surfaces_definitive_reconciliation_failure(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAIN_MODEL_EXECUTION_POLICY", "gpu")
     controller = _load_runtime_controller(tmp_path, monkeypatch)
 
     async def failing_initialize() -> None:
