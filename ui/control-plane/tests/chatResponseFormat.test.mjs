@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { parseChatInline, parseChatMarkdown } from '../src/chatResponseFormat.ts';
+
+test('응답 Markdown은 제목·목록·강조·코드와 원문 문자를 구분한다', () => {
+  const blocks = parseChatMarkdown('# 요약\n\n1. **GPU** 사용\n2. `CUDA` 점검\n\n```python\nprint("ok")\n```');
+  assert.deepEqual(blocks, [
+    { kind: 'heading', level: 1, text: '요약' },
+    { kind: 'list', ordered: true, items: ['**GPU** 사용', '`CUDA` 점검'] },
+    { kind: 'code', language: 'python', text: 'print("ok")' },
+  ]);
+  assert.deepEqual(parseChatInline('**GPU**와 `CUDA`'), [
+    { kind: 'strong', value: 'GPU' },
+    { kind: 'text', value: '와 ' },
+    { kind: 'code', value: 'CUDA' },
+  ]);
+});
+
+test('스트리밍 도중 열린 코드 블록도 내용을 유지한다', () => {
+  assert.deepEqual(parseChatMarkdown('```json\n{"ok":true}'), [
+    { kind: 'code', language: 'json', text: '{"ok":true}' },
+  ]);
+});
+
+test('HTML, 링크, 이미지 문구는 활성 DOM이 아닌 일반 문자로 남는다', () => {
+  const source = '<script>alert(1)</script>\n![remote](https://invalid.test/a.png)\n[click](javascript:alert(1))';
+  assert.deepEqual(parseChatMarkdown(source), [{ kind: 'paragraph', text: source }]);
+  assert.deepEqual(parseChatInline('<img src=x onerror=alert(1)>'), [
+    { kind: 'text', value: '<img src=x onerror=alert(1)>' },
+  ]);
+});
+
+test('빈 문자열과 불완전한 강조 표시는 손실 없이 유지한다', () => {
+  assert.deepEqual(parseChatMarkdown(''), []);
+  assert.deepEqual(parseChatInline('**미완성'), [{ kind: 'text', value: '**미완성' }]);
+});

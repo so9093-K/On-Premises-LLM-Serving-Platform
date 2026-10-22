@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Alert, Spinner } from '@patternfly/react-core';
+import { ChatMarkdown } from './ChatMarkdown';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { AttachmentList } from './ChatAttachments';
 import { ToolResultForm, toolArgumentsAreJson } from './ChatToolResultForm';
@@ -20,6 +22,8 @@ export function ExchangeView({
   busy: boolean;
   onSendToolResults: (sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
 }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState('');
   const turn = exchange.assistant;
   const streaming = turn.status === 'streaming';
   const facts = turnFacts(turn);
@@ -60,9 +64,23 @@ export function ExchangeView({
           </details>
         ) : null}
         {turn.content ? (
-          <div className="chat-text">
-            {turn.content}
+          <div className="chat-response">
+            <div className="chat-response-actions">
+              <button type="button" onClick={() => setShowRaw((value) => !value)} aria-pressed={showRaw}>
+                {showRaw ? '서식 보기' : '원문 보기'}
+              </button>
+              <button type="button" onClick={() => {
+                void navigator.clipboard.writeText(turn.content).then(
+                  () => setCopyFeedback('응답 원문을 복사했습니다.'),
+                  () => setCopyFeedback('복사하지 못했습니다. 브라우저 권한을 확인하세요.'),
+                );
+              }}>응답 복사</button>
+            </div>
+            {showRaw
+              ? <div className="chat-text chat-response-raw">{turn.content}</div>
+              : <ChatMarkdown text={turn.content} />}
             {streaming ? <span className="chat-cursor" aria-hidden="true">▍</span> : null}
+            <span className="chat-response-copy-status" role="status">{copyFeedback}</span>
           </div>
         ) : streaming && !turn.reasoning ? (
           <div className="chat-waiting"><Spinner size="sm" aria-label="응답 대기 중" /> 응답 대기 중…</div>

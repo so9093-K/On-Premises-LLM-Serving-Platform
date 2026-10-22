@@ -2158,3 +2158,24 @@ a.overview-action-tile:hover {
   .playground-workspace .chat-composer-actions .chat-heading-actions { width: 100%; }
   .playground-workspace .chat-composer-actions .chat-heading-actions > button { flex: 1 1 auto; }
 }
+
+/* Playground Chat: 사용자/모델 원문은 보존하고, 표시만 제한된 Markdown으로 변환한다. */
+.chat-response { display: grid; gap: 0.5rem; min-width: 0; }
+.chat-response-actions { display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap; }
+.chat-response-actions button { border: 0; background: transparent; color: var(--console-focus); cursor: pointer; text-decoration: underline; padding: 0.125rem; font-size: 0.8125rem; }
+.chat-response-actions button:focus-visible { outline: 2px solid var(--console-focus); outline-offset: 2px; }
+.chat-response-copy-status:empty { display: none; }
+.chat-response-copy-status { color: var(--console-text-muted); font-size: 0.8rem; }
+.chat-response-raw { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-response-markdown { min-width: 0; overflow-wrap: anywhere; line-height: 1.65; }
+.chat-response-markdown > :first-child { margin-top: 0; }
+.chat-response-markdown > :last-child { margin-bottom: 0; }
+.chat-response-markdown p { margin: 0.5rem 0; white-space: pre-wrap; }
+.chat-response-markdown h3, .chat-response-markdown h4, .chat-response-markdown h5, .chat-response-markdown h6 { margin: 0.8rem 0 0.4rem; font-weight: 700; }
+.chat-response-markdown h3 { font-size: 1.1rem; }
+.chat-response-markdown h4 { font-size: 1rem; }
+.chat-response-markdown ul, .chat-response-markdown ol { margin: 0.5rem 0; padding-left: 1.6rem; }
+.chat-response-markdown li { margin: 0.25rem 0; }
+.chat-response-markdown pre { max-width: 100%; overflow-x: auto; white-space: pre; background: var(--console-surface-raised); padding: 0.75rem; border: 1px solid var(--console-border); border-radius: 0.375rem; }
+.chat-response-markdown code { background: var(--console-surface-raised); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.875em; }
+.chat-response-markdown blockquote { margin: 0.5rem 0; padding: 0.25rem 0.75rem; border-left: 3px solid var(--console-border); white-space: pre-wrap; }
