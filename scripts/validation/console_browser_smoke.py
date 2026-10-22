@@ -904,7 +904,7 @@ def run_chat_response_ux(browser, width, height):
     page.on("pageerror", lambda exc: errors.append(str(exc)))
     bootstrap["deployment"]["features"] = ["chat"]
     install_routes(page, {"traffic_failure": False, "revision": 7, "value": 300, "active_profile": False})
-    answer = '# 점검\n\n1. **GPU** 상태\n2. `CUDA` 확인\n\n<img src=x onerror=alert(1)>'
+    answer = '# 점검\n\n1. **GPU** 상태\n2. `CUDA` 확인\n\n2 * 3 = 6 * 1\n\n<img src=x onerror=alert(1)>'
 
     def handle_public(route):
         from urllib.parse import urlsplit
@@ -934,6 +934,7 @@ def run_chat_response_ux(browser, width, height):
     formatted.locator("strong", has_text="GPU").wait_for()
     assert formatted.locator("img,script").count() == 0, "Model text must not insert active HTML"
     assert "<img src=x" in formatted.inner_text()
+    assert "2 * 3 = 6 * 1" in formatted.inner_text(), "Multiplication signs must not become emphasis"
     page.get_by_role("button", name="응답 복사").click()
     expect(page.get_by_text("응답 원문을 복사했습니다.")).to_be_visible()
     assert page.evaluate("navigator.clipboard.readText()") == answer

@@ -7,7 +7,7 @@ test('응답 Markdown은 제목·목록·강조·코드와 원문 문자를 구�
   const blocks = parseChatMarkdown('# 요약\n\n1. **GPU** 사용\n2. `CUDA` 점검\n\n```python\nprint("ok")\n```');
   assert.deepEqual(blocks, [
     { kind: 'heading', level: 1, text: '요약' },
-    { kind: 'list', ordered: true, items: ['**GPU** 사용', '`CUDA` 점검'] },
+    { kind: 'list', ordered: true, start: 1, items: ['**GPU** 사용', '`CUDA` 점검'] },
     { kind: 'code', language: 'python', text: 'print("ok")' },
   ]);
   assert.deepEqual(parseChatInline('**GPU**와 `CUDA`'), [
@@ -70,5 +70,14 @@ test('연속된 이스케이프 강조 기호는 원문으로 보인다', () => 
   assert.deepEqual(parseChatInline(String.raw`\*\*literal\*\* and **bold**`), [
     { kind: 'text', value: '**literal** and ' },
     { kind: 'strong', value: 'bold' },
+  ]);
+});
+
+test('3부터 시작하는 순서 있는 목록은 표시 번호 3을 유지한다', () => {
+  assert.deepEqual(parseChatMarkdown('3. 세 번째\n4. 네 번째'), [
+    { kind: 'list', ordered: true, start: 3, items: ['세 번째', '네 번째'] },
+  ]);
+  assert.deepEqual(parseChatMarkdown('- 항목 A\n- 항목 B'), [
+    { kind: 'list', ordered: false, start: null, items: ['항목 A', '항목 B'] },
   ]);
 });

@@ -28,7 +28,7 @@ export function ChatMarkdown({ text }: { text: string }) {
             return <pre key={index}><code>{block.text}</code></pre>;
           case 'list': {
             const items = block.items.map((item, position) => <li key={position}>{inline(item)}</li>);
-            return block.ordered ? <ol key={index}>{items}</ol> : <ul key={index}>{items}</ul>;
+            return block.ordered ? <ol key={index} start={block.start ?? 1}>{items}</ol> : <ul key={index}>{items}</ul>;
           }
           case 'quote':
             return <blockquote key={index}>{inline(block.text)}</blockquote>;

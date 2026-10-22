@@ -6,7 +6,7 @@ export type ChatBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'heading'; text: string; level: number }
   | { kind: 'code'; text: string; language: string }
-  | { kind: 'list'; ordered: boolean; items: string[] }
+  | { kind: 'list'; ordered: boolean; start: number | null; items: string[] }
   | { kind: 'quote'; text: string };
 
 export function parseChatInline(value: string): ChatInline[] {
@@ -105,7 +105,7 @@ export function parseChatMarkdown(source: string): ChatBlock[] {
         items.push(item[2]);
         index += 1;
       }
-      blocks.push({ kind: 'list', ordered, items });
+      blocks.push({ kind: 'list', ordered, start: ordered ? Number.parseInt(listMatch[1], 10) : null, items });
       continue;
     }
     if (quote.test(line)) {
