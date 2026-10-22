@@ -6,6 +6,7 @@ import asyncio
 import math
 import time
 from pathlib import Path
+from dataclasses import replace
 from typing import Awaitable, Callable
 
 import httpx
@@ -183,3 +184,32 @@ class AdaptiveDockerBackend(DockerMainModelBackend):
         else:
             await self._admit_gpu(profile)
         await super().replace(catalog, profile)
+
+
+class ManagedDockerBackend(AdaptiveDockerBackend):
+    """고정 GPU 정책은 기존 수동 전환, 자동 정책은 장치별 Admission을 사용한다."""
+
+    automatic: Callable[[MainModelProfile | None], bool] = lambda self, profile=None: False
+
+    async def observe_runtime(self, catalog):
+        return await super().observe_runtime(replace(catalog, runtime={**catalog.runtime, "adaptive": True}))
+
+    async def prepare(self, catalog, profile):
+        if profile.runtime_backend == "llama-cpp" or self.automatic(profile):
+            await super().prepare(catalog, profile)
+        else:
+            self.gpu_uuid = None
+            await DockerMainModelBackend.prepare(self, catalog, profile)
+
+    async def replace(self, catalog, profile):
+        if profile.runtime_backend == "llama-cpp" or self.automatic(profile):
+            await super().replace(catalog, profile)
+        else:
+            self.gpu_uuid = None
+            await DockerMainModelBackend.replace(self, catalog, profile)
+
+    async def validate(self, catalog, profile):
+        if self.automatic(profile):
+            await super().validate(catalog, profile)
+        else:
+            await DockerMainModelBackend.validate(self, catalog, profile)

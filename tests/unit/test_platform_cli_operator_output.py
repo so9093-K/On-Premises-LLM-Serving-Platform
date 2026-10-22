@@ -176,16 +176,16 @@ def test_suggestion_uses_managed_selection_on_linux(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(platform_cli.sys, "platform", "linux")
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((GpuMemory(0, 24564, 22000),), 8192))
-    assert platform_cli.suggested_target()[0] == "linux-adaptive"
+    assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
 
     # GPU 상태와 무관하게 Target 소유권은 유지하고 실행 중 후보 선택은 Controller가 맡는다.
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((GpuMemory(0, 24564, 1000),), 8192))
-    assert platform_cli.suggested_target()[0] == "linux-adaptive"
+    assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
 
     monkeypatch.setattr(platform_cli, "read_host_resource_snapshot",
         lambda: HostResourceSnapshot((), None, "GPU_MEMORY_OBSERVATION_FAILED"))
-    assert platform_cli.suggested_target()[0] == "linux-adaptive"
+    assert platform_cli.suggested_target()[0] == "linux-nvidia-dynamic"
 
 
 def test_ready_output_points_to_surfaces_the_gateway_reports(
@@ -207,3 +207,13 @@ def test_ready_output_points_to_surfaces_the_gateway_reports(
     monkeypatch.setattr(platform_cli, "_gateway_json", lambda values, path, admin=False: (200, {"links": {"docs": None, "grafana": None}}))
     platform_cli._print_next_steps({"GATEWAY_PORT": "9400"})
     assert [line.split()[1] for line in capsys.readouterr().out.splitlines()] == ["Console", "Next"]
+
+
+def test_legacy_cpu_intent_uses_cpu_bootstrap_without_losing_persisted_policy(tmp_path, monkeypatch):
+    from ai_model_serving.main_model.state import MainModelStateStore
+    monkeypatch.setattr(platform_cli, "ROOT", tmp_path)
+    store = MainModelStateStore(tmp_path / '.runtime/main-model/main-model-state.json', 'cpu-gguf-text')
+    store.update(lambda state: state.update(active_profile='cpu-gguf-text'))
+    assert platform_cli.managed_execution_policy({'MAIN_MODEL_BOOT_PROFILE': 'gemma4-e4b-it'}) == 'cpu'
+    store.update(lambda state: state.update(runtime_selection={'mode': 'gpu'}))
+    assert platform_cli.managed_execution_policy({'MAIN_MODEL_EXECUTION_POLICY': 'automatic'}) == 'gpu'

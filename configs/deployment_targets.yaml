@@ -102,7 +102,7 @@ targets:
       gpu_admission: false
 
   linux-nvidia-dynamic:
-    display_name: Linux + NVIDIA — Managed Runtimes
+    display_name: Linux — Managed CPU/GPU Runtimes
     platform: linux
     runtime_backend: vllm-cuda
     # 이 target이 Prometheus·Grafana 모니터링 스택을 띄우는가. Console은 이 값으로

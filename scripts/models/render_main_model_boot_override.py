@@ -48,12 +48,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--env-file", type=Path, default=default_env_path(ROOT))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--cpu-template", action="store_true")
     args = parser.parse_args(argv)
 
     profile_id, document = render_boot_override(
         catalog_path=args.catalog,
         state_path=args.state,
         env_path=args.env_file,
+        cpu_template=args.cpu_template,
     )
     _atomic_write(args.output, document)
     print(profile_id)

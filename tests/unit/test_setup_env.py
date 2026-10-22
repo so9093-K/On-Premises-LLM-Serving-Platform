@@ -325,3 +325,17 @@ def test_fresh_compose_env_uses_single_shared_vllm_authority(tmp_path) -> None:
     assert rc == 0
     values = setup_env.read_env_values(out)
     assert values["VLLM_IMAGE"].startswith("ai-model-serving-vllm-unified:")
+
+
+def test_managed_linux_migration_preserves_auth_ports_cache_and_cpu_selection(tmp_path):
+    out = tmp_path / '.env'
+    out.write_text('BUILD_PROFILE=compose\nDEPLOYMENT_TARGET=linux-cpu-managed\n'
+        'MAIN_MODEL_STATIC_PROFILE=cpu-gguf-text\nMAIN_MODEL_BOOT_PROFILE=gemma4-e4b-it\n'
+        'MAIN_MODEL_BASE_URL=http://cpu-main:9401/v1\nGATEWAY_PORT=9740\n'
+        'GRAFANA_PORT=9750\nAPI_KEYS=keep-me\nHF_CACHE_DIR=/persistent/models\n', encoding='utf-8')
+    setup_env.sync_deployment_target(out, 'linux-nvidia-dynamic')
+    _, values = setup_env.parse_env_template(out)
+    assert values['MAIN_MODEL_BOOT_PROFILE'] == 'cpu-gguf-text'
+    assert values['MAIN_MODEL_BASE_URL'] == 'http://main-llm-vllm:9401/v1'
+    assert values['GATEWAY_PORT'] == '9740' and values['GRAFANA_PORT'] == '9750'
+    assert values['API_KEYS'] == 'keep-me' and values['HF_CACHE_DIR'] == '/persistent/models'

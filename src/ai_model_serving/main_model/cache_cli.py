@@ -32,6 +32,10 @@ def main(argv: list[str] | None = None) -> int:
         profile = catalog.profiles[args.profile]
     except KeyError as exc:
         raise SystemExit(f"unknown main-model profile: {args.profile}") from exc
+    if profile.runtime_backend == "llama-cpp":
+        from .cpu import prepare_cpu_model
+        prepare_cpu_model(config_root=args.catalog.resolve().parent.parent)
+        return 0
     prepared = prepare_model_snapshot(
         model_id=profile.model_id,
         revision=profile.revision,

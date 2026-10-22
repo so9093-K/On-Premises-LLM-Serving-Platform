@@ -1,4 +1,4 @@
-# 자동 CPU/GPU Runtime 운영
+# 관리형 Linux 실행 정책
 
 ## 목표와 사전 조건
 
@@ -11,14 +11,20 @@ CPU는 최소 4 GiB 여유 RAM을 요구합니다. GPU 실행에는 NVIDIA Drive
 
 ```bash
 make up TARGET=auto ACCESS=local
-# 같은 Target을 명시하려면:
-# make up TARGET=linux-adaptive ACCESS=local
+# 처음부터 CPU 고정으로 시작하려면:
+# make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local
 make status
 ```
 
-기존 `.env`가 있으면 `TARGET=auto`는 그 Target을 유지합니다. 이미 운영 중인 GPU 배포를
-자동으로 Adaptive로 이전하지 않습니다. Target 이전 시 기존 배포를 중지하고 설정과
-상태를 백업한 후 새 환경으로 초기화하세요.
+최초 `TARGET=auto`는 공통 관리형 Linux 구성(`linux-nvidia-dynamic`)의 자동 정책을 선택합니다.
+기존 `.env`가 있으면 Target과 실행 정책을 유지합니다. 기존 GPU 배포는 GPU 고정으로 승계합니다.
+**메인 모델 → 실행 정책**에서 자동·CPU 고정·GPU 고정을 선택하고 모델·지원 입력 변경을 검토하세요.
+정책 변경에 `.env` 재생성이나 Target 변경은 필요하지 않습니다.
+`POLICY=...`는 최초 설정용이며, 이후에는 Console에서 검토·적용합니다.
+
+기존 `linux-adaptive`·`linux-cpu-managed`에서 공통 구성으로 이전하려면 `make down` 후
+`make up TARGET=linux-nvidia-dynamic ACCESS=local`을 실행합니다. 인증값·포트·캐시·Main 상태는
+보존됩니다. 기존 `linux-adaptive`는 별도 이전 전까지 기존 기능 범위로 동작합니다.
 
 Gateway와 로컬 Risk가 먼저 기동합니다. CPU 모델의 고정 SHA-256 검증·적재·실제 응답
 검증에 성공하면 요청을 받습니다. GPU image 준비 실패는 CPU와 Core를 중지하지 않습니다.
@@ -27,7 +33,7 @@ Gateway와 로컬 Risk가 먼저 기동합니다. CPU 모델의 고정 SHA-256 �
 
 ## 선택 상태 확인
 
-Console `http://127.0.0.1:9400/admin/console/`의 **메인 모델 → 자동 CPU/GPU 선택**에서
+Console `http://127.0.0.1:9400/admin/console/`의 **메인 모델 → 실행 정책**에서
 현재 엔진과 선택 이유를 확인합니다. 같은 정보는 `/admin/main-model`의 `runtime_selection`,
 실제 활성 한도는 `/admin/serving-envelope`와 `/v1/models`에서 조회합니다.
 인증은 선택한 Access Profile의 관리자/API Key를 사용합니다.
@@ -74,13 +80,19 @@ CPU는 Qwen3 0.6B, 텍스트·Chat·Responses·SSE, 문맥 2,048·출력 최대 
 GPU는 Gemma E4B의 기존 Profile 정책을 따릅니다. 같은 `local-main`이라도 모델·답변·지원
 파라미터가 바뀝니다. 클라이언트는 전환 후 `/v1/models`의 입력·파라미터 한도를 다시
 확인하세요. 진행 중 요청을 다른 모델에 자동 재전송하거나 결과를 합치지 않습니다.
-Embedding·Retrieval·모델 기반 Prompt Detector는 이 Target의 기능 범위에 포함되지 않습니다.
+공통 관리형 구성의 Embedding·Retrieval·모델 기반 Prompt Detector와 관측 서비스는 Main 정책과
+독립적으로 유지됩니다. GPU Runtime은 최초 중지 상태이며 필요할 때 런타임 화면에서 시작합니다.
+Prompt Detector를 명시적으로 중지한 동안 Gateway `/ready`는 Risk 서비스의 Core `/health`를
+확인합니다. Prompt 평가 전체의 준비 상태는 Risk 서비스 `/ready`와 개별 Runtime 상태로 구분합니다.
+실제 사용 가능 여부는 개별 Runtime 준비와 자원 정책을 따릅니다. 이전 `linux-adaptive` 구성은
+Main과 로컬 Risk만 제공합니다.
 
 ## 중지와 장애 복구
 
 런타임 화면의 Main 중지/시작은 Plan을 먼저 확인합니다. 중지는 진행 중 요청을 기다리며
-중지 의도는 Controller 재시작 후에도 유지됩니다. 시작은 CPU 검증부터 재개합니다.
-수동 Profile 전환은 자동 선택 소유권 때문에 잠겨 있습니다.
+중지 의도는 Controller 재시작 후에도 유지됩니다. 시작은 선택한 정책과 현재 프로필을 검증합니다.
+공통 구성에서 프로필을 직접 선택하면 해당 엔진의 고정 정책으로 전환합니다.
+이전 `linux-adaptive` 구성의 수동 Profile 전환은 잠겨 있습니다.
 
 ```bash
 make logs

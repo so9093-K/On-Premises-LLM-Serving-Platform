@@ -52,15 +52,57 @@ if [[ "${1:-}" == "--core-only" ]]; then
   exit 0
 fi
 
+if [[ "${1:-}" == "--cpu-first" || "${1:-}" == "--gpu-controls" ]]; then
+  CPU_BOOTSTRAP_ARGS=(--cpu-template)
+else
+  CPU_BOOTSTRAP_ARGS=()
+fi
+
 echo "[compose-up] resolving persisted main-model boot profile"
 MAIN_MODEL_BOOT_PROFILE="$(
   "$PYTHON_BIN" scripts/models/render_main_model_boot_override.py \
     --catalog configs/main_model_profiles.yaml \
     --state .runtime/main-model/main-model-state.json \
     --env-file "$ENV_FILE" \
-    --output "$MAIN_MODEL_BOOT_OVERRIDE"
+    --output "$MAIN_MODEL_BOOT_OVERRIDE" "${CPU_BOOTSTRAP_ARGS[@]}"
 )"
 echo "[compose-up] main-model boot profile: $MAIN_MODEL_BOOT_PROFILE"
+
+if [[ "${1:-}" == "--cpu-first" || "${1:-}" == "--gpu-controls" ]]; then
+  COMPOSE_CONTEXT_FILE_ARGS+=(-f "$MAIN_MODEL_BOOT_OVERRIDE")
+  MAIN_MODEL_RESOURCE_VARIANT_EFFECTIVE="${MAIN_MODEL_RESOURCE_VARIANT:-$(_env_value MAIN_MODEL_RESOURCE_VARIANT)}"
+  MANAGED_DEFERRED_RAW="$("$PYTHON_BIN" scripts/runtime/deferred_runtimes.py --all --config-root "$ROOT" \
+      --main-resource-variant "$MAIN_MODEL_RESOURCE_VARIANT_EFFECTIVE" --output lines)"
+  mapfile -t MANAGED_DEFERRED <<<"$MANAGED_DEFERRED_RAW"
+  read -r -a MANAGED_KEYS <<<"${MANAGED_DEFERRED[0]}"
+  read -r -a MANAGED_SERVICES <<<"${MANAGED_DEFERRED[1]}"
+  if [[ "${1:-}" == "--gpu-controls" ]]; then
+    if [[ ${#MANAGED_SERVICES[@]} -gt 0 ]]; then
+      compose_context_run up --no-deps --no-start "${MANAGED_SERVICES[@]}"
+    fi
+    compose_context_run --profile gpu-observation up -d --no-deps resource-observer dcgm-exporter
+    # 새 GPU image pin을 읽되 Main 컨테이너는 Controller만 교체한다.
+    compose_context_run up -d --no-deps runtime-controller
+    exit 0
+  fi
+  CPU_BOOTSTRAP_ONLY=1 ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" \
+    bash scripts/compose/preflight_compose.sh --boot-override "$MAIN_MODEL_BOOT_OVERRIDE"
+  "$PYTHON_BIN" scripts/models/prepare_cpu_model.py
+  if [[ -z "$(compose_context_run ps -aq main-llm-vllm)" ]]; then
+    export_runtime_startup_directive "managed-up-$(date +%s)-$" "${MANAGED_KEYS[@]}"
+    compose_context_run up --no-deps --no-start main-llm-vllm
+  else
+    # 기존 Gateway의 startup generation을 보존한다.
+    existing_gateway="$(compose_context_run ps -q gateway)"
+    if [[ -n "$existing_gateway" ]]; then
+      export RUNTIME_STARTUP_GENERATION="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$existing_gateway" | sed -n 's/^RUNTIME_STARTUP_GENERATION=//p')"
+      export RUNTIME_STARTUP_DEFERRED_KEYS="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$existing_gateway" | sed -n 's/^RUNTIME_STARTUP_DEFERRED_KEYS=//p')"
+    fi
+  fi
+  compose_context_run up -d --no-deps --wait risk-signal-service gateway
+  compose_context_run up -d --no-deps runtime-controller prometheus grafana loki alloy cadvisor
+  exit 0
+fi
 
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
   ENV_FILE="$ENV_FILE" COMPOSE_FILE="$COMPOSE_FILE" \
@@ -267,6 +309,8 @@ done
 # 구 수집기와 새 수집기가 같은 json-file을 동시에 Loki로 보내 drift를 만든다.
 docker compose "${COMPOSE_ARGS[@]}" --env-file "$ENV_FILE_ABS" \
   up -d --remove-orphans "${ACTIVE_COMPOSE_SERVICES[@]}"
+
+compose_context_run --profile gpu-observation up -d --no-deps resource-observer
 
 if [[ ${#DEFERRED_RUNTIME_SERVICES[@]} -gt 0 ]]; then
   echo "[compose-up] creating deferred runtime containers without starting: ${DEFERRED_RUNTIME_SERVICES[*]}"

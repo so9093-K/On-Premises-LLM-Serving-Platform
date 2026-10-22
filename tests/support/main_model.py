@@ -38,6 +38,14 @@ class FakeBackend:
         self.observed_started_at_calls = 0
         self.validate_calls: list[str] = []
 
+    async def observe_runtime(self, catalog):
+        return {
+            "status": "ready" if self.observed else "unavailable",
+            "profile_id": self.observed,
+            "container_state": "running" if self.observed else "not_found",
+            "health": "healthy" if self.observed else None,
+        }
+
     async def observed_profile(self, catalog):
         return self.observed
 

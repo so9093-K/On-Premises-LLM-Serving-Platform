@@ -626,7 +626,7 @@ def run_manual_cpu_selection(browser, width, height):
     errors = []
     page.on("pageerror", lambda exception: errors.append(str(exception)))
     bootstrap["deployment"]["features"] = ["chat", "model_switching"]
-    state = {"active_profile": True, "cpu": False}
+    state = {"active_profile": True, "cpu": False, "policy": "gpu"}
     install_routes(page, state)
     gpu = {**profile, "runtime_backend": "vllm-cuda", "upstream_model_id": "example/gpu-model"}
     cpu = {**profile, "id": "cpu-gguf-text", "display_name": "CPU 테스트 모델",
@@ -641,18 +641,23 @@ def run_manual_cpu_selection(browser, width, height):
             return send(route, {"profiles": [{**gpu, "active": not state["cpu"]}, {**cpu, "active": state["cpu"]}]})
         if path == "/admin/main-model":
             return send(route, {"public_model": "local-main", "active_profile": cpu if state["cpu"] else gpu,
-                "gate": "open", "runtime_state": "active", "profile_locked": False, "boot_profile": gpu["id"], "last_operation": None, "observed_runtime": None})
+                "gate": "open", "runtime_state": "active", "profile_locked": False, "boot_profile": gpu["id"], "last_operation": None, "observed_runtime": None,
+                "runtime_selection": {"mode": state["policy"], "reason_code": "OPERATOR_SELECTED", "cpu_profile": cpu["id"], "gpu_profile": gpu["id"]}})
         if path == "/admin/main-model/switch":
             body = route.request.post_data_json
-            assert body["profile"] == "cpu-gguf-text" and body["confirm_unverified"] is True
-            state["cpu"] = True
+            if body["execution_policy"] in {"cpu", "automatic"}:
+                assert body["profile"] == "cpu-gguf-text" and body["confirm_unverified"] is True
+            else:
+                assert body["execution_policy"] == "gpu" and body["profile"] == gpu["id"]
+            state["policy"] = body["execution_policy"]
+            state["cpu"] = body["execution_policy"] != "gpu"
             return send(route, {"operation_id": operation_id, "status": "pending", "reused": False}, 202)
         if path == "/admin/main-model/operations/" + operation_id:
             return send(route, {"id": operation_id, "status": "completed", "stage": "completed", "requested_profile": cpu["id"], "previous_profile": gpu["id"], "created_at": 1, "updated_at": 2})
         route.fallback()
     page.route("**/admin/main-model**", handle)
     page.goto(URL + "main-model", wait_until="domcontentloaded")
-    page.get_by_text("CPU/GPU 수동 선택", exact=False).wait_for()
+    page.get_by_text("실행 정책 · GPU 고정", exact=False).wait_for()
     row = page.get_by_role("row").filter(has_text="CPU 테스트 모델")
     row.get_by_text("CPU 선택 가능", exact=True).wait_for()
     row.get_by_text("해당 없음", exact=True).wait_for()
@@ -663,11 +668,23 @@ def run_manual_cpu_selection(browser, width, height):
     page.get_by_role("checkbox").check()
     apply.click()
     row.get_by_text("현재 사용 중", exact=True).wait_for()
-    assert state["cpu"]
+    assert state["cpu"] and state["policy"] == "cpu"
+    page.get_by_text("실행 정책 · CPU 고정", exact=False).wait_for()
+    page.get_by_role("button", name="자동 선택", exact=True).click()
+    page.get_by_text("CPU부터 검증한 뒤 GPU 여유에 따라 모델을 전환합니다.", exact=False).wait_for()
+    assert apply.is_disabled()
+    page.get_by_role("checkbox").check()
+    apply.click()
+    page.get_by_text("실행 정책 · 자동", exact=False).wait_for()
+    assert state["policy"] == "automatic"
+    page.get_by_role("button", name="GPU 고정", exact=True).click()
+    apply.click()
+    page.get_by_text("실행 정책 · GPU 고정", exact=False).wait_for()
+    assert state["policy"] == "gpu" and not state["cpu"]
     assert errors == [], errors
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     page.screenshot(path=str(SCREENSHOTS / f"manual-cpu-synthetic-selected-{width}.png"), full_page=True)
-    print(f"PASS manual CPU Chromium {width}x{height}: candidate, RAM preparation, explicit confirmation, selected model")
+    print(f"PASS execution policy Chromium {width}x{height}: GPU → CPU → automatic → GPU, model review and confirmation")
     context.close()
 
 

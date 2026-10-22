@@ -129,13 +129,14 @@ async def _readiness(
         ))
     risk_signal_service = getattr(clients, "risk_signal_service", None)
     if settings.feature_enabled("risk") and risk_signal_service is not None:
+        prompt_stopped = runtime_state is not None and await runtime_state.get("prompt_injection_detector") == RuntimeState.stopped
         probes.append(
             DependencyProbe(
                 "risk-signal-service",
                 risk_signal_service,
-                "/ready",
+                "/health" if prompt_stopped else "/ready",
                 {"authorization": f"Bearer {admin_token}"} if admin_token else None,
-                _risk_signal_service_readiness,
+                None if prompt_stopped else _risk_signal_service_readiness,
                 required=True,
             )
         )

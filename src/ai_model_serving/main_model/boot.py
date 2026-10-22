@@ -24,10 +24,7 @@ BootOverrideLoader.add_constructor(
 )
 
 from .catalog import (
-    gpu_util_override_from_mapping,
-    load_main_model_catalog,
     resolve_boot_profile,
-    resource_variant_from_mapping,
 )
 from .state import read_active_profile
 from ..settings_parts.dotenv_parser import load_strict_env_file
@@ -60,24 +57,17 @@ def render_boot_override(
     catalog_path: Path,
     state_path: Path,
     env_path: Path,
+    cpu_template: bool = False,
 ) -> tuple[str, dict[str, Any]]:
     env = read_env_values(env_path)
-    catalog = load_main_model_catalog(
-        catalog_path,
-        gpu_memory_utilization_override=gpu_util_override_from_mapping(env),
-        # Compose가 main runtime을 띄울 때 쓰는 command는 이 override가 소유한다.
-        # 운영자가 명시적으로 선택한 resource-policy override를 여기서 반영하지 않으면
-        # Runtime Controller가 아는 자원 정책과 Compose가 실제로 기동하는 정책이
-        # 갈라진다. GPU 제품명 자체가 override 선택 기준인 것은 아니다.
-        resource_variant=resource_variant_from_mapping(env),
-        env=env,
-    )
+    from .managed_catalog import load_managed_catalog
+    catalog = load_managed_catalog(catalog_path.resolve().parent.parent, env, cpu_available=cpu_template, catalog_path=catalog_path)
     configured = env.get("MAIN_MODEL_BOOT_PROFILE", catalog.default_profile)
     locked = _strict_bool(
         env.get("MAIN_MODEL_PROFILE_LOCKED", "false"),
         key="MAIN_MODEL_PROFILE_LOCKED",
     )
-    profile_id = resolve_boot_profile(
+    profile_id = "cpu-gguf-text" if cpu_template else resolve_boot_profile(
         catalog,
         configured_profile=configured,
         locked=locked,
