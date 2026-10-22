@@ -206,6 +206,23 @@ def test_port_inventory_does_not_follow_a_symlink_above_a_managed_subdirectory(t
     assert ports.source_paths(tmp_path) == []
 
 
+def test_missing_npm_explains_required_toolchain_before_changing_files(tmp_path, monkeypatch):
+    policy, base, new_base = policy_fixture(tmp_path, monkeypatch)
+    frontend = tmp_path / "ui/control-plane/src/example.ts"
+    frontend.parent.mkdir(parents=True)
+    frontend.write_text(f'const url = "http://gateway:{base}";\n')
+    original = policy.read_bytes(), frontend.read_bytes()
+    monkeypatch.setattr(ports, "source_paths", lambda root: ["configs/services.yaml", "ui/control-plane/src/example.ts"])
+
+    def missing_npm(*args, **kwargs):
+        raise FileNotFoundError("npm")
+
+    monkeypatch.setattr(ports.subprocess, "run", missing_npm)
+    with pytest.raises(ValueError, match="Node.js/npm.*지정 버전"):
+        ports.run(tmp_path, new_base, yes=True)
+    assert (policy.read_bytes(), frontend.read_bytes()) == original
+
+
 def test_port_preflight_checks_configured_host_bind_addresses(tmp_path, monkeypatch):
     (tmp_path / ".env").write_text("GATEWAY_BIND_ADDR=127.0.0.1\nGRAFANA_BIND_ADDR=127.0.0.2\n")
     monkeypatch.delenv("GATEWAY_BIND_ADDR", raising=False)

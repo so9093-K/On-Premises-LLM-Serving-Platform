@@ -75,6 +75,8 @@ def git_metadata(root: Path) -> tuple[str, str]:
     try:
         revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, text=True,
                                   capture_output=True, check=False, timeout=10)
+        if revision.returncode != 0 or not revision.stdout.strip():
+            return "", "local"
         state = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=root,
                                text=True, capture_output=True, check=False, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
@@ -89,6 +91,17 @@ def read_source_provenance(root: Path) -> SourceProvenance:
     return SourceProvenance(revision, state, source_digest(root))
 
 
-if __name__ == "__main__":
-    source = read_source_provenance(ROOT)
+def main() -> int:
+    import sys
+
+    try:
+        source = read_source_provenance(ROOT)
+    except (OSError, ValueError) as exc:
+        print(f"[image] 소스 파일 확인 실패: {exc}. 파일 형식과 읽기 권한을 확인하세요.", file=sys.stderr)
+        return 2
     print(source.revision or "local", source.state, source.digest, sep="\t")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

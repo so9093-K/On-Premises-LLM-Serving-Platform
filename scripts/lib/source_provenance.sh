@@ -9,7 +9,6 @@ read_source_provenance() {
   source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   provenance_python="${PYTHON_BIN:-$(command -v python3.12 || command -v python3.13 || command -v python3 || command -v python)}"
   if ! provenance="$("$provenance_python" "$source_root/scripts/lib/source_provenance.py")"; then
-    echo "[image] 빌드 입력의 출처를 읽지 못했습니다." >&2
     return 2
   fi
   IFS=$'\t' read -r SOURCE_REVISION SOURCE_STATE SOURCE_DIGEST <<< "$provenance"

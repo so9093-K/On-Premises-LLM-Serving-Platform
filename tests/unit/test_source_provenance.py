@@ -108,3 +108,15 @@ def test_bash_and_python_share_content_identity_without_a_git_binary(tmp_path):
     )
     assert result.stdout.rstrip("\n").split("\t") == [expected.revision, expected.state, expected.digest]
     assert result.stderr == ""
+
+
+def test_invalid_build_input_reports_a_short_actionable_error(tmp_path, monkeypatch, capsys):
+    fixture_source(tmp_path)
+    os.mkfifo(tmp_path / "src/not-a-source-file")
+    monkeypatch.setattr(provenance, "ROOT", tmp_path)
+    assert provenance.main() == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "소스 파일 확인 실패" in output.err
+    assert "파일 형식과 읽기 권한" in output.err
+    assert "Traceback" not in output.err

@@ -336,8 +336,13 @@ def run(root: Path, new_base: int, yes: bool, *, validate: bool = True, plan: bo
     ):
         # Console 소스가 변경되면 Vite hash/manifest도 함께 갱신해야 한다.
         # 정적 JS를 숫자 치환하면 hash drift와 배포 UI 불일치가 발생한다.
-        if not subprocess.run(["npm", "--version"], cwd=root, capture_output=True).returncode == 0:
-            raise ValueError("Console 산출물 재생성에 Node.js/npm이 필요합니다")
+        npm_hint = "Console 재생성에 Node.js/npm이 필요합니다. ui/control-plane/package.json의 지정 버전을 설치한 뒤 다시 실행하세요."
+        try:
+            npm = subprocess.run(["npm", "--version"], cwd=root, capture_output=True)
+        except FileNotFoundError as exc:
+            raise ValueError(npm_hint) from exc
+        if npm.returncode != 0:
+            raise ValueError(npm_hint)
         for file in console_dir.rglob("*"):
             if file.is_file():
                 originals.setdefault(file, file.read_bytes())
