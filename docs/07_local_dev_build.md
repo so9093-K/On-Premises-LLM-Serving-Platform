@@ -368,8 +368,8 @@ Platform Image build는 `scripts/build/build_platform_image.sh`, HTTP 검증은
 `scripts/build/smoke_platform_image.sh`, Unified vLLM Image build는
 `scripts/build/build_vllm_unified_image.sh`가 소유한다. GitHub Actions는 Platform 이미지를
 빌드하고 HTTP Smoke를 별도 필수 단계로 검증하지만 registry에 publish하지 않는다.
-향후 자동화도 이 명령을 사용하고 registry push와 digest 전달만 외부 adapter에서 담당한다. 자동화 경계는 [9. 자동화 경계](./09_cicd.md)에서
-설명한다.
+향후 자동화도 이 명령을 사용하고 registry push와 digest 전달만 외부 adapter에서 담당한다.
+자동화 경계는 [9. 자동화 경계](./09_cicd.md)에서 설명한다.
 
 ---
 
@@ -496,9 +496,9 @@ Compose volume과 diagnostic/build artifact를 제거하고 configuration state�
 | 작업 | 확인 명령 | 확인 범위 |
 |---|---|---|
 | app-only/full-stack 현재 상태 | `make status` | Gateway readiness와 현재 Runtime policy state |
-| 정상 lifecycle convergence | `make up` | 필요한 artifact 준비 + 필수 Runtime readiness 및 Main Chat 가능 여부 |
+| 정상 lifecycle convergence | `make up` | 필요한 artifact 준비 + 선택한 target의 필수 Readiness |
 | Platform Image 생성 | `make build-image` | Docker 이미지 빌드 |
-| Platform Image 기능 검증 | `make image-smoke` | application 초기화 + 실제 Gateway·Console·Docs HTTP | 
+| Platform Image 기능 검증 | `make image-smoke` | application 초기화 + 실제 Gateway·Console·Docs HTTP |
 | 실행 중인 모델 대표 검증 | `make smoke` | 활성 Runtime의 대표 API 요청 확인 |
 | Unified vLLM Image 직접 검증 | `make build-vllm-unified-image` | CUDA runtime image build |
 | 서비스/Runtime raw log | `make logs SERVICE=<id>` | 선택 service의 bounded raw evidence |

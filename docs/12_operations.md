@@ -352,7 +352,8 @@ GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/m
 
 복구 완료 기준:
 
-- `make up` 성공\n- `make status`에서 required dependency가 READY
+- `make up` 성공
+- `make status`에서 required dependency가 READY
 - 필요한 Runtime이 의도한 desired state
 - 동일 error/diagnostic code의 재발이 없음
 - GPU/queue/KV cache가 운영 범위
