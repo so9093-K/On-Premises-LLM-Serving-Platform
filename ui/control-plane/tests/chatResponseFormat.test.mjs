@@ -35,3 +35,19 @@ test('빈 문자열과 불완전한 강조 표시는 손실 없이 유지한다'
   assert.deepEqual(parseChatMarkdown(''), []);
   assert.deepEqual(parseChatInline('**미완성'), [{ kind: 'text', value: '**미완성' }]);
 });
+
+test('이스케이프된 강조 기호는 장식 없이 출력한다', () => {
+  assert.deepEqual(parseChatInline('\\\\*문자 그대로\\\\*와 **강조**'), [
+    { kind: 'text', value: '*문자 그대로*와 ' },
+    { kind: 'strong', value: '강조' },
+  ]);
+  assert.deepEqual(parseChatInline('\\\\**강조 아님\\\\**'), [
+    { kind: 'text', value: '**강조 아님**' },
+  ]);
+});
+
+test('코드 블록 내부의 언어가 붙은 백틱은 종료로 오해하지 않는다', () => {
+  assert.deepEqual(parseChatMarkdown('```txt\\n첫 줄\\n```python\\n세 번째 줄\\n```'), [
+    { kind: 'code', language: 'txt', text: '첫 줄\\n```python\\n세 번째 줄' },
+  ]);
+});

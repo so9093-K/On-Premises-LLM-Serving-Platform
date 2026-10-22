@@ -18,11 +18,22 @@ export function parseChatInline(value: string): ChatInline[] {
     plain = '';
   };
   while (index < value.length) {
+    if (value[index] === '\\' && index + 1 < value.length && '*`\\'.includes(value[index + 1])) {
+      plain += value[index + 1];
+      index += 2;
+      continue;
+    }
     const marker = value.startsWith('**', index) ? '**'
       : value[index] === '`' ? '`'
         : value[index] === '*' ? '*' : null;
     if (marker !== null) {
-      const end = value.indexOf(marker, index + marker.length);
+      let end = value.indexOf(marker, index + marker.length);
+      while (end >= 0) {
+        let escapes = 0;
+        for (let pos = end - 1; pos >= 0 && value[pos] === '\\'; pos--) escapes += 1;
+        if (escapes % 2 === 0) break;
+        end = value.indexOf(marker, end + marker.length);
+      }
       if (end > index + marker.length) {
         flush();
         parts.push({
@@ -42,6 +53,7 @@ export function parseChatInline(value: string): ChatInline[] {
 
 const heading = /^(#{1,6})[ \t]+(.+)$/;
 const fence = /^[ \t]{0,3}\x60{3}([a-zA-Z0-9_+-]*)[ \t]*$/;
+const fenceEnd = /^[ \t]{0,3}\x60{3,}[ \t]*$/;
 const list = /^[ \t]{0,3}([-*+]|\d+[.)])[ \t]+(.+)$/;
 const quote = /^[ \t]{0,3}>[ \t]?(.*)$/;
 
@@ -61,7 +73,7 @@ export function parseChatMarkdown(source: string): ChatBlock[] {
     if (fenceMatch) {
       const code: string[] = [];
       index += 1;
-      while (index < lines.length && !fence.test(lines[index])) {
+      while (index < lines.length && !fenceEnd.test(lines[index])) {
         code.push(lines[index]);
         index += 1;
       }

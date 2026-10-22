@@ -75,6 +75,9 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const [focusComposerAfterExample, setFocusComposerAfterExample] = useState(false);
   const applySequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const clearConfirmRef = useRef<HTMLDivElement | null>(null);
+  const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const focusComposerAfterClearRef = useRef(false);
   const followRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -119,6 +122,14 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     composerRef.current?.focus();
     setFocusComposerAfterExample(false);
   }, [focusComposerAfterExample, exampleLoading, attachmentBusy, pendingToolExchange]);
+
+  useEffect(() => {
+    if (confirmClear) clearConfirmRef.current?.focus();
+    else if (focusComposerAfterClearRef.current && exchanges.length === 0) {
+      focusComposerAfterClearRef.current = false;
+      composerRef.current?.focus();
+    }
+  }, [confirmClear, exchanges.length]);
 
   useEffect(() => {
     if (model === null) return;
@@ -330,7 +341,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       <div className="playground-panel-heading">
         <div>
           <h2 id="chat-workspace-title">Chat Completions</h2>
-          <p>대화와 첨부는 현재 브라우저 탭 메모리에만 유지되며 새로고침하면 사라집니다.</p>
+          <p>실제 모델 응답과 전송한 요청을 확인합니다.</p>
         </div>
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
@@ -339,20 +350,24 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
-          {exchanges.length > 0 ? <Button variant="secondary" onClick={() => setConfirmClear(true)}>대화 지우기</Button> : null}
+          {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => setConfirmClear(true)}>대화 지우기</Button> : null}
         </div>
       </div>
 
       {confirmClear && exchanges.length > 0 ? (
-        <div className="chat-clear-confirm" role="group" aria-label="대화 삭제 확인">
-          <p>대화와 첨부 파일을 모두 지웁니다. 이 브라우저 탭에서 복구할 수 없으며 진행 중인 응답도 중지됩니다.</p>
-          <Button variant="secondary" onClick={() => setConfirmClear(false)}>취소</Button>
+        <div className="chat-clear-confirm" role="group" aria-label="대화 삭제 확인" tabIndex={-1} ref={clearConfirmRef}>
+          <p>전송한 대화 기록과 함께 보낸 첨부를 삭제합니다. 복구할 수 없으며 생성 중인 응답도 중지됩니다. 작성 중인 메시지와 첨부는 유지됩니다.</p>
+          <Button variant="secondary" onClick={() => {
+            setConfirmClear(false);
+            clearTriggerRef.current?.focus();
+          }}>취소</Button>
           <Button variant="danger" onClick={() => {
             cancelExamplePreparation();
             clear();
             setAppliedExampleId(null);
             setPendingModelId(null);
             setShowExamples(true);
+            focusComposerAfterClearRef.current = true;
             setConfirmClear(false);
           }}>대화 삭제 확인</Button>
         </div>

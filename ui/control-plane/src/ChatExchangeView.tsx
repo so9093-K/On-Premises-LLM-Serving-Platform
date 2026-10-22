@@ -26,6 +26,7 @@ export function ExchangeView({
   const [copyFeedback, setCopyFeedback] = useState('');
   const turn = exchange.assistant;
   const streaming = turn.status === 'streaming';
+  const formatted = !streaming && !showRaw;
   const facts = turnFacts(turn);
   const notice = turnNotice(turn);
   const logUrl = turn.requestId
@@ -66,19 +67,23 @@ export function ExchangeView({
         {turn.content ? (
           <div className="chat-response">
             <div className="chat-response-actions">
-              <button type="button" onClick={() => setShowRaw((value) => !value)} aria-pressed={showRaw}>
-                {showRaw ? '서식 보기' : '원문 보기'}
-              </button>
-              <button type="button" onClick={() => {
+              {!streaming ? (
+                <button type="button" onClick={() => setShowRaw((value) => !value)}>
+                  {showRaw ? '서식 보기' : '원문 보기'}
+                </button>
+              ) : null}
+              <button type="button" disabled={streaming} onClick={() => {
                 void navigator.clipboard.writeText(turn.content).then(
-                  () => setCopyFeedback('응답 원문을 복사했습니다.'),
+                  () => setCopyFeedback(turn.status === 'complete'
+                    ? '응답 원문을 복사했습니다.'
+                    : '완료되지 않은 응답의 원문을 복사했습니다.'),
                   () => setCopyFeedback('복사하지 못했습니다. 브라우저 권한을 확인하세요.'),
                 );
               }}>응답 복사</button>
             </div>
-            {showRaw
-              ? <div className="chat-text chat-response-raw">{turn.content}</div>
-              : <ChatMarkdown text={turn.content} />}
+            {formatted
+              ? <ChatMarkdown text={turn.content} />
+              : <div className="chat-text chat-response-raw">{turn.content}</div>}
             {streaming ? <span className="chat-cursor" aria-hidden="true">▍</span> : null}
             <span className="chat-response-copy-status" role="status">{copyFeedback}</span>
           </div>

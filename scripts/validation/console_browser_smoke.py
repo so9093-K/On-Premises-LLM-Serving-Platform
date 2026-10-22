@@ -944,12 +944,16 @@ def run_chat_response_ux(browser, width, height):
     assert len(requests) == 1
     page.get_by_role("button", name="대화 지우기").click()
     expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_visible()
+    expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_focused()
+    page.get_by_text("작성 중인 메시지와 첨부는 유지됩니다.", exact=False).wait_for()
     assert page.locator(".chat-log .chat-exchange").count() == 1, "Confirmation must not delete"
     page.get_by_role("button", name="취소", exact=True).click()
+    expect(page.get_by_role("button", name="대화 지우기")).to_be_focused()
     assert page.locator(".chat-log .chat-exchange").count() == 1
     page.get_by_role("button", name="대화 지우기").click()
     page.get_by_role("button", name="대화 삭제 확인").click()
     assert page.locator(".chat-log .chat-exchange").count() == 0
+    expect(page.get_by_label("메시지")).to_be_focused()
     assert len(requests) == 1, "UI actions must not issue new model requests"
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
     assert errors == [], errors
