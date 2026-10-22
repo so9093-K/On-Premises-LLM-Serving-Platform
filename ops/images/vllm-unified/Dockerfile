@@ -1,36 +1,7 @@
-# Single vLLM runtime image for every model this platform serves: main-LLM
-# (26B and 12B profiles), embedding, embedding-ko, and risk-prompt.
-#
-# Carries three independent, non-overlapping patch sets on top of the pinned
-# official vLLM release:
-#
-#   1. Gemma4-unified multimodal fixes (12B profile only exercises these paths;
-#      26B/embedding/embedding-ko/risk-prompt never touch gemma4_unified code,
-#      so these are no-ops for them):
-#      - media decode stack (libsndfile1 + soundfile + librosa + PyAV) for
-#        audio/video input.
-#      - vision_embedder.patch_dense wrongly FP8-quantized (vLLM ignore-list
-#        name mismatch) -> image requests returned pad-only output.
-#      - feature_extractor.fft_length missing on Gemma4UnifiedAudioFeatureExtractor
-#        -> audio warmup crashed.
-#      See ops/patches/apply_gemma4_multimodal_patches.py.
-#
-#   2. Kanana Safeguard-Prompt (risk-prompt) Llama head_dim compatibility guard
-#      (only risk-prompt sets an explicit head_dim; every other served model is
-#      unaffected). See ops/patches/transformers_llama_head_dim_guard.py.
-#
-#   3. Gemma4 streaming reasoning/content parser verification and local turn
-#      terminal fix. See ops/patches/apply_gemma4_streaming_reasoning_patch.py.
-#
-# All patch scripts assert on the exact upstream layout they were written
-# against, so a base image bump that invalidates one fails this build
-# loudly instead of shipping silently broken. Merging them into one image is
-# safe because they edit disjoint files (vllm/model_executor/models/gemma4_unified.py
-# + transformers' Gemma4UnifiedAudioFeatureExtractor vs. transformers'
-# configuration_llama.py) -- verified by inspection, 2026-07-24.
-# The Gemma4 streaming parser backport edits vllm/parser/gemma4.py only.
-# BASE_IMAGE는 Dockerfile의 숨은 기본값이 아니라 vllm_unified_build.yaml에서
-# build script가 명시적으로 전달한다. 직접 docker build도 이 인자를 줘야 한다.
+# Main Model·Embedding·Risk-Prompt가 공유하는 고정 vLLM artifact다.
+# Gemma4 Unified의 멀티모달 패치, Llama head_dim 보호, Gemma4 streaming 패치는
+# 서로 다른 실행 경로에 적용되며 각 스크립트가 상류 코드 구조를 검증한다.
+# 기준 이미지·공통 버전·CUDA 후보는 configs/vllm_unified_build.yaml이 소유한다.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
@@ -38,6 +9,27 @@ FROM ${BASE_IMAGE}
 ARG VLLM_VERSION
 ARG TRANSFORMERS_VERSION
 ARG HUGGINGFACE_HUB_VERSION
+ARG CUDA_VARIANT=cu130
+ARG EXPECTED_CUDA_VERSION=13.0
+
+# CUDA 12.9 후보는 상류 이미지의 혼합 의존성을 고정 lock으로 교정한다.
+# LMCache는 이 플랫폼이 제공하지 않는 선택적 기능이며 CUDA 13 의존을 요구한다.
+COPY ops/images/vllm-unified/requirements.cu129-pytorch.lock /usr/local/share/ai-model-serving/cu129/requirements.cu129-pytorch.lock
+COPY ops/images/vllm-unified/requirements.cu129-runtime.lock /usr/local/share/ai-model-serving/cu129/requirements.cu129-runtime.lock
+RUN if [ "$CUDA_VARIANT" = "cu129" ]; then \
+      python3 -m pip uninstall -y lmcache \
+      && python3 -m pip install --no-cache-dir --no-deps --require-hashes \
+         --index-url https://download.pytorch.org/whl/cu129 \
+         -r /usr/local/share/ai-model-serving/cu129/requirements.cu129-pytorch.lock \
+      && python3 -m pip install --no-cache-dir --no-deps --require-hashes \
+         --index-url https://pypi.org/simple \
+         -r /usr/local/share/ai-model-serving/cu129/requirements.cu129-runtime.lock; \
+    elif [ "$CUDA_VARIANT" != "cu130" ]; then \
+      echo "Unsupported CUDA variant: $CUDA_VARIANT" >&2; exit 2; \
+    fi
+
+COPY scripts/build/verify_cuda129_image.py /usr/local/bin/verify_cuda129_image.py
+RUN if [ "$CUDA_VARIANT" = "cu129" ]; then python3 /usr/local/bin/verify_cuda129_image.py; fi
 
 LABEL org.opencontainers.image.title="ai-model-serving-vllm-unified"
 LABEL org.opencontainers.image.description="Single vLLM runtime for all served models: Gemma4 multimodal fixes + Kanana Llama head_dim guard"
@@ -92,9 +84,8 @@ RUN python3 /tmp/apply_gemma4_streaming_reasoning_patch.py \
     && rm /tmp/apply_gemma4_streaming_reasoning_patch.py
 
 # ── Kanana risk-prompt: verified base dependency pair ───────────────────────
-# The pinned base image is the dependency source of truth.  Do not pip-install
-# over its curated vLLM stack: verify the exact known-good pair instead.
-RUN python3 - "$VLLM_VERSION" "$TRANSFORMERS_VERSION" "$HUGGINGFACE_HUB_VERSION" <<'PY'
+# 선택한 기준 이미지와 명시적인 CUDA lock이 실행 의존성을 소유한다.
+RUN python3 - "$VLLM_VERSION" "$TRANSFORMERS_VERSION" "$HUGGINGFACE_HUB_VERSION" "$EXPECTED_CUDA_VERSION" <<'PY'
 from __future__ import annotations
 
 import sys
@@ -105,8 +96,8 @@ import torchvision
 import transformers
 import vllm
 
-expected_vllm, expected_transformers, expected_hub = sys.argv[1:]
-actual_vllm = vllm.__version__
+expected_vllm, expected_transformers, expected_hub, expected_cuda = sys.argv[1:]
+actual_vllm = vllm.__version__.partition("+")[0]
 actual_transformers = transformers.__version__
 actual_hub = huggingface_hub.__version__
 torch_cuda = torch.__version__.partition("+")[2]
@@ -125,10 +116,11 @@ if (
         file=sys.stderr,
     )
     sys.exit(1)
-if not torch_cuda or torch_cuda != vision_cuda:
+if not torch_cuda or torch_cuda != vision_cuda or torch.version.cuda != expected_cuda:
     print(
         f"PyTorch/torchvision CUDA variant mismatch: torch={torch.__version__}, "
-        f"torchvision={torchvision.__version__}",
+        f"torchvision={torchvision.__version__}, "
+        f"cuda={torch.version.cuda} (expected {expected_cuda})",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -140,19 +132,13 @@ print(
 )
 PY
 
+RUN if [ "$CUDA_VARIANT" = "cu129" ]; then python3 /usr/local/bin/verify_cuda129_image.py; fi
+
 # ── Kanana risk-prompt: Llama head_dim guard ────────────────────────────────
 COPY ops/patches/transformers_llama_head_dim_guard.py /usr/local/bin/transformers_llama_head_dim_guard.py
 RUN python3 /usr/local/bin/transformers_llama_head_dim_guard.py --json \
     && python3 /usr/local/bin/transformers_llama_head_dim_guard.py --verify --json
 
-RUN python3 - <<'PY'
-import huggingface_hub
-import transformers
-import vllm
-print("vllm-unified vllm=", vllm.__version__)
-print("vllm-unified transformers=", transformers.__version__)
-print("vllm-unified huggingface_hub=", huggingface_hub.__version__)
-PY
 
 # 문서 변경이 위의 무거운 dependency·patch layer를 무효화하지 않게 마지막에 둔다.
 # Base image와 설치된 dependency는 각각의 원 라이선스를 유지한다.

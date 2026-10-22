@@ -1,27 +1,23 @@
 # ── Secrets & env files ────────────────────────────────────────────────────
-# Exclude .env* from build context; explicit allowlist for committed example templates
-.env
-.env.*
-!.env.local.example
-!.env.compose.example
+# 인증 파일 제외 규칙은 Compose 하위 경로 허용 규칙 뒤에 둔다.
 
 # ── VCS & IDE ──────────────────────────────────────────────────────────────
 .git
 .gitignore
 
 # ── Python artifacts ───────────────────────────────────────────────────────
-__pycache__
+**/__pycache__
 *.pyc
 *.egg-info
 .pytest_cache
 .mypy_cache
 .ruff_cache
-.venv
+**/.venv
 
 # ── Build & dist ───────────────────────────────────────────────────────────
 build
 dist
-node_modules
+**/node_modules
 # Frontend source/toolchain is build-time only. The checked-in generated Console is
 # under src/ and is installed into the Python package by the builder stage.
 ui
@@ -42,13 +38,13 @@ logs
 outputs
 
 # ── Model data (large binary assets) ──────────────────────────────────────
-model_cache
-models
+**/model_cache
+**/models
 
 # ── Credential files ───────────────────────────────────────────────────────
-*.secret
-*.pem
-*.key
+**/*.secret
+**/*.pem
+**/*.key
 
 # ── Local AI/dev-agent tool state ───────────────────────────────────────────────
 .agents/
@@ -59,3 +55,9 @@ models
 
 # ── Other ───────────────────────────────────────────────
 .other/
+
+# Compose 하위 경로 허용 뒤에도 중첩 인증 파일은 제외한다.
+**/.env
+**/.env.*
+!.env.local.example
+!.env.compose.example

@@ -1,0 +1,5 @@
+# 고정된 CUDA 12.9 amd64/CPython 3.12 후보의 의존성이다.
+torch==2.13.0+cu129 --hash=sha256:df28741fcd89e3da7cce2d48cbe5299d6732d510ac20f5d422d0b85edf18c327
+torchvision==0.28.0+cu129 --hash=sha256:909365f448f66daece26fcb827bbeec1c6f9b4934a2de232d1e95244baa5335b
+torchaudio==2.11.0+cu129 --hash=sha256:de4105653562f031edd6ddf7dd1485f07db6ac62cdc90d17364648cd3c89eb5a
+torchcodec==0.16.0+cu129 --hash=sha256:1d103c30631a2c04b2acd1602a56af7762d41051700d2077c2b6a964dbcf7f2c

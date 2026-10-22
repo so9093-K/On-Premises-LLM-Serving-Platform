@@ -24,6 +24,9 @@ ARTIFACT_INPUTS = {
         "ops/images/vllm-unified/Dockerfile",
         "ops/images/vllm-unified/requirements.bnb.lock",
         "ops/images/vllm-unified/requirements.media.lock",
+        "ops/images/vllm-unified/requirements.cu129-pytorch.lock",
+        "ops/images/vllm-unified/requirements.cu129-runtime.lock",
+        "scripts/build/verify_cuda129_image.py",
         "ops/patches/apply_gemma4_multimodal_patches.py",
         "ops/patches/apply_gemma4_streaming_reasoning_patch.py",
         "ops/patches/transformers_llama_head_dim_guard.py",
@@ -98,9 +101,10 @@ def _content_digest(root: Path, artifact: str, *, distribution: bool) -> str:
         else:
             raise ValueError(f"일반 파일이 아닌 빌드 입력입니다: {path}")
     # 이미지 태그·캐시·체크아웃 경로는 실행 입력이 아니다. 실제 build override만 포함한다.
-    overrides = ("PLATFORM_BUILD_PLATFORM",) if artifact == "platform" else ("VLLM_BASE_IMAGE",)
+    overrides = ("PLATFORM_BUILD_PLATFORM",) if artifact == "platform" else ("VLLM_BASE_IMAGE", "VLLM_BUILD_VARIANT")
     for name in overrides:
-        digest.update(name.encode("ascii") + b"\0" + os.environ.get(name, "").encode("utf-8") + b"\0")
+        value = os.environ.get(name, "cu130" if name == "VLLM_BUILD_VARIANT" else "")
+        digest.update(name.encode("ascii") + b"\0" + value.encode("utf-8") + b"\0")
     return "sha256:" + digest.hexdigest()
 
 

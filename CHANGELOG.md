@@ -6,6 +6,8 @@
 
 ### Changed
 
+- vLLM 0.30.0의 CUDA 12.9 후보를 명시적으로 빌드할 수 있다. CUDA 의존성은 해시 lock으로 고정하고 패키지 일치·CUDA 연산·Triton JIT를 검증한다. 기본 CUDA 13.0 이미지와 운영 설정은 기존 참조를 유지한다. Docker 빌드에서 중첩 모델 캐시·인증 파일도 제외한다.
+
 - 로컬 이미지 기동은 이미지별 실행 입력으로 재사용을 판단한다. README·LICENSE·NOTICE의 변경·누락과 Git 커밋·작업 상태는 재빌드 사유가 아니며, Platform 변경만으로 vLLM을 함께 빌드하지 않는다. 새 실행 해시가 없는 이전 로컬 이미지는 한 번 캐시를 활용해 갱신한다. ([ADR-0062](docs/adr/0062-runtime-artifact-reuse.md))
 
 - 관리형 Linux의 Main 실행 정책을 Console에서 자동·CPU 고정·GPU 고정으로 선택한다. 최초 `TARGET=auto`는 공통 구성에서 CPU부터 검증하며 GPU 준비 실패 중에도 Core·CPU·관측을 유지한다. 기존 배포는 선택한 엔진·인증·포트·캐시를 보존한다. ([실행 정책](docs/guides/adaptive-runtime.md), [ADR-0061](docs/adr/0061-managed-linux-execution-policy.md))
