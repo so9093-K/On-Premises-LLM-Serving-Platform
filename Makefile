@@ -105,7 +105,7 @@ build-image: ## 로컬 Docker Platform 이미지 생성 (실제 HTTP 검증은 �
 	bash scripts/build/build_platform_image.sh
 
 image-smoke: ## 빌드된 Platform 이미지의 Gateway·Console·Docs HTTP 표면 검증
-	@bash scripts/build/smoke_platform_image.sh "${PLATFORM_IMAGE:-ai-model-serving-platform:$(CURRENT_VERSION)}" "${PLATFORM_BUILD_PLATFORM:-}"
+	@bash scripts/build/smoke_platform_image.sh "$${PLATFORM_IMAGE:-ai-model-serving-platform:$(CURRENT_VERSION)}" "$${PLATFORM_BUILD_PLATFORM:-}"
 
 smoke: ## 기동된 전체 스택의 활성 Runtime 대표 요청 검증 (make up과 독립)
 	@PYTHON_BIN="$(PYTHON)" bash scripts/ops/smoke_test.sh
