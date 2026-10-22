@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Alert, Spinner } from '@patternfly/react-core';
+import { ChatMarkdown } from './ChatMarkdown';
 import { requestLogDiagnosticsUrl } from './activityDiagnostics';
 import { AttachmentList } from './ChatAttachments';
 import { ToolResultForm, toolArgumentsAreJson } from './ChatToolResultForm';
@@ -20,13 +22,27 @@ export function ExchangeView({
   busy: boolean;
   onSendToolResults: (sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
 }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState('');
   const turn = exchange.assistant;
   const streaming = turn.status === 'streaming';
+  const formatted = !streaming && !showRaw;
   const facts = turnFacts(turn);
   const notice = turnNotice(turn);
   const logUrl = turn.requestId
     ? requestLogDiagnosticsUrl(grafanaUrl, turn.requestId, exchange.sentAtSeconds)
     : null;
+
+  async function copyResponse(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(turn.content);
+      setCopyFeedback(turn.status === 'complete'
+        ? '응답 원문을 복사했습니다.'
+        : '완료되지 않은 응답의 원문을 복사했습니다.');
+    } catch {
+      setCopyFeedback('복사하지 못했습니다. 브라우저의 클립보드 권한과 HTTPS 연결을 확인하세요.');
+    }
+  }
 
   return (
     <li className="chat-exchange">
@@ -60,9 +76,22 @@ export function ExchangeView({
           </details>
         ) : null}
         {turn.content ? (
-          <div className="chat-text">
-            {turn.content}
+          <div className="chat-response">
+            <div className="chat-response-actions">
+              {!streaming ? (
+                <button type="button" onClick={() => setShowRaw((value) => !value)}>
+                  {showRaw ? '서식 보기' : '원문 보기'}
+                </button>
+              ) : null}
+              <button type="button" disabled={streaming} onClick={() => { void copyResponse(); }}>
+                응답 복사
+              </button>
+            </div>
+            {formatted
+              ? <ChatMarkdown text={turn.content} />
+              : <div className="chat-text chat-response-raw">{turn.content}</div>}
             {streaming ? <span className="chat-cursor" aria-hidden="true">▍</span> : null}
+            <span className="chat-response-copy-status" role="status">{copyFeedback}</span>
           </div>
         ) : streaming && !turn.reasoning ? (
           <div className="chat-waiting"><Spinner size="sm" aria-label="응답 대기 중" /> 응답 대기 중…</div>

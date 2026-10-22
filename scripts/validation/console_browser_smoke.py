@@ -894,6 +894,74 @@ def run_playground_workspaces(browser, width, height):
     context.close()
 
 
+def run_chat_response_ux(browser, width, height):
+    """Chat 응답 표시와 원본 복사·삭제 확인은 전송 요청을 바꾸지 않는다."""
+    context = browser.new_context(viewport={"width": width, "height": height})
+    context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page = context.new_page()
+    errors = []
+    requests = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    bootstrap["deployment"]["features"] = ["chat"]
+    install_routes(page, {"traffic_failure": False, "revision": 7, "value": 300, "active_profile": False})
+    answer = '# 점검\n\n1. **GPU** 상태\n2. `CUDA` 확인\n\n2 * 3 = 6 * 1\n\n<img src=x onerror=alert(1)>'
+
+    def handle_public(route):
+        from urllib.parse import urlsplit
+        path = urlsplit(route.request.url).path
+        if path == "/v1/models":
+            return send(route, {"object": "list", "data": [{
+                "id": "local-main", "backend": "vllm-cuda",
+                "capabilities": ["chat.completions"], "input_modalities": ["text"],
+                "request_parameters": {"stream": {"type": "boolean"}},
+            }]})
+        if path == "/v1/chat/completions":
+            requests.append(json.loads(route.request.post_data))
+            route.fulfill(status=200, content_type="text/event-stream",
+                          body='data: ' + json.dumps({"choices": [{"delta": {"content": answer}}]}) +
+                               '\n\ndata: [DONE]\n\n')
+            return
+        route.continue_()
+
+    page.route("**/v1/models", handle_public)
+    page.route("**/v1/chat/completions", handle_public)
+    page.goto(URL, wait_until="domcontentloaded")
+    page.get_by_role("link", name="Playground").click()
+    page.get_by_label("메시지").fill("GPU 상태를 알려주세요")
+    page.get_by_role("button", name="보내기").click()
+    formatted = page.locator(".chat-response-markdown")
+    formatted.locator("h3", has_text="점검").wait_for()
+    formatted.locator("strong", has_text="GPU").wait_for()
+    assert formatted.locator("img,script").count() == 0, "Model text must not insert active HTML"
+    assert "<img src=x" in formatted.inner_text()
+    assert "2 * 3 = 6 * 1" in formatted.inner_text(), "Multiplication signs must not become emphasis"
+    page.get_by_role("button", name="응답 복사").click()
+    expect(page.get_by_text("응답 원문을 복사했습니다.")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()") == answer
+    page.get_by_role("button", name="원문 보기").click()
+    assert page.locator(".chat-response-raw").inner_text() == answer
+    page.get_by_role("button", name="서식 보기").click()
+    assert formatted.count() == 1
+    assert len(requests) == 1
+    page.get_by_role("button", name="대화 지우기").click()
+    expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_visible()
+    assert page.get_by_role("group", name="대화 삭제 확인").get_attribute("aria-describedby") == "chat-clear-confirm-description"
+    expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_focused()
+    page.get_by_text("작성 중인 메시지와 첨부는 유지됩니다.", exact=False).wait_for()
+    assert page.locator(".chat-log .chat-exchange").count() == 1, "Confirmation must not delete"
+    page.get_by_role("button", name="취소", exact=True).click()
+    expect(page.get_by_role("button", name="대화 지우기")).to_be_focused()
+    assert page.locator(".chat-log .chat-exchange").count() == 1
+    page.get_by_role("button", name="대화 지우기").click()
+    page.get_by_role("button", name="대화 삭제 확인").click()
+    assert page.locator(".chat-log .chat-exchange").count() == 0
+    expect(page.get_by_label("메시지")).to_be_focused()
+    assert len(requests) == 1, "UI actions must not issue new model requests"
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    assert errors == [], errors
+    context.close()
+
+
 def main():
     for _ in range(40):
         try:
@@ -923,6 +991,8 @@ def main():
             run_manual_cpu_selection(browser, 390, 844)
             run_playground_workspaces(browser, 1440, 900)
             run_playground_workspaces(browser, 390, 844)
+            run_chat_response_ux(browser, 1440, 900)
+            run_chat_response_ux(browser, 390, 844)
         finally:
             browser.close()
 
