@@ -350,7 +350,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
-          {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => setConfirmClear(true)}>대화 지우기</Button> : null}
+          {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => { followRef.current = false; setConfirmClear(true); }}>대화 지우기</Button> : null}
         </div>
       </div>
 

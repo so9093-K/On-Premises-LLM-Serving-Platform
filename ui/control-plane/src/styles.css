@@ -2164,6 +2164,7 @@ a.overview-action-tile:hover {
 .chat-response-actions { display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap; }
 .chat-response-actions button { border: 0; background: transparent; color: var(--console-focus); cursor: pointer; text-decoration: underline; padding: 0.125rem; font-size: 0.8125rem; }
 .chat-response-actions button:focus-visible { outline: 2px solid var(--console-focus); outline-offset: 2px; }
+.chat-response-actions button:disabled { opacity: 0.55; cursor: not-allowed; text-decoration: none; }
 .chat-response-copy-status:empty { display: none; }
 .chat-response-copy-status { color: var(--console-text-muted); font-size: 0.8rem; }
 .chat-response-raw { white-space: pre-wrap; overflow-wrap: anywhere; }
