@@ -67,7 +67,7 @@ test('일반 수식의 곱셈 별표와 공백을 강조 서식으로 바꾸지 
 });
 
 test('연속된 이스케이프 강조 기호는 원문으로 보인다', () => {
-  assert.deepEqual(parseChatInline(String.raw`\\**literal\\** and **bold**`), [
+  assert.deepEqual(parseChatInline(String.raw`\*\*literal\*\* and **bold**`), [
     { kind: 'text', value: '**literal** and ' },
     { kind: 'strong', value: 'bold' },
   ]);
