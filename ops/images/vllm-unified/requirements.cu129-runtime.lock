@@ -1,0 +1,6 @@
+# 고정된 CUDA 12.9 amd64/CPython 3.12 후보의 의존성이다.
+cuda-python==12.9.4 --hash=sha256:d2cacea882a69863f1e7d27ee71d75f0684f4c76910aff839067e4f89c902279
+cuda-bindings==12.9.4 --hash=sha256:fda147a344e8eaeca0c6ff113d2851ffca8f7dfc0a6c932374ee5c47caa649c8
+cuda-toolkit==12.9.1 --hash=sha256:0c8636dfacbecfe9867a949a211864f080a805bc54023ce4a361aa4e1fd8738b
+triton==3.7.1 --hash=sha256:7e40869937a68206ec70d7f25bb7ec6433cb083f9135e1f36dbd318dc449a728
+nvidia-nccl-cu12==2.29.7 --hash=sha256:ecd0a012051abc20c1aa87328841efa8cade3ced65803046e38c2f03c0891fea

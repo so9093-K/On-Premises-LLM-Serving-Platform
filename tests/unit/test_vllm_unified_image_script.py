@@ -17,6 +17,7 @@ from scripts import platform_cli
 _ISOLATED_KEYS = (
     "VLLM_IMAGE",
     "VLLM_BASE_IMAGE",
+    "VLLM_BUILD_VARIANT",
 )
 
 
@@ -193,3 +194,26 @@ def test_target_rebuild_does_not_treat_local_image_id_as_external(monkeypatch):
     assert all(env and env["PROJECT_BUILD_NO_CACHE"] == "1" for _, env in commands)
     assert commands[1][1]["VLLM_UNIFIED_BUILD_IMAGE"].startswith("ai-model-serving-vllm-unified:")
     assert pinned == [(local_id, "sha256:" + "b" * 64)]
+
+
+def test_cuda129_candidate_selects_its_base_without_changing_default(tmp_path):
+    """후보 선택은 해당 빌드의 기준 이미지만 변경한다."""
+    repo = copy_minimal_repo(tmp_path)
+    config = yaml.safe_load((repo / "configs/vllm_unified_build.yaml").read_text())
+    command = ('source scripts/lib/vllm_unified_image.sh; vllm_unified_resolve_images .env; '
+               'printf "%s\\n" "$VLLM_BASE_IMAGE_RESOLVED"')
+    candidate = run_bash(repo, command, env={"VLLM_BUILD_VARIANT": "cu129"})
+    default = run_bash(repo, command)
+    assert candidate.returncode == 0, candidate.stderr
+    assert candidate.stdout.strip() == config["build_variants"]["cu129"]["base_image_default"]
+    assert default.returncode == 0, default.stderr
+    assert default.stdout.strip() == config["base_image_default"]
+
+
+def test_unknown_cuda_candidate_fails_before_build(tmp_path):
+    repo = copy_minimal_repo(tmp_path)
+    result = run_bash(repo, 'source scripts/lib/vllm_unified_image.sh; vllm_unified_resolve_images .env',
+                      env={"VLLM_BUILD_VARIANT": "unsupported"})
+    assert result.returncode != 0
+    assert "VLLM_BUILD_VARIANT must be cu130 or cu129" in result.stderr
+    assert "Traceback" not in result.stderr

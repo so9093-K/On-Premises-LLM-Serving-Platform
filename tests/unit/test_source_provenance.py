@@ -200,6 +200,7 @@ def test_runtime_changes_invalidate_only_consuming_images(tmp_path, path, affect
 
 @pytest.mark.parametrize("variable,artifact", [
     ("VLLM_BASE_IMAGE", "vllm-unified"), ("PLATFORM_BUILD_PLATFORM", "platform"),
+    ("VLLM_BUILD_VARIANT", "vllm-unified"),
 ])
 def test_build_overrides_are_runtime_inputs(tmp_path, monkeypatch, variable, artifact):
     fixture_source(tmp_path)

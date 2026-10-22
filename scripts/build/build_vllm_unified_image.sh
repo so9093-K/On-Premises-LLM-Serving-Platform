@@ -40,6 +40,8 @@ PROJECT_BUILD_NO_CACHE="${PROJECT_BUILD_NO_CACHE:-0}"
 VLLM_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key vllm)"
 TRANSFORMERS_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key transformers)"
 HUGGINGFACE_HUB_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key huggingface_hub)"
+CUDA_VARIANT="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key cuda_variant)"
+EXPECTED_CUDA_VERSION="$("$PYTHON_BIN" scripts/models/print_vllm_unified_compatibility.py --key cuda_version)"
 source scripts/lib/source_provenance.sh
 read_source_provenance vllm-unified
 
@@ -48,6 +50,7 @@ echo "[vllm-unified-image] source=${SOURCE_STATE} digest=${SOURCE_DIGEST} target
 if [[ -n "$SOURCE_REVISION" ]]; then
   echo "[vllm-unified-image] revision=${SOURCE_REVISION}"
 fi
+echo "[vllm-unified-image] cuda=${EXPECTED_CUDA_VERSION} variant=${CUDA_VARIANT}"
 echo "[vllm-unified-image] base=${BASE_IMAGE} vllm=${VLLM_VERSION} transformers=${TRANSFORMERS_VERSION} huggingface_hub=${HUGGINGFACE_HUB_VERSION}"
 
 if [[ "$PULL_BASE_IMAGE" == "1" ]]; then
@@ -59,6 +62,8 @@ build_args=(
   --platform "$TARGET_PLATFORM"
   --file ops/images/vllm-unified/Dockerfile
   --build-arg "BASE_IMAGE=${BASE_IMAGE}"
+  --build-arg "CUDA_VARIANT=${CUDA_VARIANT}"
+  --build-arg "EXPECTED_CUDA_VERSION=${EXPECTED_CUDA_VERSION}"
   --build-arg "VLLM_VERSION=${VLLM_VERSION}"
   --build-arg "TRANSFORMERS_VERSION=${TRANSFORMERS_VERSION}"
   --build-arg "HUGGINGFACE_HUB_VERSION=${HUGGINGFACE_HUB_VERSION}"
@@ -69,6 +74,7 @@ build_args=(
   --label "ai_model_serving.runtime_digest=${SOURCE_RUNTIME_DIGEST}"
   --label "ai_model_serving.build_platform=${TARGET_PLATFORM}"
   --label "ai_model_serving.vllm_version=${VLLM_VERSION}"
+  --label "ai_model_serving.cuda_variant=${CUDA_VARIANT}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"
   --label "${PROJECT_CHECKOUT_LABEL_KEY}=$(pwd -P)"
   --label "ai_model_serving.artifact=vllm-unified"

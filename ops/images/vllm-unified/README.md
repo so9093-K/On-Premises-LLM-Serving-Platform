@@ -2,10 +2,6 @@
 
 Main Model의 26B·12B Profile, Embedding, Embedding-KO, Risk-Prompt는
 하나의 파생 vLLM 이미지(통합 Runtime Artifact)를 사용한다.
-과거 별도 이미지 `vllm-gemma4-audio`(12B 멀티모달)와
-`risk-vllm-kanana`(Kanana Risk-Prompt)를 대체한다.
-두 Patch 집합이 서로 다른 파일을 변경하는 것을 확인한 후 2026-07-24에 통합했다.
-자세한 적용 범위는 `Dockerfile` 머리글 주석을 참고한다.
 
 서로 독립된 세 Patch 집합을 적용하며, 해당하지 않는 모델에서는 수정이 영향을 주지 않는다.
 
@@ -62,6 +58,36 @@ vLLM 0.30.0의 공식 `-cu129` amd64 이미지에는 Torch 2.14.0+cu130과
 torchvision 0.28.0+cu129가 함께 포함돼 `import torchvision`이 실패했다.
 현재 기준 이미지는 실제 Import 및 GPU 접근이 확인된 CUDA 13.0 amd64 이미지다.
 Dockerfile은 Torch/torchvision Import와 CUDA Variant 일치 여부를 빌드 중 검사한다.
+
+### CUDA 12.9 후보 빌드
+
+`VLLM_BUILD_VARIANT=cu129`는 `configs/vllm_unified_build.yaml`의 고정 amd64
+후보를 선택한다. vLLM 0.30.0과 기존 모델 패치를 유지하면서 Torch·torchvision·
+오디오 라이브러리·Triton·CUDA Python·NCCL을 CPython 3.12 전용 해시 lock으로 고정한다.
+CUDA 13 의존성을 요구하는 선택적 LMCache는 이 후보에서 제외한다.
+이 플랫폼은 LMCache 연동을 제공하지 않는다.
+
+```bash
+VLLM_BUILD_VARIANT=cu129 \
+VLLM_UNIFIED_BUILD_IMAGE=ai-model-serving-vllm-unified:cu129-candidate \
+make build-vllm-unified-image
+
+docker run --rm --gpus all --entrypoint python3 \
+  ai-model-serving-vllm-unified:cu129-candidate \
+  /usr/local/bin/verify_cuda129_image.py --gpu
+```
+
+빌드는 전체 `pip check`와 lock 일치를 검사한다. `--gpu`는 실제 CUDA 행렬 연산,
+Triton JIT, torchvision NMS, vLLM 확장 로딩을 검증하고 장치·드라이버를 출력한다.
+R570은 CUDA 12 계열 minor compatibility 대상이지만 PTX/JIT 제약이 있으므로,
+해당 Host에서 GPU 검사와 실제 모델 Canary까지 통과해야 실행 가능으로 판단한다.
+GPU 검사만으로 모델 적재에 필요한 VRAM이 확보됐다고 판단하지 않는다.
+
+기본 빌드는 기존 CUDA 13.0 artifact를 사용한다. 후보 빌드·검증은 `.env`와
+운영 이미지 참조를 갱신하지 않는다. `VLLM_BUILD_VARIANT`는 해당 빌드 프로세스의
+입력이며 이미지의 실행 해시와 `ai_model_serving.cuda_variant` 라벨에 반영된다.
+
+### 기본 CUDA 13.0 이미지
 
 후보 기준 이미지의 의존성 메타데이터도 확인해야 한다.
 현재 CUDA 13.0 기준 이미지에서 `pip check`는 설치된 `nvidia-nccl-cu13`
