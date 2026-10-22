@@ -33,6 +33,17 @@ export function ExchangeView({
     ? requestLogDiagnosticsUrl(grafanaUrl, turn.requestId, exchange.sentAtSeconds)
     : null;
 
+  async function copyResponse(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(turn.content);
+      setCopyFeedback(turn.status === 'complete'
+        ? '응답 원문을 복사했습니다.'
+        : '완료되지 않은 응답의 원문을 복사했습니다.');
+    } catch {
+      setCopyFeedback('복사하지 못했습니다. 브라우저의 클립보드 권한과 HTTPS 연결을 확인하세요.');
+    }
+  }
+
   return (
     <li className="chat-exchange">
       <div className="chat-message chat-message-user">
@@ -72,14 +83,9 @@ export function ExchangeView({
                   {showRaw ? '서식 보기' : '원문 보기'}
                 </button>
               ) : null}
-              <button type="button" disabled={streaming} onClick={() => {
-                void navigator.clipboard.writeText(turn.content).then(
-                  () => setCopyFeedback(turn.status === 'complete'
-                    ? '응답 원문을 복사했습니다.'
-                    : '완료되지 않은 응답의 원문을 복사했습니다.'),
-                  () => setCopyFeedback('복사하지 못했습니다. 브라우저 권한을 확인하세요.'),
-                );
-              }}>응답 복사</button>
+              <button type="button" disabled={streaming} onClick={() => { void copyResponse(); }}>
+                응답 복사
+              </button>
             </div>
             {formatted
               ? <ChatMarkdown text={turn.content} />
