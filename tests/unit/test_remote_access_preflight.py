@@ -36,7 +36,6 @@ def test_edge_loopback_and_separate_keys_allow_preflight(tmp_path):
     ("EXPOSURE_AUDIENCE", "private_lan"),
     ("GATEWAY_BIND_ADDR", "0.0.0.0"),
     ("GRAFANA_BIND_ADDR", "0.0.0.0"),
-    ("GATEWAY_PORT", "9401"),
     ("API_KEY_REQUIRED", "false"),
     ("ADMIN_API_KEY_REQUIRED", "false"),
     ("ADMIN_ENDPOINTS_INTERNAL_ONLY", "true"),
@@ -85,3 +84,17 @@ def test_missing_grafana_bind_or_normalized_duplicate_key_fails(tmp_path):
     )
     assert preflight(path)
     assert preflight(write_env(tmp_path, API_KEYS="api-only-long-secret, admin-only-long-secret"))
+
+
+def test_team_nginx_config_follows_deployment_port_band(tmp_path):
+    from scripts.access import remote_access
+
+    env = tmp_path / ".env"
+    env.write_text("PLATFORM_PORT_BASE=9600\nGATEWAY_PORT=9600\n", encoding="utf-8")
+    rendered = remote_access.nginx_config(env)
+    assert "listen 127.0.0.1:9680;" in rendered
+    assert "proxy_pass http://127.0.0.1:9600/v1/chat/completions;" in rendered
+    assert "9400" not in rendered and "9480" not in rendered
+    # 경로·메서드 허용 규칙은 그대로다.
+    template = Path(__file__).resolve().parents[2] / "ops/access/team-api.nginx.conf"
+    assert rendered.count("location = ") == template.read_text(encoding="utf-8").count("location = ")

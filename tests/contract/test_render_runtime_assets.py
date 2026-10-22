@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from ai_model_serving.domain import ModelRegistry  # noqa: E402
-from scripts.render_runtime_assets import render_prometheus_yml  # noqa: E402
+from ai_model_serving.monitoring_projection import prometheus_scrape_config_document  # noqa: E402
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -36,6 +36,8 @@ def test_port_change_propagates_to_prometheus() -> None:
     serving2["models"]["main_llm"]["port"] = 9999
     serving2["models"]["main_llm"]["endpoint"] = "http://main-llm-vllm:9999/v1"
     registry2 = ModelRegistry(catalog, serving2)
-    rendered = render_prometheus_yml(registry2, monitoring, services)
+    rendered = yaml.safe_dump(
+        prometheus_scrape_config_document(registry=registry2, monitoring=monitoring, services=services)
+    )
     assert "main-llm-vllm:9999" in rendered
     assert f"main-llm-vllm:{original_port}" not in rendered

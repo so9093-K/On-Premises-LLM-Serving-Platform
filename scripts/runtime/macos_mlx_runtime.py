@@ -110,7 +110,19 @@ def _config() -> dict[str, Any]:
     speculative = runtime.get("speculative_decoding", {})
     if speculative.get("enabled") is not True or speculative.get("kind") != "mtp":
         raise RuntimeError("initial Metal profile requires MTP speculative decoding")
+    # 설정의 포트는 기본 대역 값이다. 실제 포트는 배포의 PLATFORM_PORT_BASE를 따른다.
+    runtime["port"] = _port_namespace().translate(int(runtime["port"]))
     return document
+
+
+def _port_namespace():
+    if str(ROOT / "src") not in sys.path:
+        sys.path.insert(0, str(ROOT / "src"))
+    from ai_model_serving.port_namespace import load_port_namespace
+    from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
+
+    env_path = ROOT / ".env"
+    return load_port_namespace(ROOT, load_strict_env_file(env_path) if env_path.is_file() else {})
 
 
 def _runtime_python(config: dict[str, Any]) -> Path:

@@ -127,10 +127,12 @@ def _check_existing_environment(root: Path, selected: Path) -> None:
 def build_sync_command(uv_binary: str, selected: Path, profile: str) -> list[str]:
     if profile not in PROFILES:
         raise ValueError(f"unsupported environment profile: {profile}")
+    # make up은 실행 의존성만 보장한다. setup-dev가 설치한 검증 도구는 지우지 않아야
+    # 기동 뒤에도 make check가 그대로 동작한다.
     group_args = (
         ["--group", QUALITY_GROUP]
         if profile == "development"
-        else ["--no-group", QUALITY_GROUP]
+        else ["--no-group", QUALITY_GROUP, "--inexact"]
     )
     return [
         uv_binary,

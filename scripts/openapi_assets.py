@@ -24,6 +24,9 @@ STRICT_ENV = {
     "INTERNAL_SERVICE_AUTH_REQUIRED": "true",
     "INTERNAL_SERVICE_TOKEN": "openapi-internal-fixture",
     "FASTAPI_DOCS_ENABLED": "true",
+    # 저장소 문서는 기본 포트 대역으로 생성한다. 실제 배포 대역은 실행 중인 /docs가 보여 준다.
+    "PLATFORM_PORT_BASE": "",
+    "GATEWAY_PORT": "",
     "VLLM_IMAGE": "registry.example.com/vllm-unified@sha256:" + "0" * 64,
     "MAIN_MODEL_VLLM_IMAGE_OVERRIDE": "registry.example.com/vllm-unified@sha256:" + "1" * 64,
 }

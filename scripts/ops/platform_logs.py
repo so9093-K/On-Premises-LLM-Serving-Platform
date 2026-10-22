@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,7 +39,7 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
         REQUEST_EVENTS.glob("*.jsonl*"),
         key=lambda path: path.stat().st_mtime if path.exists() else 0,
     )
-    records: deque[dict[str, object]] = deque(maxlen=limit)
+    records: list[dict[str, object]] = []
     for path in files:
         for line in _tail_lines(path, max(limit * 4, limit)):
             try:
@@ -58,26 +59,54 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
                 records.append(payload)
     if not records:
         return 0
+    # 서비스별 파일을 시간순으로 합친다. 시각이 없는 이전 이벤트는 앞에 둔다.
+    records.sort(key=lambda event: str(event.get("timestamp") or ""))
 
+    # 한 서비스의 반복 scrape 오류가 다른 서비스의 준비 실패를 밀어내지 않게 한다.
+    # ALL=1은 요청별 증거를 그대로 보여 주고 기본 요약만 같은 원인을 묶는다.
+    if all_events:
+        selected = [(event, 1) for event in records[-limit:]]
+    else:
+        groups: dict[tuple[str, ...], tuple[dict[str, object], int]] = {}
+        for event in records:
+            key = tuple(str(event.get(field) or "") for field in (
+                "service", "route", "event", "status_code", "error_code", "diagnostic_code", "readiness_summary",
+            ))
+            previous = groups.pop(key, None)
+            groups[key] = (event, previous[1] + 1 if previous else 1)
+        selected = list(groups.values())[-limit:]
     print("Recent application events" if all_events else "Recent error and readiness events")
-    for event in records:
+    for event, count in selected:
         service = str(event.get("service") or "-")
         route = str(event.get("route") or event.get("event") or "-")
         status = event.get("status_code")
         latency = event.get("latency_ms")
         error = event.get("error_code") or event.get("diagnostic_code")
         request_id = event.get("request_id")
-        fields = [f"{service:<20}", f"{route:<34}"]
+        fields = [_local_time(event.get("timestamp")), f"{service:<20}", f"{route:<34}"]
         if status is not None:
             fields.append(f"status={status}")
         if latency is not None:
             fields.append(f"latency={latency}ms")
         if error:
             fields.append(f"error={error}")
+        if event.get("readiness_summary"):
+            fields.append(f"dependency={event['readiness_summary']}")
+        if count > 1:
+            fields.append(f"repeated={count}")
         if request_id:
             fields.append(f"request={request_id}")
         print("  " + "  ".join(fields))
-    return len(records)
+    return len(selected)
+
+
+def _local_time(value: object) -> str:
+    """UTC 이벤트 시각을 현지 시각으로 표시한다. 시각이 없는 이전 이벤트는 자리만 둔다."""
+    try:
+        moment = datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return "--:--:--"
+    return moment.astimezone().strftime("%H:%M:%S")
 
 
 def _owned_containers(service: str | None = None) -> list[str]:
@@ -148,7 +177,10 @@ def main(argv: list[str] | None = None) -> int:
         return _raw_logs(args.service, tail=args.tail, follow=args.follow)
     count = _structured_events(args.tail, all_events=args.all_events)
     if count == 0:
-        print("No structured application events found.")
+        print(
+            "No recent request events." if args.all_events
+            else "No recent error or readiness events."
+        )
         print("Use make status for health, make logs ALL=1 for all request events, or RAW=1 for raw service output.")
     else:
         print("")

@@ -6,6 +6,7 @@ common_example_keys:
   - DEPLOYMENT_TARGET
   - LOG_LEVEL
   - GATEWAY_HOST
+  - PLATFORM_PORT_BASE
   - GATEWAY_PORT
   - GATEWAY_BIND_ADDR
   - AUTH_MODE
@@ -109,6 +110,7 @@ service_env_projections:
     runtime_keys:
       - DEPLOYMENT_TARGET
       - APP_ENV
+      - PLATFORM_PORT_BASE
       - ACCESS_PROFILE
       - GRAFANA_PORT
       - AUTH_MODE
@@ -147,6 +149,7 @@ service_env_projections:
     runtime_keys:
       - DEPLOYMENT_TARGET
       - APP_ENV
+      - PLATFORM_PORT_BASE
       - AUTH_MODE
       - EXPOSURE_AUDIENCE
       - ADMIN_API_KEY_REQUIRED
@@ -172,6 +175,7 @@ service_env_projections:
     runtime_keys:
       - DEPLOYMENT_TARGET
       - APP_ENV
+      - PLATFORM_PORT_BASE
       - ACCESS_PROFILE
       - GRAFANA_PORT
       - AUTH_MODE
@@ -209,6 +213,7 @@ service_env_projections:
     runtime_keys:
       - DEPLOYMENT_TARGET
       - APP_ENV
+      - PLATFORM_PORT_BASE
       - AUTH_MODE
       - EXPOSURE_AUDIENCE
       - ADMIN_API_KEY_REQUIRED
@@ -233,6 +238,7 @@ service_env_projections:
     runtime_keys:
       - APP_ENV
       - DEPLOYMENT_TARGET
+      - PLATFORM_PORT_BASE
       - INTERNAL_SERVICE_AUTH_REQUIRED
       - INTERNAL_SERVICE_TOKEN
       - VLLM_IMAGE

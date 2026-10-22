@@ -130,4 +130,6 @@ def cpu_runtime_command(
         "0",
         "--reasoning",
         "off",
+        # Prometheus가 CPU Main도 vLLM과 같은 /metrics 경로로 수집한다. 없으면 501로 down 표시된다.
+        "--metrics",
     )

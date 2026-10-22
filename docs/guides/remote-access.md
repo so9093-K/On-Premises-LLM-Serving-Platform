@@ -88,17 +88,20 @@ make status
 ## 3. 팀원 API Proxy (팀원 공유 시에만)
 
 서버에 Nginx를 설치한다(예: Ubuntu `sudo apt-get install nginx`).
-설정을 검토한 뒤 Nginx의 `http` 컨텍스트에서 로드되는 경로로 복사한다.
+현재 포트 대역으로 설정을 출력해 검토한 뒤 Nginx의 `http` 컨텍스트에서 로드되는 경로에 설치한다.
 
 ```bash
-sudo cp ops/access/team-api.nginx.conf /etc/nginx/conf.d/llm-team-api.conf
+./.venv/bin/python scripts/access/remote_access.py nginx-config
+./.venv/bin/python scripts/access/remote_access.py nginx-config \
+  | sudo tee /etc/nginx/conf.d/llm-team-api.conf >/dev/null
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
 ```
 
-설정은 **127.0.0.1:9480만 수신**하며 Gateway **127.0.0.1:9400**으로 연결한다.
-기존 호스트·포트와 일치하지 않으면 위 예제를 그대로 적용하지 말고 별도 검토한다.
+기본 대역에서 설정은 **127.0.0.1:9480만 수신**하며 Gateway **127.0.0.1:9400**으로 연결한다.
+`PLATFORM_PORT_BASE`나 `GATEWAY_PORT`를 바꿨다면 출력이 그 값을 따른다(예: 9600 대역은 9680 → 9600).
+아래 Tailscale 명령의 9400·9480도 `make status`의 Gateway 포트와 위 출력의 Listener 포트로 바꿔 사용한다.
 새 Nginx Config를 `server` 블록으로 포함하도록 작성했으므로 다른 서비스를 덮어쓰는 전체 `nginx.conf`가 아니다.
 
 허용 범위: `GET /v1/models`, `POST /v1/chat/completions`,

@@ -27,7 +27,7 @@ PLATFORM_ACCESS_CONFIRM_ARG = $(if $(filter access,$(CONFIRM)),--confirm-access,
 
 up: ## 필요한 준비를 수렴한 뒤 플랫폼을 사용 가능 상태로 만든다
 	@"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime
-	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG) $(if $(POLICY),--execution-policy "$(if $(filter auto,$(POLICY)),automatic,$(POLICY))",)
+	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG) $(if $(POLICY),--execution-policy "$(if $(filter auto,$(POLICY)),automatic,$(POLICY))",) $(if $(PORTS),--port-base "$(PORTS)",)
 
 status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
 	@if [[ ! -x "$(CURDIR)/.venv/bin/python" ]]; then echo "Platform UNCONFIGURED"; echo "First run: make up TARGET=<deployment-target>"; exit 1; fi
@@ -66,7 +66,7 @@ help:
 		awk -v wanted="$$target" 'BEGIN {FS = ":.*?## "} $$1 == wanted {printf "  make %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST); \
 	done
 	@echo ""
-	@echo "첫 실행: make up TARGET=<deployment-target> [ACCESS=local|private|edge]"
+	@echo "첫 실행: make up TARGET=<deployment-target> [ACCESS=local|private|edge] [PORTS=<포트 대역>]"
 	@echo "일상 운영: make up / make status / make logs / make down"
 	@echo "초기화: make reset   cache/전체 정리: make purge"
 	@echo ""
@@ -153,6 +153,6 @@ console-check: ## Control Plane type/API/generated asset drift 검증
 	npm --prefix ui/control-plane run check
 
 .PHONY: ports
-ports: ## BASE=<대역 시작 포트> 프로젝트 Port Namespace 변경
-	@if [[ -z "$(BASE)" ]]; then echo "Usage: make ports BASE=9700 [PLAN=1 | YES=1]" >&2; exit 2; fi
-	@"$(PYTHON)" scripts/config/ports.py --base "$(BASE)" $(if $(filter 1,$(YES)),--yes,) $(if $(filter 1,$(PLAN)),--plan,)
+ports: ## BASE=<대역> 포트 대역 변경 (.env만 변경, 적용은 make up, PLAN=1은 확인만)
+	@if [[ -z "$(BASE)" ]]; then echo "Usage: make ports BASE=9600 [PLAN=1]" >&2; exit 2; fi
+	@"$(PYTHON)" scripts/config/ports.py --base "$(BASE)" $(if $(filter 1,$(PLAN)),--plan,)

@@ -258,6 +258,7 @@ def test_model_preparation_failure_keeps_core_started(tmp_path, monkeypatch, tar
     monkeypatch.setattr(cli, "ENV_PATH", tmp_path / ".env")
     cli.ENV_PATH.write_text("BUILD_PROFILE=compose\nMAIN_MODEL_EXECUTION_POLICY=gpu\n")
     monkeypatch.setattr(cli, "setup_target", lambda *args: True)
+    monkeypatch.setattr(cli, "_assert_host_ports_available", lambda values: None)
     monkeypatch.setattr(
         cli, "ensure_target_artifacts", lambda *args, **kwargs: calls.append("image")
     )

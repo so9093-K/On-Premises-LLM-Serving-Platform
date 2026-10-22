@@ -12,6 +12,7 @@ from .main_model.engine_policy import MlxEnginePolicy
 from .runtime_topology import load_runtime_topology
 from .risk_input import detector_prompt_char_budget
 from .configuration import load_yaml_mapping
+from .port_namespace import PortNamespace, load_port_namespace
 from .project_paths import resolve_project_root as _resolve_project_root
 from .settings_parts.env import (
     as_bool as _as_bool,
@@ -302,6 +303,25 @@ def _aggregate_order(risk_signal_service_cfg: dict[str, Any], detectors: tuple[R
     return tuple(str(item) for item in order if str(item) in enabled)
 
 
+def _project_port_namespace(model_serving: dict[str, Any], namespace: PortNamespace) -> dict[str, Any]:
+    """기본 대역으로 기록된 내부 endpoint를 배포 포트 대역으로 옮긴다."""
+    projected = dict(model_serving)
+    models: dict[str, Any] = {}
+    for key, cfg in (model_serving.get("models") or {}).items():
+        if isinstance(cfg, dict):
+            cfg = dict(cfg)
+            if isinstance(cfg.get("endpoint"), str):
+                cfg["endpoint"] = namespace.translate_url(cfg["endpoint"])
+            if isinstance(cfg.get("port"), int):
+                cfg["port"] = namespace.translate(cfg["port"])
+        models[key] = cfg
+    projected["models"] = models
+    risk = model_serving.get("risk_signal_service")
+    if isinstance(risk, dict) and isinstance(risk.get("endpoint"), str):
+        projected["risk_signal_service"] = {**risk, "endpoint": namespace.translate_url(risk["endpoint"])}
+    return projected
+
+
 def load_settings(root: Path | None = None, env_file: Path | str | None = None) -> AppSettings:
     project_root = _resolve_project_root(root)
     # 저장소의 .env 기본값은 local/source-tree 실행에서만 사용한다. APP_ENV가
@@ -309,7 +329,10 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     # 조용히 채워지는 대신 반드시 process environment에서 와야 한다.
     load_local_dotenv_when_allowed(project_root, env_file)
 
-    model_serving = load_yaml_mapping(project_root / "configs" / "model_serving.yaml")
+    model_serving = _project_port_namespace(
+        load_yaml_mapping(project_root / "configs" / "model_serving.yaml"),
+        load_port_namespace(project_root, {"PLATFORM_PORT_BASE": _env("PLATFORM_PORT_BASE", "")}),
+    )
     deployment_target = load_deployment_target(
         project_root / "configs" / "deployment_targets.yaml",
         _env("DEPLOYMENT_TARGET", "") or None,
@@ -355,7 +378,8 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
     models = model_serving["models"]
     main_resource_variant = _env("MAIN_MODEL_RESOURCE_VARIANT", "").strip() or None
     runtime_topology = load_runtime_topology(
-        project_root, main_resource_variant=main_resource_variant
+        project_root, main_resource_variant=main_resource_variant,
+        environment={"PLATFORM_PORT_BASE": _env("PLATFORM_PORT_BASE", "")},
     )
     static_main_engine_policy, static_main_resource_variant = _static_main_engine_projection(
         deployment_target,

@@ -18,7 +18,7 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - "9400"
+      - "${PLATFORM_PORT_GATEWAY:-9400}"
     # 실효 bind 주소는 운영자 .env의 GATEWAY_BIND_ADDR가 결정한다. 아래 loopback은
     # 운영자가 아무것도 선언하지 않았을 때만 쓰이는 fallback이며, 세 개의 .env
     # 템플릿은 모두 이 키를 포함하므로 정식 경로에서는 도달하지 않는다.
@@ -26,7 +26,7 @@ services:
     # 이 Compose ports 선언과 선택한 Access Profile의 bind projection이 결정한다.
     # 현재 실효 상태는 `make status`와 `docker compose config`로 확인한다.
     ports:
-      - ${GATEWAY_BIND_ADDR:-127.0.0.1}:${GATEWAY_PORT:-9400}:9400
+      - ${GATEWAY_BIND_ADDR:-127.0.0.1}:${GATEWAY_PORT:-9400}:${PLATFORM_PORT_GATEWAY:-9400}
     # Compose interpolation용 .env와 Gateway runtime env는 분리한다. 이 파일은
     # scripts/config/render_service_env.py가 static target 계약에서 생성한다.
     env_file: ${GATEWAY_RUNTIME_ENV_FILE:?Use make up|down}
@@ -41,7 +41,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - python -c "import urllib.request; urllib.request.urlopen('http://localhost:9400/health')"
+        - python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PLATFORM_PORT_GATEWAY:-9400}/health')"
       interval: 10s
       timeout: 5s
       retries: 6

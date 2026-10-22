@@ -7,6 +7,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 try:
     import yaml
@@ -38,6 +39,7 @@ from ai_model_serving.access_profile import (
     load_access_profile,
 )
 from ai_model_serving.deployment_target import load_deployment_target
+from ai_model_serving.port_namespace import load_port_namespace
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
 from ai_model_serving.settings_parts.env import default_env_path
 
@@ -163,6 +165,56 @@ def sync_deployment_target(
     elif not existing.get("MAIN_MODEL_BASE_URL") and projected.get("MAIN_MODEL_BASE_URL"):
         existing["MAIN_MODEL_BASE_URL"] = projected["MAIN_MODEL_BASE_URL"]
     write_env(lines, existing, env_path)
+
+
+def managed_endpoint_changes(values: dict[str, str]) -> dict[str, tuple[str, str]]:
+    """포트 대역과 어긋난 관리 대상 내부 주소를 찾는다.
+
+    `main-llm-vllm`처럼 이 플랫폼이 실행하는 서비스는 대역 포트에서만 수신한다.
+    다른 포트를 가리키는 값은 동작할 수 없으므로 대역 포트로 바로잡는다.
+    외부 주소와 app-only의 loopback 주소는 운영자 소유이므로 바꾸지 않는다.
+    """
+    namespace = load_port_namespace(ROOT, values)
+    runtime_host = ""
+    target_id = values.get("DEPLOYMENT_TARGET", "").strip()
+    if target_id:
+        try:
+            target = load_deployment_target(ROOT / "configs/deployment_targets.yaml", target_id)
+            runtime = read_yaml(ROOT / target.main_profile_catalog).get("runtime", {}) if target.main_profile_catalog else {}
+        except (OSError, RuntimeError, ValueError):
+            target, runtime = None, {}
+        # Host의 Metal Runtime처럼 대역 포트를 쓰는 Main만 대상이다. CPU Static의 cpu-main:8080은 제외한다.
+        port = (runtime.get("port") or runtime.get("container_port")) if isinstance(runtime, dict) else None
+        if target is not None and target.gateway_runtime_host and port == namespace.default_base + namespace.offsets["main_llm_vllm"]:
+            runtime_host = target.gateway_runtime_host
+    changes: dict[str, tuple[str, str]] = {}
+    for key, value in values.items():
+        if not key.endswith("_BASE_URL"):
+            continue
+        parts = urlsplit(value)
+        if parts.scheme not in {"http", "https"} or parts.port is None:
+            continue
+        role = namespace.managed_role(parts.hostname)
+        if role is None and key == "MAIN_MODEL_BASE_URL" and parts.hostname == runtime_host:
+            role = "main_llm_vllm"
+        if role is None or parts.port == namespace.port(role):
+            continue
+        host = parts.netloc.rsplit(":", 1)[0]
+        aligned = urlunsplit(parts._replace(netloc=f"{host}:{namespace.port(role)}"))
+        changes[key] = (value, aligned)
+    return changes
+
+
+def align_managed_endpoints(env_path: Path) -> None:
+    lines, values = parse_env_template(env_path)
+    changes = managed_endpoint_changes(values)
+    if not changes:
+        return
+    for key, (before, after) in sorted(changes.items()):
+        # URL에는 인증 정보가 들어갈 수 있으므로 포트만 표시한다.
+        print(f"포트 대역에 맞춰 {key}의 내부 포트를 바로잡습니다: {urlsplit(before).port} → {urlsplit(after).port}")
+        values[key] = after
+    write_env(lines, values, env_path)
 
 
 def token(prefix: str) -> str:
@@ -299,7 +351,10 @@ def write_runtime_secrets(values: dict[str, str]) -> None:
                 f"{secret_path} must be a file, but it is a non-empty directory. "
                 "Remove or move it, then rerun `make up`."
             ) from exc
-    secret_path.write_text(admin_key + "\n", encoding="utf-8")
+    # Compose secret은 파일 bind mount다. 같은 inode에 덮어써야 실행 중인 Prometheus도
+    # 다음 수집부터 새 키를 읽는다. 내용이 같으면 쓰지 않는다.
+    if not secret_path.is_file() or secret_path.read_text(encoding="utf-8") != admin_key + "\n":
+        secret_path.write_text(admin_key + "\n", encoding="utf-8")
     try:
         # distroless Prometheus 이미지는 non-root UID로 실행되므로
         # compose에 마운트된 bearer token은 호스트 소유자 이외에도 읽을 수 있어야 합니다.
@@ -674,15 +729,17 @@ def main(argv: list[str] | None = None) -> int:
                     # 나머지 단계를 멈출 수 있도록 파일은 그대로 두고 성공한다.
                     return 0
             result = sync_env_keys(out_path, dry_run=args.dry_run)
-            if result != 0 or args.dry_run or not args.deployment_target:
+            if result != 0 or args.dry_run:
                 return result
-            sync_deployment_target(
-                out_path,
-                args.deployment_target,
-                main_profile=args.main_profile,
-                main_base_url=args.main_model_base_url,
-            )
-            print(f"target 설정 동기화 완료: {args.deployment_target}")
+            if args.deployment_target:
+                sync_deployment_target(
+                    out_path,
+                    args.deployment_target,
+                    main_profile=args.main_profile,
+                    main_base_url=args.main_model_base_url,
+                )
+                print(f"target 설정 동기화 완료: {args.deployment_target}")
+            align_managed_endpoints(out_path)
             return 0
         except Exception as exc:
             print(f"sync-env 실패: {exc}", file=sys.stderr)
@@ -738,6 +795,8 @@ def main(argv: list[str] | None = None) -> int:
             print("env target 오류: --main-model-base-url must be an HTTP URL", file=sys.stderr)
             return 2
         values["MAIN_MODEL_BASE_URL"] = args.main_model_base_url
+    for key, (_, aligned) in managed_endpoint_changes(values).items():
+        values[key] = aligned
     if values.get("HF_TOKEN") and not values.get("HUGGING_FACE_HUB_TOKEN"):
         values["HUGGING_FACE_HUB_TOKEN"] = values["HF_TOKEN"]
     write_env(lines, values, out_path)

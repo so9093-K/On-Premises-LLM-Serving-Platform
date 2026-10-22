@@ -86,7 +86,7 @@ def test_platform_logs_main_accepts_explicit_argv(
     monkeypatch.setattr(platform_logs, "REQUEST_EVENTS", tmp_path / "missing-events")
 
     assert platform_logs.main([]) == 0
-    assert "No structured application events found." in capsys.readouterr().out
+    assert "No recent error or readiness events." in capsys.readouterr().out
 
 
 def test_app_only_status_uses_process_health_instead_of_model_readiness(

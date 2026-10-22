@@ -5,9 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -37,9 +35,11 @@ from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_env_values,
     access_profile_mismatches,
 )
+from ai_model_serving.port_namespace import load_port_namespace  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import LOCAL_ENVIRONMENTS, resolve_env_file  # noqa: E402
 from scripts.compose.effective_host_ports import effective_host_ports  # noqa: E402
+from scripts.ops.host_ports import port_holders  # noqa: E402
 from ai_model_serving.runtime_topology import load_runtime_topology  # noqa: E402
 from scripts.compose.validate_vllm_compose import validate_alignment  # noqa: E402
 
@@ -282,45 +282,6 @@ def _check_main_gpu_driver(document: dict[str, Any]) -> bool:
     return True
 
 
-def _compose_owned_ports(
-    compose_args: list[str], env_file: str, project_name: str
-) -> set[str]:
-    result = _run_status(
-        _compose_command(
-            compose_args,
-            env_file,
-            project_name,
-            "ps",
-            "--format",
-            "{{.Ports}}",
-        ),
-        capture=True,
-    )
-    if result.returncode != 0:
-        return set()
-    return set(re.findall(r"(?:\d+\.\d+\.\d+\.\d+|0\.0\.0\.0):(\d+)", result.stdout))
-
-
-def _port_available(host_port: str, bind: str) -> bool:
-    """Compose가 publish할 host port를 지금 잡을 수 있는지만 확인한다.
-
-    bind는 가용성 판정 수단일 뿐이라 ``listen()``도 ``accept()``도 하지 않고 즉시
-    닫는다. 연결을 받는 소켓이 아니므로 이 바인딩으로 도달할 수 있는 것은 없다.
-    ``bind``는 Compose가 실제로 publish할 주소와 같아야 한다 -- 0.0.0.0으로 공개할
-    포트를 127.0.0.1에서만 검사하면 다른 조건을 검사하는 것이 되어, 이미 점유된
-    포트를 사용 가능하다고 보고한다.
-    """
-    sock = socket.socket()
-    sock.settimeout(0.4)
-    try:
-        sock.bind((bind, int(host_port)))
-    except OSError:
-        return False
-    finally:
-        sock.close()
-    return True
-
-
 def _effective_compose_document(
     compose_args: list[str], env_file: str, project_name: str
 ) -> dict[str, Any] | None:
@@ -406,26 +367,32 @@ def _phase2(*, boot_override: Path) -> int:
                     compose_path,
                     effective_compose=effective_document,
                     boot_override=_load_yaml(boot_override, "main-model boot override"),
+                    port_namespace=load_port_namespace(
+                        ROOT, load_strict_env_file(env_path) if env_path.is_file() else {}
+                    ),
                 )
             except SystemExit as exc:
                 _fail(str(exc))
                 fail = True
 
-            owned_ports = _compose_owned_ports(
-                compose_args, str(env_path), project_name
-            )
             host_ports = list(effective_host_ports(effective_document))
             if not host_ports:
                 print("[preflight] ok: effective compose config has no host-published ports")
+            unresolved = [(name, port) for name, port, _ in host_ports if not str(port).isdigit()]
+            for service_name, host_port in unresolved:
+                _fail(f"host port for {service_name} is not a number after interpolation: {host_port!r}")
+                fail = True
+            host_ports = [item for item in host_ports if str(item[1]).isdigit()]
+            # 이 checkout의 컨테이너는 교체 대상이다. make up과 같은 점유 판정을 쓴다.
+            holders = port_holders(ROOT, {int(port): bind for _, port, bind in host_ports})
             for service_name, host_port, bind in host_ports:
-                if host_port in owned_ports:
-                    print(f"[preflight] ok: port {host_port} ({service_name}) held by current compose stack")
-                elif _port_available(host_port, bind):
-                    print(f"[preflight] ok: port {host_port} ({service_name}) available on {bind}")
+                holder = holders[int(host_port)]
+                if holder.kind in {"free", "platform"}:
+                    print(f"[preflight] ok: port {host_port} ({service_name}) {holder.describe(int(host_port))}")
                 else:
                     print(
-                        f"[preflight] busy: port {host_port} ({service_name}) is already in use "
-                        f"on {bind}",
+                        f"[preflight] busy: port {host_port} ({service_name}) on {bind}: "
+                        f"{holder.describe(int(host_port))}",
                         file=sys.stderr,
                     )
                     fail = True

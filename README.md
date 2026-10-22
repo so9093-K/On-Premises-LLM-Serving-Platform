@@ -45,7 +45,7 @@ curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application
   -d '{"model": "local-main", "messages": [{"role": "user", "content": "안녕하세요"}], "max_tokens": 128}'
 ```
 
-프로젝트 관리 포트의 기본 Namespace는 `9400`입니다. 접속 포트만 바꾸려면 `.env`의 `GATEWAY_PORT`를 수정하고 `make up`으로 적용하세요. 내부 Runtime까지 전체 대역을 바꾸는 `make ports BASE=9700`은 소스·설정·문서도 변경하는 개발 도구입니다. [포트 변경 절차](docs/guides/developer-guide.md#포트-네임스페이스-변경)를 참고하세요.
+기본 포트 대역은 `9400`입니다(Gateway 9400, Grafana 9410). 다른 대역을 쓰려면 첫 설치는 `make up TARGET=<deployment-target> PORTS=9600`, 설치된 환경은 `make ports BASE=9600` 후 `make up`으로 적용합니다. 내부 서비스 포트와 모니터링 설정도 같은 대역으로 바뀌며 소스 수정이나 개발 도구가 필요하지 않습니다. [포트 대역 변경](docs/12_operations.md#포트-대역-변경과-기존-캐시)을 참고하세요.
 
 일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 인증이 활성화된 환경에서는 사용자 API Key가 필요합니다.
 

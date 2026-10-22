@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import re
 import shlex
-import subprocess
 from datetime import date
 from pathlib import PurePosixPath
 
 from .common import ROOT, read_yaml
+from scripts.lib.source_provenance import OPTIONAL_DISTRIBUTION_FILES, input_paths
 
 
 _DOCKERFILE = ROOT / "ops/images/vllm-unified/Dockerfile"
@@ -127,21 +127,9 @@ def _dockerfile_local_copy_sources() -> set[str]:
 
 
 def _declared_source_manifest() -> list[str]:
-    result = subprocess.run(
-        [
-            "bash",
-            "-c",
-            "source scripts/lib/vllm_unified_image.sh; vllm_unified_image_source_paths",
-        ],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit {result.returncode}"
-        raise SystemExit(f"cannot read unified vLLM source manifest: {detail}")
-    paths = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    # 실행 입력의 완전성만 검사한다. 존재하는 배포 표기 파일을 수집하는 출처 목록은
+    # LICENSE·NOTICE 누락을 실행 실패로 바꾸는 필수 파일 목록이 아니다.
+    paths = list(input_paths("vllm-unified"))
     if not paths:
         raise SystemExit("unified vLLM source manifest must not be empty")
     if len(paths) != len(set(paths)):
@@ -150,7 +138,7 @@ def _declared_source_manifest() -> list[str]:
         path = PurePosixPath(raw)
         if path.is_absolute() or ".." in path.parts or not path.parts:
             raise SystemExit(f"unsafe unified vLLM source manifest path: {raw!r}")
-        if not (ROOT / path).is_file():
+        if not (ROOT / path).is_file() and raw not in OPTIONAL_DISTRIBUTION_FILES:
             raise SystemExit(f"unified vLLM source manifest path is not a file: {raw}")
     return paths
 

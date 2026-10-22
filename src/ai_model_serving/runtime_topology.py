@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from .configuration import load_yaml_mapping
 from .deployment_target import KNOWN_FEATURES
+from .port_namespace import port_namespace_from_services
 
 
 @dataclass(frozen=True)
@@ -151,6 +153,7 @@ def load_runtime_topology(
     config_root: Path,
     *,
     main_resource_variant: str | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> RuntimeTopology:
     """Runtime 생명주기의 정규 Topology를 로드한다.
 
@@ -160,6 +163,8 @@ def load_runtime_topology(
     """
     model_serving = load_yaml_mapping(config_root / "configs/model_serving.yaml")
     services_document = load_yaml_mapping(config_root / "configs/services.yaml")
+    # 설정 파일의 포트는 기본 대역 값이다. 실제 health 주소는 배포 대역을 따른다.
+    port_namespace = port_namespace_from_services(services_document, environment)
     topology_document = load_yaml_mapping(config_root / "configs/runtime_topology.yaml")
     bindings = topology_document.get("runtimes")
     services = services_document.get("services")
@@ -330,7 +335,9 @@ def load_runtime_topology(
         model = model_by_key[key]
         if binding.enabled and binding.controllable:
             if model.get("port") is not None:
-                health_port_by_service[binding.compose_service] = int(model["port"])
+                health_port_by_service[binding.compose_service] = port_namespace.translate(
+                    int(model["port"])
+                )
             if model.get("gpu_memory_utilization") is not None:
                 vram_fraction_by_service[binding.compose_service] = float(
                     model["gpu_memory_utilization"]
