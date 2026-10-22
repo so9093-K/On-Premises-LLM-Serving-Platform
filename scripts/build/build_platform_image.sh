@@ -23,7 +23,7 @@ TARGET_PLATFORM="${PLATFORM_BUILD_PLATFORM:-}"
 PROJECT_BUILD_NO_CACHE="${PROJECT_BUILD_NO_CACHE:-0}"
 
 source scripts/lib/source_provenance.sh
-read_source_provenance
+read_source_provenance platform
 EFFECTIVE_PLATFORM="${TARGET_PLATFORM:-$DAEMON_PLATFORM}"
 
 # 로컬과 CI는 이 스크립트로 같은 Dockerfile build와 image 내부 app 초기화를
@@ -62,6 +62,7 @@ build_args+=(
   --label "org.opencontainers.image.version=${VERSION}"
   --label "ai_model_serving.source_state=${SOURCE_STATE}"
   --label "ai_model_serving.source_digest=${SOURCE_DIGEST}"
+  --label "ai_model_serving.runtime_digest=${SOURCE_RUNTIME_DIGEST}"
   --label "ai_model_serving.build_platform=${EFFECTIVE_PLATFORM}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"
   --label "${PROJECT_CHECKOUT_LABEL_KEY}=$(pwd -P)"

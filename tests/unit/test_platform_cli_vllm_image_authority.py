@@ -39,3 +39,36 @@ def test_local_build_uses_shared_vllm_image_authority(monkeypatch):
     assert commands[0][1]["PROJECT_BUILD_NO_CACHE"] == "1"
     assert commands[0][1]["VLLM_UNIFIED_BUILD_IMAGE"].startswith("ai-model-serving-vllm-unified:")
     assert pinned == [(local_id, new_id)]
+
+
+def test_artifact_checks_rebuild_only_stale_images(monkeypatch):
+    """Platform 변경은 큰 vLLM 이미지 빌드를 함께 실행하지 않는다."""
+    target = type("Target", (), {"controllable": True, "target_id": "linux-nvidia-dynamic"})()
+    monkeypatch.setattr(platform_cli, "_env_values", lambda: {"PLATFORM_IMAGE": "platform:local", "VLLM_IMAGE": "vllm:local"})
+    builds = []
+    monkeypatch.setattr(platform_cli, "build_target", lambda target, **kwargs: builds.append(kwargs))
+    for stale, expected in [
+        (set(), []),
+        ({"platform"}, [{"include_platform": True, "include_runtime": False}]),
+        ({"vllm-unified"}, [{"include_platform": False, "include_runtime": True}]),
+        ({"platform", "vllm-unified"}, [{"include_platform": True, "include_runtime": True}]),
+    ]:
+        builds.clear()
+        monkeypatch.setattr(platform_cli, "_local_image_matches_source", lambda image, artifact: artifact not in stale)
+        platform_cli.ensure_target_artifacts(target)
+        assert builds == expected
+
+
+def test_external_and_excluded_images_are_not_checked_or_rebuilt(monkeypatch):
+    target = type("Target", (), {"controllable": True, "target_id": "linux-nvidia-dynamic"})()
+    builds = []
+    monkeypatch.setattr(platform_cli, "build_target", lambda target, **kwargs: builds.append(kwargs))
+    monkeypatch.setattr(platform_cli, "_env_values", lambda: {
+        "PLATFORM_IMAGE": "registry.example/platform@sha256:" + "a" * 64,
+        "VLLM_IMAGE": "local:vllm",
+    })
+    monkeypatch.setattr(platform_cli, "_local_image_matches_source", lambda *args: False)
+    platform_cli.ensure_target_artifacts(target, include_runtime=False)
+    assert builds == []
+    platform_cli.ensure_target_artifacts(target, include_platform=False)
+    assert builds == [{"include_platform": False, "include_runtime": True}]

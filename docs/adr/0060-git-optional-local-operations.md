@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. 이미지 재사용 조건은 [ADR-0062](0062-runtime-artifact-reuse.md)가 대체한다.
 
 ## Context
 

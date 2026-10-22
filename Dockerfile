@@ -18,8 +18,16 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-group quality --no-install-project
 
 COPY src ./src
-COPY README.md LICENSE NOTICE ./
-RUN uv sync --locked --no-group quality --no-editable
+# 문서·라이선스는 존재하는 파일만 패키징하며 로컬 실행의 필수 입력으로 삼지 않는다.
+RUN --mount=type=bind,target=/build-source \
+    mkdir -p /app/distribution \
+    && for file in README.md LICENSE NOTICE; do \
+         if [ -f "/build-source/$file" ]; then cp "/build-source/$file" /app/; fi; \
+       done \
+    && for file in LICENSE NOTICE; do \
+         if [ -f "/app/$file" ]; then cp "/app/$file" /app/distribution/; fi; \
+       done \
+    && uv sync --locked --no-group quality --no-editable
 
 FROM base
 
@@ -42,14 +50,14 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY configs ./configs
 COPY specs/schemas ./specs/schemas
-COPY VERSION LICENSE NOTICE ./
+COPY VERSION ./
+COPY --from=builder /app/distribution/ ./
+COPY --from=builder /app/distribution/ /usr/share/licenses/ai-model-serving-platform/
 
 # /var/lib/ai-model-serving은 Gateway runtime desired state/history와 operator configuration을
 # 함께 두는 canonical persistent state root다. Compose bind mount가 이 경로를
 # 덮더라도 이미지 자체가 appuser 소유 경로를 제공해야 단독 실행에서도 동작한다.
-RUN install -d /usr/share/licenses/ai-model-serving-platform \
-    && install -m 0644 LICENSE NOTICE /usr/share/licenses/ai-model-serving-platform/ \
-    && useradd --create-home --shell /usr/sbin/nologin appuser \
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app \
     && install -d -o appuser -g appuser /var/lib/ai-model-serving
 
