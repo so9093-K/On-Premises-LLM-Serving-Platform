@@ -16,6 +16,7 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 |---|---|---|
 | Application·contract 검사 | `make check` | `pyproject.toml`, `uv.lock`, configs, specs, tests |
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
+| Platform image HTTP verification | `make image-smoke` | 이미 빌드된 이미지의 Gateway·Console·Docs 동작 |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
 | Operator lifecycle | `make up/status/down/logs/reset/purge` | deployment target, `.env`, local Runtime convergence와 operator UX |
 | Runtime / Main Model mutation | Control Plane Plan/Apply APIs | component-owned runtime state와 rollback |
@@ -32,7 +33,7 @@ GitHub의 검증 workflow는 다음 경계를 독립적으로 확인한다.
 - Ubuntu: `make app-check`로 Linux application·정적 Source/Artifact·contract 호환성 검증
 - macOS: `make test`로 macOS/Python application·contract 호환성 검증 (정적 Source/Artifact 검증은 Ubuntu가 소유)
 - Control Plane: frontend source/type/test와 checked-in bundle drift
-- Platform image: `make build-image`로 Linux/amd64 Dockerfile build와 image 내부 app composition smoke
+- Platform image: `make build-image`로 Linux/amd64 이미지를 생성하고, 이어서 독립된 `make image-smoke`로 app composition과 실제 HTTP 응답 검증
 
 Ubuntu/Python 3.12와 macOS/Python 3.13은 같은 Platform `uv.lock`의 대표 호환 조합이다.
 로컬 기본 patch는 `.python-version`, native runtime exact patch는 runtime 설정, Linux
@@ -100,8 +101,9 @@ admission, prerequisite 순차 기동과 readiness/rollback 정책이 소유한�
 ## 9.5 미래 자동화 추가 원칙
 
 Platform image는 application source·lock·Dockerfile·runtime config가 하나의 배포 artifact로
-조립되는 경계라 PR에서 build와 container smoke를 required gate로 검증한다. 이 검증은
-`make build-image`를 그대로 호출하며 image publish나 운영 promotion 규칙을 소유하지 않는다.
+조립되는 경계라 PR에서 build와 container smoke를 required gate로 검증한다. CI는
+`make build-image`와 `make image-smoke`를 별도 단계로 호출하며 image publish나
+운영 promotion 규칙을 소유하지 않는다.
 추가 자동화를 넣을 때는 어떤 장애를 막는지, artifact invalidation 범위, cold/warm build 비용,
 verification image와 release candidate의 구분을 먼저 확인한다.
 

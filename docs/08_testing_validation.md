@@ -454,7 +454,7 @@ Runtime report는 check 결과와 latency·상태 정보를 중심으로 기록�
 | Compose / exposure | `make validate` → `bash scripts/compose/compose_config.sh` | `make up` |
 | Main Model profile | `make validate` → `make test` | Main Model 전환 / full-stack smoke |
 | GPU budget / runtime policy | `make validate` → `make test` | full-stack 기동 → `make up` |
-| Platform `Dockerfile` / dependency | `make build-image`(image의 기본 CMD로 Gateway를 띄워 `/health`, Console, `/docs` asset을 HTTP로 확인) | image 실행 후 readiness |
+| Platform `Dockerfile` / dependency | `make build-image` → `make image-smoke` | 이미지 빌드와 기본 CMD·HTTP 동작을 별도로 확인 |
 | Unified vLLM Dockerfile / compatibility / patch | `make validate` → Unified vLLM image build | full-stack → bounded runtime validation |
 | Monitoring config / dashboard | `make validate` | `make runtime-validate` |
 
@@ -682,8 +682,9 @@ make logs RAW=1
 | Unit + Contract Test | `make test` |
 | 선택 target image Build | `make up` |
 | app-only process health | `make status` |
-| full-stack readiness + smoke | `make up` |
-| 대표 API smoke | `bash scripts/ops/smoke_test.sh` |
+| full-stack readiness 및 Main Chat 확인 | `make up` |
+| 대표 API smoke | `make smoke` |
+| Platform 이미지 HTTP 동작 검증 | `make image-smoke` |
 | vLLM / monitoring 운영 검증 | `make runtime-validate` |
 | Generated artifact 재생성 | `make render-runtime-assets` |
 | Effective Compose 확인 | `bash scripts/compose/compose_config.sh` |
@@ -700,7 +701,7 @@ make logs RAW=1
 | Test entry point | `scripts/validation/run_test.sh` | Unit / Contract pytest |
 | Test source | `tests/unit/`, `tests/contract/` | 동작 / contract test |
 | Local readiness | `scripts/ops/ready_local.sh` | app-only health gate |
-| Full readiness | `scripts/ops/ready_full.sh` | full-stack readiness + smoke |
+| Full readiness | `scripts/ops/ready_full.sh` | Gateway dependency readiness + 필수 Main Chat 요청 |
 | Smoke | `scripts/ops/smoke_test.sh` | 대표 inference path |
 | Runtime validation | `scripts/validation/runtime_validation.py` | live vLLM/monitoring report |
 

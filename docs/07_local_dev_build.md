@@ -337,12 +337,13 @@ registry digest는 보존하고, project-owned local image는 현재 source와�
 make build-image
 ```
 
-`make build-image`는 `Dockerfile`을 사용해 Platform Image를 생성하고, 생성된 image 안에서 Gateway와 Risk Signal Service application factory를 실제로 import·초기화한다.
+`make build-image`는 `Dockerfile`을 사용해 Platform 실행 이미지를 생성한다. 이미지의 Gateway·Risk Signal Service 초기화와 실제 `/health`, Console, `/docs` HTTP 응답은 별도 `make image-smoke`가 확인한다. 기동 중 자동 이미지 준비도 검증 스크립트를 필수로 실행하지 않는다.
 
 | 명령 | 범위 |
 |---|---|
 | `make up` | 정상 lifecycle에서 필요한 project-owned image만 수렴 |
-| `make build-image` | Platform Image Build + image 내부 application 확인 |
+| `make build-image` | Platform 실행 이미지 생성 |
+| `make image-smoke` | 생성된 Platform 이미지의 실제 application/HTTP 동작 검증 |
 | `make build-vllm-unified-image` | Unified vLLM Image 직접 Build |
 
 `PLATFORM_IMAGE` 환경변수로 build tag를 지정할 수 있으며, 기본값은 `ai-model-serving-platform:<VERSION>`이다.
@@ -363,10 +364,11 @@ Build 로그와 image label에는 Git revision, working tree의 clean/dirty 상�
 platform이 남는다. dirty 상태는 개발 중 image로 허용하지만 clean source에서 만든 운영 image로
 오인하지 않도록 경고한다. 로컬 tag는 mutable하므로 배포 입력으로 사용하지 않는다.
 
-Platform Image build는 `scripts/build/build_platform_image.sh`, Unified vLLM Image build는
-`scripts/build/build_vllm_unified_image.sh`가 소유한다. 현재 GitHub Actions는 image를
-빌드하거나 publish하지 않는다. 향후 자동화도 이 스크립트를 호출하고 registry push와
-digest 전달만 외부 adapter에서 담당한다. 자동화 경계는 [9. 자동화 경계](./09_cicd.md)에서
+Platform Image build는 `scripts/build/build_platform_image.sh`, HTTP 검증은
+`scripts/build/smoke_platform_image.sh`, Unified vLLM Image build는
+`scripts/build/build_vllm_unified_image.sh`가 소유한다. GitHub Actions는 Platform 이미지를
+빌드하고 HTTP Smoke를 별도 필수 단계로 검증하지만 registry에 publish하지 않는다.
+향후 자동화도 이 명령을 사용하고 registry push와 digest 전달만 외부 adapter에서 담당한다. 자동화 경계는 [9. 자동화 경계](./09_cicd.md)에서
 설명한다.
 
 ---
@@ -494,8 +496,10 @@ Compose volume과 diagnostic/build artifact를 제거하고 configuration state�
 | 작업 | 확인 명령 | 확인 범위 |
 |---|---|---|
 | app-only/full-stack 현재 상태 | `make status` | Gateway readiness와 현재 Runtime policy state |
-| 정상 lifecycle convergence | `make up` | 필요한 artifact 준비 + startup + strict readiness/smoke |
-| Platform Image 직접 검증 | `make build-image` | Docker build + application import |
+| 정상 lifecycle convergence | `make up` | 필요한 artifact 준비 + 필수 Runtime readiness 및 Main Chat 가능 여부 |
+| Platform Image 생성 | `make build-image` | Docker 이미지 빌드 |
+| Platform Image 기능 검증 | `make image-smoke` | application 초기화 + 실제 Gateway·Console·Docs HTTP | 
+| 실행 중인 모델 대표 검증 | `make smoke` | 활성 Runtime의 대표 API 요청 확인 |
 | Unified vLLM Image 직접 검증 | `make build-vllm-unified-image` | CUDA runtime image build |
 | 서비스/Runtime raw log | `make logs SERVICE=<id>` | 선택 service의 bounded raw evidence |
 
@@ -519,8 +523,8 @@ Compose effective config만 확인하는 maintainer 작업은
 | application 변경 검증 | `make app-check` |
 | repository 전체 검증 | `make check` |
 
-개별 image build, readiness, smoke, Compose/Metal lifecycle script는 operator command가 아니라
-developer/maintainer implementation surface다.
+개별 image build와 Compose/Metal lifecycle script는 구현 계층의 도구다. 이미지와 실행 중인
+서비스에 대한 추가 기능 검증은 `make image-smoke`와 `make smoke`를 통해 명시적으로 실행한다.
 
 ---
 
