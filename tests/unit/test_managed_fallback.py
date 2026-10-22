@@ -94,14 +94,17 @@ def test_fixed_gpu_preflight_reports_driver_failure_without_starting_container(m
     assert all("start" not in command and "run" not in command for command in calls)
 
 
-def test_default_cli_uses_cpu_first_and_preserves_core_on_cpu_preparation_failure(tmp_path, monkeypatch):
+@pytest.mark.parametrize("fresh", [False, True])
+def test_default_cli_uses_cpu_first_and_preserves_core_on_cpu_preparation_failure(tmp_path, monkeypatch, fresh):
     from scripts import platform_cli as cli
     monkeypatch.setattr(cli, "ROOT", tmp_path)
     monkeypatch.setattr(cli, "ENV_PATH", tmp_path / ".env")
-    monkeypatch.setattr(cli, "setup_target", lambda *args: True)
-    monkeypatch.setattr(cli, "_env_values", lambda: {"BUILD_PROFILE": "compose"})
-    # setup_target은 실제 env를 생성하므로 seed를 쓸 수 있게 한다.
-    (tmp_path / ".env").write_text("BUILD_PROFILE=compose\n")
+    def setup(*args):
+        cli.ENV_PATH.write_text("BUILD_PROFILE=compose\n")
+        return True
+    monkeypatch.setattr(cli, "setup_target", setup)
+    if not fresh:
+        cli.ENV_PATH.write_text("BUILD_PROFILE=compose\n")
     calls = []
     monkeypatch.setattr(cli, "ensure_target_artifacts", lambda *a, **k: calls.append("image"))
     monkeypatch.setattr(cli, "start_core", lambda *a: calls.append("core"))
@@ -114,6 +117,7 @@ def test_default_cli_uses_cpu_first_and_preserves_core_on_cpu_preparation_failur
     with pytest.raises(RuntimeError, match="CPU_RAM_ADMISSION_FAILED"):
         cli.reconcile_up_target(target, main_profile=None, main_base_url=None, access_profile=None, confirm_access=False)
     assert calls == ["image", "core", "cpu"]
+    assert cli.managed_execution_policy(cli._env_values()) == "fallback"
 
 
 def test_cpu_template_never_switches_to_gpu_boot_seed_before_admission(tmp_path):
