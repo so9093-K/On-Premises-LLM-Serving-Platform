@@ -286,7 +286,7 @@ app-only에서는 다음 process health를 확인한다.
 make up
 ```
 
-full-stack readiness는 다음 흐름으로 진행된다.
+일반 전체 스택의 `ready_full.sh` 경로는 다음 순서로 필수 준비 상태를 확인한다.
 
 ```text
 Gateway /health
@@ -298,8 +298,10 @@ Main Model serving gate
 
 Gateway `/ready`는 enabled runtime dependency의 준비 상태를 확인한다.
 모델 로딩 중에는 dependency 상태를 표시하며 readiness polling을 이어간다.
-`make up`의 성공은 이 필수 serving gate와 실제 Main Chat 요청에 근거한다.
-전체 기능·모델별 Smoke의 실패는 기동 성공 여부와 별개로 보고한다.
+이 경로의 기동 성공은 필수 Serving Readiness와 실제 Main Chat 요청에 근거한다.
+관리형 CPU-first 정책은 Core와 `/ready`, 명시적 Main `stopped` 상태 등을 기준으로 판단하고,
+정적/외부 Main Runtime은 해당 target의 Gateway readiness를 따른다. 어떤 경로에서도
+전체 기능·모델별 Smoke를 기동 성공 조건으로 요구하지 않는다.
 
 ### Smoke implementation — `make smoke`
 

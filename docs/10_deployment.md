@@ -153,7 +153,7 @@ effective services start
 make up
 ```
 
-`make up`은 target-appropriate serving gate를 완료 조건으로 확인한다. managed dynamic target은 필수 Runtime readiness와 실제 Main Chat 요청 가능 여부를, static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 활성 non-main Runtime의 대표 요청은 독립적인 `make smoke`가 검증한다. 실패하면 terminal에는 요약과 evidence 경로가 남으며, 기본 후속 확인은:
+`make up`은 target-appropriate serving gate를 완료 조건으로 확인한다. 일반 전체 스택의 `ready_full.sh` 경로는 필수 Runtime readiness와 실제 Main Chat 요청 가능 여부를 확인한다. 관리형 CPU-first 정책은 Core readiness 또는 명시적으로 중단한 Main 상태를 보존하며, static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 활성 non-main Runtime의 대표 요청은 독립적인 `make smoke`가 검증한다. 실패하면 terminal에는 요약과 evidence 경로가 남으며, 기본 후속 확인은:
 
 ```bash
 make logs

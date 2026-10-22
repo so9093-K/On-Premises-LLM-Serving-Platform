@@ -340,7 +340,8 @@ make status
 ```
 
 `make up`은 필요한 artifact 준비와 service reconciliation 뒤 target이 소유한 serving gate를
-완료해야 성공한다. managed dynamic target은 필수 Runtime readiness와 실제 Main Chat 경로를,
+완료해야 성공한다. 일반 전체 스택은 필수 Runtime readiness와 실제 Main Chat 경로를,
+관리형 CPU-first 정책은 Core readiness 또는 명시적 Main `stopped` 상태를,
 static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
 대표 API·non-main 모델의 추가 검증은 `make smoke`가 독립적으로 소유한다.
 검증 명령의 누락이나 실패가 정상 기동 중인 서비스를 중단시키지는 않는다.
