@@ -38,7 +38,7 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
         REQUEST_EVENTS.glob("*.jsonl*"),
         key=lambda path: path.stat().st_mtime if path.exists() else 0,
     )
-    records: deque[dict[str, object]] = deque(maxlen=limit)
+    records: list[dict[str, object]] = []
     for path in files:
         for line in _tail_lines(path, max(limit * 4, limit)):
             try:
@@ -59,8 +59,21 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
     if not records:
         return 0
 
+    # 한 서비스의 반복 scrape 오류가 다른 서비스의 준비 실패를 밀어내지 않게 한다.
+    # ALL=1은 요청별 증거를 그대로 보여 주고 기본 요약만 같은 원인을 묶는다.
+    if all_events:
+        selected = [(event, 1) for event in records[-limit:]]
+    else:
+        groups: dict[tuple[str, ...], tuple[dict[str, object], int]] = {}
+        for event in records:
+            key = tuple(str(event.get(field) or "") for field in (
+                "service", "route", "event", "status_code", "error_code", "diagnostic_code", "readiness_summary",
+            ))
+            previous = groups.pop(key, None)
+            groups[key] = (event, previous[1] + 1 if previous else 1)
+        selected = list(groups.values())[-limit:]
     print("Recent application events" if all_events else "Recent error and readiness events")
-    for event in records:
+    for event, count in selected:
         service = str(event.get("service") or "-")
         route = str(event.get("route") or event.get("event") or "-")
         status = event.get("status_code")
@@ -74,10 +87,14 @@ def _structured_events(limit: int, *, all_events: bool = False) -> int:
             fields.append(f"latency={latency}ms")
         if error:
             fields.append(f"error={error}")
+        if event.get("readiness_summary"):
+            fields.append(f"dependency={event['readiness_summary']}")
+        if count > 1:
+            fields.append(f"repeated={count}")
         if request_id:
             fields.append(f"request={request_id}")
         print("  " + "  ".join(fields))
-    return len(records)
+    return len(selected)
 
 
 def _owned_containers(service: str | None = None) -> list[str]:

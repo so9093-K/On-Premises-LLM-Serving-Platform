@@ -34,10 +34,9 @@ _env_value() {
   "$PYTHON_BIN" scripts/env/env_get.py --env-file "$ENV_FILE" "$key"
 }
 
-if [[ ! -f "$PROM_SECRET" || ! -s "$PROM_SECRET" ]]; then
-  echo "[compose-up] $PROM_SECRET 파일이 없거나 비어 있습니다. .env는 유지하고 runtime secret만 복구합니다."
-  "$PYTHON_BIN" scripts/config/setup_env.py --sync-runtime-secrets --output "$ENV_FILE"
-fi
+# Prometheus는 .env의 관리자 키를 파일로만 받는다. 키를 바꾸거나 .env를 다시 만든 뒤에도
+# 이전 토큰으로 /metrics를 계속 401 받지 않도록 매 기동마다 현재 .env와 맞춘다.
+"$PYTHON_BIN" scripts/config/setup_env.py --sync-runtime-secrets --output "$ENV_FILE" >/dev/null || true
 
 if [[ ! -f "$PROM_SECRET" || ! -s "$PROM_SECRET" ]]; then
   echo "[compose-up] $PROM_SECRET 복구에 실패했습니다. ADMIN_API_KEY 또는 ADMIN_API_KEYS를 확인하세요." >&2
