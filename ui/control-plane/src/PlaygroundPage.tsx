@@ -34,7 +34,7 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
       <CardBody>
         <p>
           이 Gateway의 공개 API는 Bearer 인증을 요구합니다. 관리자 키가 아니라 API 사용자에게 발급한
-          키를 입력하세요. 키는 이 탭의 메모리에만 있고 새로고침하면 사라집니다.
+          키를 입력하세요. 키는 현재 브라우저 탭 메모리에만 있고 새로고침하면 사라집니다.
         </p>
         <form className="auth-form" onSubmit={submit}>
           <label htmlFor="chat-api-key">API 키</label>
@@ -71,7 +71,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
       <div className="page-heading">
         <div>
           <h1>Playground</h1>
-          <p>공개 Gateway API로 기능별 요청을 확인합니다. 입력과 결과는 현재 탭에만 유지됩니다.</p>
+          <p>공개 Gateway API로 기능별 요청을 확인합니다. Chat 대화는 화면 이동 후에도 유지되지만, Embedding·Risk 입력과 결과는 해당 작업 화면을 떠나면 사라집니다. 새로고침하면 메모리의 대화와 API 키도 지워집니다.</p>
         </div>
         {apiKey !== null ? (
           <div className="chat-heading-actions">

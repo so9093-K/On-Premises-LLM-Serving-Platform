@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- Playground Chat 응답은 제한된 Markdown 서식과 원문 보기·복사를 제공한다. HTML·외부 이미지·링크를 자동 실행하거나 로드하지 않고 실제 응답 원문·Request Receipt는 보존한다. 대화 삭제 전 미디어·진행 중 요청에 미치는 영향을 확인하고, Chat과 Embedding·Risk 화면의 입력 보관 범위를 명확히 안내한다.
+
 - 포트 대역을 `.env`의 `PLATFORM_PORT_BASE` 하나로 정한다. 첫 설치는 `make up TARGET=<target> PORTS=9600`, 설치된 환경은 `make ports BASE=9600` 후 `make up`으로 적용하며 소스·문서 수정, Node.js, 전체 테스트가 필요하지 않다. 내부 주소·모델 실행 명령·Prometheus 수집 대상이 같은 값에서 계산되고, 서비스를 바꾸기 전에 Host 포트 점유를 자기 스택과 다른 프로그램으로 구분해 검사한다. 대역과 어긋난 내부 주소는 `make up`이 바로잡는다. ([ADR-0064](docs/adr/0064-port-band-is-deployment-configuration.md))
 - `make status`와 기동 실패가 준비되지 않은 dependency의 오류·내부 주소와 확인할 서비스 로그를 표시하고, 적용되지 않은 포트 변경을 알려 준다. 기본 로그는 반복 이벤트를 묶는다. Prometheus 관리자 토큰은 기동마다 `.env`와 맞춰 `/metrics` 401 반복을 막고, CPU Main도 `/metrics`를 제공한다.
 - LICENSE·NOTICE가 없는 소스 복사본에서도 실행 설정 검증이 통과한다.

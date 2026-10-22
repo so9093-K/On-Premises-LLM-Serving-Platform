@@ -60,6 +60,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
   const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear } = session;
   const [draft, setDraft] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
@@ -329,7 +330,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       <div className="playground-panel-heading">
         <div>
           <h2 id="chat-workspace-title">Chat Completions</h2>
-          <p>대화와 첨부는 현재 탭에만 유지됩니다.</p>
+          <p>대화와 첨부는 현재 브라우저 탭 메모리에만 유지되며 새로고침하면 사라집니다.</p>
         </div>
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
@@ -338,15 +339,24 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
-          {exchanges.length > 0 ? <Button variant="secondary" onClick={() => {
+          {exchanges.length > 0 ? <Button variant="secondary" onClick={() => setConfirmClear(true)}>대화 지우기</Button> : null}
+        </div>
+      </div>
+
+      {confirmClear && exchanges.length > 0 ? (
+        <div className="chat-clear-confirm" role="group" aria-label="대화 삭제 확인">
+          <p>대화와 첨부 파일을 모두 지웁니다. 이 브라우저 탭에서 복구할 수 없으며 진행 중인 응답도 중지됩니다.</p>
+          <Button variant="secondary" onClick={() => setConfirmClear(false)}>취소</Button>
+          <Button variant="danger" onClick={() => {
             cancelExamplePreparation();
             clear();
             setAppliedExampleId(null);
             setPendingModelId(null);
             setShowExamples(true);
-          }}>대화 지우기</Button> : null}
+            setConfirmClear(false);
+          }}>대화 삭제 확인</Button>
         </div>
-      </div>
+      ) : null}
 
       {modelsQuery.isPending ? (
         <div className="inline-loading"><Spinner size="md" aria-label="모델 목록 불러오는 중" /> 모델 목록을 불러오는 중…</div>
