@@ -16,7 +16,7 @@ make down
 ```
 
 `make up`은 필요한 runtime Python environment, target configuration, project-owned image,
-Main Model cache와 runtime startup을 현재 상태에 맞춰 수렴한다. managed dynamic target은 strict readiness/smoke, static target은 Main dependency를 포함한 Gateway readiness를 완료 조건으로 사용한다.
+Main Model cache와 runtime startup을 현재 상태에 맞춰 수렴한다. managed dynamic target은 필수 Runtime readiness와 실제 Main Chat 경로를 확인하고, static target은 Main dependency를 포함한 Gateway readiness를 완료 조건으로 사용한다. 추가 대표 API 검증은 기동과 독립된 `make smoke`가 담당한다.
 이미 현재 source와 맞는 image와 pinned model snapshot은 재사용한다.
 
 개발자는 코드 변경 검증을 위해 `make app-check` 또는 `make check`를 사용한다.

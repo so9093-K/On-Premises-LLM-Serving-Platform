@@ -9,24 +9,13 @@ application만 변경할 때는 `make app-check`를 사용할 수 있다. CI는 
 Source/Artifact 정적 검증을 중복 실행하지 않고 `make test`로 호환성을 확인한다.
 로컬 `make check`의 계약은 변경하지 않는다.
 
-프로젝트의 application 검증 흐름은 다음과 같다.
+개발 변경 검증과 운영 기동은 독립된 경로다. 검증은 새로운 변경의 품질을 확인하며, 운영 중인 서비스의 실행 조건으로 추가 테스트 체계를 요구하지 않는다.
 
 ```text
-코드 / 설정 변경
-      ↓
-정적 검증
-make validate
-      ↓
-자동화 테스트
-make test
-      ↓
-실행 환경 확인
-target readiness gate (`make up` 내부)
-      ↓
-Live Runtime 검증
-make runtime-validate
+개발 변경 → make validate → make test → 필요시 make runtime-validate
+운영 기동 → make up → Target Readiness (필수 서비스 상태)
+선택적 기동 후 검증 → make smoke
 ```
-
 | 단계 | 확인 질문 | 주요 대상 |
 |---|---|---|
 | `make check` | 저장소 전체 source와 generated artifact가 검증되는가? | Application + Control Plane |

@@ -39,7 +39,7 @@ Playground의 「문서 해석」 예제를 그대로 적용했습니다.
 ```
 
 **결과:** 세 판단 단계와 두 분기를 순서대로 정리했습니다. 원문의 「이질성」을 「일치성」으로 읽는 등
-세부 표현은 원문과 다릅니다. `temperature=0`에서 같은 응답이 재현됩니다. **경로:** 멀티모달 모델의 이미지 입력(전용 문서 분석 API 아님).
+세부 표현은 원문과 다릅니다. **경로:** 멀티모달 모델의 이미지 입력(전용 문서 분석 API 아님).
 
 <a id="image-analysis"></a>
 
@@ -174,59 +174,4 @@ Playground의 시스템 프롬프트:
 
 점수는 cosine similarity(정답 확률 아님). 별도 벡터 DB나 Reranker 모델 실행은 포함되지 않습니다.
 
-## 촬영·편집 조건
-
-| GIF | 재생 길이 | 파일 크기 |
-|---|---:|---:|
-| 문서 해석 | 15.81초 | 약 463 KiB |
-| 이미지 분석 | 11.31초 | 약 162 KiB |
-| OCR | 11.31초 | 약 264 KiB |
-| 영상 분석 | 15.85초 | 약 340 KiB |
-| 시스템 프롬프트 | 7.87초 | 약 127 KiB |
-| 임베딩 | 10.77초 | 약 154 KiB |
-
-이미지 분석·OCR·시스템 프롬프트 데모의 촬영 조건:
-
-- 촬영일: 2026-10-15, Linux/NVIDIA managed target, RTX 4090.
-- UI / 촬영용 Gateway source `25462454`, bundle `index-JT9ch5SF.js`.
-  연결한 Controller/Risk service source는 `1b6cea4a`이며 전체 stack 재배포 검증은 아니다.
-- Chat 모델: `google/gemma-4-E4B-it`, revision `ee0ef6023621cff504d758262d4e04895a5af4a2`,
-  `rtx4090-24gb`, `max_tokens=256`, streaming, 추론 출력은 모델 기본값(끔).
-- Chat viewport 1280×800, Chromium, dark theme, device scale 1.
-- GIF는 약 4 fps의 실제 화면 표본을 사용한다. 촬영 시각 간격을 유지하고 배속하지 않았다.
-  이미지 분석·OCR 앞에는 입력 이미지를 3초간 보여주는 소개 장면을 추가했다.
-- GIF palette 변환 외에 응답·수치·상태를 수정하지 않았다. 각 데모는 한 번의 실행이며 성능 benchmark가 아니다.
-- 정지 이미지: 동일 실행의 마지막 화면.
-- 인증 화면, API/Admin key, 내부 주소와 민감 로그를 공개 자산에서 제외했다.
-- 촬영 후 데모용 Gateway·저장소 종료.
-
-문서 해석 데모는 별도 촬영 조건을 사용했다.
-
-- 촬영일: 2026-10-21, `linux-nvidia-dynamic`, RTX 4090.
-- 실행 중인 로컬 Gateway·Runtime(platform image source `38d8582a`)에 이 예제를 포함한 Console 빌드를
-  연결했다. 공개 API 요청은 같은 Gateway를 거쳤다.
-- Chat 모델: `google/gemma-4-E4B-it`, revision `ee0ef6023621cff504d758262d4e04895a5af4a2`,
-  `rtx4090-24gb`, `max_tokens=256`, `temperature=0`, streaming, 추론 출력은 모델 기본값(끔).
-- 측정값: 첫 토큰 44ms, 전체 1.15초, 입력 1,137 · 출력 99 tokens. 한 번의 실행이며 성능 benchmark가 아니다.
-- Chromium headless 156, viewport 1280×800, dark theme, device scale 1. 약 4 fps의 실제 화면 표본이며
-  배속하지 않았다. 앞에 입력 문서를 3초간 보여주는 소개 장면을 추가했고, 완료 후에는 한 번의 교환 전체가
-  보이도록 스크롤한 화면을 유지했다.
-- GIF 64색 palette 변환 외에 응답·수치·상태를 수정하지 않았다. 정지 이미지는 동일 실행의 마지막 화면이다.
-
-임베딩 데모의 촬영 조건:
-
-- 촬영일: 2026-10-21, `linux-nvidia-dynamic`, RTX 4090.
-- Console source `b7a72458`, bundle `index-CWB5QFUh.js`. Loopback 촬영 서버에서 이 Console 빌드를 제공하고,
-  공개 요청을 실행 중인 실제 Gateway(platform image source `444eaa59`)로 전달했다. API 응답은 Mock하지 않았다.
-- Korean embedding: `dragonkue/snowflake-arctic-embed-l-v2.0-ko`,
-  revision `55ec6e9358a56d56af759bc8372e970caf8c305f`, served model `local-embed-ko`, vLLM pooling runner.
-- Chromium 141.0.7390.37, viewport 1440×1380, dark theme, device scale 1.
-- 실제 화면 표본 36개를 약 3~4 fps로 촬영했다. 표본 간 시간 간격을 유지하며 배속하지 않았다.
-  GIF는 96색 palette로 변환했고, 포스터는 같은 실행의 마지막 원본 화면이다. 응답·점수·상태를 수정하지 않았다.
-- 입력은 공개 합성 문장이다. 인증 키·내부 IP·민감 로그를 화면에 포함하지 않았다.
-  단일 실행 사례이며 성능·검색 정확도 benchmark가 아니다.
-- 촬영 코드: `scripts/media/capture_embedding_demo.py`. 원본 프레임과 요청·응답은
-  로컬 `reports/validation/embedding-demo-final/`에 보존한다. 촬영 후 보조 Runtime을 중지했다.
-
-실제 지원 기능은 [Deployment Target](../../configs/deployment_targets.yaml), 모델별 기능은
-`/v1/models`와 [모델 운영](../06_model_operations.md)에서 확인한다.
+실제 지원 기능은 [Deployment Target](../../configs/deployment_targets.yaml)과 활성 모델의 `/v1/models`에서 확인합니다.

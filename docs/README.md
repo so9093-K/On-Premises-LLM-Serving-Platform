@@ -22,6 +22,7 @@
 | 환경과 실행 방식 | [실행 환경](04_runtime_modes.md) |
 | 설정·정책의 소유권 | [설정 Source of Truth](05_configuration.md) |
 | 모델 전환·GPU 정책 | [모델 운영](06_model_operations.md) |
+| Runtime 시작·중지 Plan/Apply 계약 | [Runtime Plan/Apply](reference/runtime_transition_plan.md) |
 
 ## 개발·배포·운영
 
