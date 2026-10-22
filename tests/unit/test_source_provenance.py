@@ -59,6 +59,21 @@ def test_archive_identity_ignores_git_secrets_caches_and_install_location(tmp_pa
     assert provenance.read_source_provenance(first).state == "local"
 
 
+def test_git_metadata_path_permission_failure_preserves_local_execution(tmp_path, monkeypatch):
+    fixture_source(tmp_path)
+    exists = Path.exists
+
+    def inaccessible_metadata(path):
+        if path == tmp_path / ".git":
+            raise PermissionError("Git metadata is inaccessible")
+        return exists(path)
+
+    monkeypatch.setattr(Path, "exists", inaccessible_metadata)
+    source = provenance.read_source_provenance(tmp_path)
+    assert (source.revision, source.state) == ("", "local")
+    assert source.digest == provenance.source_digest(tmp_path)
+
+
 def test_identity_changes_with_file_content_addition_deletion_and_executable_mode(tmp_path):
     fixture_source(tmp_path)
     path = tmp_path / "src/app.py"

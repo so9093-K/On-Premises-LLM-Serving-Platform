@@ -70,9 +70,9 @@ def source_digest(root: Path) -> str:
 
 def git_metadata(root: Path) -> tuple[str, str]:
     """Git 미설치·소유권 거부를 실행 실패로 취급하지 않는다."""
-    if not (root / ".git").exists():
-        return "", "local"
     try:
+        if not (root / ".git").exists():
+            return "", "local"
         revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, text=True,
                                   capture_output=True, check=False, timeout=10)
         if revision.returncode != 0 or not revision.stdout.strip():
