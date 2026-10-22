@@ -47,14 +47,15 @@ make render-runtime-assets  # Runtime 생성물의 원본 변경 시
 make setup-dev
 make ports BASE=9700 PLAN=1  # 변경 포트와 파일 목록만 확인
 make ports BASE=9700 YES=1   # 파일 변경·생성물 재생성·검증
-git diff                    # 검토 후 변경을 커밋하고 배포
+git diff                    # Git으로 관리하는 경우 변경 검토
 make up                     # 이미지와 실행 서비스를 새 대역에 맞춤
 make status
 ```
 
 프로젝트 지정 Node.js/npm도 필요하다. `YES=1` 없이 실행하면 적용 전에 대화형 확인을 받는다.
-`PLAN=1`은 파일과 실행 서비스를 변경하지 않는다. 실제 변경은 추적된 설정·소스·문서와
-Console 산출물을 포함하는 **checkout 작업**이다. 검증에 실패하면 변경 전 파일 상태를 복원한다.
+`PLAN=1`은 변경 계획만 표시한다. 적용 시 소스·설정·문서와 Console 산출물,
+`.env`의 관리 대상 포트·URL을 갱신한다. ZIP 소스에서도 실행할 수 있으며,
+검증에 실패하면 변경 전 파일 상태를 복원한다.
 기동 실패 시 실행 상태까지 자동으로 되돌린다는 뜻은 아니므로 `make status`와 `make logs`로 확인한다.
 
 사용자가 지정한 Host 포트는 자동 덮어쓰지 않으며 충돌 시 명시적으로 정리해야 한다.

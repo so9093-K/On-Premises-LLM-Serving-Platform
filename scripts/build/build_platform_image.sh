@@ -61,6 +61,7 @@ build_args+=(
   --label "org.opencontainers.image.revision=${SOURCE_REVISION}"
   --label "org.opencontainers.image.version=${VERSION}"
   --label "ai_model_serving.source_state=${SOURCE_STATE}"
+  --label "ai_model_serving.source_digest=${SOURCE_DIGEST}"
   --label "ai_model_serving.build_platform=${EFFECTIVE_PLATFORM}"
   --label "${PROJECT_IMAGE_LABEL_KEY}=${PROJECT_IMAGE_LABEL_VALUE}"
   --label "${PROJECT_CHECKOUT_LABEL_KEY}=$(pwd -P)"
@@ -71,7 +72,10 @@ for tag in $EXTRA_TAGS; do
   build_args+=(-t "$tag")
 done
 
-echo "[image] source revision=${SOURCE_REVISION} state=${SOURCE_STATE}"
+echo "[image] source=${SOURCE_STATE} digest=${SOURCE_DIGEST}"
+if [[ -n "$SOURCE_REVISION" ]]; then
+  echo "[image] revision=${SOURCE_REVISION}"
+fi
 echo "[image] target platform=${EFFECTIVE_PLATFORM}"
 if [[ "$SOURCE_STATE" == "dirty" ]]; then
   echo "[image] WARNING: building from a modified working tree; this is not a clean-source image build." >&2

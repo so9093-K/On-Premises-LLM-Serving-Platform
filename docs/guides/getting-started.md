@@ -12,6 +12,9 @@ git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 ```
 
+ZIP으로 준비하려면 GitHub의 **Code → Download ZIP**으로 내려받아 압축을 풀고,
+`Makefile`이 있는 디렉터리에서 아래 명령을 실행합니다.
+
 ## 1. 실행 환경 선택
 
 | 내 환경 | 선택할 Target | 먼저 준비할 것 | 모델 실행·제어 |

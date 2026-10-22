@@ -10,14 +10,16 @@
 
 ## 빠른 시작
 
-Git, Python·uv, Docker가 필요합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
+Python·uv, Docker가 필요합니다. 소스는 [ZIP 다운로드](https://github.com/so9093-K/On-Premises-LLM-Serving-Platform/archive/refs/heads/main.zip) 또는 Git으로 준비합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
+
+압축을 풀거나 복제한 소스의 `Makefile`이 있는 디렉터리에서 실행합니다.
 
 ```bash
-git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
-cd On-Premises-LLM-Serving-Platform
-make up TARGET=<아래 Target> ACCESS=local
+make up TARGET=linux-core ACCESS=local
 make status
 ```
+
+위 명령은 모델 없이 기본 서비스를 시작합니다. 모델을 실행하려면 환경에 맞는 Target으로 바꿔 실행하세요.
 
 | 내 환경 | `TARGET` |
 |---|---|
@@ -29,6 +31,15 @@ make status
 외부 llama.cpp·관리형 CPU·외부 vLLM 연결은 [배포 환경](#deployment-targets)과 [빠른 시작 가이드](docs/guides/getting-started.md#1-실행-환경-선택)를 참고하세요.
 
 준비되면 Control Plane `http://127.0.0.1:9400/admin/console/`에서 상태와 Playground를 확인하고, Gateway `http://127.0.0.1:9400`으로 OpenAI 호환 API를 호출합니다.
+
+모델 없이도 PII 탐지를 확인할 수 있습니다.
+
+```bash
+curl -sS http://127.0.0.1:9400/v1/risk/detectors/pii/assessments -H "Content-Type: application/json" \
+  -d '{"prompt": "Contact hong@example.com."}'
+```
+
+Chat 요청은 Main Runtime이 준비된 Target에서 실행합니다.
 
 ```bash
 curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application/json" \

@@ -191,7 +191,7 @@ Main Model 변경은 가능하면 전체 stack 재배포 대신 Main Model Contr
 | Main Model switch | Main Model Control의 last-known-good rollback |
 | Model Runtime transition | Runtime Controller의 reviewed transition |
 | Configuration mutation | Configuration history / rollback plan |
-| Host source revision | 운영자가 known-good revision으로 checkout 후 canonical lifecycle 재실행 |
+| Host source version | 운영자가 정상 버전의 소스를 Git 또는 압축본으로 복원한 뒤 canonical lifecycle 재실행 |
 | Published image | 운영자가 known-good immutable digest로 pin 복원 후 lifecycle 재실행 |
 
 즉 rollback은 transport가 아니라 **변경을 실제 소유하는 component**에 둔다.
