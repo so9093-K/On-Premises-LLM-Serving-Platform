@@ -337,6 +337,7 @@ def validate_alignment(
     *,
     effective_compose: dict[str, Any] | None = None,
     boot_override: dict[str, Any] | None = None,
+    port_namespace: Any | None = None,
 ) -> None:
     # main-llm bootstrap image의 `${MAIN_MODEL_VLLM_IMAGE_OVERRIDE:-${VLLM_IMAGE}}`는
     # 원본 Compose가 보존해야 하는 projection 계약이다. `docker compose config`를
@@ -416,6 +417,9 @@ def validate_alignment(
         expected = (
             {} if service_name == boot_service_name else expected_compose_args(cfg, runtime)
         )
+        if port_namespace is not None and "port" in expected:
+            # effective Compose는 배포 포트 대역으로 보간된 값이다. 기본 대역 기록을 같은 역할로 옮겨 비교한다.
+            expected["port"] = str(port_namespace.translate(int(expected["port"])))
         for key, expected_value in expected.items():
             actual = str(args.get(key))
             if actual != expected_value:

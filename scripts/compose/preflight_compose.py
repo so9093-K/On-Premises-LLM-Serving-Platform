@@ -37,6 +37,7 @@ from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_env_values,
     access_profile_mismatches,
 )
+from ai_model_serving.port_namespace import load_port_namespace  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import LOCAL_ENVIRONMENTS, resolve_env_file  # noqa: E402
 from scripts.compose.effective_host_ports import effective_host_ports  # noqa: E402
@@ -406,6 +407,9 @@ def _phase2(*, boot_override: Path) -> int:
                     compose_path,
                     effective_compose=effective_document,
                     boot_override=_load_yaml(boot_override, "main-model boot override"),
+                    port_namespace=load_port_namespace(
+                        ROOT, load_strict_env_file(env_path) if env_path.is_file() else {}
+                    ),
                 )
             except SystemExit as exc:
                 _fail(str(exc))

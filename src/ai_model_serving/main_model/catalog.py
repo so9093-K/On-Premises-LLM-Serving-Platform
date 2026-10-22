@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from ..image_refs import is_immutable_image_ref
+from ..port_namespace import load_port_namespace
 from .engine_policy import CpuEnginePolicy, VllmEnginePolicy
 from .profile_state import validate_profile_state
 
@@ -261,6 +262,15 @@ def _apply_resource_variant(command: list[str], overrides: dict[str, Any]) -> li
     return out
 
 
+def _apply_port(command: list[str], port: int) -> list[str]:
+    """배포 포트 대역의 Main 포트를 runtime command에 반영한다."""
+    if "--port" not in command:
+        return command
+    out = list(command)
+    out[out.index("--port") + 1] = str(port)
+    return out
+
+
 def _apply_util_override(command: list[str], override: float | None) -> list[str]:
     """호스트별 override가 반영된 ``--gpu-memory-utilization`` 명령을 반환한다."""
     if override is None:
@@ -359,7 +369,12 @@ def load_main_model_catalog(
         if resolve_runtime_images
         else runtime_image
     )
-    runtime = {**runtime, "image": image}
+    # Catalog는 기본 포트 대역 값을 기록한다. 실제 포트는 배포의 PLATFORM_PORT_BASE가 정한다.
+    namespace = load_port_namespace(
+        path.resolve().parent.parent, environment=os.environ if env is None else env
+    )
+    port = namespace.translate(int(runtime.get("container_port", namespace.default_base + namespace.offsets["main_llm_vllm"])))
+    runtime = {**runtime, "image": image, "container_port": port}
 
     profiles: dict[str, MainModelProfile] = {}
     for profile_id, item in profiles_raw.items():
@@ -370,7 +385,7 @@ def load_main_model_catalog(
             if item != {"catalog": "configs/cpu_main_model_profiles.yaml"} or profile_id != "cpu-gguf-text":
                 raise MainModelConfigurationError("unsupported runtime profile catalog reference")
             from .cpu_catalog import load_cpu_profile
-            profiles[str(profile_id)] = load_cpu_profile(path.resolve().parent.parent, str(profile_id), int(runtime["container_port"]), env or {})
+            profiles[str(profile_id)] = load_cpu_profile(path.resolve().parent.parent, str(profile_id), port, env or {})
             continue
         revision = str(item.get("revision", ""))
         if not _REVISION_RE.fullmatch(revision):
@@ -404,6 +419,7 @@ def load_main_model_catalog(
             public_model,
             *command,
         ]
+        command = _apply_port(command, port)
         # 명시적으로 선택된 resource-policy override를 먼저 반영한다. variant는
         # catalog가 소유한 검토된 자원 정책이고, 그 뒤의 MAIN_MODEL_GPU_MEMORY_UTILIZATION은 단일
         # 호스트용 escape hatch이므로 더 나중에 적용해 항상 마지막 발언권을 갖는다.

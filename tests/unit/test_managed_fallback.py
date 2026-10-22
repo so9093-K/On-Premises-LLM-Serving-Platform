@@ -103,6 +103,7 @@ def test_default_cli_uses_cpu_first_and_preserves_core_on_cpu_preparation_failur
         cli.ENV_PATH.write_text("BUILD_PROFILE=compose\n")
         return True
     monkeypatch.setattr(cli, "setup_target", setup)
+    monkeypatch.setattr(cli, "_assert_host_ports_available", lambda values: None)
     if not fresh:
         cli.ENV_PATH.write_text("BUILD_PROFILE=compose\n")
     calls = []

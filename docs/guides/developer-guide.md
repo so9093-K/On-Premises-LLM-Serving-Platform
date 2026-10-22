@@ -34,32 +34,20 @@ make console-build          # Control Plane 변경 시
 make render-runtime-assets  # Runtime 생성물의 원본 변경 시
 ```
 
-### 포트 네임스페이스 변경
+### 포트 네임스페이스
 
-포트 정책의 원본은 `configs/services.yaml`의 `port_namespace.base`와 `offsets`다.
-기본 대역은 9400이며, 저장소 업데이트나 `make up`은 대역 변경 명령을 대신 실행하지 않는다.
-서비스별 값·Compose·OpenAPI·Console 예제는 이 정책과 일치해야 하며 `make validate`가 불일치를 거부한다.
+포트 역할과 기본 대역은 `configs/services.yaml`의 `port_namespace.base`(9400)와 `offsets`가 소유한다.
+저장소의 설정·Compose·문서·생성물은 기본 대역 값으로 기록하고, `make validate`가 역할 offset과의
+불일치를 거부한다. 배포의 대역 선택은 `.env`의 `PLATFORM_PORT_BASE`이며 소스를 바꾸지 않는다
+([운영 절차](../12_operations.md#포트-대역-변경과-기존-캐시)).
 
-접속 포트만 변경하려면 `.env`의 `GATEWAY_PORT`와 필요한 경우 `GRAFANA_PORT`를 수정하고
-`make up`을 실행한다. 내부 Runtime 포트를 포함한 전체 대역 변경은 다음 절차를 따른다.
+새 포트 소비자를 추가할 때는 숫자를 직접 적지 않는다.
 
-```bash
-make setup-dev
-make ports BASE=9700 PLAN=1  # 변경 포트와 파일 목록만 확인
-make ports BASE=9700 YES=1   # 파일 변경·생성물 재생성·검증
-git diff                    # Git으로 관리하는 경우 변경 검토
-make up                     # 이미지와 실행 서비스를 새 대역에 맞춤
-make status
-```
+- Python 실행 경로: `ai_model_serving.port_namespace.load_port_namespace()`의 `port()`·`translate()`
+- Compose: `scripts/config/port_runtime.py`가 export하는 `${PLATFORM_PORT_<ROLE>:-<기본값>}`
+- Prometheus: `.runtime/prometheus/`에 생성되는 설정 (기준본 `ops/prometheus/*.yml`)
 
-프로젝트 지정 Node.js/npm도 필요하다. `YES=1` 없이 실행하면 적용 전에 대화형 확인을 받는다.
-`PLAN=1`은 변경 계획만 표시한다. 적용 시 소스·설정·문서와 Console 산출물,
-`.env`의 관리 대상 포트·URL을 갱신한다. ZIP 소스에서도 실행할 수 있으며,
-검증에 실패하면 변경 전 파일 상태를 복원한다.
-기동 실패 시 실행 상태까지 자동으로 되돌린다는 뜻은 아니므로 `make status`와 `make logs`로 확인한다.
-
-사용자가 지정한 Host 포트는 자동 덮어쓰지 않으며 충돌 시 명시적으로 정리해야 한다.
-외부 Runtime URL, 인증키, 모델 캐시와 과거 ADR·촬영 기록은 변경 대상에서 제외된다.
+DCGM exporter 9400, Grafana 컨테이너 3000, Prometheus 9090처럼 외부 엔진이 소유한 포트는 대역을 따르지 않는다.
 외부 Nginx·Tailscale Serve·방화벽·클라이언트 주소는 운영자가 별도로 반영한다.
 
 ## 3. 테스트·검증

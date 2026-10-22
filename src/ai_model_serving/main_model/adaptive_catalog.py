@@ -7,6 +7,7 @@ from typing import Mapping
 
 from ..configuration import load_yaml_mapping
 from ..image_refs import is_immutable_image_ref
+from ..port_namespace import load_port_namespace
 from .catalog import MainModelCatalog, load_main_model_catalog
 from .cpu_catalog import load_cpu_profile
 from .adaptive_gpu import AdaptiveGpuPolicies
@@ -23,7 +24,10 @@ def load_adaptive_catalog(
         ]["avoid_above"]
     )
     cpu_id = selection["cpu_profile"]
-    cpu = load_cpu_profile(root, cpu_id, document["runtime"]["container_port"], environment)
+    port = load_port_namespace(root, environment=environment).translate(
+        int(document["runtime"]["container_port"])
+    )
+    cpu = load_cpu_profile(root, cpu_id, port, environment)
     artifact_document = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")
     profiles = {cpu_id: cpu}
     gpu_error = None
@@ -76,6 +80,7 @@ def load_adaptive_catalog(
             default_profile=cpu_id,
             runtime={
                 **document["runtime"],
+                "container_port": port,
                 "adaptive": True,
                 "cpu_memory_limit_bytes": int(
                     artifact_document["runtime"]["memory_limit_mib"]

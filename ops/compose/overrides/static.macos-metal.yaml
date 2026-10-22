@@ -12,16 +12,17 @@ services:
     image: ${PLATFORM_IMAGE:?Set PLATFORM_IMAGE to a tested platform image tag}
     pull_policy: ${PLATFORM_PULL_POLICY:-never}
     restart: unless-stopped
-    command: [python, -m, uvicorn, ai_model_serving.apps.mlx_metrics_exporter:app, --host, 0.0.0.0, --port, "9416"]
+    command: [python, -m, uvicorn, ai_model_serving.apps.mlx_metrics_exporter:app, --host, 0.0.0.0, --port, "${PLATFORM_PORT_MLX_EXPORTER:-9416}"]
     environment:
       # 포트와 경로는 configs/macos_mlx_runtime.yaml이 소유한다. 여기서는 컨테이너가
       # native runtime을 부르는 host 이름만 넘긴다.
       MLX_RUNTIME_METRICS_HOST: host.docker.internal
+      PLATFORM_PORT_BASE: ${PLATFORM_PORT_BASE:-}
     extra_hosts:
       - host.docker.internal:host-gateway
-    expose: ["9416"]
+    expose: ["${PLATFORM_PORT_MLX_EXPORTER:-9416}"]
     healthcheck:
-      test: [CMD-SHELL, "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9416/health')\""]
+      test: [CMD-SHELL, "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${PLATFORM_PORT_MLX_EXPORTER:-9416}/health')\""]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -31,9 +32,12 @@ services:
     restart: unless-stopped
     command: [--config.file=/etc/prometheus/prometheus.yml]
     depends_on: [gateway, mlx-metrics-exporter]
+    # 수집 대상은 배포 포트 대역을 따른다. static_main_compose.sh가 .runtime에 생성한다.
+    labels:
+      ai_model_serving.config_digest: ${PROMETHEUS_CONFIG_DIGEST:-}
     volumes:
       # 모든 상대 bind 경로는 첫 compose 파일의 ops/compose를 기준으로 해석된다.
-      - ../prometheus/prometheus.macos-metal.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../.runtime/prometheus/prometheus.macos-metal.yml:/etc/prometheus/prometheus.yml:ro
     # ADMIN_API_KEY_REQUIRED=true이면 Gateway /metrics가 admin token을 요구한다.
     # Prometheus는 설정 파일에서 env를 확장하지 못하므로 full-stack과 같이 파일로 받는다.
     secrets:

@@ -36,6 +36,7 @@ from ai_model_serving.access_profile import (  # noqa: E402
     access_profile_names,
     load_access_profile,
 )
+from ai_model_serving.port_namespace import load_port_namespace  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import DEFAULT_ENV_FILENAME, default_env_path  # noqa: E402
 from scripts.build.pin_local_vllm_image import (  # noqa: E402
@@ -191,11 +192,7 @@ def _gateway_base_url(values: dict[str, str]) -> str:
     host = values.get("GATEWAY_BIND_ADDR") or "127.0.0.1"
     if host == "0.0.0.0":
         host = "127.0.0.1"
-    services = load_yaml_mapping(SERVICES_PATH).get("services", {})
-    gateway = services.get("gateway") if isinstance(services, dict) else None
-    if not isinstance(gateway, dict) or "default_host_port" not in gateway:
-        raise RuntimeError("configs/services.yaml gateway.default_host_port is missing")
-    port = values.get("GATEWAY_PORT") or str(gateway["default_host_port"])
+    port = load_port_namespace(ROOT, values).host_port("gateway", values)
     return f"http://{host}:{port}"
 
 
@@ -218,8 +215,109 @@ def _wait_for_gateway(values: dict[str, str], path: str, timeout: int = 60) -> s
         if ready:
             return url
         if time.monotonic() >= deadline:
-            raise RuntimeError(f"Gateway did not become healthy within {timeout}s at {url}")
+            if path == "/ready":
+                raise _readiness_timeout(values)
+            problem = _gateway_container_problem(values)
+            detail, command = problem if problem else ("", "make logs SERVICE=gateway")
+            raise RuntimeError(
+                f"Gateway가 {timeout}초 안에 {url}에서 응답하지 않았습니다."
+                + (f"\n  {detail}" if detail else "")
+                + f"\n  확인: {command}"
+            )
         time.sleep(1)
+
+
+def _not_ready_dependencies(ready: dict[str, object] | None) -> list[dict[str, object]]:
+    """/ready에서 필수인데 준비되지 않은 dependency만 고른다."""
+    if not isinstance(ready, dict):
+        return []
+    deps = ready.get("dependencies")
+    required = ready.get("required_not_ready_dependencies")
+    return [
+        item for item in (deps if isinstance(deps, list) else [])
+        if isinstance(item, dict) and item.get("status") != "ready"
+        and (not isinstance(required, list) or item.get("name") in required)
+    ]
+
+
+def _dependency_line(item: dict[str, object]) -> str:
+    detail = item.get("message") or item.get("status")
+    endpoint = item.get("endpoint")
+    return f"{item.get('name')}: {detail}" + (f" ({endpoint})" if endpoint else "")
+
+
+def _log_service(dependency: object) -> str:
+    """readiness dependency 이름을 make logs SERVICE= 값으로 바꾼다."""
+    services = load_yaml_mapping(SERVICES_PATH).get("services", {})
+    service = services.get(dependency) if isinstance(services, dict) else None
+    if isinstance(service, dict) and service.get("compose_service"):
+        return str(service["compose_service"])
+    return str(dependency)
+
+
+def _readiness_timeout(values: dict[str, str]) -> RuntimeError:
+    _, ready = _gateway_json(values, "/ready", admin=True)
+    dependencies = _not_ready_dependencies(ready)
+    lines = ["Core는 실행 중이지만 추론 준비가 끝나지 않았습니다."]
+    lines += [f"  {_dependency_line(item)}" for item in dependencies]
+    logs = (
+        f"make logs SERVICE={_log_service(dependencies[0].get('name'))}"
+        if dependencies else "make logs"
+    )
+    lines.append(f"  확인: make status · {logs}")
+    return RuntimeError("\n".join(lines))
+
+
+def _gateway_container_problem(values: dict[str, str]) -> tuple[str, str] | None:
+    """Gateway에 연결되지 않을 때 컨테이너 상태와 공개 포트로 원인을 좁힌다.
+
+    (설명, 다음 명령)을 반환한다.
+    """
+    from scripts.ops.compose_ownership import owned_container_ids
+    try:
+        containers = owned_container_ids(ROOT, "gateway")
+        if not containers:
+            return "이 플랫폼의 gateway 컨테이너가 없습니다.", "make up"
+        inspected = subprocess.run(
+            ["docker", "inspect", containers[0]],
+            cwd=ROOT, text=True, capture_output=True, check=False, timeout=10,
+        )
+        document = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
+    except (OSError, RuntimeError, ValueError, IndexError, subprocess.TimeoutExpired):
+        return None
+    state = document.get("State", {})
+    if not state.get("Running"):
+        return (
+            f"gateway 컨테이너가 {state.get('Status', 'unknown')} 상태입니다 (exit {state.get('ExitCode')}).",
+            "make logs SERVICE=gateway",
+        )
+    bindings = (document.get("NetworkSettings", {}).get("Ports") or {}).values()
+    published = sorted({
+        int(binding["HostPort"]) for group in bindings if group
+        for binding in group if str(binding.get("HostPort", "")).isdigit()
+    })
+    expected = load_port_namespace(ROOT, values).host_port("gateway", values)
+    if published and expected not in published:
+        return (
+            f"실행 중인 Gateway는 Host {', '.join(map(str, published))} 포트를 사용합니다. "
+            f"설정한 {expected} 포트는 아직 적용되지 않았습니다.",
+            "make up",
+        )
+    return None
+
+
+def _assert_host_ports_available(values: dict[str, str]) -> None:
+    """서비스를 바꾸기 전에 Host 포트를 다른 프로그램이 쓰고 있지 않은지 확인한다."""
+    from scripts.config.ports import host_port_conflicts
+    conflicts = host_port_conflicts(values)
+    if not conflicts:
+        return
+    base = load_port_namespace(ROOT, values).base
+    raise RuntimeError(
+        "Host 포트를 사용할 수 없어 시작하지 않았습니다. 실행 중인 서비스는 바꾸지 않았습니다.\n"
+        + "\n".join(f"  {conflict}" for conflict in conflicts)
+        + f"\n  다른 포트 대역으로 시작하려면: make up PORTS={base + 100}"
+    )
 
 
 def setup_target(
@@ -499,7 +597,7 @@ def up_adaptive_target(target: DeploymentTarget) -> None:
         if ready:
             break
         if time.monotonic() >= deadline:
-            raise RuntimeError(f"Core remains running; Main serving readiness timed out at {url}")
+            raise _readiness_timeout(values)
         time.sleep(1)
     print(f"[platform] ready: target={target.target_id} gateway={url}")
     _print_next_steps(values)
@@ -532,7 +630,7 @@ def up_managed_cpu_first(target: DeploymentTarget) -> None:
             print(f"[platform] ready: target={target.target_id}")
             break
         if time.monotonic() >= deadline:
-            raise RuntimeError("Core remains running; Main readiness timed out; check make logs")
+            raise _readiness_timeout(values)
         time.sleep(1)
     _print_next_steps(values)
 
@@ -618,6 +716,7 @@ def reconcile_up_target(
     access_profile: str | None,
     confirm_access: bool,
     execution_policy: str | None = None,
+    port_base: int | None = None,
 ) -> None:
     if (execution_policy is None and not ENV_PATH.is_file()
         and not (ROOT / ".runtime/main-model/main-model-state.json").exists()
@@ -651,7 +750,12 @@ def reconcile_up_target(
         lines, seeded = parse_env_template(ENV_PATH)
         seeded["MAIN_MODEL_EXECUTION_POLICY"] = execution_policy
         write_env(lines, seeded, ENV_PATH)
+    if port_base is not None:
+        from scripts.config.ports import change_port_base
+        if change_port_base(ENV_PATH, port_base) != 0:
+            raise RuntimeError("포트 대역을 바꾸지 않았습니다. 실행 중인 서비스는 그대로입니다.")
     values = _env_values()
+    _assert_host_ports_available(values)
     if values.get("BUILD_PROFILE") != "local":
         if target.controllable or target.control_mode == "managed_cpu":
             ensure_target_artifacts(target, include_runtime=False)
@@ -685,15 +789,11 @@ def _gateway_json(
     *,
     admin: bool = False,
 ) -> tuple[int, dict[str, object] | None]:
-    host = values.get("GATEWAY_BIND_ADDR") or "127.0.0.1"
-    if host == "0.0.0.0":
-        host = "127.0.0.1"
-    services = load_yaml_mapping(SERVICES_PATH).get("services", {})
-    gateway = services.get("gateway") if isinstance(services, dict) else None
-    if not isinstance(gateway, dict) or "default_host_port" not in gateway:
+    try:
+        base = _gateway_base_url(values)
+    except (OSError, RuntimeError, ValueError):
         return 0, None
-    port = values.get("GATEWAY_PORT") or str(gateway["default_host_port"])
-    request = urllib.request.Request(f"http://{host}:{port}{path}")
+    request = urllib.request.Request(f"{base}{path}")
     if admin:
         token = values.get("ADMIN_API_KEY") or values.get("ADMIN_API_KEYS", "").split(",", 1)[0]
         if token:
@@ -728,7 +828,7 @@ def status_target(target: DeploymentTarget) -> int:
         print(f"Platform      {'READY' if ready else 'DEGRADED'}")
         print(f"Target        {target.target_id}")
         print(f"Access        {values.get('ACCESS_PROFILE') or 'legacy/custom'}")
-        print(f"Gateway       {'READY' if gateway_ready else 'UNAVAILABLE'}")
+        print(f"Gateway       {'READY' if gateway_ready else 'UNAVAILABLE'}  {_gateway_base_url(values)}")
         print(f"Applications  {'READY' if process_status.returncode == 0 else 'DEGRADED'}")
         if not ready:
             print("")
@@ -756,7 +856,7 @@ def status_target(target: DeploymentTarget) -> int:
         gateway_status = "UNAVAILABLE"
     else:
         gateway_status = f"ERROR_HTTP_{code}"
-    print(f"Gateway       {gateway_status}")
+    print(f"Gateway       {gateway_status}  {_gateway_base_url(values)}")
 
     if values.get("BUILD_PROFILE") != "local" and code:
         runtime_code, runtime_doc = _gateway_json(values, "/admin/runtimes", admin=True)
@@ -772,6 +872,9 @@ def status_target(target: DeploymentTarget) -> int:
                     state = str(item.get("state") or "unknown").upper()
                     container = str(item.get("container_status") or "")
                     suffix = f" / {container}" if container else ""
+                    if state == "STOPPED" and container in {"created", "exited"}:
+                        # 기동 시 보류했거나 운영자가 내린 선택 Runtime이다. 장애가 아니다.
+                        suffix += " · 필요할 때 Console에서 시작"
                     print(f"  {key:<28} {state}{suffix}")
             topology = runtime_doc.get("topology")
             if isinstance(topology, list):
@@ -783,21 +886,19 @@ def status_target(target: DeploymentTarget) -> int:
                 for key in unavailable:
                     print(f"  {key:<28} UNAVAILABLE / policy")
 
-    attention: list[str] = []
-    if isinstance(ready, dict):
-        deps = ready.get("dependencies")
-        required = ready.get("required_not_ready_dependencies")
-        if isinstance(deps, list):
-            for item in deps:
-                if not isinstance(item, dict) or item.get("status") == "ready":
-                    continue
-                name = item.get("name")
-                if isinstance(required, list) and name not in required:
-                    continue
-                detail = item.get("message") or item.get("status")
-                attention.append(f"{name}: {detail}")
+    dependencies = _not_ready_dependencies(ready)
+    attention = [_dependency_line(item) for item in dependencies]
+    next_command = (
+        f"make logs SERVICE={_log_service(dependencies[0].get('name'))}"
+        if dependencies else "make logs"
+    )
     if code == 0:
         attention.append("Gateway is not reachable")
+        problem = _gateway_container_problem(values)
+        next_command = "make logs SERVICE=gateway"
+        if problem:
+            attention.append(problem[0])
+            next_command = problem[1]
     elif code == 503 and not attention:
         attention.append("Gateway is not ready")
     elif code == 200 and ready_status != "ready" and not attention:
@@ -812,7 +913,7 @@ def status_target(target: DeploymentTarget) -> int:
             print(f"  - {item}")
         print("")
         print("Next")
-        print("  make logs")
+        print(f"  {next_command}")
         return 1
     return 0
 
@@ -828,14 +929,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--main-base-url")
     parser.add_argument("--access-profile", choices=access_profile_names())
     parser.add_argument("--confirm-access", action="store_true")
+    parser.add_argument("--port-base", type=int)
     args = parser.parse_args(argv)
     try:
         if args.confirm_access and not args.access_profile:
             raise RuntimeError("CONFIRM=access requires ACCESS=local|private|edge")
         if args.action != "up" and (
-            args.main_profile or args.main_base_url or args.access_profile or args.confirm_access or args.execution_policy
+            args.main_profile or args.main_base_url or args.access_profile or args.confirm_access
+            or args.execution_policy or args.port_base is not None
         ):
-            raise RuntimeError("MODEL, MAIN_URL, ACCESS and CONFIRM are make up options")
+            raise RuntimeError("MODEL, MAIN_URL, ACCESS, CONFIRM and PORTS are make up options")
 
         if args.action == "down" and not ENV_PATH.is_file():
             _run_step(
@@ -855,6 +958,7 @@ def main(argv: list[str] | None = None) -> int:
                 access_profile=args.access_profile,
                 confirm_access=args.confirm_access,
                 execution_policy=args.execution_policy,
+                port_base=args.port_base,
             )
         elif args.action == "down":
             down_target(target)

@@ -1,5 +1,6 @@
 import { CHAT_COMPLETIONS_PATH } from './publicChatRequest.ts';
 import { PYTHON_SDK_RECIPE, JAVASCRIPT_SDK_RECIPE } from './integrationRecipes.ts';
+import { withGatewayOrigin } from './gatewayOrigin.ts';
 
 // The serialized request sent to Gateway is the only authority for export.
 // This module never reads the active model, the current composer or the API key.
@@ -235,7 +236,7 @@ const README = [
 // Templates are independent of the large request body and can be reused by
 // streaming archive entries without constructing request.json a second time.
 export function exportTemplates(stream: boolean): Omit<ExportFiles, 'request.json'> {
-  return {
+  const files = {
     'client.py': PYTHON,
     'client.mjs': JAVASCRIPT,
     'client.sh': curlScript(stream),
@@ -243,6 +244,9 @@ export function exportTemplates(stream: boolean): Omit<ExportFiles, 'request.jso
     'client_openai.mjs': JAVASCRIPT_SDK_RECIPE,
     'README.md': README,
   };
+  return Object.fromEntries(
+    Object.entries(files).map(([name, source]) => [name, withGatewayOrigin(source)]),
+  ) as Omit<ExportFiles, 'request.json'>;
 }
 
 export function buildExportFiles(serializedRequest: string): ExportFiles {

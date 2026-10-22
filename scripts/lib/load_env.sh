@@ -115,18 +115,25 @@ local_env_first_value() {
   return 1
 }
 
+# 서비스의 Host 기본 포트. 포트 대역 서비스는 PLATFORM_PORT_BASE(.env)를 따른다.
 service_default_host_port() {
   local service_key="${1:?service key required}"
   "${PYTHON_BIN:?PYTHON_BIN must be set before reading service defaults}" - "$service_key" <<'PY'
 from pathlib import Path
+import os
 import sys
 
 import yaml
 
 service_key = sys.argv[1]
-services = yaml.safe_load(Path("configs/services.yaml").read_text(encoding="utf-8"))["services"]
+document = yaml.safe_load(Path("configs/services.yaml").read_text(encoding="utf-8"))
+offsets = document["port_namespace"]["offsets"]
+if service_key in offsets:
+    base = int(os.environ.get("PLATFORM_PORT_BASE") or document["port_namespace"]["base"])
+    print(base + int(offsets[service_key]))
+    raise SystemExit(0)
 try:
-    print(int(services[service_key]["default_host_port"]))
+    print(int(document["services"][service_key]["default_host_port"]))
 except KeyError as exc:
     raise SystemExit(f"services.yaml missing default_host_port for {service_key}") from exc
 PY

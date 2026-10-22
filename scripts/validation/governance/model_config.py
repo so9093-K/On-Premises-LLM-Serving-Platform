@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ai_model_serving.risk_input import detector_prompt_char_budget
-from scripts.config.ports import read_policy
+from ai_model_serving.port_namespace import load_port_namespace
 from .common import (
     ROOT,
     read_yaml,
@@ -144,7 +145,25 @@ def validate_ports() -> None:
     """
     # 신규 Port Namespace 계약은 Host뿐 아니라 내부 Runtime과 운영 어댑터까지 검증한다.
     try:
-        read_policy(ROOT)
+        namespace_policy = load_port_namespace(ROOT, {})
+        document = read_yaml('configs/services.yaml')
+        for role, offset in namespace_policy.offsets.items():
+            service = document['services'].get(role, {})
+            if role in {'gateway', 'main_llm_vllm', 'embedding_vllm', 'embedding_ko_vllm',
+                        'prompt_injection_detector_runtime', 'risk_signal_service'}:
+                if service.get('container_port') != namespace_policy.default_base + offset:
+                    raise ValueError(f'{role}.container_port must follow namespace offset')
+        exporter = read_yaml('configs/monitoring.yaml')['monitoring_stack']['mlx_metrics_exporter']
+        if exporter['internal_port'] != namespace_policy.port('mlx_metrics_exporter'):
+            raise ValueError('MLX metrics exporter port must follow namespace offset')
+        # remote_access.py nginx-config는 기본 대역으로 기록된 예시를 배포 대역으로 옮긴다.
+        nginx = (ROOT / 'ops/access/team-api.nginx.conf').read_text(encoding='utf-8')
+        listener = namespace_policy.port('team_api_proxy')
+        if f'listen 127.0.0.1:{listener};' not in nginx:
+            raise ValueError(f'Nginx 팀원 Listener는 기본 대역 127.0.0.1:{listener}이어야 합니다')
+        upstreams = re.findall(r'(?:proxy_set_header Host |proxy_pass http://)127\.0\.0\.1:(\d+)', nginx)
+        if not upstreams or any(int(port) != namespace_policy.port('gateway') for port in upstreams):
+            raise ValueError('Nginx Gateway upstream은 기본 대역 Gateway 포트여야 합니다')
     except ValueError as exc:
         raise SystemExit(f"Port Namespace 정책 불일치: {exc}") from exc
 

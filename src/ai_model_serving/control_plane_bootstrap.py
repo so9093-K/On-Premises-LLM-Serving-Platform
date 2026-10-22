@@ -6,6 +6,7 @@ from typing import Any
 
 from .access_profile import AccessProfile, load_access_profile
 from .configuration import load_yaml_mapping
+from .port_namespace import load_port_namespace
 from .configuration_schema import CONFIGURATION_SCHEMA_VERSION
 from .host_exposure import host_published_service_ids
 from .project_paths import resolve_project_root
@@ -83,6 +84,8 @@ def _service_host_port(root: Path, service_id: str) -> int | None:
     default = service.get("default_host_port")
     if not isinstance(env_key, str) or isinstance(default, bool) or not isinstance(default, int):
         return None
+    # 서비스별 override가 없으면 배포 포트 대역의 같은 역할 포트를 쓴다.
+    default = load_port_namespace(root).translate(default)
     raw = _env(env_key, str(default)).strip()
     if not raw.isascii() or not raw.isdecimal():
         return None

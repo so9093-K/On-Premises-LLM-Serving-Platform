@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
 import pprint
 from typing import Any
 
 from .api_examples import GATEWAY_CHAT_REQUEST_EXAMPLES, GATEWAY_RESPONSES_REQUEST_EXAMPLES
+from .port_namespace import load_port_namespace
 
-_DEFAULT_GATEWAY_URL = "http://127.0.0.1:9400"
+
+def default_gateway_url() -> str:
+    """API 문서 예제의 기본 주소. 배포 포트 대역의 Gateway Host 포트를 따른다."""
+    port = load_port_namespace().host_port("gateway", os.environ)
+    return f"http://127.0.0.1:{port}"
 
 
 def _python_openai_sample(*, resource: str, payload: dict[str, Any], result_expression: str) -> str:
@@ -21,7 +27,7 @@ def _python_openai_sample(*, resource: str, payload: dict[str, Any], result_expr
         ")\n\n"
         "response = client.%s.create(**%s)\n"
         "print(%s)\n"
-    ) % (_DEFAULT_GATEWAY_URL, resource, request_literal, result_expression)
+    ) % (default_gateway_url(), resource, request_literal, result_expression)
 
 
 def _javascript_openai_sample(*, resource: str, payload: dict[str, Any], result_expression: str) -> str:
@@ -38,7 +44,7 @@ def _javascript_openai_sample(*, resource: str, payload: dict[str, Any], result_
         "});\n\n"
         "const response = await client.%s.create(%s);\n"
         "console.log(%s);\n"
-    ) % (_DEFAULT_GATEWAY_URL, resource, request_literal, result_expression)
+    ) % (default_gateway_url(), resource, request_literal, result_expression)
 
 
 def _openai_sdk_samples(

@@ -3,6 +3,7 @@
 ## Status
 
 Accepted. ADR-0058의 변경 도구를 유지하고 기본 대역·이관 절차를 보완한다.
+소스·문서·생성물을 갱신하던 결정 2·3은 [ADR-0064](0064-port-band-is-deployment-configuration.md)로 대체됐다. 캐시 보존(6·7)과 readiness 구분(8)은 유지한다.
 
 ## Context
 

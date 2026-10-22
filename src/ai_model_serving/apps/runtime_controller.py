@@ -75,6 +75,7 @@ def create_runtime_controller_app(
     context._TOPOLOGY = load_runtime_topology(
         context.APP_CONFIG_ROOT,
         main_resource_variant=resource_variant_from_mapping(environment),
+        environment=environment,
     )
     context.CONTROLLABLE: frozenset[str] = context._TOPOLOGY.controllable_services
     # health URL은 topology가 소유한다. 경로 파라미터로 들어온 service 문자열로

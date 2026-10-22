@@ -3,6 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from ai_model_serving.domain import ModelRegistry
+from ai_model_serving.port_namespace import PortNamespace
+
+
+def _port(namespace: PortNamespace | None, port: object) -> int:
+    value = int(str(port))
+    return namespace.translate(value) if namespace is not None else value
 
 
 def macos_metal_prometheus_config_document(
@@ -11,6 +17,7 @@ def macos_metal_prometheus_config_document(
     services: dict[str, Any],
     macos_runtime: dict[str, Any],
     runtime_backend: str,
+    port_namespace: PortNamespace | None = None,
 ) -> dict[str, Any]:
     """정적 Metal Compose 프로젝트의 Prometheus 설정을 생성한다.
 
@@ -39,7 +46,7 @@ def macos_metal_prometheus_config_document(
                 # 요구한다. Linux full-stack과 같은 compose secret을 사용한다.
                 "bearer_token_file": "/run/secrets/admin_api_key",
                 "static_configs": [
-                    {"targets": [f"{gateway_service}:{services['gateway']['container_port']}"]}
+                    {"targets": [f"{gateway_service}:{_port(port_namespace, services['gateway']['container_port'])}"]}
                 ],
             },
             {
@@ -49,7 +56,7 @@ def macos_metal_prometheus_config_document(
                 "static_configs": [
                     {
                         "targets": [
-                            f"{risk_service}:{services['risk_signal_service']['container_port']}"
+                            f"{risk_service}:{_port(port_namespace, services['risk_signal_service']['container_port'])}"
                         ]
                     }
                 ],
@@ -60,7 +67,7 @@ def macos_metal_prometheus_config_document(
                 "static_configs": [
                     {
                         "targets": [
-                            f"{exporter['compose_service']}:{exporter['internal_port']}"
+                            f"{exporter['compose_service']}:{_port(port_namespace, exporter['internal_port'])}"
                         ],
                         "labels": {
                             "model": str(macos_runtime["public_model"]),
@@ -74,9 +81,16 @@ def macos_metal_prometheus_config_document(
 
 
 def prometheus_scrape_config_document(
-    *, registry: ModelRegistry, monitoring: dict[str, Any], services: dict[str, Any]
+    *,
+    registry: ModelRegistry,
+    monitoring: dict[str, Any],
+    services: dict[str, Any],
+    port_namespace: PortNamespace | None = None,
 ) -> dict[str, Any]:
-    """Runtime Registry를 기준으로 Prometheus 설정을 생성한다."""
+    """Runtime Registry를 기준으로 Prometheus 설정을 생성한다.
+
+    DCGM·cAdvisor처럼 외부 엔진이 소유한 포트는 배포 대역을 따르지 않는다.
+    """
     stack = monitoring.get("monitoring_stack", {})
     metric_sources = monitoring.get("metric_sources", {})
     gateway = metric_sources.get("gateway", {})
@@ -90,7 +104,7 @@ def prometheus_scrape_config_document(
     cadvisor_service = str(services["cadvisor"]["compose_service"])
     static_vllm_configs = [
         {
-            "targets": [f"{target.compose_service_name}:{target.port}"],
+            "targets": [f"{target.compose_service_name}:{_port(port_namespace, target.port)}"],
             "labels": {
                 "model": target.logical_id,
                 "runtime_service": target.compose_service_name,
@@ -110,13 +124,13 @@ def prometheus_scrape_config_document(
                 "job_name": "gateway",
                 "metrics_path": gateway.get("metrics_path", "/metrics"),
                 "bearer_token_file": "/run/secrets/admin_api_key",
-                "static_configs": [{"targets": [f"{gateway_service}:{services['gateway']['container_port']}"]}],
+                "static_configs": [{"targets": [f"{gateway_service}:{_port(port_namespace, services['gateway']['container_port'])}"]}],
             },
             {
                 "job_name": "risk-signal-service",
                 "metrics_path": risk.get("metrics_path", "/metrics"),
                 "bearer_token_file": "/run/secrets/admin_api_key",
-                "static_configs": [{"targets": [f"{risk_service}:{services['risk_signal_service']['container_port']}"]}],
+                "static_configs": [{"targets": [f"{risk_service}:{_port(port_namespace, services['risk_signal_service']['container_port'])}"]}],
             },
             {
                 "job_name": vllm.get("scrape_job", "vllm-runtimes"),

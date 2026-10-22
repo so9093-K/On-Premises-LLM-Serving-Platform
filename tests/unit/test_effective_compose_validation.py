@@ -232,11 +232,12 @@ def test_preflight_uses_same_boot_file_and_enforces_required_gpu(
     commands = []
     validated = []
 
-    def validate(compose_path, *, effective_compose, boot_override):
+    def validate(compose_path, *, effective_compose, boot_override, port_namespace):
         assert compose_path == validator.COMPOSE_PATH
         assert boot_override == boot
         validated.append(effective_compose)
-        validator.validate_alignment(compose_path, effective_compose=effective_compose, boot_override=boot_override)
+        validator.validate_alignment(compose_path, effective_compose=effective_compose, boot_override=boot_override,
+                                     port_namespace=port_namespace)
 
     def run_status(command, *, capture=False):
         commands.append(command)

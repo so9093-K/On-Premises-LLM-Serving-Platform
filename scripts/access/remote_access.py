@@ -11,11 +11,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ai_model_serving.access_profile import access_profile_mismatches  # noqa: E402
-from ai_model_serving.configuration import load_yaml_mapping  # noqa: E402
+from ai_model_serving.port_namespace import load_port_namespace  # noqa: E402
 from ai_model_serving.settings_parts.dotenv_parser import parse_env_file  # noqa: E402
 from ai_model_serving.settings_parts.env import is_default_secret  # noqa: E402
 
-PORT = int(load_yaml_mapping(ROOT / 'configs/services.yaml')['services']['gateway']['default_host_port'])
 
 
 def preflight(env_file: Path) -> list[str]:
@@ -31,8 +30,6 @@ def preflight(env_file: Path) -> list[str]:
         "ACCESS=edge 정책 불일치: " + mismatch
         for mismatch in access_profile_mismatches("edge", values)
     ]
-    if values.get("GATEWAY_PORT", str(PORT)) != str(PORT):
-        errors.append("제공된 Nginx 설정은 Gateway 현재 포트와 일치해야 합니다.")
     if is_default_secret(values.get("INTERNAL_SERVICE_TOKEN", "")):
         errors.append("내부 서비스 인증 토큰도 기본값일 수 없습니다.")
     for name in ("API_KEYS", "ADMIN_API_KEYS"):
@@ -50,11 +47,35 @@ def preflight(env_file: Path) -> list[str]:
     return errors
 
 
+def nginx_config(env_file: Path) -> str:
+    """팀원 API Nginx 설정을 현재 포트 대역으로 출력한다.
+
+    저장소 예시는 기본 대역(Gateway 9400, 팀원 Listener 9480) 기준이다. Loopback
+    주소의 포트만 바꾸며 경로·메서드 허용 규칙은 그대로 둔다.
+    """
+    values = parse_env_file(env_file).values if env_file.is_file() else {}
+    namespace = load_port_namespace(ROOT, values)
+    gateway = namespace.host_port("gateway", values)
+    listener = namespace.port("team_api_proxy")
+    default_gateway = namespace.default_base
+    default_listener = namespace.default_base + namespace.offsets["team_api_proxy"]
+    template = (ROOT / "ops/access/team-api.nginx.conf").read_text(encoding="utf-8")
+    return (
+        template.replace(f"listen 127.0.0.1:{default_listener};", f"listen 127.0.0.1:{listener};")
+        .replace(f"127.0.0.1:{default_gateway};", f"127.0.0.1:{gateway};")
+        .replace(f"http://127.0.0.1:{default_gateway}/", f"http://127.0.0.1:{gateway}/")
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Tailscale 비공개 원격 접근 사전 검증")
-    parser.add_argument("command", choices=("preflight", "status"))
+    parser.add_argument("command", choices=("preflight", "status", "nginx-config"))
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     args = parser.parse_args()
+
+    if args.command == "nginx-config":
+        print(nginx_config(args.env_file), end="")
+        return 0
 
     if args.command == "status":
         for cmd in (["tailscale", "status"], ["tailscale", "serve", "status"], ["tailscale", "funnel", "status"]):

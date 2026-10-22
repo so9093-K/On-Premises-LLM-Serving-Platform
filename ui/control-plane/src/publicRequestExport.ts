@@ -1,6 +1,7 @@
 import { EMBEDDINGS_PATH } from './embeddingPlayground.ts';
 import { RISK_CHECKS } from './riskPlayground.ts';
 import { RETRIEVAL_RERANK_PATH } from './retrievalPlayground.ts';
+import { withGatewayOrigin } from './gatewayOrigin.ts';
 
 // Embedding·Retrieval·Risk 작업 화면의 "코드로 사용하기". 전송 당시의 요청 문자열만 authority이며
 // 현재 화면 입력이나 API 키를 읽지 않는다. 요청은 미디어가 없는 짧은 JSON이므로 Chat처럼
@@ -255,10 +256,10 @@ export function publicExportSource(record: PublicRequestRecord, language: Public
   if (!PUBLIC_EXPORT_LANGUAGES[record.kind].some((item) => item.id === language)) {
     throw new Error('이 요청에 제공하지 않는 예제입니다.');
   }
-  if (language === 'curl') return curlScript(record);
-  if (language === 'python') return pythonScript(record);
-  if (language === 'javascript') return javascriptScript(record);
-  return pythonSdkScript(record);
+  const source = language === 'curl' ? curlScript(record)
+    : language === 'python' ? pythonScript(record)
+      : language === 'javascript' ? javascriptScript(record) : pythonSdkScript(record);
+  return withGatewayOrigin(source);
 }
 
 export function prettyRequestJson(record: PublicRequestRecord): string {

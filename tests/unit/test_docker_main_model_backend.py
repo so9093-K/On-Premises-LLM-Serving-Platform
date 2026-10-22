@@ -704,3 +704,48 @@ def test_adaptive_replacement_uses_target_image_and_engine_limits(monkeypatch, p
         assert host['DeviceRequests'] == [{'Driver':'nvidia','DeviceIDs':['GPU-00000000-0000-0000-0000-000000000002'],'Capabilities':[['gpu']]}]
         assert host['Memory'] == 0
         assert host['PidsLimit'] >= 2048
+
+
+def test_same_engine_replacement_follows_current_port_band(monkeypatch):
+    """GPU 실행 중 포트 대역을 바꾸면 이전 컨테이너의 healthcheck 포트를 승계하지 않는다."""
+    import json
+    import os
+
+    env = {**os.environ, "PLATFORM_PORT_BASE": "9600"}
+    catalog = load_main_model_catalog(ROOT / "configs/main_model_profiles.yaml", env=env)
+    backend = DockerMainModelBackend("/var/run/docker.sock", gateway_url="http://gateway:9600")
+    inspected = {
+        "Name": "/platform-main-llm-vllm-1",
+        "Config": {
+            "Env": [],
+            "ExposedPorts": {"9401/tcp": {}},
+            "Healthcheck": {"Test": ["CMD-SHELL", "python3 -c \"import urllib.request; "
+                                     "urllib.request.urlopen('http://localhost:9401/health')\""],
+                            "Interval": 30_000_000_000},
+        },
+        "HostConfig": {"DeviceRequests": [{"Driver": "", "Count": -1, "Capabilities": [["gpu"]]}]},
+    }
+    created = []
+
+    async def container_id(_service):
+        return "old"
+
+    async def inspect(_container_id):
+        return inspected
+
+    def respond(request):
+        if request.url.path == "/containers/create":
+            created.append(json.loads(request.content))
+            return httpx.Response(201, json={"Id": "new"})
+        return httpx.Response(204)
+
+    monkeypatch.setattr(backend, "_container_id", container_id)
+    monkeypatch.setattr(backend, "_inspect", inspect)
+    monkeypatch.setattr(backend, "_client", lambda: httpx.AsyncClient(
+        transport=httpx.MockTransport(respond), base_url="http://docker"))
+    asyncio.run(backend.replace(catalog, catalog.profiles["gemma4-12b-unified-fp8"]))
+    payload = created[0]
+    assert payload["Cmd"][payload["Cmd"].index("--port") + 1] == "9601"
+    assert payload["ExposedPorts"] == {"9601/tcp": {}}
+    assert "http://localhost:9601/health" in payload["Healthcheck"]["Test"][1]
+    assert payload["Healthcheck"]["Interval"] == 30_000_000_000

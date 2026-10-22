@@ -461,7 +461,7 @@ Request ID / Error Code 확인
 | 영역 | 주요 파일 | 역할 |
 |---|---|---|
 | Prometheus / live metric 검증 | `configs/monitoring.yaml` | scrape 설정과 필수 service metric 정의 |
-| Prometheus (full-stack) | `ops/prometheus/prometheus.yml` | scrape target과 rule 연결. 생성물 |
+| Prometheus (full-stack) | `ops/prometheus/prometheus.yml` | scrape target과 rule 연결. 기본 대역 생성물이며 실행 설정은 `make up`이 `.runtime/prometheus/`에 배포 포트 대역으로 생성 |
 | Prometheus (static Metal) | `ops/prometheus/prometheus.macos-metal.yml` | Gateway와 MLX exporter scrape 설정. 생성물 |
 | Recording Rule | `ops/prometheus/rules/model_runtime.rules.yml` | Runtime·GPU 운영 지표 계산 |
 | MLX exporter 계약 | `configs/macos_mlx_runtime.yaml`, `configs/deployment_targets.yaml` | native runtime의 metric 포트·경로와 target의 `runtime_backend` label |

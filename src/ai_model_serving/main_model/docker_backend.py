@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import re
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,7 @@ _IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 # 요청만을 제한하며, 모델 lifecycle(drain/stop/startup)은 catalog.runtime에 있는
 # 프로필 자체의 타임아웃으로 관리된다.
 _DOCKER_INSPECT_TIMEOUT = 5          # 가벼운 list/inspect GET
+_HEALTH_URL_PORT = re.compile(r"(https?://(?:127\.0\.0\.1|localhost)):\d+/health")
 _DOCKER_API_TIMEOUT = 30             # 컨테이너 create / start
 _DOCKER_DELETE_TIMEOUT = 10          # 컨테이너 delete
 _DOCKER_STOP_TIMEOUT_BUFFER = 10     # stop HTTP 타임아웃 = docker stop grace + 이 값
@@ -496,6 +497,14 @@ class DockerMainModelBackend:
         # digest로 고정되어 있고 비어있지 않음을 보장한다.
         payload["Image"] = str(profile.image)
         payload["Cmd"] = list(profile.command)
+        # 포트 대역이 바뀐 뒤 같은 엔진으로 재생성해도 이전 컨테이너의 포트를 승계하지 않는다.
+        port = int(catalog.runtime["container_port"])
+        payload["ExposedPorts"] = {f"{port}/tcp": {}}
+        if isinstance(payload.get("Healthcheck"), dict):
+            payload["Healthcheck"]["Test"] = [
+                _HEALTH_URL_PORT.sub(rf"\g<1>:{port}/health", item) if isinstance(item, str) else item
+                for item in payload["Healthcheck"].get("Test") or []
+            ]
         payload["HostConfig"] = copy.deepcopy(self._template["host_config"])
         payload["NetworkingConfig"] = copy.deepcopy(self._template["networking_config"])
         if engine_change:

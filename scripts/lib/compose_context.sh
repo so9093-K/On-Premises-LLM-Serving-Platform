@@ -39,6 +39,22 @@ compose_context_init() {
   export \
     COMPOSE_CHECKOUT_ROOT ENV_FILE COMPOSE_FILE ENV_FILE_ABS COMPOSE_FILE_ABS \
     COMPOSE_PROJECT_NAME COMPOSE_PROJECT_NAME_EFFECTIVE COMPOSE_SERVICE_ENV_FILE
+  compose_context_export_ports "$root" "$ENV_FILE_ABS" \
+    --prometheus "$COMPOSE_CHECKOUT_ROOT/.runtime/prometheus/prometheus.yml"
+}
+
+# 배포 포트 대역(PLATFORM_PORT_BASE)에서 Compose 보간 변수를 계산해 export한다.
+# 내부 포트는 .env에 복제하지 않고 실행할 때마다 같은 계산으로 투영한다.
+compose_context_export_ports() {
+  local root="${1:?project root required}"
+  local env_file="${2:?env file required}"
+  shift 2
+  local python_bin="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
+  local variables line
+  variables="$("$python_bin" "$root/scripts/config/port_runtime.py" --env-file "$env_file" "$@")" || return
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && export "${line?}"
+  done <<<"$variables"
 }
 
 # 동일 Docker daemon에서 다른 working directory가 같은 Compose project name을

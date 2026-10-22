@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from starlette.responses import PlainTextResponse
 
 from ai_model_serving.configuration import load_yaml_mapping
+from ai_model_serving.port_namespace import load_port_namespace
 from ai_model_serving.project_paths import resolve_project_root
 
 
@@ -120,7 +121,8 @@ def upstream_metrics_url() -> str:
         resolve_project_root() / "configs" / "macos_mlx_runtime.yaml"
     )["runtime"]
     host = os.environ.get("MLX_RUNTIME_METRICS_HOST", "").strip() or str(runtime["host"])
-    return f"http://{host}:{runtime['port']}{runtime['metrics_path']}"
+    port = load_port_namespace().translate(int(runtime["port"]))
+    return f"http://{host}:{port}{runtime['metrics_path']}"
 
 
 app = FastAPI(title="MLX Metrics Exporter", docs_url=None, redoc_url=None, openapi_url=None)

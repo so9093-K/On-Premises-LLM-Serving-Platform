@@ -81,22 +81,30 @@ if [[ ${#COMPOSE_FILES[@]} -eq 0 ]]; then
   exit 2
 fi
 
+source scripts/lib/compose_context.sh
 case "$COMPOSE_ACTION" in
   up|create|down|start|stop|restart|rm|pause|unpause)
-    source scripts/lib/compose_context.sh
     COMPOSE_FILE_ABS="$ROOT/${COMPOSE_FILE_PATHS[0]}"
     COMPOSE_PROJECT_NAME_EFFECTIVE="$STATIC_COMPOSE_PROJECT_NAME"
     compose_context_assert_mutation_safe
     ;;
 esac
 
+# 포트 대역은 .env의 PLATFORM_PORT_BASE 하나가 정한다. 내부 포트와 Prometheus 수집 대상은
+# 실행할 때마다 같은 계산으로 투영한다.
+PORT_RUNTIME_ARGS=()
+if [[ "$DEPLOYMENT_TARGET" == "macos-metal-static" ]]; then
+  PORT_RUNTIME_ARGS=(--prometheus "$ROOT/.runtime/prometheus/prometheus.macos-metal.yml" --variant macos-metal)
+fi
+compose_context_export_ports "$ROOT" "$ENV_FILE_ABS" "${PORT_RUNTIME_ARGS[@]}"
+
 # 자동 배포와 CPU 명령의 입력은 사용자 env가 아니라 Catalog에서 계산한다.
 if [[ "$DEPLOYMENT_TARGET" == "linux-cpu-managed" || "$DEPLOYMENT_TARGET" == "linux-adaptive" ]]; then
   CPU_MAIN_COMMAND="$(PYTHONPATH="$ROOT/src" "$PYTHON_BIN" -c '
-import shlex,sys
+import os,shlex,sys
 from pathlib import Path
 from ai_model_serving.main_model.cpu import cpu_runtime_command
-port = 9401 if sys.argv[1] == "linux-adaptive" else None
+port = int(os.environ["PLATFORM_PORT_MAIN_LLM"]) if sys.argv[1] == "linux-adaptive" else None
 print(shlex.join(cpu_runtime_command(Path.cwd(), port=port)))
 ' "$DEPLOYMENT_TARGET")"
   CPU_MEMORY_LIMIT_BYTES="$("$PYTHON_BIN" -c 'import yaml; print(int(yaml.safe_load(open("configs/cpu_model_artifact.yaml"))["runtime"]["memory_limit_mib"])*1024*1024)')"
@@ -141,11 +149,11 @@ for name in sys.argv[1:]:
             print((base / source).resolve())
 ' "${COMPOSE_FILE_PATHS[@]}" 2>/dev/null | sort -u)
 
+  if [[ ${#REQUIRED_SECRET_FILES[@]} -gt 0 ]]; then
+    # 관리자 키를 바꾼 뒤에도 Prometheus가 이전 토큰으로 401을 받지 않도록 매번 맞춘다.
+    "$PYTHON_BIN" scripts/config/setup_env.py --sync-runtime-secrets --output "$ENV_FILE_ABS" >/dev/null || true
+  fi
   for secret_file in "${REQUIRED_SECRET_FILES[@]}"; do
-    if [[ ! -s "$secret_file" ]]; then
-      echo "[static-compose] $secret_file 이 없거나 비어 있습니다. .env는 유지하고 runtime secret만 복구합니다."
-      "$PYTHON_BIN" scripts/config/setup_env.py --sync-runtime-secrets --output "$ENV_FILE_ABS" || true
-    fi
     if [[ ! -s "$secret_file" ]]; then
       echo "[static-compose] $secret_file 복구에 실패했습니다. $ENV_FILE_ABS 의 ADMIN_API_KEY 또는 ADMIN_API_KEYS를 확인하세요." >&2
       exit 2

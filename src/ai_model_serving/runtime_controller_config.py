@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .configuration import load_yaml_mapping
+from .port_namespace import port_namespace_from_services
 from .platform_state import DEFAULT_PLATFORM_STATE_DIR, configured_platform_state_root
 from .settings_parts.env import as_bool, is_default_secret
 
@@ -28,10 +29,11 @@ class RuntimeControllerConfig:
     log_target_refresh_seconds: float
 
 
-def _default_gateway_internal_url(config_root: Path) -> str:
-    services = load_yaml_mapping(config_root / "configs/services.yaml")["services"]
-    gateway = services["gateway"]
-    return f"http://{gateway['compose_service']}:{gateway['container_port']}"
+def _default_gateway_internal_url(config_root: Path, environment: Mapping[str, str]) -> str:
+    document = load_yaml_mapping(config_root / "configs/services.yaml")
+    gateway = document["services"]["gateway"]
+    port = port_namespace_from_services(document, environment).port("gateway")
+    return f"http://{gateway['compose_service']}:{port}"
 
 
 def load_runtime_controller_config(
@@ -82,7 +84,7 @@ def load_runtime_controller_config(
         idempotency_ttl_seconds=environment.get("MAIN_MODEL_SWITCH_IDEMPOTENCY_TTL_SECONDS") or None,
         internal_service_token=internal_service_token,
         internal_service_auth_required=internal_service_auth_required,
-        gateway_internal_url=environment.get("GATEWAY_INTERNAL_URL") or _default_gateway_internal_url(config_root),
+        gateway_internal_url=environment.get("GATEWAY_INTERNAL_URL") or _default_gateway_internal_url(config_root, environment),
         log_target_manifest_path=Path(
             environment.get(
                 "LOG_TARGET_MANIFEST_PATH",

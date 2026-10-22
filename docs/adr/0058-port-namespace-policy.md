@@ -3,6 +3,7 @@
 ## Status
 
 Accepted. 기본 대역과 이관 절차는 [ADR-0059](0059-explicit-port-migration-and-cache-preservation.md)로 보완됐다.
+변경 도구(소스·생성물 치환)는 [ADR-0064](0064-port-band-is-deployment-configuration.md)로 대체됐다. 포트 대역은 `.env`의 배포 설정이다.
 아래 96xx 이관 설명은 최초 결정 당시의 기록이다. 현재 설정은 `configs/services.yaml`을 따른다.
 
 ## Context

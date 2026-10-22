@@ -45,13 +45,30 @@ full-stack에서는 다음 정보를 중심으로 본다.
 현재 configuration과 Runtime desired state에서 **필요한 capability가 serving 가능한가**를
 기준으로 판단한다.
 
-### 포트 변경과 기존 캐시
+### 포트 대역 변경과 기존 캐시
 
-접속 주소만 바꾸려면 `.env`의 `GATEWAY_PORT`(Grafana는 `GRAFANA_PORT`)를 수정하고
-`make up`을 실행한다. 내부 Runtime 포트는 그대로 유지된다. 전체 Namespace 변경은
-[개발자 가이드](guides/developer-guide.md#포트-네임스페이스-변경)를 따른다.
-파일 변경만으로 실행 중인 서비스의 포트가 바뀌지는 않는다. `make up`이 성공한 뒤
-`make status`에서 실제 주소와 준비 상태를 확인한다.
+포트는 `.env`의 `PLATFORM_PORT_BASE` 하나로 정한다. 기본값 9400에서 Gateway(+0),
+Main(+1), Embedding(+2·+3), Prompt Detector(+4), Risk(+5), Grafana(+10)가 정해지며,
+Compose 내부 주소·모델 실행 명령·Prometheus 수집 대상도 같은 값에서 계산된다.
+소스·문서를 바꾸거나 Node.js·전체 테스트를 실행하지 않는다.
+
+```bash
+make up TARGET=<deployment-target> PORTS=9600   # 첫 설치를 9600 대역으로
+make ports BASE=9600 PLAN=1                       # 설치된 환경: 변경 내용·포트 충돌만 확인
+make ports BASE=9600                              # .env에 기록 (서비스는 그대로)
+make up                                           # 새 대역으로 수렴
+make status
+```
+
+`make up PORTS=9600`도 설치된 환경에서 같은 변경을 한 번에 적용한다. 두 경로 모두
+서비스를 건드리기 전에 Host 포트를 검사한다. 이 플랫폼 자신의 컨테이너가 쓰는 포트는
+교체 대상으로 보고, 다른 컨테이너나 프로세스가 쓰는 포트는 이름과 함께 알린 뒤 중단한다.
+이때 `.env`와 실행 중인 서비스는 바뀌지 않는다. `make down`을 먼저 실행할 필요는 없다.
+
+`GATEWAY_PORT`·`GRAFANA_PORT`에 대역과 다른 값을 직접 지정했다면 대역을 바꿔도 그 값을 유지한다.
+`main-llm-vllm`처럼 이 플랫폼이 실행하는 서비스의 내부 주소(`*_BASE_URL`)는 대역 포트에서만
+수신하므로, `make up`이 대역과 어긋난 값을 바로잡고 어떤 키를 고쳤는지 표시한다.
+외부 Runtime 주소와 인증키는 바꾸지 않는다.
 
 기존 Compose 캐시는 checkout 소유권을 검증한 뒤 재생성 없이 재사용한다.
 이전 컨테이너 연결에서 확인한 볼륨 정보는 `.runtime/compose-state/volume-reuse-*.json`에
@@ -65,7 +82,12 @@ checkout 라벨이 없는 구버전 네트워크에 활성 컨테이너가 있�
 안내에 따라 `make down` 후 `make up`을 실행하면 볼륨은 유지하면서 빈 네트워크를 이관한다.
 
 Gateway 자체가 응답하지 않거나 required dependency가 준비되지 않았으면 `status`는
-성공처럼 보이지 않고 `Attention`과 함께 `make logs`를 다음 행동으로 제시한다.
+성공처럼 보이지 않는다. `Attention`에 준비되지 않은 dependency의 오류와 내부 주소를,
+`Next`에 확인할 서비스 로그(`make logs SERVICE=main-llm-vllm` 등)를 표시한다.
+Gateway에 연결되지 않으면 gateway 컨테이너 상태를 확인하고, `.env`의 포트가 아직
+적용되지 않은 경우에는 실행 중인 포트와 함께 `make up`을 안내한다. `Gateway` 줄에는
+상태와 함께 접속 주소가 표시된다. `STOPPED / created`인 선택 Runtime은 기동 시 보류된
+것이며 필요할 때 Console에서 시작한다.
 
 ---
 
@@ -374,6 +396,7 @@ macOS launchd 해제에 실패하면 Reset은 `.env`·`.venv`·`.runtime`을 삭
 | 목적 | 명령 |
 |---|---|
 | 시작/현재 상태로 수렴 | `make up` |
+| 포트 대역 변경 | `make ports BASE=<대역>` → `make up` |
 | 현재 상태와 policy state | `make status` |
 | 오류/readiness structured event | `make logs` |
 | 모든 structured request event | `make logs ALL=1` |
