@@ -12,9 +12,7 @@
 
 - Grafana 요청 로그의 도움말과 패널 이름을 간결하게 표시한다. Playground의 코드 내보내기는 파일명·줄 번호·구문 강조·복사 버튼을 갖춘 공통 코드 보기를 제공한다.
 
-- 프로젝트 관리 포트를 96xx 기본 Namespace로 이전한다. `make ports BASE=...`는 역할별 고정 Offset에 따라 관련 설정을 갱신하며, 실행 환경 반영은 `make up`이 담당한다. 기존 94xx 배포는 `.env` 및 외부 접속 URL/방화벽/Tailnet Host Adapter를 검토해야 한다. DCGM, Grafana 내부 포트 등 외부 엔진 소유 포트와 Tailnet HTTPS 443/8443은 유지한다. ([ADR-0058](docs/adr/0058-port-namespace-policy.md))
-
-### Changed
+- 기본 포트 대역은 9400이며 `make ports BASE=...`로 전체 대역을 명시적으로 변경한다. Gateway·Grafana의 접속 포트만 바꿀 때는 `.env` override를 사용하고 `make up`으로 반영한다. ([ADR-0059](docs/adr/0059-explicit-port-migration-and-cache-preservation.md))
 
 - Playground의 Risk Python·Node.js 재현 예제는 검사기 출처가 null이거나 누락되어도 실행할 수 있다. 부분 평가에서는 발견한 탐지 신호를 출력하면서 종료 코드 2로 평가 미완료를 알리며, 미탐지는 평가 완료·시스템 신호 없음·위험 신호 없음이 모두 확인될 때만 출력한다.
 
