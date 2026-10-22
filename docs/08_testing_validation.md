@@ -294,19 +294,23 @@ Gateway /health
 Gateway /ready
       ↓
 Main Model serving gate
-      ↓
-Smoke Test
-Strict Smoke Test
 ```
 
 Gateway `/ready`는 enabled runtime dependency의 준비 상태를 확인한다.
 모델 로딩 중에는 dependency 상태를 표시하며 readiness polling을 이어간다.
+`make up`의 성공은 이 필수 serving gate와 실제 Main Chat 요청에 근거한다.
+전체 기능·모델별 Smoke의 실패는 기동 성공 여부와 별개로 보고한다.
 
-### Smoke implementation — `scripts/ops/smoke_test.sh`
+### Smoke implementation — `make smoke`
 
 ```bash
-bash scripts/ops/smoke_test.sh
+make up
+make smoke
 ```
+
+`make smoke`는 필요할 때 기동된 전체 스택을 명시적으로 검증하는 독립 명령이다.
+검증 도구의 누락·장애·불합격은 제품의 필수 서비스 기동과 분리된다.
+자동화 또는 배포 정책은 `make up` 뒤 이 검증을 추가 승인 조건으로 사용할 수 있다.
 
 Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 확인한다.
 
@@ -320,9 +324,9 @@ Smoke Test는 대표 API 요청이 실제 inference 경로를 통과하는지 �
 | `/v1/embeddings` / `local-embed` | 현재 active인 일반 embedding path |
 | `/v1/embeddings` / `local-embed-ko` | 현재 active인 Korean retrieval embedding path |
 
-`scripts/ops/smoke_test.sh`는 `make up`의 strict serving gate 안에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
+`scripts/ops/smoke_test.sh`는 독립적인 `make smoke`에서 non-main Model Runtime마다 `GET /admin/runtimes`의 현재 desired state와 effective topology를 확인한다. `active` Runtime은 실제 inference probe를 반드시 통과해야 하고, 의도적으로 `stopped`이거나 현재 resource policy에서 unavailable인 Runtime은 해당 Runtime 전용 probe를 수행하지 않는다. `starting` 또는 상태 누락처럼 현재 serving 여부를 확정할 수 없는 경우에는 fail-closed한다. Runtime Startup Profile은 초기 desired state만 결정하며 smoke의 지속적인 상태 authority가 아니다.
 
-`make up`은 내부 `ready_full.sh`의 마지막 단계에서 동일한 strict smoke script를 실행하므로 full-stack readiness와 대표 inference path를 한 번에 검증한다. 실패를 무시하는 별도 warmup은 두지 않는다.
+`make up`은 필수 Runtime Readiness와 실제 Main Chat 경로를 확인한다. 전체 representative Smoke는 별도 `make smoke`로 실행하며, 실패가 발생하면 검증은 실패로 보고하되 이미 정상 실행 중인 Runtime을 검증 스크립트 때문에 중단하지 않는다.
 
 ### Build와 검증의 관계
 
@@ -334,8 +338,11 @@ make up
 ```
 
 ```text
-make check  → 정적 계약 + 결정론적 테스트
-make up  → 선택 target의 저장소 소유 image
+make check   → 정적 계약 + 결정론적 테스트
+make up      → 선택 target의 실행 이미지 + 필수 Readiness
+make smoke   → 실행 중인 전체 스택의 추가 대표 API 검증
+make build-image → 실행 이미지 생성
+make image-smoke → 빌드된 이미지 HTTP 동작 검증
 ```
 
 Build 자체의 상세 흐름은 [7. 로컬 개발과 빌드](./07_local_dev_build.md)를 참고한다.

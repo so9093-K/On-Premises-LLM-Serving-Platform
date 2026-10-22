@@ -185,6 +185,7 @@ def test_runtime_identity_does_not_read_distribution_files_or_git(tmp_path, monk
     ("ops/images/vllm-unified/requirements.media.lock", {"vllm-unified"}),
     ("configs/vllm_unified_build.yaml", {"platform", "vllm-unified"}),
     ("scripts/ops/down_all.sh", set()),
+    ("scripts/build/smoke_platform_image.sh", set()),
     ("ui/control-plane/src/App.tsx", set()),
 ])
 def test_runtime_changes_invalidate_only_consuming_images(tmp_path, path, affected):
@@ -227,3 +228,38 @@ def test_runtime_manifests_cover_docker_copy_sources(monkeypatch, artifact, dock
 
     monkeypatch.setattr(vllm_image, "_DOCKERFILE", ROOT / dockerfile)
     assert vllm_image._dockerfile_local_copy_sources() <= set(provenance.input_paths(artifact))
+
+
+def test_platform_smoke_affects_build_provenance_not_runtime_identity(tmp_path):
+    """검증 스크립트만 바뀌거나 없어져도 기존 실행 이미지는 재사용한다."""
+    fixture_source(tmp_path)
+    script = tmp_path / "scripts/build/smoke_platform_image.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+
+    before_runtime = provenance.runtime_digest(tmp_path, "platform")
+    before_source = provenance.source_digest(tmp_path, "platform")
+    assert "scripts/build/smoke_platform_image.sh" not in provenance.input_paths("platform")
+    assert "scripts/build/smoke_platform_image.sh" in provenance.input_paths("platform", distribution=True)
+
+    script.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    assert provenance.runtime_digest(tmp_path, "platform") == before_runtime
+    assert provenance.source_digest(tmp_path, "platform") != before_source
+    script.unlink()
+    assert provenance.runtime_digest(tmp_path, "platform") == before_runtime
+
+
+def test_startup_and_image_build_do_not_require_smoke_scripts():
+    """실행 경로는 필수 Readiness만 소유하고 추가 검증은 독립 진입점이 소유한다."""
+    readiness = (ROOT / "scripts/ops/ready_full.sh").read_text(encoding="utf-8")
+    image_build = (ROOT / "scripts/build/build_platform_image.sh").read_text(encoding="utf-8")
+    make = (ROOT / "Makefile").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/validate.yml").read_text(encoding="utf-8")
+    assert 'wait_for_gateway_ready "$GATEWAY_BASE_URL/ready"' in readiness
+    assert "wait_for_main_model_ready" in readiness
+    assert "\nbash scripts/ops/smoke_test.sh\n" not in readiness
+    assert "\nbash scripts/build/smoke_platform_image.sh " not in image_build
+    assert "smoke: ##" in make
+    assert "image-smoke: ##" in make
+    assert "run: make build-image" in workflow
+    assert "run: make image-smoke" in workflow

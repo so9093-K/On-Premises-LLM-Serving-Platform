@@ -340,9 +340,11 @@ make status
 ```
 
 `make up`은 필요한 artifact 준비와 service reconciliation 뒤 target이 소유한 serving gate를
-완료해야 성공한다. managed dynamic target은 strict readiness와 representative inference smoke,
-static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다. 별도의 ready/smoke operator command를 추가로
-실행해야 배포가 완료되는 구조가 아니다.
+완료해야 성공한다. managed dynamic target은 필수 Runtime readiness와 실제 Main Chat 경로를,
+static target은 외부 Main dependency를 포함한 Gateway readiness를 확인한다.
+대표 API·non-main 모델의 추가 검증은 `make smoke`가 독립적으로 소유한다.
+검증 명령의 누락이나 실패가 정상 기동 중인 서비스를 중단시키지는 않는다.
+배포 승인 시 추가 Smoke 결과를 요구할지는 배포 정책이 정한다.
 
 GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/maintainer 검증인
 `make runtime-validate`를 추가한다.
@@ -405,8 +407,9 @@ macOS launchd 해제에 실패하면 Reset은 `.env`·`.venv`·`.runtime`을 삭
 | local state 초기화 | `make reset` |
 | project-owned artifact 폐기 | `make purge SCOPE=cache|all` |
 
-정상 operator lifecycle은 이 표에서 끝난다. 내부 readiness, smoke, Compose diagnostics와
-clean script는 `make up`의 구현 또는 maintainer 도구다.
+정상 operator lifecycle은 이 표에서 끝난다. 내부 readiness와 Compose diagnostics는
+`make up`의 구현이며, Smoke는 독립적으로 실행하는 운영 검증이다.
+검증을 수행할 때는 `make smoke`를 사용한다.
 
 ---
 
@@ -419,7 +422,7 @@ clean script는 `make up`의 구현 또는 maintainer 도구다.
 | Operator step output | `.runtime/operator-logs/` | 실패한 내부 단계의 전체 stdout/stderr |
 | Full-stack diagnostics | `.runtime/diagnostics/` | service state와 bounded raw log evidence |
 | Strict readiness | `scripts/ops/ready_full.sh` | `make up` 내부 serving gate |
-| Representative smoke | `scripts/ops/smoke_test.sh` | active/effective Runtime inference 검증 |
+| Representative smoke | `make smoke` → `scripts/ops/smoke_test.sh` | 기동과 독립적인 active/effective Runtime inference 검증 |
 | Compose diagnostics | `scripts/compose/compose_diagnostics.sh` | raw evidence 보존 + known-pattern summary |
 | Runtime qualification | `scripts/validation/runtime_validation.py` | live GPU/runtime 검증 |
 

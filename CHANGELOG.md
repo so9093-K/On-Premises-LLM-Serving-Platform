@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- `make up`은 실제 Runtime Readiness와 필수 Main Chat 가능 여부를 확인하고, 추가 모델별 대표 Smoke는 `make smoke`에서 독립적으로 수행한다. `make build-image`는 제품 이미지를 생성하며 HTTP 동작 검증은 `make image-smoke`가 담당한다. CI에서는 이미지 빌드·HTTP Smoke를 모두 필수로 검사한다. 검증 스크립트만 변경해도 정상 로컬 이미지가 불필요하게 재빌드되지 않는다.
+
 - Playground Chat은 완료된 모델 응답의 제목·목록·코드 등 일부 Markdown을 서식으로 표시하고 원문 보기·복사를 지원한다. HTML·외부 리소스는 실행하지 않고 원본 요청은 보존한다. 대화 기록 삭제 전 확인하며 작성 중인 입력·첨부는 유지한다. 입력 보관 안내는 필요할 때 펼쳐 본다.
 
 - 포트 대역을 `.env`의 `PLATFORM_PORT_BASE` 하나로 정한다. 첫 설치는 `make up TARGET=<target> PORTS=9600`, 설치된 환경은 `make ports BASE=9600` 후 `make up`으로 적용하며 소스·문서 수정, Node.js, 전체 테스트가 필요하지 않다. 내부 주소·모델 실행 명령·Prometheus 수집 대상이 같은 값에서 계산되고, 서비스를 바꾸기 전에 Host 포트 점유를 자기 스택과 다른 프로그램으로 구분해 검사한다. 대역과 어긋난 내부 주소는 `make up`이 바로잡는다. ([ADR-0064](docs/adr/0064-port-band-is-deployment-configuration.md))

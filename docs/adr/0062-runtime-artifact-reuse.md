@@ -24,6 +24,9 @@ Accepted. ADR-0060의 이미지 재사용 조건을 대체한다.
    원본 LICENSE·NOTICE와 Apache-2.0 표기는 저장소에 유지한다.
 4. 기동은 실행 입력이 달라진 이미지만 빌드한다. 외부 registry digest는 배포자가
    지정한 불변 입력이며 로컬 소스 비교의 대상이 아니다.
+5. HTTP Smoke 스크립트는 실행 이미지 생성·재사용의 필수 입력이 아니라 독립 검증 도구다.
+   빌드 출처의 `source_digest`에는 그 스크립트를 포함하되, 재사용에 쓰는
+   `runtime_digest`에서는 제외한다. 이미지 생성과 이미지 Smoke도 독립 단계로 실행한다.
 
 ## Consequences
 

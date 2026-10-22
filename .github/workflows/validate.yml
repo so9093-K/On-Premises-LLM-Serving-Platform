@@ -81,11 +81,16 @@ jobs:
       # Dockerfile/build semantics stay in the provider-neutral repository command.
       # This job only verifies that the exact source under review still produces a
       # runnable Linux Platform image; it does not publish or promote the image.
-      - name: Build and smoke-test Platform image
+      - name: Build Platform image
         env:
           PLATFORM_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
           PLATFORM_BUILD_PLATFORM: linux/amd64
         run: make build-image
+      - name: Verify built Platform image HTTP surface
+        env:
+          PLATFORM_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
+          PLATFORM_BUILD_PLATFORM: linux/amd64
+        run: make image-smoke
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"

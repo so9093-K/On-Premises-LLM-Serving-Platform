@@ -19,7 +19,7 @@ _SHARED_CONTROLS = (
 ARTIFACT_INPUTS = {
     "platform": (
         "Dockerfile", "pyproject.toml", "uv.lock", "VERSION", "src", "configs", "specs/schemas",
-        "scripts/build/build_platform_image.sh", "scripts/build/smoke_platform_image.sh",
+        "scripts/build/build_platform_image.sh",
         *_SHARED_CONTROLS,
     ),
     "vllm-unified": (
@@ -46,7 +46,8 @@ def input_paths(artifact: str, *, distribution: bool = False) -> tuple[str, ...]
     if distribution:
         paths += _DISTRIBUTION_INPUTS
         if artifact == "platform":
-            paths += ("README.md",)
+            # 이미지 실행에는 불필요한 HTTP Smoke도 출처 기록에는 포함한다.
+            paths += ("README.md", "scripts/build/smoke_platform_image.sh")
         else:
             paths += ("VERSION",)
     return paths

@@ -84,6 +84,7 @@ fi
 echo "[image] building platform image ${IMAGE}"
 docker build "${build_args[@]}" .
 
-bash scripts/build/smoke_platform_image.sh "$IMAGE" "$TARGET_PLATFORM"
+# make up의 이미지 준비는 품질 검증 스크립트 실행에 의존하지 않는다.
+# 빌드된 제품의 HTTP 표면 검증은 별도 make image-smoke/CI 단계에서 수행한다.
 IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
-echo "[image] built and verified ${IMAGE} (${IMAGE_ID})"
+echo "[image] built ${IMAGE} (${IMAGE_ID})"

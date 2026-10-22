@@ -245,4 +245,5 @@ bash scripts/ops/status_services.sh --full || true
 # /ready 통과 뒤 실제 Chat 경로도 확인한다. 두 probe 사이에 전환이 시작될 수 있다.
 wait_for_main_model_ready
 
-bash scripts/ops/smoke_test.sh
+# 추가 기능별·통합 Smoke는 make smoke가 독립적으로 소유한다.
+# 기동 완료 조건은 실제 dependency readiness와 필수 Main Chat 요청 가능 여부다.
