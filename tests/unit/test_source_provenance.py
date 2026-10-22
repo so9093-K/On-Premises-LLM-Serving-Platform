@@ -261,5 +261,8 @@ def test_startup_and_image_build_do_not_require_smoke_scripts():
     assert "\nbash scripts/build/smoke_platform_image.sh " not in image_build
     assert "smoke: ##" in make
     assert "image-smoke: ##" in make
+    # Make는 '$'를 소비하므로 Shell에 전달할 환경변수 표기는 '$$'여야 한다.
+    assert '$${PLATFORM_IMAGE:-' in make
+    assert '$${PLATFORM_BUILD_PLATFORM:-}' in make
     assert "run: make build-image" in workflow
     assert "run: make image-smoke" in workflow
