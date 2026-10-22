@@ -26,12 +26,20 @@ export function parseChatInline(value: string): ChatInline[] {
     const marker = value.startsWith('**', index) ? '**'
       : value[index] === '`' ? '`'
         : value[index] === '*' ? '*' : null;
+    // 일반 문장의 곱셈 기호(`2 * 3 * 4`)나 띄어 쓴 별표를 강조로 오인하지 않는다.
+    // 코드 스팬은 공백을 허용하지만 emphasis/strong의 양 끝에는 공백이 올 수 없다.
     if (marker !== null) {
-      let end = value.indexOf(marker, index + marker.length);
+      const openingIndex = index + marker.length;
+      if (marker !== '`' && (openingIndex >= value.length || /\s/.test(value[openingIndex]))) {
+        plain += value[index];
+        index += 1;
+        continue;
+      }
+      let end = value.indexOf(marker, openingIndex);
       while (end >= 0) {
         let escapes = 0;
         for (let pos = end - 1; pos >= 0 && value[pos] === '\\'; pos--) escapes += 1;
-        if (escapes % 2 === 0) break;
+        if (escapes % 2 === 0 && (marker === '`' || (end > openingIndex && !/\s/.test(value[end - 1])))) break;
         end = value.indexOf(marker, end + marker.length);
       }
       if (end > index + marker.length) {

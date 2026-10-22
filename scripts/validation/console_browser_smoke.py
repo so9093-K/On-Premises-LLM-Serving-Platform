@@ -944,6 +944,7 @@ def run_chat_response_ux(browser, width, height):
     assert len(requests) == 1
     page.get_by_role("button", name="대화 지우기").click()
     expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_visible()
+    assert page.get_by_role("group", name="대화 삭제 확인").get_attribute("aria-describedby") == "chat-clear-confirm-description"
     expect(page.get_by_role("group", name="대화 삭제 확인")).to_be_focused()
     page.get_by_text("작성 중인 메시지와 첨부는 유지됩니다.", exact=False).wait_for()
     assert page.locator(".chat-log .chat-exchange").count() == 1, "Confirmation must not delete"

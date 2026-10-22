@@ -79,6 +79,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
   const followRef = useRef(true);
+  const followBeforeConfirmRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   const modelsQuery = usePublicModels(apiKey);
@@ -350,15 +351,20 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
-          {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => { followRef.current = false; setConfirmClear(true); }}>대화 지우기</Button> : null}
+          {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
+            followBeforeConfirmRef.current = followRef.current;
+            followRef.current = false;
+            setConfirmClear(true);
+          }}>대화 지우기</Button> : null}
         </div>
       </div>
 
       {confirmClear && exchanges.length > 0 ? (
-        <div className="chat-clear-confirm" role="group" aria-label="대화 삭제 확인" tabIndex={-1} ref={clearConfirmRef}>
-          <p>전송한 대화 기록과 함께 보낸 첨부를 삭제합니다. 복구할 수 없으며 생성 중인 응답도 중지됩니다. 작성 중인 메시지와 첨부는 유지됩니다.</p>
+        <div className="chat-clear-confirm" role="group" aria-label="대화 삭제 확인" aria-describedby="chat-clear-confirm-description" tabIndex={-1} ref={clearConfirmRef}>
+          <p id="chat-clear-confirm-description">전송한 대화 기록과 함께 보낸 첨부를 삭제합니다. 복구할 수 없으며 생성 중인 응답도 중지됩니다. 작성 중인 메시지와 첨부는 유지됩니다.</p>
           <Button variant="secondary" onClick={() => {
             setConfirmClear(false);
+            followRef.current = followBeforeConfirmRef.current;
             clearTriggerRef.current?.focus();
           }}>취소</Button>
           <Button variant="danger" onClick={() => {

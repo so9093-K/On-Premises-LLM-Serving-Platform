@@ -51,3 +51,24 @@ test('코드 블록 내부의 언어가 붙은 백틱은 종료로 오해하지 
     { kind: 'code', language: 'txt', text: '첫 줄\n```python\n세 번째 줄' },
   ]);
 });
+
+test('일반 수식의 곱셈 별표와 공백을 강조 서식으로 바꾸지 않는다', () => {
+  assert.deepEqual(parseChatInline('2 * 3 = 6 * 1'), [
+    { kind: 'text', value: '2 * 3 = 6 * 1' },
+  ]);
+  assert.deepEqual(parseChatInline('** 띄어 쓴 강조 **'), [
+    { kind: 'text', value: '** 띄어 쓴 강조 **' },
+  ]);
+  assert.deepEqual(parseChatInline('**정상 강조**와 *강조*'), [
+    { kind: 'strong', value: '정상 강조' },
+    { kind: 'text', value: '와 ' },
+    { kind: 'emphasis', value: '강조' },
+  ]);
+});
+
+test('연속된 이스케이프 강조 기호는 원문으로 보인다', () => {
+  assert.deepEqual(parseChatInline(String.raw`\\**literal\\** and **bold**`), [
+    { kind: 'text', value: '**literal** and ' },
+    { kind: 'strong', value: 'bold' },
+  ]);
+});
