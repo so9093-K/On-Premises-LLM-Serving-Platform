@@ -358,3 +358,75 @@ test('새 Chat에서 예제를 표시하고 대화 스크롤이 입력 영역을
   expect(Math.abs((after?.y ?? 0) - (initial?.y ?? 0))).toBeLessThan(3);
   await expect(page.getByRole('button', { name: '예제로 시작하기' })).toBeVisible();
 });
+
+test('관리형 CPU 서버 한도 조정은 확인 후 Runtime Controller 요청으로 전달한다', async ({ page }) => {
+  const profile = {
+    id: 'cpu-gguf-text', display_name: 'Qwen3 0.6B · 기본 CPU',
+    upstream_model_id: 'Qwen/Qwen3-0.6B-GGUF', revision: 'a'.repeat(40),
+    runtime_backend: 'llama-cpp', served_model_name: 'local-main',
+    compatibility: { status: 'compatible' }, qualification: { status: 'verified' },
+    capabilities: { deployed_input: ['text'] }, vram_fraction: 0,
+    resource_variant: null, resource_variants: [],
+    gateway_policy: {
+      max_output_tokens: 4096,
+      request_limits: { max_model_len: 8192, input_modalities: ['text'] },
+    },
+    active: true, switch_preflight: { status: 'current' },
+  };
+  let submitted: Record<string, unknown> | null = null;
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: 'GPU/CPU Controller',
+        runtime_backend: 'llama-cpp', control_mode: 'runtime_controller',
+        lifecycle_owner: 'platform', features: ['model_switching', 'chat'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/admin/main-model/profiles', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ profiles: [profile] }),
+  }));
+  await page.route('**/admin/main-model', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      public_model: 'local-main', active_profile: profile,
+      last_known_good_profile: profile.id, last_operation: null,
+      gate: 'open', runtime_state: 'active', boot_profile: profile.id,
+      profile_locked: false,
+      observed_runtime: { status: 'ready', health: 'healthy', profile_id: profile.id },
+      runtime_selection: { mode: 'cpu', reason_code: 'OPERATOR_SELECTED', cpu_profile: profile.id },
+      stats: {},
+    }),
+  }));
+  await page.route('**/admin/main-model/switch', (route) => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    return route.fulfill({
+      status: 202, contentType: 'application/json',
+      body: JSON.stringify({ operation_id: 'test-limit-operation', status: 'pending', reused: false }),
+    });
+  });
+  await page.route('**/admin/main-model/operations/**', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      operation_id: 'test-limit-operation', status: 'pending', stage: 'pending',
+      requested_profile: profile.id, created_at: 0, updated_at: 0,
+    }),
+  }));
+  await page.goto('/admin/console/main-model');
+  await page.getByRole('button', { name: '현재 구성 한도 조정' }).click();
+  const settings = page.getByRole('group', { name: '서버 실행 토큰 한도 편집' });
+  await expect(settings).toBeVisible();
+  await settings.getByLabel('문맥 토큰').fill('6144');
+  await settings.getByLabel('최대 출력 토큰').fill('2048');
+  await expect(page.getByText('서버 실행 설정이 변경됩니다.')).toBeVisible();
+  await page.getByRole('checkbox', { name: /미검증 상태를 확인했고/ }).check();
+  await page.getByRole('button', { name: '실행 한도 변경 요청' }).click();
+  await expect.poll(() => submitted).toMatchObject({
+    profile: 'cpu-gguf-text', execution_policy: 'cpu',
+    confirm_unverified: true,
+    server_limits: { context_tokens: 6144, max_output_tokens: 2048 },
+  });
+});
