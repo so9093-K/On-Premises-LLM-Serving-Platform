@@ -430,3 +430,58 @@ test('관리형 CPU 서버 한도 조정은 확인 후 Runtime Controller 요청
     server_limits: { context_tokens: 6144, max_output_tokens: 2048 },
   });
 });
+
+
+test('같은 GPU 모델의 더 큰 프로필이 선택 기준의 문맥 상한을 올리지 않는다', async ({ page }) => {
+  const gpuProfile = (id: string, context: number, active: boolean) => ({
+    id, display_name: id, upstream_model_id: 'google/gemma-4-E4B-it',
+    revision: 'b'.repeat(40), served_model_name: 'local-main',
+    runtime_backend: 'vllm-cuda',
+    compatibility: { status: 'compatible' }, qualification: { status: 'verified' },
+    capabilities: { deployed_input: ['text'] }, vram_fraction: 0.5,
+    resource_variant: null, resource_variants: [],
+    gateway_policy: {
+      max_output_tokens: 4096,
+      request_limits: { max_model_len: context, input_modalities: ['text'] },
+    },
+    active, switch_preflight: { status: active ? 'current' : 'fits' },
+  });
+  const small = gpuProfile('gpu-small', 8192, true);
+  const large = gpuProfile('gpu-large', 32768, false);
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: '관리형 Linux',
+        runtime_backend: 'vllm-cuda', control_mode: 'runtime_controller',
+        lifecycle_owner: 'platform', features: ['model_switching', 'chat'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/admin/main-model/profiles', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ profiles: [small, large] }),
+  }));
+  await page.route('**/admin/main-model', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      public_model: 'local-main', active_profile: small,
+      last_known_good_profile: small.id, last_operation: null,
+      gate: 'open', runtime_state: 'active', boot_profile: small.id,
+      profile_locked: false,
+      observed_runtime: { status: 'ready', health: 'healthy', profile_id: small.id },
+      runtime_selection: { mode: 'gpu', reason_code: 'OPERATOR_SELECTED', gpu_profile: small.id },
+      stats: {},
+    }),
+  }));
+  await page.goto('/admin/console/main-model');
+  await page.getByRole('button', { name: '현재 구성 한도 조정' }).click();
+  const group = page.getByRole('group', { name: '서버 실행 토큰 한도 편집' });
+  const context = group.getByLabel('문맥 토큰');
+  await expect(context).toHaveAttribute('max', '8192');
+  await context.fill('12288');
+  await expect(page.getByText('실행 한도 값이 유효하지 않습니다.')).toBeVisible();
+  await expect(page.getByRole('button', { name: '실행 한도 변경 요청' })).toBeDisabled();
+});
