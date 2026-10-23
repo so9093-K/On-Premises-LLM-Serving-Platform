@@ -60,7 +60,7 @@ make down
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |
 | `auth/auth_plan.py` / `auth/auth_apply.py` | secret을 출력하지 않고 auth profile 변경 계획을 보여주거나 managed auth flag만 적용한다. |
 | `quality_cli.py` | pytest·Vitest·Playwright Suite 실행, 종료 코드 전달과 최소 정적 검사 |
-| `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`(생성)와 `validation/governance/versioning.py`(검증)가 같은 표를 읽으므로 두 목록이 갈라질 수 없다. |
+| `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`가 동일한 버전 참조 선언을 사용한다. |
 | `lib/project_image_ownership.sh` | 로컬 build image의 프로젝트·checkout 소유권 label을 정의한다. |
 | `lib/source_provenance.py` / `lib/source_provenance.sh` | 빌드와 기동이 같은 소스 내용 해시를 사용한다. Git 정보가 없는 소스는 `local`로 표시하며 Git 설치나 전역 설정 변경을 요구하지 않는다. |
 | `lib/gateway_runtime_state.sh` | `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
@@ -124,4 +124,4 @@ Risk detector의 `bitsandbytes` 설정은 운영 기본값이다. 원인 분리�
 
 `scripts/openai_compatibility.py`는 `specs/schemas/chat_completion_*.schema.json`의 `x-openai-compatibility` 선언에서 `docs/reference/openai_compatibility.md`를 생성한다. 분류가 없는 파라미터가 있으면 문서를 만들지 않고 실패한다 -- 기본값으로 "표준"을 넣으면 새 확장이 OpenAI 표준인 것처럼 실리기 때문이다.
 
-정적 OpenAPI(`specs/openapi.*.yaml`)는 `make render-runtime-assets`로 생성하고, `make validate`의 `generated artifacts` 단계에서 `render_runtime_assets.py --check`가 생성 문서 전체와 구조 비교한다. 계약 스키마 본문은 `specs/schemas/*.json`이 단일 소유자이며 생성 문서에도 그 파일에서 주입되므로 별도 대조 단계를 두지 않는다.
+정적 OpenAPI(`specs/openapi.*.yaml`)는 `make render-runtime-assets`로 생성하고, `make validate`가 `render_runtime_assets.py --check`를 통해 생성 문서와의 일치 여부를 확인한다. 계약 스키마 본문은 `specs/schemas/*.json`이 단일 소유자이며 생성 문서에도 그 파일에서 주입되므로 별도 대조 단계를 두지 않는다.

@@ -2,7 +2,7 @@
 
 이 저장소는 GitHub를 Source Repository로 사용한다. 현재 자동화는
 [GitHub 검증 워크플로](../.github/workflows/validate.yml)가 `main` push, Pull Request와
-수동 실행에서 macOS·Ubuntu의 application/contract 검사, Control Plane 검사와
+수동 실행에서 macOS·Ubuntu의 pytest, Vitest·Playwright 검사와
 Linux Platform image build·container smoke를 수행한다.
 
 Container image publish와 운영 배포를 담당하는 CI/CD pipeline은 현재 정의하지 않는다.
@@ -64,8 +64,7 @@ SSH/Ansible/CI runner가 이 lifecycle을 다른 host에서 호출할 수는 있
 
 ## 9.4 자원 경계
 
-정적 검증과 unit/contract test는 GPU runtime을 시작하지 않는다. `make check` 안에서
-`validate`와 `test`는 순서대로 실행되며, OS matrix의 병렬 실행은 GPU VRAM과 무관하다.
+기본 품질 CLI는 GPU Runtime을 시작하지 않는다. `make check`는 Ruff·생성물 확인, pytest, Vitest 및 프런트엔드 소스 빌드 검사를 실행한다. 브라우저 검사는 `make browser-test`로 별도 실행한다.
 
 향후 image publish·배포 자동화를 추가할 때는 다음 자원을 별도로 직렬화한다.
 

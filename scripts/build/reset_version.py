@@ -2,8 +2,7 @@
 """프로젝트 버전을 한 번에 바꾼다.
 
 어떤 파일의 어떤 줄이 버전을 담고 있는지는 scripts/lib/version_refs.py가 유일하게
-선언한다. 검증기(scripts/validation/governance/versioning.py)도 같은 표를 읽으므로,
-자리를 추가할 때 두 곳을 따로 고칠 일이 없다.
+선언한다. 버전 참조를 추가하거나 제거할 때는 단일 선언만 수정한다.
 
 사용법:
   python scripts/build/reset_version.py <version>

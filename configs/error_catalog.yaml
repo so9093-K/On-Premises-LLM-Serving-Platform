@@ -1,7 +1,8 @@
 # 에러 코드 카탈로그 — 사용자/운영자용 "의미 레이어"의 단일 소스.
 #
 # status·retryable의 런타임 권위는 errors.py의 ERROR_DEFINITIONS이다(SSE-only 포함).
-# make validate의 validate_common_error_codes가 이 파일, ERROR_DEFINITIONS, public schema의
+# 이 파일은 사용자/운영자 오류 의미를 나타낸다. 오류 코드·상태의 Runtime authority는
+# errors.py 및 공개 API 계약이며 변경 시 그 의미를 함께 확인한다.
 # code 집합을 함께 검사한다. 따라서 status는 여기 중복하지 않고, 이 파일은 code별
 # 서술 메타데이터(meaning/action)만 담는다.
 #

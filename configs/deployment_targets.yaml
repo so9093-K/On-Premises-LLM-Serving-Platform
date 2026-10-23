@@ -106,7 +106,7 @@ targets:
     platform: linux
     runtime_backend: vllm-cuda
     # 이 target이 Prometheus·Grafana 모니터링 스택을 띄우는가. Console은 이 값으로
-    # Grafana 링크를 보인다. make validate가 compose 파일과 대조한다.
+    # Grafana 링크를 보인다. Compose 변경 시 effective 구성을 직접 확인한다.
     runs_monitoring_stack: true
     main_profile_catalog: configs/main_model_profiles.yaml
     # compose_files는 static target만 선언한다. dynamic 진입점(compose_up.sh)은
@@ -135,7 +135,7 @@ targets:
     platform: linux
     runtime_backend: vllm-cuda
     # 이 target이 Prometheus·Grafana 모니터링 스택을 띄우는가. Console은 이 값으로
-    # Grafana 링크를 보인다. make validate가 compose 파일과 대조한다.
+    # Grafana 링크를 보인다. Compose 변경 시 effective 구성을 직접 확인한다.
     runs_monitoring_stack: false
     main_profile_catalog: configs/main_model_profiles.yaml
     compose_files:
@@ -163,7 +163,7 @@ targets:
     platform: macos
     runtime_backend: mlx-vlm
     # 이 target이 Prometheus·Grafana 모니터링 스택을 띄우는가. Console은 이 값으로
-    # Grafana 링크를 보인다. make validate가 compose 파일과 대조한다.
+    # Grafana 링크를 보인다. Compose 변경 시 effective 구성을 직접 확인한다.
     runs_monitoring_stack: true
     main_profile_catalog: configs/macos_mlx_runtime.yaml
     compose_files:
