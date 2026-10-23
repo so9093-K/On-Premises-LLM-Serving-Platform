@@ -188,8 +188,8 @@ make render-runtime-assets
 make validate
 ```
 
-`make validate`는 generated artifact와 Compose override가 현재 Source of Truth와
-일치하는지 확인한다.
+`make validate`는 생성 산출물 Drift를 확인하며, Compose override의 실제 반영은
+`bash scripts/compose/compose_config.sh`의 effective 구성을 기준으로 확인한다.
 
 ### 환경변수 계약
 

@@ -77,7 +77,7 @@ def _run_suites(names: tuple[str, ...], junit_dir: Path | None) -> int:
 
 def _validate() -> int:
     commands = (
-        ("Python 정적 검사", [sys.executable, "-m", "ruff", "check", "--quiet", "src", "scripts", "--extend-exclude", "scripts/validation"], ROOT),
+        ("Python 정적 검사", [sys.executable, "-m", "ruff", "check", "--quiet", "src", "scripts", "tests/python"], ROOT),
         ("생성 산출물 Drift", [sys.executable, "scripts/render_runtime_assets.py", "--check"], ROOT),
     )
     failures = []
