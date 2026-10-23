@@ -218,9 +218,16 @@ class MainModelManager:
         return snapshot
 
     def profiles(self) -> list[dict[str, Any]]:
-        active = self.state_store.read().get("active_profile")
+        state = self.state_store.read()
+        active = state.get("active_profile")
+        custom = state.get("runtime_limit_profiles") or {}
         return [
-            {**profile.public_view(), "active": profile.profile_id == active}
+            {
+                **profile.public_view(),
+                "active": profile.profile_id == active,
+                **({"base_profile_id": custom[profile.profile_id]["base_profile"]}
+                   if profile.profile_id in custom else {}),
+            }
             for profile in self.catalog.profiles.values()
         ]
 

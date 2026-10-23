@@ -305,11 +305,9 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       && item.upstream_model_id === reviewProfile.upstream_model_id
       && item.revision === reviewProfile.revision,
     ).map((item) => mainModelTokenLimits(item).contextTokens ?? 0))
-    : Math.max(0, ...profiles.filter((item) =>
-      item.runtime_backend === 'vllm-cuda'
-      && item.upstream_model_id === reviewProfile?.upstream_model_id
-      && item.revision === reviewProfile?.revision,
-    ).map((item) => mainModelTokenLimits(item).contextTokens ?? 0));
+    : mainModelTokenLimits(
+      profiles.find((item) => item.id === reviewProfile?.base_profile_id) ?? reviewProfile,
+    ).contextTokens ?? 0;
   const limitsValid = !limitsEdited || (Number.isInteger(parsedContextTokens)
     && Number.isInteger(parsedOutputTokens)
     && parsedContextTokens >= (reviewProfile?.runtime_backend === 'llama-cpp' ? 512 : 1024)
@@ -321,6 +319,16 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     ? mainModelProfileImpact(active, reviewProfile)
     : null;
 
+  const beginReview = (profile: MainModelProfile, mode: ExecutionPolicy) => {
+    const limits = mainModelTokenLimits(profile);
+    setReviewPolicy(mode);
+    setReviewProfileId(profile.id);
+    setEditContextTokens(String(limits.contextTokens ?? ''));
+    setEditOutputTokens(String(limits.maxOutputTokens ?? ''));
+    setConfirmed(false);
+    setActionError(null);
+  };
+
   const policyAction = (mode: ExecutionPolicy) => {
     if (!selection) return null;
     const retry = mode === 'fallback' && selection.mode === 'fallback' && active?.runtime_backend === 'llama-cpp';
@@ -330,7 +338,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     return <Button key={mode} variant="secondary"
       isDisabled={switchMutation.isPending || busy || !target || (selection.mode === mode && !retry)}
       onClick={() => {
-        if (target) { setReviewPolicy(mode); setReviewProfileId(target.id); setEditContextTokens(String(mainModelTokenLimits(target).contextTokens ?? '')); setEditOutputTokens(String(mainModelTokenLimits(target).maxOutputTokens ?? '')); setConfirmed(false); setActionError(null); }
+        if (target) beginReview(target, mode);
       }}>
       {retry ? 'GPU 다시 확인' : executionPolicyPresentation[mode].label}
     </Button>;
@@ -466,14 +474,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                       {(
                         <Button size="sm" variant="secondary"
                           isDisabled={switchMutation.isPending || busy || locked}
-                          onClick={() => {
-                            setReviewPolicy(profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu');
-                            setReviewProfileId(profile.id);
-                            setEditContextTokens(String(mainModelTokenLimits(profile).contextTokens ?? ''));
-                            setEditOutputTokens(String(mainModelTokenLimits(profile).maxOutputTokens ?? ''));
-                            setConfirmed(false);
-                            setActionError(null);
-                          }}
+                          onClick={() => beginReview(profile, profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu')}
                         >{profile.active ? '현재 구성 한도 조정' : '이 구성으로 전환 검토'}</Button>
                       )}
                     </div>
@@ -703,12 +704,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                             size="sm"
                             variant="secondary"
                             isDisabled={switchMutation.isPending || busy}
-                            onClick={() => {
-                              setReviewPolicy(profile.runtime_backend === "llama-cpp" ? "cpu" : "gpu");
-                              setReviewProfileId(profile.id);
-                              setConfirmed(false);
-                              setActionError(null);
-                            }}
+                            onClick={() => beginReview(profile, profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu')}
                           >전환 검토</Button>
                         )}
                       </td>
