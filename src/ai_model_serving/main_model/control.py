@@ -889,7 +889,7 @@ class MainModelManager:
                 stats["rollback_failures"] = int(stats.get("rollback_failures", 0)) + 1
             stats["last_switch_timestamp"] = now
             stats["last_switch_duration_seconds"] = duration
-            if not success:
+            if not success and not rollback_failed:
                 requested = operation.get("requested_profile")
                 protected = {
                     state.get("active_profile"),
@@ -899,7 +899,7 @@ class MainModelManager:
                 if isinstance(requested, str) and requested.startswith("limits-") and requested not in protected:
                     (state.get("runtime_limit_profiles") or {}).pop(requested, None)
         self.state_store.update(mutate)
-        if not success:
+        if not success and not rollback_failed:
             current = self.state_store.read()
             for stale_id in tuple(self.catalog.profiles):
                 if stale_id.startswith("limits-") and stale_id not in (current.get("runtime_limit_profiles") or {}):
@@ -997,6 +997,20 @@ class MainModelManager:
                         rollback_failed=True,
                     )
                     return
+            # 교체 이후 복구할 이전 프로필이 없다면 실제 컨테이너 신원을
+            # 확정할 수 없다. 기록을 정리하지 않고 Gate를 닫아 두어야 한다.
+            if previous_id not in self.catalog.profiles:
+                self._set_operation(
+                    operation_id,
+                    "rollback_failed",
+                    stage=failed_stage,
+                    error=str(exc),
+                    rollback_error="previous known-good profile is unavailable",
+                )
+                self._record_terminal(
+                    operation_id, success=False, rollback=True, rollback_failed=True,
+                )
+                return
             self._set_operation(
                 operation_id,
                 "failed",

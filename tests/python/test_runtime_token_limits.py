@@ -73,16 +73,23 @@ def test_gpu_cannot_exceed_declared_context_and_updates_command_and_gateway():
 
 
 class FakeBackend:
-    def __init__(self, profile_id: str, *, reject_custom: bool = False):
+    def __init__(
+        self, profile_id: str, *, reject_custom: bool = False,
+        reject_rollback: bool = False,
+    ):
         self.current = profile_id
         self.reject_custom = reject_custom
+        self.reject_rollback = reject_rollback
 
     async def observed_profile(self, _catalog): return self.current
     async def observed_started_at(self, _catalog): return "container-start-time"
     async def observe_runtime(self, _catalog): return {"status": "ready", "profile_id": self.current}
     async def prepare(self, _catalog, _profile): pass
     async def wait_for_drain(self, _timeout): pass
-    async def replace(self, _catalog, profile): self.current = profile.profile_id
+    async def replace(self, _catalog, profile):
+        if self.reject_rollback and self.current.startswith("limits-") and profile.profile_id == "cpu-gguf-text":
+            raise RuntimeError("cannot restore previous runtime")
+        self.current = profile.profile_id
     async def validate(self, _catalog, profile):
         if self.reject_custom and profile.profile_id.startswith("limits-"):
             raise RuntimeError("test canary rejected new runtime")
@@ -198,5 +205,73 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
         assert all(item not in manager.catalog.profiles for item in removed)
         assert (await manager.wait_for_operation(result.operation_id))["status"] == "completed"
         assert store.read()["previous_known_good_profile"] == protected_id
+        await manager.aclose()
+    asyncio.run(exercise())
+
+
+def test_rollback_failure_keeps_derived_identity_for_recovery(tmp_path: Path):
+    """Rollback이 실패하면 관측 중인 파생 런타임의 신원을 정리하지 않는다."""
+    async def exercise():
+        store = MainModelStateStore(tmp_path / "rollback-failed.json", "cpu-gguf-text")
+        store.update(lambda state: state.update(
+            active_profile="cpu-gguf-text",
+            last_known_good_profile="cpu-gguf-text",
+            gate="open", runtime_selection={"mode": "cpu"},
+        ))
+        backend = FakeBackend("cpu-gguf-text", reject_custom=True, reject_rollback=True)
+        manager = MainModelManager(cpu_catalog(), store, backend)
+        outcome = manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="cpu",
+        )
+        operation = await manager.wait_for_operation(outcome.operation_id)
+        state = store.read()
+        assert operation["status"] == "rollback_failed"
+        assert state["gate"] == "closed"
+        assert state["active_profile"] == "cpu-gguf-text"
+        assert backend.current.startswith("limits-")
+        assert backend.current in state["runtime_limit_profiles"]
+        assert backend.current in manager.catalog.profiles
+        await manager.aclose()
+
+        restored = MainModelManager(cpu_catalog(), store, backend)
+        assert backend.current in restored.catalog.profiles
+        assert restored.catalog.profiles[backend.current].command == manager.catalog.profiles[backend.current].command
+        assert store.read()["gate"] == "closed"
+        await restored.aclose()
+    asyncio.run(exercise())
+
+
+def test_interrupted_switch_with_unknown_runtime_preserves_derived_identity(tmp_path: Path):
+    """재시작 시 실제 런타임을 확정할 수 없더라도 복구용 파생 신원을 보존한다."""
+    async def exercise():
+        store = MainModelStateStore(tmp_path / "interrupted.json", "cpu-gguf-text")
+        profile = build_runtime_limit_profile(cpu_catalog(), "cpu-gguf-text", 12288, 2048)
+        operation = {
+            "id": "interrupted-test",
+            "requested_profile": profile.profile_id,
+            "previous_profile": "cpu-gguf-text",
+            "previous_gate": "open",
+            "status": "starting",
+            "stage": "starting",
+            "created_at": 1.0,
+            "updated_at": 1.0,
+        }
+        store.update(lambda state: state.update(
+            active_profile="cpu-gguf-text",
+            last_known_good_profile="cpu-gguf-text",
+            gate="open", runtime_selection={"mode": "cpu"},
+            runtime_limit_profiles={profile.profile_id: {
+                "base_profile": "cpu-gguf-text", "context_tokens": 12288, "max_output_tokens": 2048,
+            }},
+            last_operation=operation, operations=[operation],
+        ))
+        backend = FakeBackend("unrecognized-engine-profile")
+        manager = MainModelManager(cpu_catalog(), store, backend)
+        await manager.initialize()
+        assert store.read()["last_operation"]["status"] == "rollback_failed"
+        assert store.read()["gate"] == "closed"
+        assert profile.profile_id in store.read()["runtime_limit_profiles"]
+        assert profile.profile_id in manager.catalog.profiles
         await manager.aclose()
     asyncio.run(exercise())
