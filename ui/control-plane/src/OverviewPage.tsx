@@ -75,7 +75,6 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const authClass = token === null ? 'anonymous' : 'authenticated';
   const runtimeControlEnabled = bootstrap.deployment.features.includes('runtime_control');
   const modelSwitchingEnabled = bootstrap.deployment.features.includes('model_switching');
-  const managedCpuWithoutController = !modelSwitchingEnabled && bootstrap.deployment.control_mode === 'managed_cpu';
   const noMainModel = bootstrap.deployment.runtime_backend === 'none';
 
   const runtimesQuery = useQuery({
@@ -149,16 +148,13 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     || unavailableTopology.length > 0
     || !bootstrap.configuration.write_available
     || bootstrap.deployment.lifecycle_owner === 'external'
-    || managedCpuWithoutController
   );
 
   const operatorStatus = checking
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : managedCpuWithoutController
-        ? { label: '일부 상태 확인 불가', color: 'blue' as const, description: '관리형 CPU의 실제 준비 상태는 Console에서 관측하지 않습니다.' }
-        : { label: '조회 결과 · 주의 없음', color: 'grey' as const, description: '' };
+      : { label: '조회 결과 · 주의 없음', color: 'grey' as const, description: '' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,
@@ -194,7 +190,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
               <dd>
                 {runtimeControlEnabled
                   ? `${runtimeStateCount(runtimes, 'active')}개 실행 중 · ${runtimeStateCount(runtimes, 'starting')}개 시작 중`
-                  : noMainModel ? '모델 Runtime 없음 · Risk 기본 서비스' : managedCpuWithoutController ? 'Compose 관리 · Control Plane 제어 없음' : '외부 / 네이티브 관리'}
+                  : noMainModel ? '모델 Runtime 없음 · Risk 기본 서비스' : '외부 / 네이티브 관리'}
               </dd>
               <dt>설정</dt>
               <dd>{bootstrap.configuration.write_available ? '변경 가능' : '읽기 전용 / 변경 불가'}</dd>

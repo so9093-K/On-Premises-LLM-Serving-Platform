@@ -84,11 +84,10 @@ export function mainModelOverviewSignals(
  */
 export function unmanagedModelSummary(
   runtimeBackend: string,
-  controlMode: string,
+  _controlMode: string,
   lifecycleOwner: string,
 ): string {
   if (runtimeBackend === 'none') return '메인 모델 없음 · Risk 등 기본 서비스 운영';
-  if (controlMode === 'managed_cpu') return 'CPU · 플랫폼 Compose 관리 · 준비 상태 별도 확인';
   if (lifecycleOwner === 'external') return '외부 / 네이티브 모델 관리 · 상태 별도 확인';
   return '플랫폼 관리 · 모델 전환 제어 없음 · 상태 별도 확인';
 }
