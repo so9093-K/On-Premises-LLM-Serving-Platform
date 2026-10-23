@@ -978,7 +978,7 @@ class MainModelManager:
                 self._record_terminal(operation_id, success=False)
                 return
             self._set_operation(operation_id, "rolling_back", error=str(exc))
-            if entered_replace_phase and previous_id in self.catalog.profiles:
+            if previous_id in self.catalog.profiles:
                 previous = self.catalog.profiles[previous_id]
                 try:
                     await self.backend.replace(self.catalog, previous)
@@ -1017,16 +1017,11 @@ class MainModelManager:
                 stage=failed_stage,
                 error=str(exc),
             )
-            if previous_id:
-                def reopen(state: dict[str, Any]) -> None:
-                    state["active_profile"] = previous_id
-                    state["gate"] = "open"
-                self.state_store.update(reopen)
-            self._record_terminal(
-                operation_id,
-                success=False,
-                rollback=entered_replace_phase and previous_id in self.catalog.profiles,
-            )
+            def reopen(state: dict[str, Any]) -> None:
+                state["active_profile"] = previous_id
+                state["gate"] = "open"
+            self.state_store.update(reopen)
+            self._record_terminal(operation_id, success=False, rollback=True)
             return
 
         def commit(state: dict[str, Any]) -> None:

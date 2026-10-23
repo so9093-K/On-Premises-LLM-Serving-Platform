@@ -21,4 +21,4 @@ Status: Accepted
 
 ## Consequences
 
-새 설정으로의 모델 적재 실패 또는 Canary 실패 시 이전 정상 프로필의 실행 인자·요청 한도까지 복원한다. 불변 ID와 지속 상태는 기존 Controller state의 일부이며 별도 저장소를 추가하지 않는다. GPU 문맥 상향은 별도 자원 admission 계약 전까지 허용하지 않는다.
+새 설정으로의 모델 적재 실패 또는 Canary 실패 시 이전 정상 프로필의 실행 인자·요청 한도까지 복원을 시도한다. 복구 검증에 실패하면 Gate를 닫고 해당 파생 실행 기록을 보존한다. 불변 ID와 지속 상태는 기존 Controller state의 일부이며 별도 저장소를 추가하지 않는다. GPU 문맥 상향은 별도 자원 admission 계약 전까지 허용하지 않는다.
