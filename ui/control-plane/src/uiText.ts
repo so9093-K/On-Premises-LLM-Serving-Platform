@@ -41,6 +41,7 @@ export function lifecycleOwnerLabel(owner: string): string {
 
 export function controlModeLabel(mode: string): string {
   if (mode === 'runtime_controller') return '플랫폼 런타임 제어';
+  if (mode === 'managed_cpu') return '플랫폼 Compose 관리';
   if (mode === 'static') return '외부 관리';
   return mode;
 }
@@ -202,6 +203,7 @@ export function capabilityPresentation(
   feature: string,
   enabledFeatures: readonly string[],
   lifecycleOwner: string,
+  runtimeBackend?: string,
 ): CapabilityPresentation {
   const enabled = enabledFeatures.includes(feature);
   if (enabled) {
@@ -213,7 +215,7 @@ export function capabilityPresentation(
       tone: 'green',
     };
   }
-  if (lifecycleOwner === 'external' && EXTERNAL_MANAGEMENT_CAPABILITIES.has(feature)) {
+  if (runtimeBackend !== 'none' && lifecycleOwner === 'external' && EXTERNAL_MANAGEMENT_CAPABILITIES.has(feature)) {
     return {
       key: feature,
       label: CAPABILITY_LABELS[feature] ?? feature,
