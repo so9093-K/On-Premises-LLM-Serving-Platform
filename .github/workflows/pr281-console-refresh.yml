@@ -1,0 +1,37 @@
+# PR #281의 변경된 Console 배포 자산을 단 한 번 생성한 후 이 워크플로를 제거한다.
+name: PR281 Console Asset Refresh
+
+on:
+  push:
+    branches: [feat/operator-runtime-token-limits]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: feat/operator-runtime-token-limits
+          persist-credentials: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ui/control-plane/.nvmrc
+          cache: npm
+          cache-dependency-path: ui/control-plane/package-lock.json
+      - name: Pin npm
+        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Generate canonical Console assets
+        run: make console-build
+      - name: Commit output and remove one-off workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src/ai_model_serving/static/control-plane
+          git rm -- .github/workflows/pr281-console-refresh.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "build(console): 서버 한도 편집의 배포 정적 자산을 소스와 일치시킨다"
+          git push origin HEAD:refs/heads/feat/operator-runtime-token-limits
