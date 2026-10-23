@@ -232,3 +232,89 @@ test('Embedding 입력 변경 뒤 기존 벡터를 마지막 실행 결과로 �
   await expect(page.getByText('이전 입력의 실행 결과입니다.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Embedding 결과' })).toContainText('마지막 실행 결과');
 });
+
+test('운영 활동에서 과거 페이지를 열어도 최신 작업 상태를 덮어쓰지 않는다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: 'GPU',
+        runtime_backend: 'vllm-cuda', features: ['runtime_control'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  const operation = (id: string, updatedAt: number, status: string, serviceKey = 'embedding') => ({
+    operation_id: id, service_key: serviceKey, desired_state: 'active',
+    status, phase: 'completed', updated_at: updatedAt, request_id: `request-${id}`,
+    actor: { actor_id: 'operator', auth_method: 'admin' },
+    plan_digest: null, verification: { converged: true }, force: false, durable: true,
+  });
+  await page.route('**/admin/runtimes/operations?*', (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    const body = cursor
+      ? { items: [
+        operation('same-task', 100, 'pending'),
+        operation('older-task', 90, 'noop', 'prompt_injection_detector'),
+      ], next_cursor: null }
+      : { items: [operation('same-task', 200, 'verified')], next_cursor: 'older-page' };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.route('**/admin/config/history*', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], next_cursor: null }),
+  }));
+  await page.goto('/admin/console/operations');
+  await expect(page.locator('.activity-timeline-item')).toHaveCount(1);
+  await page.getByRole('button', { name: '이전 런타임 작업 더 보기' }).click();
+  await expect(page.locator('.activity-timeline-item')).toHaveCount(2);
+  const current = page.locator('.activity-timeline-item').filter({ hasText: 'embedding → active' });
+  await expect(current).toHaveCount(1);
+  await expect(current).toContainText('검증 완료');
+  await expect(current).not.toContainText('진행 중');
+  await expect(page.getByText('자동 갱신을 중지합니다.', { exact: false })).toBeVisible();
+});
+
+test('런타임 시작 검토를 선택하면 영향 확인 영역에 키보드 포커스가 이동한다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: 'GPU',
+        runtime_backend: 'vllm-cuda', features: ['runtime_control'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/admin/runtimes', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      runtimes: [{
+        service_key: 'embedding', display_name: 'Embedding Runtime',
+        state: 'stopped', container_status: 'stopped',
+        runtime_backend: 'vllm-cuda', upstream_model_id: 'embed-model',
+        vram_fraction: 0.1, criticality: 'retrieval_support_path',
+      }],
+      budget: { used: 0, free: 0.8, ceiling: 0.8 },
+      topology: [],
+    }),
+  }));
+  await page.route('**/admin/runtimes/embedding/plans', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      service_key: 'embedding', current_state: 'stopped', desired_state: 'active',
+      no_op: false, admissible: true, force: false, requires_force: false,
+      start: ['embedding'], stop: [], prerequisites: [], impact: [],
+      budget: { before: { used: 0, free: 0.8, ceiling: 0.8 }, after: { used: 0.1, free: 0.7, ceiling: 0.8 } },
+      plan_digest: 'test-plan', reason: null,
+    }),
+  }));
+  await page.goto('/admin/console/runtimes');
+  await page.getByRole('button', { name: '시작 검토' }).click();
+  const review = page.getByRole('region', { name: '런타임 변경 영향 확인' });
+  await expect(review).toBeVisible();
+  await expect(review).toBeFocused();
+  await review.getByRole('button', { name: '취소' }).click();
+  await expect(review).toHaveCount(0);
+});
