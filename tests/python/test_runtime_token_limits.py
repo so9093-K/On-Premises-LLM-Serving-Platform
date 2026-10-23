@@ -503,3 +503,27 @@ def test_compose_boot_reconstructs_saved_gpu_server_limits(tmp_path: Path):
     assert selected == profile.profile_id
     args = override["services"]["main-llm-vllm"]["command"]
     assert args[args.index("--max-model-len") + 1] == "32768"
+
+
+def test_cpu_bootstrap_template_ignores_corrupt_state_until_controller_recovery(tmp_path: Path):
+    """CPU 템플릿은 손상된 State JSON 때문에 Core/CPU 준비를 차단하지 않는다."""
+    from ai_model_serving.main_model.boot import render_boot_override
+
+    env_path = tmp_path / "boot.env"
+    env_path.write_text(
+        "VLLM_IMAGE=sha256:" + "c" * 64 + "\n"
+        "MAIN_MODEL_BOOT_PROFILE=cpu-gguf-text\n"
+        "MAIN_MODEL_PROFILE_LOCKED=false\n",
+        encoding="utf-8",
+    )
+    state_path = tmp_path / "corrupt-state.json"
+    state_path.write_text("{invalid-state", encoding="utf-8")
+    profile_id, boot = render_boot_override(
+        catalog_path=resolve_project_root() / "configs/main_model_profiles.yaml",
+        state_path=state_path,
+        env_path=env_path,
+        cpu_template=True,
+    )
+    assert profile_id == "cpu-gguf-text"
+    args = boot["services"]["main-llm-vllm"]["command"]
+    assert args[args.index("--ctx-size") + 1] == "8192"
