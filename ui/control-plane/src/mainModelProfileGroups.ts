@@ -13,13 +13,16 @@ export type MainModelProfileGroup = {
 export function mainModelProfileGroups(profiles: readonly MainModelProfile[]): MainModelProfileGroup[] {
   const groups = new Map<string, MainModelProfileGroup>();
   for (const profile of profiles) {
-    const key = JSON.stringify([profile.upstream_model_id, profile.revision, profile.runtime_backend]);
-    let group = groups.get(key);
-    if (!group) {
-      group = { key, modelId: profile.upstream_model_id, revision: profile.revision, backend: profile.runtime_backend, profiles: [] };
-      groups.set(key, group);
+    const key = JSON.stringify([profile.upstream_model_id, profile.revision ?? '', profile.runtime_backend]);
+    const group = groups.get(key);
+    if (group) {
+      group.profiles.push(profile);
+    } else {
+      groups.set(key, {
+        key, modelId: profile.upstream_model_id, revision: profile.revision ?? '미표시',
+        backend: profile.runtime_backend, profiles: [profile],
+      });
     }
-    group.profiles.push(profile);
   }
   return Array.from(groups.values());
 }
