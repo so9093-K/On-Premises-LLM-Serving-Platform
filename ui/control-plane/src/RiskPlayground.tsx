@@ -158,6 +158,9 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
                 setCheckId(example.check);
                 setPrompt(example.prompt);
                 setInputError(null);
+                setRun(null);
+                setFailure(null);
+                setLastRequest(null);
                 setPendingExampleId(null);
               }}
             >

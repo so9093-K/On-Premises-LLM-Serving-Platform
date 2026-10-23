@@ -10,7 +10,6 @@ export function usePublicModels(apiKey: string | null) {
     queryFn: () => fetchPublicModels(apiKey),
     retry: false,
     staleTime: 30_000,
-    // API 키를 바꿔 다시 불러오는 동안 작업 화면이 사라지지 않게 이전 목록을 유지한다.
-    placeholderData: (previous) => previous,
+    // 인증 주체가 바뀌면 이전 키의 모델 목록을 새 키의 결과로 표시하지 않는다.
   });
 }

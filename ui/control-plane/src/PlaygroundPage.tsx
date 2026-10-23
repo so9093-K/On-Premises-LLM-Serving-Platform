@@ -8,6 +8,7 @@ import { useChatSession } from './ChatSessionContext';
 import { EmbeddingPlayground } from './EmbeddingPlayground';
 import { playgroundPath, visiblePlaygroundWorkspaces, type PlaygroundWorkspace } from './navigation';
 import { usePublicModels } from './publicModelsQuery';
+import { DEFAULT_CHAT_SETTINGS } from './chatSession';
 import { RiskPlayground } from './RiskPlayground';
 
 type PlaygroundPageProps = {
@@ -58,7 +59,7 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
 export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPageProps) {
   const { apiKey, setApiKey, apiKeyRejected, exchanges, draft, attachments, settings } = useChatSession();
   const [confirmKeyClear, setConfirmKeyClear] = useState(false);
-  const hasChatWork = exchanges.length > 0 || Boolean(draft.trim()) || attachments.length > 0 || settings.systemPrompt !== '';
+  const hasChatWork = exchanges.length > 0 || Boolean(draft.trim()) || attachments.length > 0 || JSON.stringify(settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS);
   const modelsQuery = usePublicModels(apiKey);
   const workspaces = visiblePlaygroundWorkspaces(features);
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
