@@ -35,11 +35,6 @@ CPU를 유지하며, 이후 GPU 여유가 생겨도 자동 복귀하지 않습�
 정책 변경에 `.env` 재생성이나 Target 변경은 필요하지 않습니다.
 `POLICY=...`는 최초 설정용이며, 이후에는 Console에서 검토·적용합니다.
 
-기존 `linux-adaptive`·`linux-cpu-managed`에서 공통 구성으로 이전하려면 `make down` 후
-`make up TARGET=linux-nvidia-dynamic ACCESS=local`을 실행합니다. CPU 고정으로 새로 시작하는 경우 `POLICY=cpu`를 지정합니다. 인증값·포트·캐시·Main 상태는
-보존됩니다. 기존 설치에서 영속된 실행 정책은 최초 `POLICY` 인자보다 우선하므로 이전 뒤 Console에서 현재 정책을 확인하세요.
-두 기존 Target은 명시적으로 이전하기 전까지 이전 기능 범위로 동작합니다.
-
 Gateway와 로컬 Risk가 먼저 기동합니다. CPU 모델의 고정 SHA-256 검증·적재·실제 응답
 검증에 성공하면 요청을 받습니다. GPU image 준비 실패는 CPU와 Core를 중지하지 않습니다.
 모델 준비 실패로 `make up`이 실패해도 Core는 유지되며 로그에서 원인을 확인할 수 있습니다.
@@ -93,7 +88,7 @@ GPU 메모리 압력·관측 실패·실제 엔진 장애에서는 첫 관측에
 연속 관측되면 CPU 재시도 유예와 독립적으로 Canary를 수행해 성공 시에만 Gate를 엽니다.
 이 복구는 컨테이너 재생성이나 진행 중 요청의 재전송을 요구하지 않습니다.
 
-CPU는 Qwen3 0.6B, 텍스트·Chat·Responses·SSE, 문맥 2,048·출력 최대 256 tokens입니다.
+CPU는 Qwen3 0.6B, 텍스트·Chat·Responses·SSE, 기본 문맥 8,192·최대 출력 4,096토큰입니다. 기존 실장비 검증은 2,048/256이므로 기본 정책과 사용자 지정 상한은 아직 미검증입니다.
 GPU는 Gemma E4B의 기존 Profile 정책을 따릅니다. 같은 `local-main`이라도 모델·답변·지원
 파라미터가 바뀝니다. 클라이언트는 전환 후 `/v1/models`의 입력·파라미터 한도를 다시
 확인하세요. 진행 중 요청을 다른 모델에 자동 재전송하거나 결과를 합치지 않습니다.
@@ -101,15 +96,13 @@ GPU는 Gemma E4B의 기존 Profile 정책을 따릅니다. 같은 `local-main`�
 독립적으로 유지됩니다. GPU Runtime은 최초 중지 상태이며 필요할 때 런타임 화면에서 시작합니다.
 Prompt Detector를 명시적으로 중지한 동안 Gateway `/ready`는 Risk 서비스의 Core `/health`를
 확인합니다. Prompt 평가 전체의 준비 상태는 Risk 서비스 `/ready`와 개별 Runtime 상태로 구분합니다.
-실제 사용 가능 여부는 개별 Runtime 준비와 자원 정책을 따릅니다. 이전 `linux-adaptive` 구성은
-Main과 로컬 Risk만 제공합니다.
+실제 사용 가능 여부는 개별 Runtime 준비와 자원 정책을 따릅니다.
 
 ## 중지와 장애 복구
 
 런타임 화면의 Main 중지/시작은 Plan을 먼저 확인합니다. 중지는 진행 중 요청을 기다리며
 중지 의도는 Controller 재시작 후에도 유지됩니다. 시작은 선택한 정책과 현재 프로필을 검증합니다.
 공통 구성에서 프로필을 직접 선택하면 해당 엔진의 고정 정책으로 전환합니다.
-이전 `linux-adaptive` 구성의 수동 Profile 전환은 잠겨 있습니다.
 
 ```bash
 make logs

@@ -154,9 +154,9 @@ repository `.env` 자동 로딩은 local / test / development 환경에 적용�
 
 ## 5.4 모델과 Runtime 설정
 
-`linux-adaptive`는 `ADAPTIVE_GPU_RESOURCE_POLICY`의 명시적 `reference`/Variant를 먼저 사용합니다.
+통합 관리형 Linux는 `ADAPTIVE_GPU_RESOURCE_POLICY`의 명시적 `reference`/Variant를 먼저 사용합니다.
 값이 `auto` 또는 빈 값이면 기존 `MAIN_MODEL_RESOURCE_VARIANT`의 명시적 선택을 유지하고,
-그 값도 비었을 때 전체 VRAM으로 자동 선택합니다. 이 설정은 다른 Target의 선택을 바꾸지 않습니다.
+그 값도 비었을 때 전체 VRAM으로 자동 선택합니다. 이 설정은 외부 Static Target의 선택을 바꾸지 않습니다.
 실행 중인 UUID·정책은 기존 Main 상태가 보존하며 새 설정은 다음 CPU→GPU 선택부터 적용합니다.
 실측과 정책의 구분, 이전 상태의 복구는 [GPU Host 준비](guides/gpu-host-preparation.md)를 참고하세요.
 

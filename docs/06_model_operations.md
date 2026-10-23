@@ -668,7 +668,7 @@ Main Model 변경 작업은 다음 순서로 확인한다.
 
 ## 자동 CPU/GPU Main 운영
 
-`linux-adaptive`의 후보 선택·복구·중지 의도와 기능 변화는
+관리형 Linux의 후보 선택·복구·중지 의도와 기능 변화는
 [자동 Runtime 운영](guides/adaptive-runtime.md)을 따른다. 자동 전환도 이 문서의
 Main Gate·Drain·Canary·Rollback을 사용한다. 정책 결정은
 [ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)에 기록한다.
@@ -693,19 +693,19 @@ CPU를 쓴다고 GPU 예산이나 보조 Runtime 기동 정책을 우회하지 �
 결정과 검증 경계는 [ADR-0055](adr/0055-manual-cpu-profile-in-gpu-dynamic.md)와
 [검증 기록](resources/manual_cpu_model_validation.md)을 참고하세요.
 
-## CPU llama.cpp 문맥·출력 프리셋
+## CPU llama.cpp 서버 문맥·출력 한도
 
 관리형 CPU 모델의 기본값은 문맥 8,192토큰, 최대 출력 4,096토큰, 동시 요청 1개, Threads 4개다. Context Window는 입력과 출력을 합친 상한이며 최대 출력을 모두 사용할 수 있다는 보장은 아니다.
 
-Runtime Controller가 관리하는 Linux Target의 **메인 모델 → 전환 검토**에서 기본(8K/4K), 경량(4K/1K), 확장(16K/4K) 프로필을 선택하거나, CPU 고정 모드에서 서버 문맥·최대 출력 한도를 직접 지정할 수 있다. 전환 중 기존 요청이 일시 중단되며 새 Runtime이 실제 응답 검증에 실패하면 이전 모델로 복구를 시도한다. 기존 프리셋 ID는 저장 상태의 호환성과 최대 16K 선언 상한을 위해 유지한다.
+관리형 `linux-nvidia-dynamic`의 **메인 모델 → 전환 검토**에서 단일 CPU 기준 프로필의 서버 문맥·최대 출력 한도를 직접 지정한다. 문맥의 허용 범위는 512~16,384토큰이고 최대 출력은 문맥 이하다. 전환 중 기존 요청이 일시 중단되며 새 Runtime이 실제 응답 검증에 실패하면 이전 모델로 복구를 시도한다.
 
-자동 GPU 복구 정책은 기본 CPU 프리셋을 사용한다. 다른 CPU 프리셋을 수동으로 선택하면 CPU 고정 정책이 적용되므로, GPU 자동 복구를 원할 경우 실행 정책을 다시 선택해야 한다. 기본 8K/4K 및 경량·확장 프리셋 모두 변경 후 문맥·출력 상한과 4 GiB 메모리 적합성을 실장비에서 확인하기 전까지 미검증으로 표시한다. 기존 2K/256 CPU 실측 결과를 새 한도의 검증 근거로 재사용하지 않는다.
+GPU 우선·CPU 복구 정책은 기본 CPU 구성을 사용한다. 사용자 지정 서버 한도는 CPU/GPU 고정 실행 정책에서 적용하며, 새 한도의 RAM 적합성이나 지연 성능은 실장비 검증 전까지 미검증으로 표시한다. 기존 2K/256 CPU 실측 결과를 더 큰 한도의 검증 근거로 재사용하지 않는다.
 
-`linux-cpu-managed`는 Controller가 아닌 Compose가 생명주기를 소유하므로 현재는 Console의 메인 모델 전환 기능을 제공하지 않는다. 해당 Target은 저장소 CPU 프로필의 기본값을 `make up`으로 반영하며, 외부 CPU Runtime(`linux-cpu-static`)의 실행 파라미터는 외부 운영자가 소유한다.
+외부 CPU Runtime(`linux-cpu-static`)의 실행 파라미터는 외부 운영자가 소유하며, 관리형 CPU의 교체 권한은 Runtime Controller가 소유한다.
 
 ### Console의 모델과 실행 구성 표시
 
-메인 모델 화면은 동일한 `upstream_model_id`, Revision, Runtime backend를 사용하는 프로필을 하나의 실제 모델 아래 묶어 보여준다. CPU 4K/1K·8K/4K·16K/4K는 동일 GGUF 모델의 실행 구성이지 별도 가중치가 아니다. 각 구성의 변경은 기존 Main Model 전환·Canary·Rollback이 적용된다.
+메인 모델 화면은 동일한 `upstream_model_id`, Revision, Runtime backend를 사용하는 프로필을 하나의 실제 모델 아래 묶어 보여준다. CPU는 하나의 GGUF 기준 프로필과 서버 한도 변형으로 구성되며, 각각의 변경은 기존 Main Model 전환·Canary·Rollback이 적용된다.
 
 Playground의 **이번 요청 최대 출력 토큰**은 활성 모델의 `/v1/models` 요청 한도 안에서 한 번의 응답 길이만 설정한다. 서버 실행 문맥·출력 한도를 바꾸려면 별도의 관리자 전환 검토에서 Runtime Controller가 엔진 명령·Gateway 요청 정책을 함께 갱신해야 한다.
 
@@ -713,6 +713,6 @@ Playground의 **이번 요청 최대 출력 토큰**은 활성 모델의 `/v1/mo
 
 `linux-nvidia-dynamic`처럼 Runtime Controller가 모델 재생성을 소유하는 배포에서는 관리자가 모델 실행 구성의 **전환 검토**에서 문맥 토큰 및 최대 출력 토큰을 직접 지정할 수 있다. 입력값은 서버가 다시 검증하고, 실제 엔진 명령(`llama.cpp --ctx-size` 또는 `vLLM --max-model-len`)과 Gateway `max_model_len`·`max_output_tokens`를 같은 변형 프로필로 투영한다.
 
-같은 모델·Revision·이미지의 변형 프로필 ID를 Main Model의 기존 지속 상태에 저장하여 Controller 재시작 뒤 복원한다. 전환은 기존 Gate → Drain → Replace → Canary → Commit 또는 이전 프로필 Rollback 단계로 수행한다. 변경 요청은 미검증 설정 확인을 요구한다. CPU 문맥은 같은 GGUF의 선언된 최대 프리셋 이하, GPU 문맥은 원래 선택한 기준 프로필 상한 이하에서 허용한다. Rollback 성공으로 더는 필요 없는 실패 구성은 정리하고, Rollback 실패나 관측 불확실성에서는 파생 신원을 유지한 채 Gate를 닫는다. 실제 RAM·GPU 메모리 및 지연 성능은 장비에서 별도 검증이 필요하다.
+같은 모델·Revision·이미지의 변형 프로필 ID를 Main Model의 기존 지속 상태에 저장하여 Controller 재시작 뒤 복원한다. 전환은 기존 Gate → Drain → Replace → Canary → Commit 또는 이전 프로필 Rollback 단계로 수행한다. 변경 요청은 미검증 설정 확인을 요구한다. CPU 문맥은 명시된 16,384토큰 정책 상한 이하, GPU 문맥은 원래 선택한 기준 프로필 상한 이하에서 허용한다. Rollback 성공으로 더는 필요 없는 실패 구성은 정리하고, Rollback 실패나 관측 불확실성에서는 파생 신원을 유지한 채 Gate를 닫는다. 실제 RAM·GPU 메모리 및 지연 성능은 장비에서 별도 검증이 필요하다.
 
-새 관리형 CPU 설치는 `linux-nvidia-dynamic POLICY=cpu`를 사용한다. 이전 설치의 `linux-cpu-managed`는 Compose 독립 CPU 경로로 계속 동작하지만 이 API로 한도를 수정할 수 없다. 기존 CPU 프리셋 프로필 ID는 상태 복원과 16K 선언 한도의 근거를 위해 유지한다. 외부·Static 런타임은 기존 권한 경계를 유지한다. **Playground의 이번 요청 최대 출력 토큰은 서버 한도 변경이 아니다.**
+관리형 CPU 설치는 `linux-nvidia-dynamic POLICY=cpu`를 사용한다. 독립 CPU Compose 관리 경로와 중복 프리셋은 제공하지 않는다. 외부·Static 런타임은 외부 운영자의 권한 경계를 유지한다. **Playground의 이번 요청 최대 출력 토큰은 서버 한도 변경이 아니다.**

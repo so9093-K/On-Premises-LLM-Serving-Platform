@@ -12,9 +12,7 @@ Accepted. ADR-0054의 자동 전환 계약을 공통 Runtime Controller로 확�
 
 ## Decision
 
-1. `linux-nvidia-dynamic`을 관리형 Linux의 공통 구성으로 사용한다. 기존 ID는 호환성을 위해
-   유지하고 최초 `TARGET=auto`는 이 구성의 자동 정책을 선택한다. 외부 Runtime과 macOS는
-   기존 생명주기 소유권을 유지한다. 이전 `linux-adaptive` 배포도 명시적으로 이전할 때까지 유지한다.
+1. `linux-nvidia-dynamic`을 유일한 관리형 Linux Target으로 사용한다. 최초 `TARGET=auto`는 이 구성의 자동 정책을 선택한다. 기존 독립 CPU Compose와 Adaptive Target은 중복 권한을 만들므로 제거한다. 외부 Runtime과 macOS는 기존 생명주기 소유권을 유지한다.
 2. Main 실행 정책은 `automatic`·`cpu`·`gpu`다. Console은 모델과 지원 입력 변경을 검토한 뒤
    기존 Main 전환 API로 정책을 적용한다. 자동 정책은 Qwen CPU부터 검증하고 Gemma GPU를
    안정 관측·Admission·Drain·Canary 뒤 선택한다. 고정 정책은 다른 엔진으로 자동 전환하지 않는다.
