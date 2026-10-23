@@ -53,8 +53,8 @@ jobs:
           node-version-file: ui/control-plane/.nvmrc
           cache: npm
           cache-dependency-path: |
-          ui/control-plane/package-lock.json
-          scripts/quality/package-lock.json
+            ui/control-plane/package-lock.json
+            scripts/quality/package-lock.json
       - name: Pin npm
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Prepare frontend runners
@@ -74,8 +74,8 @@ jobs:
           node-version-file: ui/control-plane/.nvmrc
           cache: npm
           cache-dependency-path: |
-          ui/control-plane/package-lock.json
-          scripts/quality/package-lock.json
+            ui/control-plane/package-lock.json
+            scripts/quality/package-lock.json
       - name: Pin npm
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Prepare frontend runners
