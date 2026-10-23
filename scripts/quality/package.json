@@ -1,0 +1,10 @@
+{
+  "name": "@ai-model-serving/quality-runners",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Native Runner dependencies isolated from Control Plane production dependencies",
+  "devDependencies": {
+    "vitest": "5.0.5",
+    "@playwright/test": "1.64.1"
+  }
+}

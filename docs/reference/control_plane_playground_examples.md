@@ -87,8 +87,8 @@ Vite가 이미지와 오디오 파일을 `asset-manifest.json`에 기록해야 G
 ## Risk 화면의 합성 예제
 
 Risk 작업 화면은 Chat 예제와 별도로 합성 입력 예제를 제공한다. 원본은
-`ui/control-plane/src/playgroundRiskExamples.json` 하나이며, 로컬 PII·Secret 검출기가
-기대 신호를 실제로 반환하는지 `tests/unit/test_playground_risk_examples.py`가 검증한다.
+`ui/control-plane/src/playgroundRiskExamples.json` 하나다. 실제 Risk 신호는 활성 서비스의
+응답으로 확인하며 예제 데이터만으로 탐지 성공을 보장하지 않는다.
 
 | 예제 | 검사 | 기대 신호 |
 |---|---|---|

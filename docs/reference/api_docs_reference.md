@@ -60,5 +60,5 @@ Agent·MCP 연결·개발용 도구 모음·외부 Client 연결 버튼·텔레�
 API 인증 정보는 로컬 저장소에 영구 보관하지 않습니다(`persistAuth: false`).
 
 번들 갱신 시 `docs_ui.py`의 버전·해시를 수정하고 `python scripts/build/fetch_docs_assets.py`로 다운로드합니다.
-`make validate`는 네트워크 없이 로컬 번들의 해시를 검사합니다.
+로컬 Scalar 번들의 SRI 해시는 네트워크 없이 `python scripts/build/fetch_docs_assets.py --check`로 확인합니다. `make validate`의 기본 범위에는 번들 해시 검사가 포함되지 않습니다.
 설정 항목은 [Scalar 공식 설정 문서](https://scalar.com/products/api-references/configuration)를 참고하세요.

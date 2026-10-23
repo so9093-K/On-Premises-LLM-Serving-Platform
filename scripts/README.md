@@ -18,7 +18,7 @@ make down
 이후 재기동은 `make up`만 사용한다. project-local state 초기화는 `make reset`,
 비싼 project-owned image/model cache와 volume까지 폐기할 때만 `make purge`를 사용한다.
 
-이 디렉터리의 세부 script는 public command의 구현, 장애 evidence 수집, release,
+이 디렉터리의 세부 script는 public command의 구현, 장애 진단, release,
 변경 범위별 검증을 위해 존재한다. script가 존재한다는 이유만으로 operator command를
 추가하지 않는다.
 
@@ -26,6 +26,7 @@ app-only 개발 흐름은 다음과 같다.
 
 ```bash
 make setup-dev
+make setup-test-runners
 make check
 make init-env-local
 make up
@@ -44,9 +45,7 @@ make down
 | `models/` | model registry CLI, vLLM command rendering, HF/unified image checks |
 | `ops/` | start/stop/status/ready/smoke/reset/clean 같은 운영 명령 |
 | `runtime/` | target 고유 native runtime 환경·모델·process lifecycle |
-| `validation/` | contract validation, static validation, deterministic test runner, live runtime validation |
-| `validation/governance/` | 정적 계약 검증 체크 구현. 프로덕션 패키지(`src/`)가 아니라 여기 사는 이유는 서비스 실행에 필요 없고 런타임 이미지에 실릴 이유도 없기 때문이다. |
-| `validation/runtime/` | live runtime 검증 체크 구현. one-off validator가 deployment Compose network에 참여해 실제 서비스를 검증하며 production service image에는 포함하지 않는다. |
+| `quality/` 및 `quality_cli.py` | Native Runner 준비와 공통 실행 CLI |
 | `lib/` | shell/python shared helpers |
 
 ## 주요 스크립트
@@ -56,14 +55,13 @@ make down
 | `platform_cli.py` | `up/status/down`의 target-aware operator lifecycle을 소유하고 setup/build/cache/readiness 세부 단계를 implementation script에 위임한다. |
 | `build/setup_dev.py` | Platform `uv.lock`에서 개발용 `.venv`를 동기화한다. 기존 환경이 손상됐거나 Python minor가 다르면 자동 삭제하지 않는다. |
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
-| `build/build_platform_image.sh` | Platform 실행 이미지를 생성하고 소스 내용 해시·상태·target platform·Git 출처를 이미지에 기록한다. 별도의 이미지 Smoke 실행은 요구하지 않는다. |
+| `build/build_platform_image.sh` | Platform 실행 이미지를 생성하고 소스 내용 해시·상태·target platform·Git 출처를 이미지에 기록한다. 이미지 HTTP 확인은 별도의 `make image-smoke`가 수행한다. |
 | `build/smoke_platform_image.sh` | 생성된 이미지의 app 초기화와 실제 Gateway·Console·Docs HTTP 기능을 독립적으로 검증한다. |
 | `build/build_vllm_unified_image.sh` | Unified vLLM Docker build 경로다. `vllm_unified_build.yaml`의 target/base/pin을 사용하며 native Linux amd64 Docker daemon만 허용한다. |
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |
 | `auth/auth_plan.py` / `auth/auth_apply.py` | secret을 출력하지 않고 auth profile 변경 계획을 보여주거나 managed auth flag만 적용한다. |
-| `validation/validate_contracts.py` | OpenAPI refs, generated OpenAPI schema injection, JSON Schema, config, release hygiene 정책을 검증한다. |
-| `validation/run_test.sh` | Python 버전과 test 환경을 고정하고 unit/contract test를 실행한다. |
-| `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`(생성)와 `validation/governance/versioning.py`(검증)가 같은 표를 읽으므로 두 목록이 갈라질 수 없다. |
+| `quality_cli.py` | pytest·Vitest·Playwright Suite 실행, 종료 코드 전달과 최소 정적 검사 |
+| `lib/version_refs.py` | `VERSION` 문자열이 박혀 있는 모든 자리를 한 번만 선언한다. `build/reset_version.py`가 동일한 버전 참조 선언을 사용한다. |
 | `lib/project_image_ownership.sh` | 로컬 build image의 프로젝트·checkout 소유권 label을 정의한다. |
 | `lib/source_provenance.py` / `lib/source_provenance.sh` | 빌드와 기동이 같은 소스 내용 해시를 사용한다. Git 정보가 없는 소스는 `local`로 표시하며 Git 설치나 전역 설정 변경을 요구하지 않는다. |
 | `lib/gateway_runtime_state.sh` | `compose-up`이 Gateway에 초기 Runtime 지시를 전달하고 상태 디렉터리 소유권을 준비하는 규칙을 제공한다. `runtime-state.json` 자체는 쓰지 않는다. |
@@ -73,7 +71,6 @@ make down
 | `ops/ready_local.sh` | app-only `/health` 상태를 strict하게 확인한다. app service가 내려가 있으면 실패하며 vLLM은 요구하지 않는다. |
 | `ops/ready_full.sh` | 필수 Runtime `/ready`와 실제 Main Chat 경로를 확인한다. 전체 대표 Smoke는 실행하지 않는다. |
 | `compose/preflight_compose.sh` | full-stack compose 전 exposure config를 먼저 검증하고, 통과한 뒤 Docker, GPU 표시, effective compose host-published port, secret 상태를 점검한다. compose 내부 `expose` ports는 host port 검사 대상이 아니다. host bind와 port는 `docker compose config` 결과를 따른다. |
-| `validation/runtime_validation.py` | 실제 runtime 검증 결과를 `reports/runtime/` 아래에 기록한다. |
 | `models/check_hf_model_config.py` | 고정 vLLM runtime 환경에서 Transformers `AutoConfig`만 로드해 engine·GPU 이전 config loader 문제를 분리한다. |
 | `ops/down_all.sh` | `.env`와 Compose project name에 의존하지 않고 이 checkout의 host process와 Compose container/network를 정지한다. |
 | `ops/compose_ownership.py` | 로그·변경 검사·종료·삭제에 공통 checkout 소유권 규칙을 적용한다. 앱 의존성 없이 실행한다. |
@@ -88,8 +85,7 @@ make down
   `RUNTIME_STARTUP_PROFILE=retrieval_ready make up`을 사용한다.
 - `.runtime/prometheus/admin_api_key`가 사라져도 `.env`를 다시 만들지 않는다. 다음
   `make up`이 runtime secret을 복구한다.
-- 실제 스택을 대상으로 한 상세 runtime 검증은 developer/maintainer command
-  `make runtime-validate`가 소유하며 정상 기동 확인을 위해 별도로 실행하지 않는다.
+- 신규 품질 CLI는 운영 Lifecycle과 독립적으로 실행한다.
 - 저비용 repository build/test artifact만 직접 정리해야 하는 maintainer 작업은
   `scripts/ops/clean_project.sh --dry-run`으로 범위를 확인한다. 일반 사용자는
   `reset` 또는 `purge`의 명확한 파괴 범위를 사용한다.
@@ -129,4 +125,4 @@ Risk detector의 `bitsandbytes` 설정은 운영 기본값이다. 원인 분리�
 
 `scripts/openai_compatibility.py`는 `specs/schemas/chat_completion_*.schema.json`의 `x-openai-compatibility` 선언에서 `docs/reference/openai_compatibility.md`를 생성한다. 분류가 없는 파라미터가 있으면 문서를 만들지 않고 실패한다 -- 기본값으로 "표준"을 넣으면 새 확장이 OpenAI 표준인 것처럼 실리기 때문이다.
 
-정적 OpenAPI(`specs/openapi.*.yaml`)는 `make render-runtime-assets`로 생성하고, `make validate`의 `generated artifacts` 단계에서 `render_runtime_assets.py --check`가 생성 문서 전체와 구조 비교한다. 계약 스키마 본문은 `specs/schemas/*.json`이 단일 소유자이며 생성 문서에도 그 파일에서 주입되므로 별도 대조 단계를 두지 않는다.
+정적 OpenAPI(`specs/openapi.*.yaml`)는 `make render-runtime-assets`로 생성하고, `make validate`가 `render_runtime_assets.py --check`를 통해 생성 문서와의 일치 여부를 확인한다. 계약 스키마 본문은 `specs/schemas/*.json`이 단일 소유자이며 생성 문서에도 그 파일에서 주입되므로 별도 대조 단계를 두지 않는다.

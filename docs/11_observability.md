@@ -242,7 +242,7 @@ Request Log Explorer는 다음 영역으로 구성된다.
 - **API Errors**: HTTP 4xx/5xx 요청
 - **Readiness Failures**: `/ready`에서 확인된 dependency 상태
 - **Non-JSON Runtime Errors**: vLLM·MLX 등 Runtime의 오류 로그
-- **Raw Runtime Log**: Docker 모델 Runtime 로그는 `configs/services.yaml`의 `model_runtime` 서비스 레이블로 필터링하고, native MLX 로그는 별도 `job=native` 경로로 조회한다. Grafana 등 운영 도구 컨테이너는 제외한다. `tests/unit/test_grafana_runtime_log_queries.py`가 Registry·Dashboard의 드리프트를 검사한다
+- **Raw Runtime Log**: Docker 모델 Runtime 로그는 `configs/services.yaml`의 `model_runtime` 서비스 레이블로 필터링하고, native MLX 로그는 별도 `job=native` 경로로 조회한다. Grafana 등 운영 도구 컨테이너는 제외한다. 로그 필터의 기준은 `configs/services.yaml`의 service role과 해당 Grafana Dashboard 정의이며, 현재 기본 테스트 Suite가 이 둘의 정합성을 검사한다고 가정하지 않는다
 - **Engine Crash / Traceback**: 대상 Runtime 로그에서 traceback·예외 문자열 검색. 키워드 일치가 실제 크래시를 확정하지는 않음
 
 Request ID 또는 Error Code로 대상을 좁힌 뒤 관련 서비스와 Runtime 로그를 함께 확인할 수 있다.

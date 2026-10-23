@@ -42,12 +42,11 @@ Ubuntu/NVIDIA managed:
 ```bash
 make up TARGET=linux-nvidia-dynamic ACCESS=local
 make status
-make runtime-validate
+make smoke
 ```
 
-`runtime-validate`는 전체 기능 검증이다. 중지한 Embedding 때문에 실패할 수 있으므로
-Main 성능 결과와 분리해서 실패 항목을 확인한다. 기능 검증에 보조 Runtime을 시작했다면
-영향을 검토한 Plan/Apply로 원래 상태를 복원한 후 측정한다. 측정 중 Runtime 구성을 바꾸지 않는다.
+`make smoke`는 실행 중인 공개 Gateway의 대표 요청만 확인한다. 전체 Runtime/모델 Qualification과
+동등하지 않으며 성능 측정 전후에 Runtime 구성을 임의로 변경하지 않는다.
 
 두 Target 모두 다음 정보를 확인한다. 인증된 배포는 사용자 API와 Admin 조회에 각각 맞는 키를 사용한다.
 
@@ -184,8 +183,7 @@ Gateway Admission Queue와 Runtime Queue는 별개의 관측값이다.
 
 Ubuntu에서는 실제 Active Profile·Resource Variant·Image Digest·vLLM/Driver·GPU ID와
 VRAM을 별도로 확인해야 한다. vLLM Scheduler·DCGM과 MLX 최근 요청 Peak Memory를
-직접 같은 지표로 비교하지 않는다. `make runtime-validate`는 Linux Runtime 기능 검증이며
-Mac 성능 측정을 대신하지 않는다.
+직접 같은 지표로 비교하지 않는다. `make smoke`는 대표 API 요청을 확인하며 Mac 성능 측정이나 Linux Runtime의 전체 검증을 대신하지 않는다.
 
 ## 실패와 비교
 

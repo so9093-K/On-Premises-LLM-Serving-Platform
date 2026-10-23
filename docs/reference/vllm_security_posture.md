@@ -83,9 +83,8 @@ Gateway는 `media_io_kwargs`를 전달하지 않지만 내부 raw runtime은 Gat
 - Gateway가 `/v1/completions`, `/pooling`, `/v1/audio/transcriptions`를 public route로 추가하지 않는다.
 - raw model runtime은 host에 publish하지 않으며, 내부 direct access는 Gateway mitigation 바깥의 Compose-internal boundary다.
 
-`tests/unit/test_vllm_security_exposure.py`는 이 중 request-contract로 직접 고정할 수 있는
-negative token ID, `cache_salt`, remote media URL 경계를 보호한다. Host-publish 집합은
-`configs/services.yaml` service role과 target Compose `ports`의 정합성 검증이 authority다.
+negative token ID·`cache_salt`·remote media URL은 Gateway 요청 계약에서 제한한다. Host-publish 범위의 정본은
+`configs/services.yaml`의 service role과 실제 target Compose 설정이다. 예전 단위 테스트 파일은 이 동작의 현재 검증 진입점이 아니다.
 
 ## Engine upgrade 판단
 

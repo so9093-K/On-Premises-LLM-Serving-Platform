@@ -10,6 +10,7 @@ Git, Python 3.12–3.13, [프로젝트 지정 uv 버전](../../pyproject.toml)�
 git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 make setup-dev
+make setup-test-runners
 git switch -c feat/my-change
 ```
 
@@ -52,14 +53,7 @@ DCGM exporter 9400, Grafana 컨테이너 3000, Prometheus 9090처럼 외부 엔�
 
 ## 3. 테스트·검증
 
-| 범위 | 명령 |
-|---|---|
-| 설정·계약·생성물 | `make validate` |
-| Python·Application | `make app-check` |
-| 저장소 전체·Control Plane | `make check` |
-| 실제 Linux/NVIDIA Runtime | `make runtime-validate` (GPU 환경 필요) |
-
-전체 검증에는 지정된 Node.js/npm이 필요합니다. 일반 CI·Mock 테스트 성공은 실제 GPU 추론 검증을 대신하지 않습니다. 실패한 항목과 결과 파일 확인은 [테스트와 검증](../08_testing_validation.md)을 참고하세요.
+테스트 실행은 공통 CLI로 통일합니다. `make test`, `make validate`, `make console-check`, `make check`, `make browser-test`를 사용하세요. Chromium은 별도로 `npm --prefix ui/control-plane exec -- playwright install chromium`으로 설치합니다. 실행 계약은 [테스트와 검증](../08_testing_validation.md)을 참고하세요. 운영 시작과 배포 Readiness는 테스트 체계와 독립적입니다.
 
 ## 4. PR
 

@@ -61,7 +61,8 @@ content로 분류한다. 이건 parser가 아니라 prompt 문제라 patch가 �
 ```bash
 make build-vllm-unified-image
 make up
-make runtime-validate
+make status
+make smoke
 ```
 
 image 내부 build 계약은 build script가, 기동 전 계약은 `make up`의 preflight가 담당한다.

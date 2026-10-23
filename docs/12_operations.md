@@ -347,8 +347,7 @@ static target은 외부 Main dependency를 포함한 Gateway readiness를 확인
 검증 명령의 누락이나 실패가 정상 기동 중인 서비스를 중단시키지는 않는다.
 배포 승인 시 추가 Smoke 결과를 요구할지는 배포 정책이 정한다.
 
-GPU/runtime 자체가 변경된 qualification 작업이면 그때만 developer/maintainer 검증인
-`make runtime-validate`를 추가한다.
+Runtime 변경 후에는 해당 배포의 `make up`·`make status`로 실제 준비 상태를 확인한다. 선택적인 `make smoke`는 대표 API 확인이지 모델별 전체 Qualification이 아니다.
 
 복구 완료 기준:
 
@@ -426,7 +425,6 @@ macOS launchd 해제에 실패하면 Reset은 `.env`·`.venv`·`.runtime`을 삭
 | Strict readiness | `scripts/ops/ready_full.sh` | `make up` 내부 serving gate |
 | Representative smoke | `make smoke` → `scripts/ops/smoke_test.sh` | 기동과 독립적인 active/effective Runtime inference 검증 |
 | Compose diagnostics | `scripts/compose/compose_diagnostics.sh` | raw evidence 보존 + known-pattern summary |
-| Runtime qualification | `scripts/validation/runtime_validation.py` | live GPU/runtime 검증 |
 
 관련 문서:
 

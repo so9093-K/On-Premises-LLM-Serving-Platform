@@ -18,7 +18,7 @@ Runtime 적용 / 배포
 정상 동작 확인
 ```
 
-이 장은 자주 발생하는 변경 작업을 기준으로 **변경 위치, 실제 반영 경로, 검증·배포 범위**를 연결한다. 설정 항목의 의미는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 검증 단계는 [8. 테스트와 검증](./08_testing_validation.md), 배포 방식은 [10. 배포](./10_deployment.md)를 따른다.
+이 장은 자주 발생하는 변경 작업을 기준으로 **변경 위치, 실제 반영 경로, 검증·배포 범위**를 연결한다. 현재 `make validate`는 Ruff 및 생성 산출물 Drift에 한정되며 설정·스키마·Compose 정책의 의미를 포괄적으로 검증하는 명령이 아니다. 설정 항목의 의미는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 검증 단계는 [8. 테스트와 검증](./08_testing_validation.md), 배포 방식은 [10. 배포](./10_deployment.md)를 따른다.
 
 ---
 
@@ -50,7 +50,7 @@ Runtime 적용 / 배포
 7. 배포 및 Runtime 확인
 ```
 
-애플리케이션 내부 변경은 app-only와 Platform Image 검증이 중심이 된다. 모델 Runtime, Compose, GPU, vLLM 실행 환경에 영향을 주는 변경은 full-stack과 Runtime 검증까지 이어진다.
+애플리케이션 내부 변경은 기본 품질 검사와 Platform Image 빌드·Smoke로 확인한다. 모델 Runtime, Compose, GPU, vLLM 실행 환경에 영향을 주는 변경은 실제 대상의 기동·Readiness와 변경 범위의 수동 확인을 별도로 수행한다. 기본 품질 CLI가 전체 Runtime 검증을 대신하지는 않는다.
 
 ---
 
@@ -63,11 +63,11 @@ Runtime 적용 / 배포
 | 모델 정책·제한값 | `configs/model_serving.yaml` | Gateway + 모델 정책 | 생성 파일 + 정적 검증 |
 | Main Model Profile | `configs/main_model_profiles.yaml` | Main Model Runtime | Profile + 모델 전환 검증 |
 | 모델 추가·제거 | Model Registry 관련 설정 | API 목록, Runtime, 모니터링 | `make validate` + full-stack |
-| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | `make validate` + Unified Image + bounded Runtime 검증 |
+| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | Unified Image 빌드 + 대상 기동·Readiness·실제 추론 확인 |
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
-| 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | `make validate` + effective Compose |
+| 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | effective Compose + 실제 host bind 확인 |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
-| 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/`, `scripts/validation/run_test.sh` | GitHub 품질 검증 명령과 provider-neutral build·local lifecycle | `make check` + 변경한 진입점 확인 |
+| 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/`, `scripts/quality_cli.py` | GitHub 품질 검증 명령과 provider-neutral build·local lifecycle | `make check` + 변경한 진입점 확인 |
 
 ---
 
@@ -103,7 +103,7 @@ validate / test
 | API 문서             | `reference/api_reference.md`                                    | API 사용 방법, 제약, 예제와 운영 참고 정보 설명 |
 
 
-FastAPI 구현과 checked-in OpenAPI의 차이는 `make validate`에서 확인된다. Request/response schema와 error surface도 같은 정적 검증 흐름에 포함된다.
+생성된 OpenAPI와 checked-in 파일의 차이는 `make validate`에서 확인한다. Request/response 및 오류의 실제 동작은 API 구현과 원본 Schema가 소유한다.
 
 ```bash
 make validate
@@ -188,8 +188,8 @@ make render-runtime-assets
 make validate
 ```
 
-`make validate`는 generated artifact와 Compose override가 현재 Source of Truth와
-일치하는지 확인한다.
+`make validate`는 생성 산출물 Drift를 확인하며, Compose override의 실제 반영은
+`bash scripts/compose/compose_config.sh`의 effective 구성을 기준으로 확인한다.
 
 ### 환경변수 계약
 
@@ -252,7 +252,7 @@ make validate
 
 ```bash
 make up
-make runtime-validate
+make smoke
 ```
 
 ### Main Model Profile 변경
@@ -295,7 +295,7 @@ Face 환경에서 profile config를 확인하고 실제 모델 전환 흐름은 
 `verified`는 model ID·immutable revision·`deployed_input` 조합에 대한 선언이다. 이 셋 중 하나가
 바뀌면 `unverified`로 되돌리고 다시 검증한다. GPU 제품·driver 변경, resource policy override,
 재기동이나 시간 경과, runtime image digest 변경만으로는 되돌리지 않는다. 그런 변화는
-compatibility/resource admission과 `make runtime-validate`로 확인한다.
+compatibility/resource admission과 `make smoke`로 확인한다.
 
 ---
 
@@ -330,15 +330,13 @@ Readiness
 Bounded engine/runtime canary
 ```
 
-`EXPECTED_MAIN_IMAGE_DIGEST=sha256:<64 hex> make runtime-validate`로 후보 artifact를
-명시하고 JSON/Markdown report의 `runtime_artifact`를 확인한다. validator는 실제
-vLLM version을 canonical build pin과 비교하고, 기대 digest가 설정되면 registry digest도
-비교한다. local image ID는 registry digest와 다르므로 후보 승격 근거에는 digest로
-실행한 canary를 사용한다.
+새 이미지를 적용한 뒤 `make up`·`make status`로 실제 Runtime 준비 상태를 확인한다.
+`make smoke`는 공개 Gateway 대표 요청에 한정되며, 전용 Runtime artifact 검증이나
+후보 승격 근거를 생성하지 않는다. Image Digest의 정본은 배포 입력과 OCI registry가 소유한다.
 
 `compatibility_pins.vllm`을 변경하면
 [ vLLM 보안 노출 경계](./reference/vllm_security_posture.md)의 Security review contract도
-같은 변경에서 갱신해야 한다. `make validate`가 두 pin의 drift를 막는다. 이 review는
+같은 변경에서 갱신해야 한다. engine pin과 보안 검토 경계는 변경 시 maintainer가 함께 확인한다. 이 review는
 Gateway mitigation을 upstream patch로 오인하지 않기 위한 경계이며, GPU 제품별 support
 matrix나 profile requalification을 만들지 않는다.
 
@@ -352,7 +350,7 @@ Runtime 확인:
 
 ```bash
 make up
-make runtime-validate
+make smoke
 ```
 
 현재 registry publish 자동화는 정의하지 않는다. Unified vLLM build 입력이 바뀌면 native
@@ -395,7 +393,7 @@ make up
 ### Host 노출 설정
 
 Host publication은 `configs/services.yaml`의 service role과 target Compose `ports`가 소유한다.
-`make validate`는 둘의 집합을 직접 대조한다.
+두 집합의 의미와 노출 경계는 변경 시 effective Compose를 기준으로 확인한다.
 
 ```bash
 make validate
@@ -450,7 +448,7 @@ make validate
 
 ```bash
 make up
-make runtime-validate
+make smoke
 ```
 
 운영 화면과 지표는 [11. 관측성](./11_observability.md), 이상 상태 분석은 [12. 운영 관리 및 장애 대응](./12_operations.md)을 따른다.
@@ -464,7 +462,7 @@ make runtime-validate
 주요 위치:
 
 - `.github/workflows/`
-- `scripts/validation/`
+- `scripts/quality_cli.py`
 - `scripts/platform_cli.py`
 - `scripts/build/`
 - `scripts/ops/`
@@ -481,8 +479,8 @@ Publish된 Image Digest
 Deploy
 ```
 
-Shell script syntax와 repository contract는 `make validate`에서 확인한다. Workflow 문법은
-GitHub가 소유하며 별도의 로컬 YAML parser나 테스트를 추가하지 않는다.
+`make validate`는 Ruff와 생성 산출물 Drift만 확인한다. Shell 문법·배포 구성의 의미를
+이 명령이 모두 검사한다고 가정하지 않는다. Workflow 문법은 CI 제공자가 소유한다.
 
 ```bash
 make validate
@@ -512,9 +510,9 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 | API / Schema | `make validate`, `make test` | app-only 또는 full-stack | Platform Image |
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
 | Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |
-| Unified vLLM | Unified Image Build | `make up`, `make runtime-validate` | Runtime Image / Full |
-| Compose / Exposure | `make validate`, `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
-| 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
+| Unified vLLM | Unified Image Build | `make up`, `make smoke` | Runtime Image / Full |
+| Compose / Exposure | `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
+| 모니터링 | 생성 파일 Drift 확인 | Dashboard + 실제 Metrics·Logs 확인 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
 
 전체 application 품질 gate와 선택 target convergence:
@@ -524,12 +522,7 @@ make check
 make up
 ```
 
-GPU와 vLLM까지 포함한 변경:
-
-```bash
-make up
-make runtime-validate
-```
+GPU·vLLM 변경 후에는 해당 Target으로 `make up`·`make status`를 확인하고 필요하면 `make smoke`로 공개 Gateway의 대표 API를 확인한다. 이 명령은 삭제된 전용 Runtime 검증기와 동등하지 않다.
 
 ### 문서 반영 범위
 
@@ -555,11 +548,11 @@ make runtime-validate
 
 - 공개 API 계약을 바꿨다면 Router/contract와 함께 schema, checked-in OpenAPI, API Reference를 갱신한다.
 - 기본 프로필의 `tool_calling` 정책을 변경했다면 `make render-runtime-assets`로 API Reference 생성 구간을 갱신한다. 실제 호출 권한은 항상 `GET /v1/models`를 기준으로 확인한다.
-- vLLM 통합 이미지 pin을 변경하면 Main Model OpenAPI 예시 엔진 버전과 보안 검토 계약도 함께 확인한다. `make validate`는 예시·생성 문서 정합성과 review boundary를 검사한다.
+- vLLM 통합 이미지 pin을 변경하면 Main Model OpenAPI 예시 엔진 버전과 보안 검토 계약도 함께 확인한다. `make validate`는 생성 문서 Drift를 확인하고 보안 검토 경계는 maintainer가 별도로 확인한다.
 - 제거된 persistent env 키를 Preflight 오류 안내에 다시 권장하지 않는다. `configs/env_contract.yaml:removed_keys`는 이행용 입력이며 활성 설정이 아니다.
 - Source of Truth 설정이 생성기 입력이라면 생성 artifact를 갱신하고 `make validate`로 drift를 확인한다. 그렇지 않다면 해당 설정의 consumer와 영향 범위만 확인한다.
 - 일반 application 변경은 `make validate`, `make test`와 영향 범위의 app-only 또는 full-stack 확인을 한다.
-- vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make runtime-validate`까지 연결한다.
+- vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make smoke`까지 연결한다.
 
 ---
 
@@ -574,7 +567,7 @@ make runtime-validate
 | 모델 추가 | catalog + serving + 모델 참고 문서 + compose | `validate` | full-stack + runtime validation |
 | vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | `make up` + runtime validation |
 | Service port | `services.yaml` | 생성 파일 + validate | implementation Compose config + `make up` |
-| Access / host exposure | `access_profiles.yaml` + Compose `ports` | `make validate` | effective Compose port/bind 확인 |
+| Access / host exposure | `access_profiles.yaml` + Compose `ports` | effective Compose 구성 확인 | 실제 host port/bind 확인 |
 | Dashboard | Dashboard JSON | `make validate` | Grafana / runtime validation |
 | Workflow | `.github/workflows/` | GitHub 문법 + `make check` | 해당 workflow |
 | Lifecycle logic | `scripts/platform_cli.py`, `scripts/ops/` | validate | 선택 target lifecycle + readiness |
@@ -595,5 +588,5 @@ make render-runtime-assets
 make up
 
 # GPU / vLLM / Monitoring Runtime 검증
-make runtime-validate
+make smoke
 ```

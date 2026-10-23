@@ -1,4 +1,4 @@
-name: Validate and test
+name: CI
 
 on:
   push:
@@ -9,213 +9,122 @@ on:
 permissions:
   contents: read
 
-# 새 PR 커밋이 도착하면 이전 검증만 취소한다. main 검증과 CI Gate는 유지한다.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  app-contract:
-    name: App and contracts (${{ matrix.os }})
+  python:
+    name: Python (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
-            python_version: "3.12"
+            python: '3.12'
           - os: macos-15
-            python_version: "3.13"
+            python: '3.13'
     steps:
-      # 외부 action은 이 저장소의 다른 모든 외부 아티팩트와 같이 commit SHA로
-      # 고정한다. 태그는 재지정될 수 있어 같은 커밋이 다른 코드로 빌드된다.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          # 두 job은 공통 Platform lock의 지원 minor를 대표한다. Native runtime
-          # exact patch와 image digest qualification은 이 workflow의 책임이 아니다.
-          python-version: "${{ matrix.python_version }}"
+          python-version: ${{ matrix.python }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          # pyproject.toml의 required-version 범위에서 최신 patch를 검증한다.
-          # dependency 결과는 uv.lock + --locked가 고정하고, 새 uv minor는 별도
-          # qualification 없이 이 workflow에 들어오지 않는다.
           resolution-strategy: highest
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - name: Prepare developer environment
+      - name: Prepare Python environment
         run: make setup-dev PYTHON_BIN=python
-      - name: Install Nginx for real remote API isolation tests
+      - name: Run pytest
+        run: make test
+      - name: Check lint and generated assets
         if: matrix.os == 'ubuntu-24.04'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y nginx
-      - name: Check application and contracts
-        # 정적 Source/Artifact 검증은 Ubuntu에서 한 번, 동작·호환성 테스트는 두 OS에서 실행한다.
-        run: make ${{ matrix.os == 'ubuntu-24.04' && 'app-check' || 'test' }}
-        env:
-          REQUIRE_NGINX_TESTS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '0' }}
-  console:
-    name: Control Plane frontend
+        run: make validate
+
+  frontend:
+    name: Frontend (Unit + Build)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: ui/control-plane/.nvmrc
           cache: npm
-          cache-dependency-path: ui/control-plane/package-lock.json
-      - name: Pin npm toolchain
+          cache-dependency-path: |
+            ui/control-plane/package-lock.json
+            scripts/quality/package-lock.json
+      - name: Pin npm
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
-      - name: Check Control Plane source and generated Console
-        run: make console-check
+      - name: Prepare frontend runners
+        run: bash scripts/quality/setup_runners.sh
+      - name: Run Vitest
+        run: python3 scripts/quality_cli.py run frontend
+      - name: Check source and production bundle
+        run: npm --prefix ui/control-plane run check:source
 
-  platform-image:
-    name: Platform image build and smoke
+  browser:
+    name: Browser (Chromium)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      # Dockerfile/build semantics stay in the provider-neutral repository command.
-      # This job only verifies that the exact source under review still produces a
-      # runnable Linux Platform image; it does not publish or promote the image.
-      - name: Build Platform image
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ui/control-plane/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            ui/control-plane/package-lock.json
+            scripts/quality/package-lock.json
+      - name: Pin npm
+        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Prepare frontend runners
+        run: bash scripts/quality/setup_runners.sh
+      - name: Install Chromium
+        run: npm --prefix ui/control-plane exec -- playwright install --with-deps chromium
+      - name: Run Playwright
+        run: python3 scripts/quality_cli.py run browser
+      - name: Retain failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chromium-failure
+          path: |
+            ui/control-plane/test-results/
+          if-no-files-found: ignore
+          retention-days: 5
+
+  platform-image:
+    name: Container Image (Build + Smoke)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build platform image
         env:
           PLATFORM_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
           PLATFORM_BUILD_PLATFORM: linux/amd64
         run: make build-image
-      - name: Verify built Platform image HTTP surface
+      - name: Check image HTTP entrypoint
         env:
           PLATFORM_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
           PLATFORM_BUILD_PLATFORM: linux/amd64
         run: make image-smoke
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.12"
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          resolution-strategy: highest
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-      - name: Verify real Docker volume preservation across upgrades
-        env:
-          RUN_DOCKER_LIFECYCLE_TESTS: "1"
-          VOLUME_REUSE_TEST_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
-        run: |
-          make setup-dev PYTHON_BIN=python
-          .venv/bin/python -m pytest -q tests/contract/test_compose_volume_reuse_docker.py
-
-  loki-query-smoke:
-    name: Loki Runtime LogQL smoke
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Start pinned Loki (loopback only)
-        run: |
-          image="$(sed -n 's/^LOKI_IMAGE=//p' .env.compose.example)"
-          test -n "$image"
-          docker run --detach --name loki-query-smoke \
-            --publish 127.0.0.1:3100:3100 \
-            --tmpfs /loki:rw,mode=1777 \
-            --env LOKI_RETENTION_HOURS=168 \
-            --volume "$PWD/ops/loki/loki-config.yml:/etc/loki/loki-config.yml:ro" \
-            "$image" -config.file=/etc/loki/loki-config.yml -config.expand-env=true
-      - name: Query real Loki with synthetic labeled runtime logs
-        run: python3 scripts/validation/grafana_loki_smoke.py
-      - name: Loki diagnostics on failure
-        if: failure()
-        run: docker logs loki-query-smoke --tail 120
-
-  operator-browser:
-    name: Chromium operator workflows (desktop/mobile)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ui/control-plane/.nvmrc
-          cache: npm
-          cache-dependency-path: ui/control-plane/package-lock.json
-      - name: Pin npm and install frontend
-        run: |
-          npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
-          npm --prefix ui/control-plane ci
-      - name: Install pinned browser runner
-        run: |
-          python3 -m venv /tmp/ux-playwright
-          /tmp/ux-playwright/bin/pip install playwright==1.56.0
-          /tmp/ux-playwright/bin/python -m playwright install --with-deps chromium
-      - name: Build Console from source for browser smoke
-        run: npm --prefix ui/control-plane run build
-      - name: Start built Console preview
-        run: |
-          (cd ui/control-plane && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/vite-preview.log 2>&1 &)
-      - name: Verify actual Chromium workflows
-        run: |
-          /tmp/ux-playwright/bin/python scripts/build/check_python.py --context playwright
-          /tmp/ux-playwright/bin/python scripts/validation/console_browser_smoke.py
-      - name: Archive diagnostic screenshots on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: operator-ux-chromium
-          path: /tmp/operator-ux-browser/*.png
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Preview diagnostics on failure
-        if: failure()
-        run: cat /tmp/vite-preview.log
 
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
-    needs:
-      - app-contract
-      - console
-      - platform-image
-      - loki-query-smoke
-      - operator-browser
+    needs: [python, frontend, browser, platform-image]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
     steps:
-      - name: Require validation jobs
+      - name: Require successful jobs
         env:
-          APP_CONTRACT_RESULT: ${{ needs.app-contract.result }}
-          CONSOLE_RESULT: ${{ needs.console.result }}
-          PLATFORM_IMAGE_RESULT: ${{ needs.platform-image.result }}
-          LOKI_QUERY_RESULT: ${{ needs.loki-query-smoke.result }}
-          OPERATOR_BROWSER_RESULT: ${{ needs.operator-browser.result }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          printf 'app-contract: %s\n' "${APP_CONTRACT_RESULT}"
-          printf 'console: %s\n' "${CONSOLE_RESULT}"
-          printf 'platform-image: %s\n' "${PLATFORM_IMAGE_RESULT}"
-
-          if [[ "${APP_CONTRACT_RESULT}" != "success" ]]; then
-            echo "App and contracts did not succeed." >&2
-            exit 1
-          fi
-
-          if [[ "${CONSOLE_RESULT}" != "success" ]]; then
-            echo "Control Plane frontend did not succeed." >&2
-            exit 1
-          fi
-
-          if [[ "${OPERATOR_BROWSER_RESULT}" != "success" ]]; then
-            echo "Chromium operator UX smoke did not succeed." >&2
-            exit 1
-          fi
-
-          if [[ "${LOKI_QUERY_RESULT}" != "success" ]]; then
-            echo "Loki Runtime LogQL smoke did not succeed." >&2
-            exit 1
-          fi
-
-          if [[ "${PLATFORM_IMAGE_RESULT}" != "success" ]]; then
-            echo "Platform image build and smoke did not succeed." >&2
-            exit 1
-          fi
-
+          python3 - <<'PY'
+          import json, os, sys
+          results = json.loads(os.environ["JOB_RESULTS"])
+          failures = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
+          for name, job in results.items():
+              print(f"{name}: {job['result']}")
+          sys.exit(1 if failures else 0)
+          PY

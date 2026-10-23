@@ -61,3 +61,7 @@ htmlcov/
 # ── Other ───────────────────────────────────────────────
 .DS_Store
 .other/
+
+# Native Runner failure diagnostics
+ui/control-plane/test-results/
+ui/control-plane/playwright-report/

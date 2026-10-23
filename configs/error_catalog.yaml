@@ -1,9 +1,8 @@
 # 에러 코드 카탈로그 — 사용자/운영자용 "의미 레이어"의 단일 소스.
 #
-# status·retryable의 런타임 권위는 errors.py의 ERROR_DEFINITIONS이다(SSE-only 포함).
-# make validate의 validate_common_error_codes가 이 파일, ERROR_DEFINITIONS, public schema의
-# code 집합을 함께 검사한다. 따라서 status는 여기 중복하지 않고, 이 파일은 code별
-# 서술 메타데이터(meaning/action)만 담는다.
+# 상태와 retryable의 런타임 권위는 errors.py의 ERROR_DEFINITIONS이다(SSE-only 포함).
+# 이 파일은 code별 의미(meaning)와 조치(action)만 제공하며 status를 중복하지 않는다.
+# 코드 집합과 공개 API의 의미는 변경 시 해당 소유자를 기준으로 확인한다.
 #
 # 소비처:
 #  - 생성 OpenAPI 에러 응답의 status별 code gloss   (src/ai_model_serving/openapi_contracts.py)

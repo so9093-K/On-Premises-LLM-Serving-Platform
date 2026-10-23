@@ -43,7 +43,7 @@ Main Model cache와 runtime startup을 현재 상태에 맞춰 수렴한다. 일
 | Unified vLLM Image Build | `vllm_unified_build.yaml` target과 같은 native Docker daemon. CUDA/NVIDIA image 전용 |
 | Model 다운로드 | Hugging Face token 및 모델별 사용 조건 |
 
-프로젝트가 지원하는 Python 범위는 `pyproject.toml`의 `requires-python`을 기준으로 하며, 현재 CPython 3.12와 3.13을 지원한다. 오래되거나 아직 채택하지 않은 Python에서도 먼저 오류를 안내할 수 있도록 bootstrap guard에도 같은 범위가 있고, `make validate`가 두 값의 일치를 확인한다.
+프로젝트가 지원하는 Python 범위는 `pyproject.toml`의 `requires-python`을 기준으로 하며, 현재 CPython 3.12와 3.13을 지원한다. bootstrap guard도 동일한 지원 범위를 안내하지만 현재 `make validate`는 버전 선언의 동기화를 별도로 검사하지 않는다.
 
 Linux Platform image의 기준은 Dockerfile에 고정된 Python 3.12 patch와 base image digest다.
 `.python-version`은 로컬 application 개발 기본값인 Python 3.13 patch를 가리키며 native
@@ -52,7 +52,7 @@ MLX runtime도 별도 설정에서 Python 3.13을 사용한다.
 `pyproject.toml`과 `uv.lock`으로 두 minor를 함께 지원하고, MLX만 충돌하는 native dependency
 때문에 `runtimes/mlx/`의 독립 project와 lock을 사용한다.
 
-로컬 Make 명령은 프로젝트의 `.venv`가 존재하면 해당 Python을 우선 사용한다. 호출자가 `PYTHON_BIN`을 지정한 경우에는 지정된 interpreter를 사용한다. Control Plane의 `npm run test:safety`도 이 환경변수를 우선하며 설정되지 않으면 `python3`를 사용한다.
+로컬 Make 명령은 프로젝트의 `.venv`가 존재하면 해당 Python을 우선 사용한다. 호출자가 `PYTHON_BIN`을 지정한 경우에는 지정된 interpreter를 사용한다. Control Plane의 Vitest·Playwright는 독립된 Node Runner이며 `make setup-test-runners`로 별도 설치한다.
 
 ### 개발 환경 준비
 
@@ -67,10 +67,17 @@ make setup-dev
 make app-check
 ```
 
-`make app-check`는 Python application/config/contracts만 검증한다. Control Plane까지 포함한 저장소 전체
-변경은 `make check`를 사용하며, 이 경우 `ui/control-plane/package.json`의 `engines`와
-`packageManager`에 고정된 Node.js/npm toolchain이 추가로 필요하다. `make check`는 내부적으로
-`make app-check`와 `make console-check`를 순서대로 호출한다.
+`make app-check`는 Python의 pytest와 Ruff·생성 산출물 Drift를 확인한다. Control Plane까지 포함한 기본 품질
+변경에는 지정된 Node.js/npm 도구를 준비한 다음 아래 명령을 사용한다.
+
+```bash
+make setup-test-runners
+make check
+```
+
+`make check`는 Ruff·생성 산출물 Drift·pytest·Vitest·Control Plane 소스 빌드 검사를 실행한다.
+Chromium UI 실행은 `make browser-test`로 별도 호출하며, 실제 Runtime/GPU 준비 상태는
+`make up`·`make status`가 소유한다.
 
 로컬 개발은 Python 3.13을 권장한다. 별도로 설치한 Python을 쓰려면
 `make setup-dev PYTHON_BIN=/path/to/python3.13`으로 지정한다. uv는 기존 `.venv`가 없으면
@@ -521,7 +528,7 @@ Compose effective config만 확인하는 maintainer 작업은
 | local state 초기화 | `make reset` |
 | project cache/artifact 폐기 | `make purge SCOPE=cache|all` |
 | application 변경 검증 | `make app-check` |
-| repository 전체 검증 | `make check` |
+| 기본 품질·Control Plane 검사 | `make check` |
 
 개별 image build와 Compose/Metal lifecycle script는 구현 계층의 도구다. 이미지와 실행 중인
 서비스에 대한 추가 기능 검증은 `make image-smoke`와 `make smoke`를 통해 명시적으로 실행한다.

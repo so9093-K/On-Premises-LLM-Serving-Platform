@@ -204,9 +204,7 @@ Deployment/Runtime Compatibility와 GPU resource admission, 그리고 start/appl
 (GPU: `configs/main_model_profiles.yaml`, CPU: `configs/cpu_main_model_profiles.yaml`).
 profile을 새로 추가하거나 model ID·revision·`deployed_input`을 바꾸면 `unverified`로 두고,
 실제 장비에서 전환과 해당 Backend의 Live 검증이 통과한 뒤 `verified`로 바꾼다.
-vLLM full-stack은 `make runtime-validate`, 관리형 llama.cpp CPU 모델은
-`make cpu-runtime-validate`를 사용한다. CPU 검증은 공개 모델 신원·텍스트 입력·문맥/출력 한도,
-Chat 및 Streaming을 확인한다. 어떤 장비에서 무엇을 확인했는지는 profile 주석과
+전용 Runtime 검증 CLI는 품질 체계 초기화에서 제거했다. 현재 `make smoke`는 대표 Gateway API만 확인하며 Backend별 전체 검증과 동등하지 않다. `verified` 선언은 maintainer가 실제 장비에서 모델 신원·변경 범위의 입력/응답·전환 결과를 직접 확인한 범위에 한한다. 어떤 장비에서 무엇을 확인했는지는 profile 주석과
 commit/PR 설명에 남긴다. CPU 프로필 검증은 GPU 없는 호스트의 전체 배포 Target 검증이나
 다른 Target의 자동 전환 검증을 대신하지 않는다.
 

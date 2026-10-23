@@ -25,7 +25,7 @@ CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인�
 
 ```bash
 make up TARGET=linux-cpu-managed ACCESS=local
-make cpu-runtime-validate
+make smoke
 make status
 ```
 
@@ -320,19 +320,8 @@ Compose Network
 publish하지 않는다. 제품·애플리케이션 요청은 Gateway를 통과하고, 내부 운영 연결은
 Compose service DNS를 사용한다.
 
-`make runtime-validate`도 같은 원칙을 따른다. validator는 실행 중인 Compose project에
-one-off container로 참여하고 `configs/services.yaml`의 service name/container port로
-내부 endpoint를 검사한다. 검증을 위해 host port를 추가로 열지 않으며
-`--no-deps`로 실행해 dependency lifecycle도 변경하지 않는다.
-
-```text
-Host
-  └─ make runtime-validate
-          ↓
-     one-off validator
-          ↓ Compose network
-     Gateway / vLLM / Risk / Prometheus / Grafana
-```
+raw Runtime은 host에 직접 publish하지 않는다. 운영 상태와 필수 모델 요청 준비는 `make up`과 `make status`가 소유한다.
+선택적 `make smoke`는 Gateway의 대표 요청을 확인할 뿐 내부 Runtime 검증 프레임워크가 아니다.
 
 현재 effective Compose 구성은 maintainer가 다음으로 확인한다.
 

@@ -2,7 +2,7 @@
 
 이 저장소는 GitHub를 Source Repository로 사용한다. 현재 자동화는
 [GitHub 검증 워크플로](../.github/workflows/validate.yml)가 `main` push, Pull Request와
-수동 실행에서 macOS·Ubuntu의 application/contract 검사, Control Plane 검사와
+수동 실행에서 macOS·Ubuntu의 pytest, Vitest·Playwright 검사와
 Linux Platform image build·container smoke를 수행한다.
 
 Container image publish와 운영 배포를 담당하는 CI/CD pipeline은 현재 정의하지 않는다.
@@ -14,7 +14,7 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 
 | 책임 | 현재 진입점 | 기준 |
 |---|---|---|
-| Application·contract 검사 | `make check` | `pyproject.toml`, `uv.lock`, configs, specs, tests |
+| 코드 품질·기본 테스트 | `make check` | `pyproject.toml`, `uv.lock`, Ruff, 신규 Suite와 생성 산출물 |
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
 | Platform image HTTP verification | `make image-smoke` | 이미 빌드된 이미지의 Gateway·Console·Docs 동작 |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
@@ -26,32 +26,11 @@ GitHub Actions 같은 자동화 도구는 위 진입점을 호출하는 adapter�
 Docker build argument, runtime 기동 순서와 component rollback 정책을 workflow YAML에 다시
 구현하지 않는다.
 
-## 9.2 현재 검증 자동화
+## 9.2 품질 자동화
 
-GitHub의 검증 workflow는 다음 경계를 독립적으로 확인한다.
+Python은 pytest, Control Plane은 Vitest, Chromium UI는 Playwright Test를 Native Runner로 실행한다. 공통 CLI `scripts/quality_cli.py`는 Suite와 종료 상태만 조정하며 CI별 별도 테스트 판단을 갖지 않는다. GitHub Actions는 이 CLI와 Platform image build 명령만 호출한다. GitLab CI 설정은 현재 정의하지 않으며 동일한 CLI를 호출하면 된다.
 
-- Ubuntu: `make app-check`로 Linux application·정적 Source/Artifact·contract 호환성 검증
-- macOS: `make test`로 macOS/Python application·contract 호환성 검증 (정적 Source/Artifact 검증은 Ubuntu가 소유)
-- Control Plane: frontend source/type/test와 checked-in bundle drift
-- Platform image: `make build-image`로 Linux/amd64 이미지를 생성하고, 이어서 독립된 `make image-smoke`로 app composition과 실제 HTTP 응답 검증
-
-Ubuntu/Python 3.12와 macOS/Python 3.13은 같은 Platform `uv.lock`의 대표 호환 조합이다.
-로컬 기본 patch는 `.python-version`, native runtime exact patch는 runtime 설정, Linux
-Platform image의 exact Python patch와 base digest는 `Dockerfile`이 각각 소유한다.
-
-이 workflow는 다음 작업을 수행하지 않는다.
-
-- Platform image registry push/promotion
-- Unified vLLM image build
-- 모델 다운로드
-- CUDA·NVIDIA GPU runtime 실행
-- 운영 서버 배포
-- 장시간 부하·성능 측정
-
-Platform image job은 source 아래 Dockerfile·lock·package composition이 실제 runnable image를
-만드는지 확인하는 verification gate다. 결과 image를 registry에 publish하거나 release candidate로
-승격하지 않는다. 따라서 workflow 성공은 application/contract와 Platform image packaging 검증
-결과이며 GPU runtime qualification을 대체하지 않는다.
+실제 Docker 이미지 빌드는 일반 코드 테스트와 별도 작업으로 유지한다. Runtime/GPU 운영의 Readiness는 제품 Lifecycle에 남는다.
 
 ## 9.3 Build, publish, lifecycle의 독립 경계
 
@@ -85,8 +64,7 @@ SSH/Ansible/CI runner가 이 lifecycle을 다른 host에서 호출할 수는 있
 
 ## 9.4 자원 경계
 
-정적 검증과 unit/contract test는 GPU runtime을 시작하지 않는다. `make check` 안에서
-`validate`와 `test`는 순서대로 실행되며, OS matrix의 병렬 실행은 GPU VRAM과 무관하다.
+기본 품질 CLI는 GPU Runtime을 시작하지 않는다. `make check`는 Ruff·생성물 확인, pytest, Vitest 및 프런트엔드 소스 빌드 검사를 실행한다. 브라우저 검사는 `make browser-test`로 별도 실행한다.
 
 향후 image publish·배포 자동화를 추가할 때는 다음 자원을 별도로 직렬화한다.
 

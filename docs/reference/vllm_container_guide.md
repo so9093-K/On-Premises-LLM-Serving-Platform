@@ -154,8 +154,8 @@ cache cold/warm 여부와 반복별 원자료를 함께 남긴다.
 - VRAM은 sampling 간격과 device 전체/Runtime process 중 어떤 값을 읽었는지
   기록한다. 데스크톱이 사용하는 GPU에서는 전체 사용량 변화를 Runtime 절감량으로
   해석하지 않는다. 종료 뒤 Runtime GPU process가 사라졌는지도 확인한다.
-- Main만의 시간 측정을 마친 뒤 전체 stack을 시작하고 기존 `make runtime-validate`로
-  Gateway 기능과 관측성을 확인한다. 자원 정책이 다른 profile을 허용하지 않는 host에서는
+- Main만의 측정을 마친 뒤 해당 target에서 `make up`·`make status`로 준비 상태를 확인하고,
+  필요한 대표 Gateway 호출만 `make smoke`로 확인한다. 이 명령은 이전 전체 Runtime 검증기와 동일하지 않다. 자원 정책이 다른 profile을 허용하지 않는 host에서는
   같은 profile의 replace/복구 결과와 실제 cross-profile switch 검증을 구분한다.
 
 이 cache 계약은 [vLLM의 공식 Docker compile-cache 안내](https://docs.vllm.ai/en/v0.30.0/deployment/docker/#persist-the-compile-cache-across-containers)를 따른다.

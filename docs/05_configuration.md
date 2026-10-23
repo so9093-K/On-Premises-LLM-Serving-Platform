@@ -461,7 +461,7 @@ runtime_override_example_keys
 └─ PROMPT_INJECTION_DETECTOR_*
 ```
 
-`make validate`는 example env 파일과 이 contract의 drift를 검사한다.
+환경변수 계약의 기준은 `configs/env_contract.yaml`이며 예시 파일을 수정할 때 동일한 키 집합과 문서 설명을 직접 확인한다. 현재 `make validate`는 env key 동기화 검사를 수행하지 않는다.
 
 ### API 문서·요청 경계 환경변수
 
@@ -524,12 +524,7 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-`make validate`의 access/host-boundary 단계는 `configs/services.yaml` service role과 target Compose의
-실제 `ports` 집합을 직접 대조한다.
-
-Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고, access/host-boundary 단계는
-지원 host exposure invariant를 확인한다. OpenAPI는 축약 전·후의
-계약 의미 보존도 함께 검증한다.
+현재 `make validate`는 Ruff 정적 검사와 `render_runtime_assets.py --check`를 실행한다. Access Profile 및 host 노출 정책은 배포 설정과 effective Compose에서 별도로 확인한다.
 
 ---
 
@@ -541,17 +536,8 @@ Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하�
 make validate
 ```
 
-현재 정적 검증에는 다음 영역이 포함된다.
-
-| 검증 | 주요 확인 내용 |
-|---|---|
-| Contract validation | registry, schema, 설정 간 invariant |
-| Shell syntax | 운영 shell script 구문 |
-| Access / host-boundary validation | Access Profile safety와 service registry ↔ Compose host publication 정합성 |
-| Compose topology drift | canonical/target Compose의 host publication과 runtime projection 일치 여부 |
-| Env contract validation | `.env.*.example`과 env contract 일치 여부 |
-| Generated artifacts | 생성 파일 drift와 OpenAPI projection 의미 보존 |
-| Auth profile sanity | auth profile과 생성값 일관성 |
+현재 `make validate`는 Ruff 오류와 생성 산출물 Drift를 확인한다. 예전의 정적 정책·스키마·host 노출 검사 전체를 수행하지 않는다.
+Compose 변경의 effective 설정은 `bash scripts/compose/compose_config.sh`를 사용한다.
 
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
@@ -559,7 +545,7 @@ Compose 관련 설정을 변경했다면 effective configuration도 함께 확�
 bash scripts/compose/compose_config.sh
 ```
 
-모델 runtime이나 GPU 설정 변경에는 static validation과 full-stack readiness를 함께 수행한다. 실제 API 계약 확인이 필요한 경우 [8. 테스트와 검증](./08_testing_validation.md)의 runtime validation을 추가한다.
+모델 Runtime/GPU 변경은 해당 Target의 `make up`/`make status`로 실제 상태를 확인한다. 선택적 `make smoke`는 대표 Gateway API만 확인하며 과거 Runtime validator와 동일하지 않다.
 
 ---
 
@@ -569,17 +555,17 @@ bash scripts/compose/compose_config.sh
 
 | 변경 영역 | 대표 파일 | 주요 영향 | 일반적인 후속 작업 |
 |---|---|---|---|
-| 모델 metadata / capability | `model_catalog.yaml` | model listing, capability contract | `make validate`, 관련 API 검토 |
-| Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
-| Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
-| GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `make validate`, `bash scripts/compose/compose_config.sh` |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make validate`, `make up ACCESS=...` |
+| 모델 metadata / capability | `model_catalog.yaml` | model listing, capability contract | `GET /v1/models` 및 관련 API 확인 |
+| Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | 대상 서비스 재기동·`make status`·필요시 `make smoke` |
+| Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | model prepare / switch 및 실제 신원 확인 |
+| GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make up`·`make status`에서 실제 admission 확인 |
+| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `bash scripts/compose/compose_config.sh`의 effective 구성 확인 |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make up ACCESS=...` 및 host bind 확인 |
 | Runtime Startup Profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | full-stack `make up` 또는 runtime reconcile |
-| Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
-| Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
+| Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | auth plan/apply/doctor |
+| Environment example contract | `env_contract.yaml` | example env key | example env 갱신·확인, `make up`의 기존 `.env` 동기화 |
 | `.env` | runtime environment | 현재 실행 instance의 endpoint, secret, timeout 등 | 대상 process/container 재기동 가능 |
-| API schema | `specs/schemas/*.json` | 외부 API contract | OpenAPI/API Reference 검토, `make validate` |
+| API schema | `specs/schemas/*.json` | 외부 API contract | OpenAPI/API Reference 검토 및 생성 산출물 Drift 확인 |
 
 설정 변경의 세부 배포 절차는 [10. 배포](./10_deployment.md), 변경 유형별 체크리스트는 [13. 변경 가이드](./13_change_guide.md)에서 이어서 다룬다.
 

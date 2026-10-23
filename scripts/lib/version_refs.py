@@ -1,8 +1,6 @@
 """VERSION 문자열이 실제로 박혀 있는 자리들의 단일 선언.
 
-생성기(scripts/build/reset_version.py)와 검증기(scripts/validation/governance/
-versioning.py)가 같은 표를 읽는다. 자리를 추가·삭제할 때는 여기만 고치며,
-선언된 자리가 대상 파일에서 사라지면 생성과 검증이 함께 실패한다.
+`scripts/build/reset_version.py`가 이 선언을 사용한다. 버전 참조 위치의 단일 소유자는 이 파일이며, 생성 시 선언된 입력이 없으면 실패한다.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ class LineRef:
 
     pattern은 버전이 무엇이든 그 줄을 찾아내고, template은 주어진 버전에서 그 줄이
     어떤 모습이어야 하는지를 말한다. 생성기는 pattern을 찾아 template으로 바꾸고,
-    검증기는 pattern이 찾은 줄들이 전부 template과 같은지 본다.
+    pattern은 입력에서 참조 위치를 식별하기 위해 사용한다.
     """
 
     path: str
