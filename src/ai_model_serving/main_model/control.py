@@ -889,7 +889,21 @@ class MainModelManager:
                 stats["rollback_failures"] = int(stats.get("rollback_failures", 0)) + 1
             stats["last_switch_timestamp"] = now
             stats["last_switch_duration_seconds"] = duration
+            if not success:
+                requested = operation.get("requested_profile")
+                protected = {
+                    state.get("active_profile"),
+                    state.get("last_known_good_profile"),
+                    state.get("previous_known_good_profile"),
+                }
+                if isinstance(requested, str) and requested.startswith("limits-") and requested not in protected:
+                    (state.get("runtime_limit_profiles") or {}).pop(requested, None)
         self.state_store.update(mutate)
+        if not success:
+            current = self.state_store.read()
+            for stale_id in tuple(self.catalog.profiles):
+                if stale_id.startswith("limits-") and stale_id not in (current.get("runtime_limit_profiles") or {}):
+                    self.catalog.profiles.pop(stale_id, None)
 
     async def _run(
         self,

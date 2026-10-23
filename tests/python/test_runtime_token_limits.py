@@ -137,6 +137,7 @@ def test_failed_canary_restores_entire_previous_runtime(tmp_path: Path):
         assert backend.current == "cpu-gguf-text"
         assert store.read()["active_profile"] == "cpu-gguf-text"
         assert store.read()["gate"] == "open"
+        assert not store.read().get("runtime_limit_profiles")
         await manager.aclose()
     asyncio.run(exercise())
 
@@ -173,7 +174,6 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
                 "context_tokens": context,
                 "max_output_tokens": 1024,
             }
-        oldest_id = next(iter(records))
         protected_id = list(records)[1]
         store = MainModelStateStore(tmp_path / "bounded.json", "cpu-gguf-text")
         store.update(lambda state: state.update(
@@ -192,9 +192,10 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
         )
         saved = store.read()["runtime_limit_profiles"]
         assert len(saved) == 32
-        assert oldest_id not in saved
+        removed = set(records) - set(saved)
+        assert len(removed) == 1
         assert protected_id in saved
-        assert manager.catalog.profiles.get(oldest_id) is None
+        assert all(item not in manager.catalog.profiles for item in removed)
         assert (await manager.wait_for_operation(result.operation_id))["status"] == "completed"
         assert store.read()["previous_known_good_profile"] == protected_id
         await manager.aclose()
