@@ -45,6 +45,8 @@ type ChatSessionValue = {
   // Embedding·Risk 화면의 401도 Chat과 같은 API 키 입력 흐름을 사용한다.
   rejectApiKey: () => void;
   exchanges: Exchange[];
+  selectedModelId: string | null;
+  setSelectedModelId: Dispatch<SetStateAction<string | null>>;
   // 작성 중인 Chat 입력과 첨부는 브라우저 탭의 세션에서만 유지한다.
   draft: string;
   setDraft: Dispatch<SetStateAction<string>>;
@@ -65,6 +67,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [apiKeyRejected, setApiKeyRejected] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
@@ -211,6 +214,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       apiKeyRejected,
       rejectApiKey,
       exchanges,
+      selectedModelId,
+      setSelectedModelId,
       draft,
       setDraft,
       attachments,
@@ -223,7 +228,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       stop,
       clear,
     }),
-    [apiKey, setApiKey, apiKeyRejected, rejectApiKey, exchanges, draft, attachments, settings, updateSettings, busy, send, sendToolResults, stop, clear],
+    [apiKey, setApiKey, apiKeyRejected, rejectApiKey, exchanges, selectedModelId, draft, attachments, settings, updateSettings, busy, send, sendToolResults, stop, clear],
   );
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>;
 }

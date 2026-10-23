@@ -17,8 +17,9 @@ profiles:
     compatibility:
       status: compatible
     qualification:
-      # Linux/Ryzen 9 7900X3D 실측(2026-10-21): docs/resources/manual_cpu_model_validation.md
-      status: verified
+      # 2026-10-21 실장비 검증은 문맥 2K / 출력 256이었다.
+      # 8K / 4K 정책은 동일 실장비에서 아직 검증하지 않았다.
+      status: unverified
     capabilities:
       deployed_input: [text]
     gateway_policy: &cpu_gateway_policy

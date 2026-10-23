@@ -58,11 +58,10 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
 
 export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
+  const { apiKey, apiKeyRejected, exchanges, selectedModelId, setSelectedModelId, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
   const [confirmClear, setConfirmClear] = useState(false);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showExamples, setShowExamples] = useState(false);
   const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
   const [appliedExampleId, setAppliedExampleId] = useState<string | null>(null);
@@ -85,7 +84,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
   );
-  const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
+  const model = models.find((item) => item.id === selectedModelId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
   const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
@@ -300,7 +299,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       clear();
       setShowExamples(true);
     }
-    setSelectedId(nextId);
+    setSelectedModelId(nextId);
     setAttachments([]);
     setAppliedExampleId(null);
     setSelectedExampleId(null);
