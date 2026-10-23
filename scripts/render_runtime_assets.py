@@ -18,8 +18,9 @@
     compose 파일에는 registry에서 파생할 수 없는 보일러플레이트가 있다
     (gateway env, prometheus secret, grafana env, healthcheck 등). PyYAML
     round-trip은 주석과 env placeholder를 유실한다.
-    compose vLLM command drift는 make validate가
-    validate_vllm_compose.py로 별도 검증한다.
+    Compose Main Model command 정합성은 이 생성 스크립트의 검증 범위가 아니다.
+    실제 운영 기동에서는 scripts/compose/preflight_compose.py가
+    validate_vllm_compose.py의 계약을 확인한다.
 
 Usage:
   python scripts/render_runtime_assets.py           # dry-run (drift 보고만, exit 0)

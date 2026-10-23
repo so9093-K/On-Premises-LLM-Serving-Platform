@@ -14,7 +14,7 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 
 | 책임 | 현재 진입점 | 기준 |
 |---|---|---|
-| Application·contract 검사 | `make check` | `pyproject.toml`, `uv.lock`, configs, specs, tests |
+| 코드 품질·기본 테스트 | `make check` | `pyproject.toml`, `uv.lock`, Ruff, 신규 Suite와 생성 산출물 |
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
 | Platform image HTTP verification | `make image-smoke` | 이미 빌드된 이미지의 Gateway·Console·Docs 동작 |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
