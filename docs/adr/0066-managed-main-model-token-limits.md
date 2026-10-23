@@ -15,6 +15,8 @@ Status: Accepted
 - 변경은 기존 MainModelManager의 Gate/Drain/Replace/Canary/Commit/Rollback 작업으로만 수행한다. Compose·Docker 제어 권한은 Gateway에 추가하지 않는다.
 - 새 관리형 CPU 전용 설치는 공통 `linux-nvidia-dynamic POLICY=cpu`를 사용하며, CPU/GPU의 실행 변경은 Runtime Controller가 소유한다. `linux-cpu-managed`·`linux-adaptive`는 기존 설치의 명시적 이전을 기다리는 호환 Target이다. 기존 Compose CPU에는 Controller API를 지원하는 척하지 않으며, Static·external도 읽기 전용이다.
 - `cpu-gguf-text-compact`와 `cpu-gguf-text-extended` 식별자는 기존 활성/저장 프로필 복원을 위해 유지한다. 신규 직접 편집은 동일 GGUF의 파생 실행 구성으로 구현하고 원본 모델 가중치는 중복 설치하지 않는다.
+- 직접 토큰 한도 편집은 명시적 CPU 고정·GPU 고정 정책에서 제공한다. GPU 우선·CPU 복구(`fallback`)와 자동 복귀(`automatic`)의 실행 후보 및 복구 의미는 기존 정책이 계속 소유한다.
+- OpenAPI는 고정 프로필의 출력을 초과하는 관리형 사용자 한도를 허용할 수 있으므로, 동적 환경에서는 정적 최대 출력값을 보증하지 않는다. 활성 프로필의 정확한 요청 제한은 `GET /v1/models`가 제공하고 Gateway가 적용 시 검증한다.
 - Runtime 변경 가능 여부와 실제 하드웨어의 충분한 성능은 다르다. 과거 검증 결과를 새로운 한도 설정의 성능 보증으로 사용하지 않는다.
 
 ## Consequences
