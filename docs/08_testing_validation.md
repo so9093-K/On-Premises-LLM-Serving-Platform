@@ -11,7 +11,7 @@ make setup-dev
 make setup-test-runners
 ```
 
-`make setup-test-runners`는 Control Plane의 기존 배포 의존성을 `npm ci`로 설치한 뒤 테스트 전용 Runner는 `scripts/quality/node_modules`에 독립적으로 설치하고 Console에는 실행 연결만 생성한다. 배포 의존성을 변경하지 않는다. 배포용 `package-lock.json`과 프로덕션 의존성에는 테스트 Runner를 추가하지 않는다. 테스트 Runner의 정확한 직접·하위 의존성은 `scripts/quality/package.json` 및 `scripts/quality/package-lock.json`이 소유하며, `npm ci`는 불일치 시 설치를 중단한다. 테스트 Runner 버전을 변경할 때는 `npm --prefix scripts/quality install --package-lock-only --ignore-scripts --no-audit --no-fund`로 전용 Lockfile만 갱신한다. Playwright는 기본 4173 포트에 전용 Preview를 시작하며 기존 서버를 재사용하지 않는다. 해당 포트를 이미 사용 중이라면 다른 서비스를 대상으로 테스트하지 않고 오류로 종료한다. Chromium이 필요하면 `npm --prefix ui/control-plane exec -- playwright install chromium`을 별도로 실행한다.
+`make setup-test-runners`는 Control Plane의 기존 배포 의존성을 `npm ci`로 설치한 뒤 테스트 전용 Runner는 `scripts/quality/node_modules`에 독립적으로 설치하고 Console에는 실행 연결만 생성한다. 배포 의존성을 변경하지 않는다. 배포용 `package-lock.json`과 프로덕션 의존성에는 테스트 Runner를 추가하지 않는다. 테스트 Runner의 정확한 직접·하위 의존성은 `scripts/quality/package.json` 및 `scripts/quality/package-lock.json`이 소유하며, `npm ci`는 불일치 시 설치를 중단한다. 테스트 Runner 버전을 변경할 때는 `npm --prefix scripts/quality install --package-lock-only --ignore-scripts --no-audit --no-fund`로 전용 Lockfile만 갱신한다. Playwright는 기본 4173 포트에 전용 Preview를 시작하며 기존 서버를 재사용하지 않는다. 브라우저 테스트용 Vite 빌드는 `ui/control-plane/node_modules/.cache/playwright-preview/`에 별도로 생성하며 추적된 제품 정적 자산을 덮어쓰지 않는다. 해당 포트를 이미 사용 중이라면 다른 서비스를 대상으로 테스트하지 않고 오류로 종료한다. Chromium이 필요하면 `npm --prefix ui/control-plane exec -- playwright install chromium`을 별도로 실행한다.
 
 ## 실행 명령
 
