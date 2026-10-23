@@ -654,6 +654,12 @@ class MainModelManager:
         client_request_id: str | None = None,
         execution_policy: str | None = None,
     ) -> SwitchOutcome:
+        if execution_policy in RECOVERING_POLICIES:
+            raise MainModelSwitchError(
+                "RUNTIME_LIMIT_RECOVERY_POLICY_UNSUPPORTED",
+                "custom server limits require fixed CPU or GPU execution policy",
+                status_code=422,
+            )
         records = self.state_store.read().get("runtime_limit_profiles") or {}
         # 기존 사용자 구성에서 다시 수정할 때에는 원래 선언된 모델 프로필을
         # 기준으로 새 변형을 파생한다. 변형을 중첩하지 않는다.
