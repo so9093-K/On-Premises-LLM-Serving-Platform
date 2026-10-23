@@ -56,7 +56,9 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
 // Playground는 Deployment Target이 공개한 기능별 작업 화면을 묶는다. 각 화면은 기존 공개
 // Gateway API만 호출하며, API 키는 화면 사이에서 공유하되 탭 메모리 밖에 저장하지 않는다.
 export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPageProps) {
-  const { apiKey, setApiKey, apiKeyRejected } = useChatSession();
+  const { apiKey, setApiKey, apiKeyRejected, exchanges, draft, attachments, settings } = useChatSession();
+  const [confirmKeyClear, setConfirmKeyClear] = useState(false);
+  const hasChatWork = exchanges.length > 0 || Boolean(draft.trim()) || attachments.length > 0 || settings.systemPrompt !== '';
   const modelsQuery = usePublicModels(apiKey);
   const workspaces = visiblePlaygroundWorkspaces(features);
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
@@ -74,29 +76,44 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
           <p>공개 Gateway API로 모델 기능을 확인합니다.</p>
           <details className="playground-data-help">
             <summary>입력 보관 안내</summary>
-            <p>Chat 대화·작성 중인 메시지·첨부·요청 설정은 같은 탭에서 화면을 이동해도 유지됩니다. Embedding·Risk의 입력과 결과는 해당 화면을 떠나면 삭제됩니다. 새로고침하면 API 키와 Chat 세션도 지워집니다. 입력은 브라우저의 영구 저장소에 보관하지 않습니다.</p>
+            <p>Chat 대화·작성 중인 메시지·첨부·요청 설정은 같은 탭에서 화면을 이동해도 유지됩니다. API 키를 교체·삭제하거나 새로고침하면 Chat 세션은 삭제됩니다. Embedding·Risk의 입력과 결과는 해당 화면을 떠나면 삭제됩니다. 입력은 브라우저의 영구 저장소에 보관하지 않습니다.</p>
           </details>
         </div>
         {apiKey !== null ? (
           <div className="chat-heading-actions">
-            <Button variant="secondary" onClick={() => setApiKey(null)}>API 키 지우기</Button>
+            <Button variant="secondary" onClick={() => {
+              if (hasChatWork) setConfirmKeyClear(true);
+              else setApiKey(null);
+            }}>API 키 지우기</Button>
           </div>
         ) : null}
       </div>
+      {confirmKeyClear ? (
+        <div className="playground-credential-confirm" role="group" aria-label="API 키와 Chat 세션 삭제 확인">
+          <p>API 키를 지우면 진행 중인 Chat 요청을 중지하고 대화·초안·첨부·요청 설정을 삭제합니다. 다른 API 키를 입력해도 이전 대화를 재사용하지 않습니다.</p>
+          <div className="chat-heading-actions">
+            <Button variant="secondary" onClick={() => setConfirmKeyClear(false)}>취소</Button>
+            <Button variant="danger" onClick={() => {
+              setConfirmKeyClear(false);
+              setApiKey(null);
+            }}>API 키 및 Chat 세션 지우기</Button>
+          </div>
+        </div>
+      ) : null}
       <nav className="playground-tabs" aria-label="Playground 기능">
         {workspaces.map((workspace) => (
           <NavLink key={workspace.path} to={playgroundPath(workspace.path)}>{workspace.label}</NavLink>
         ))}
       </nav>
       {needsKey ? <PublicApiKeyForm rejected={apiKey !== null} /> : null}
-      <Routes>
+      {!needsKey ? <Routes key={apiKey ?? 'anonymous'}>
         {workspaces.map((workspace) => (
           <Route key={workspace.path} path={workspace.path} element={elements[workspace.path]} />
         ))}
         {workspaces.length > 0 ? (
           <Route path="*" element={<Navigate to={playgroundPath(workspaces[0].path)} replace />} />
         ) : null}
-      </Routes>
+      </Routes> : null}
     </section>
   );
 }

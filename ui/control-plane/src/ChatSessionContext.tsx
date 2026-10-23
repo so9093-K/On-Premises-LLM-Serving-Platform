@@ -75,6 +75,8 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const abortRef = useRef<AbortController | null>(null);
   const mediaRegistry = useRef(new MediaDataRegistry());
   const nextIdRef = useRef(0);
+  const keyRef = useRef<string | null>(null);
+  const credentialEpochRef = useRef(0);
   // send는 최신 대화·설정으로 요청을 만들어야 하지만 매 token마다 새 함수가 되면
   // 입력창까지 다시 그린다. 최신 값은 ref로 읽는다.
   const latest = useRef({ apiKey, exchanges, settings });
@@ -85,6 +87,20 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => () => { abortRef.current?.abort(); mediaRegistry.current.clear(); }, []);
 
   const setApiKey = useCallback((key: string | null) => {
+    if (keyRef.current !== key) {
+      // 인증 주체가 바뀌면 이전 대화와 전송 중 요청이 새 키에 섞이지 않아야 한다.
+      credentialEpochRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      mediaRegistry.current.clear();
+      setExchanges([]);
+      setDraft('');
+      setAttachments([]);
+      setSelectedModelId(null);
+      setSettings(DEFAULT_CHAT_SETTINGS);
+      setBusy(false);
+      keyRef.current = key;
+    }
     setApiKeyState(key);
     setApiKeyRejected(false);
   }, []);
@@ -114,6 +130,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     // Serialize exactly once: the same bytes are sent over HTTP and exported later.
     const request = prepareChatRequest(body, requestMedia);
     const controller = new AbortController();
+    const credentialEpoch = credentialEpochRef.current;
     abortRef.current = controller;
     setBusy(true);
     setExchanges((items) => [
@@ -130,6 +147,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       },
     ]);
     const update = (change: (turn: AssistantTurn) => AssistantTurn) => {
+      if (credentialEpochRef.current !== credentialEpoch) return;
       setExchanges((items) => items.map((item) => (
         item.id === id ? { ...item, assistant: change(item.assistant) } : item
       )));
@@ -156,7 +174,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
         if (controller.signal.aborted) {
           update((turn) => stopTurn(turn, now));
         } else if (reason instanceof ApiError) {
-          if (reason.status === 401) setApiKeyRejected(true);
+          if (reason.status === 401 && credentialEpochRef.current === credentialEpoch) setApiKeyRejected(true);
           update((turn) => failTurn(turn, {
             code: reason.code,
             message: reason.status === 401 ? 'API 키가 필요하거나 유효하지 않습니다.' : reason.message,
@@ -169,8 +187,10 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
           }, now));
         }
       } finally {
-        if (abortRef.current === controller) abortRef.current = null;
-        setBusy(false);
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+          setBusy(false);
+        }
       }
     })();
   }, []);

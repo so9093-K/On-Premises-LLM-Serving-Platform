@@ -514,6 +514,11 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
+              <div className="chat-composer-context" aria-label="현재 요청 모델 한도">
+                <span>{model.display_name ?? model.id}</span>
+                {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '모델 정책')}</small> : null}
+                {JSON.stringify(session.settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS) ? <small>요청 설정 변경됨</small> : null}
+              </div>
               <div className="chat-composer-tools">
                 {attachmentAccept(model) ? (
                   <div className="chat-attachment-input">
