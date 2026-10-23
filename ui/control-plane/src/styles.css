@@ -2293,3 +2293,10 @@ a.overview-action-tile:hover {
 .chat-quick-output { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.8rem; font-weight: 600; }
 .chat-quick-output input { width: 9rem; min-width: 0; box-sizing: border-box; border: 1px solid var(--console-border); padding: 0.35rem 0.5rem; color: inherit; background: var(--console-surface); border-radius: 0.375rem; font: inherit; }
 .chat-quick-output input:focus-visible { outline: 2px solid var(--console-focus); }
+
+/* Main Model 실행 한도는 운영자 확인 단계에서만 편집한다. */
+.model-server-limits { display: grid; gap: 0.65rem; padding: 1rem; border: 1px solid var(--console-border); border-radius: 0.5rem; }
+.model-server-limit-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.75rem; }
+.model-server-limit-fields label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; }
+.model-server-limit-fields input { width: 100%; min-width: 0; box-sizing: border-box; padding: 0.5rem 0.625rem; border: 1px solid var(--console-border); border-radius: 0.375rem; color: inherit; background: var(--console-surface); font: inherit; }
+.model-server-limit-fields input:focus-visible { outline: 2px solid var(--console-focus); }

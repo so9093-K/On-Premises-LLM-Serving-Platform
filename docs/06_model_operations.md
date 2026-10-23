@@ -708,3 +708,11 @@ Runtime Controller를 제공하는 Linux Target의 **메인 모델 → CPU llama
 메인 모델 화면은 동일한 `upstream_model_id`, Revision, Runtime backend를 사용하는 프로필을 하나의 실제 모델 아래 묶어 보여준다. CPU 4K/1K·8K/4K·16K/4K는 동일 GGUF 모델의 실행 구성이지 별도 가중치가 아니다. 각 구성의 변경은 기존 Main Model 전환·Canary·Rollback이 적용된다.
 
 Playground의 **이번 요청 최대 출력 토큰**은 `/v1/models`에 광고된 요청 파라미터 범위만 변경하며 실행 인자와 서버의 최대 문맥/출력은 변경하지 않는다. 기존 메인 모델 제어 API는 선언된 프로필 ID 전환만 지원한다. 임의 숫자 토큰 한도 입력을 Runtime에 적용할 수 있는 것처럼 표시하지 않는다. 서버 실행 한도의 변경은 프로필 설정 Source of Truth와 실제 Runtime/Gateway 정책의 동기화, 재시작 복원·Rollback이 필요한 별도 운영 계약이다.
+
+### 관리형 모델의 서버 문맥·출력 한도 직접 조정
+
+`linux-nvidia-dynamic`처럼 Runtime Controller가 모델 재생성을 소유하는 배포에서는 관리자가 모델 실행 구성의 **전환 검토**에서 문맥 토큰 및 최대 출력 토큰을 직접 지정할 수 있다. 입력값은 서버가 다시 검증하고, 실제 엔진 명령(`llama.cpp --ctx-size` 또는 `vLLM --max-model-len`)과 Gateway `max_model_len`·`max_output_tokens`를 같은 변형 프로필로 투영한다.
+
+같은 모델·Revision·이미지의 변형 프로필 ID를 Main Model의 기존 지속 상태에 저장하여 Controller 재시작 뒤 복원한다. 전환은 기존 Gate → Drain → Replace → Canary → Commit 또는 이전 프로필 Rollback 단계로 수행한다. 변경 요청은 미검증 설정 확인을 요구한다. CPU 문맥은 같은 GGUF의 선언된 최대 프리셋 이하, GPU 문맥은 원래 선택한 기준 프로필 상한 이하에서 허용한다. 실제 RAM·GPU 메모리 및 지연 성능은 장비에서 별도 검증이 필요하다.
+
+`linux-cpu-managed`의 Compose 독립 CPU는 Runtime Controller가 관리하지 않으므로 이 API로 한도를 수정할 수 없다. 해당 배포의 지속적인 한도 변경은 Compose 설정 소유자가 수행해야 하며, 외부·Static 런타임은 기존 권한 경계를 유지한다. **Playground의 이번 요청 최대 출력 토큰은 서버 한도 변경이 아니다.**

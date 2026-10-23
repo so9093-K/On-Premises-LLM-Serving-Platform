@@ -9,7 +9,7 @@ from typing import Any, NamedTuple, Protocol
 from .execution_policy import RECOVERING_POLICIES
 from .catalog import MainModelCatalog, MainModelProfile, resolve_boot_profile
 from .state import MainModelStateError, MainModelStateStore, MainModelSwitchLockError
-from .runtime_limits import RuntimeLimitError, build_runtime_limit_profile, restore_runtime_limit_profiles
+from .runtime_limits import build_runtime_limit_profile, restore_runtime_limit_profiles
 from ..service_logging import service_logger
 
 _logger = service_logger("main_model_control")
