@@ -365,8 +365,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             {!modelSwitchingEnabled ? (
               <>
                 <dl className="facts">
-                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                  <dt>관리 주체</dt><dd>{noMainModel ? '모델 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
                 </dl>
                 <p className="overview-muted overview-ownership-note">
                   {noMainModel

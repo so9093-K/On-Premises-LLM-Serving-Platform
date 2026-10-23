@@ -157,3 +157,78 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
   await page.getByRole('link', { name: /요청 설정/ }).click();
   await expect(page.getByLabel('시스템 프롬프트')).toHaveValue('');
 });
+
+test('Risk 입력을 변경하면 마지막 실행 결과로 구분한다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4,
+      access: { admin_auth_required: false },
+      deployment: { target: 'linux-core', display_name: 'Core', runtime_backend: 'none', features: ['risk'] },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ object: 'list', data: [] }),
+  }));
+  await page.route('**/v1/risk/detectors/pii/assessments', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      status: 'completed', assessment_complete: true, risk_detected: false,
+      system_signal_detected: false, categories: [], system_signals: [],
+    }),
+  }));
+  await page.goto('/admin/console/playground/risk');
+  await page.getByLabel('검사할 텍스트').fill('첫 검사 입력');
+  await page.getByRole('button', { name: '검사', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Risk 결과' })).toBeVisible();
+  await page.getByLabel('검사할 텍스트').fill('수정된 검사 입력');
+  await expect(page.getByText('이전 입력의 검사 결과입니다.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Risk 결과' })).toContainText('마지막 검사 결과');
+  await page.getByRole('button', { name: '검사', exact: true }).click();
+  await expect(page.getByText('이전 입력의 검사 결과입니다.')).toHaveCount(0);
+});
+
+test('Embedding 입력 변경 뒤 기존 벡터를 마지막 실행 결과로 표시한다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4,
+      access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: 'GPU',
+        runtime_backend: 'vllm-cuda', features: ['embeddings'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      object: 'list',
+      data: [{
+        id: 'local-embed',
+        backend: 'vllm-cuda',
+        capabilities: ['embeddings'],
+        input_modalities: ['text'],
+        request_parameters: {},
+      }],
+    }),
+  }));
+  await page.route('**/v1/embeddings', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      object: 'list', model: 'local-embed',
+      data: [{ index: 0, object: 'embedding', embedding: [0.5, 0.2, 0.1] }],
+      usage: { prompt_tokens: 3, total_tokens: 3 },
+    }),
+  }));
+  await page.goto('/admin/console/playground/embeddings');
+  const input = page.getByLabel('텍스트', { exact: true });
+  await input.fill('최초 임베딩 입력');
+  await page.getByRole('button', { name: '벡터 생성' }).click();
+  await expect(page.getByRole('region', { name: 'Embedding 결과' })).toBeVisible();
+  await input.fill('수정된 임베딩 입력');
+  await expect(page.getByText('이전 입력의 실행 결과입니다.')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Embedding 결과' })).toContainText('마지막 실행 결과');
+});
