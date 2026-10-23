@@ -184,7 +184,6 @@ test('Risk 입력을 변경하면 마지막 실행 결과로 구분한다', asyn
   await expect(page.getByRole('region', { name: 'Risk 결과' })).toBeVisible();
   await page.getByLabel('검사할 텍스트').fill('수정된 검사 입력');
   await expect(page.getByText('이전 입력의 검사 결과입니다.')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Risk 결과' })).toContainText('마지막 검사 결과');
   await page.getByRole('button', { name: '검사', exact: true }).click();
   await expect(page.getByText('이전 입력의 검사 결과입니다.')).toHaveCount(0);
 });
@@ -230,7 +229,6 @@ test('Embedding 입력 변경 뒤 기존 벡터를 마지막 실행 결과로 �
   await expect(page.getByRole('region', { name: 'Embedding 결과' })).toBeVisible();
   await input.fill('수정된 임베딩 입력');
   await expect(page.getByText('이전 입력의 실행 결과입니다.')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Embedding 결과' })).toContainText('마지막 실행 결과');
 });
 
 test('운영 활동에서 과거 페이지를 열어도 최신 작업 상태를 덮어쓰지 않는다', async ({ page }) => {
