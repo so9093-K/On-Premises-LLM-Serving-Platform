@@ -21,7 +21,7 @@
     },
     {
       "asDropdown": false,
-      "icon": "external link",
+      "icon": "dashboard",
       "includeVars": true,
       "keepTime": true,
       "tags": [],
@@ -29,7 +29,7 @@
       "title": "오늘 사용량",
       "tooltip": "집계(메트릭) 관점의 사용량·오류 대시보드",
       "type": "link",
-      "url": "/d/usage_today/usage-today"
+      "url": "/d/usage_today"
     },
     {
       "asDropdown": false,
@@ -79,7 +79,10 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "client_host"},
+            "matcher": {
+              "id": "byName",
+              "options": "client_host"
+            },
             "properties": [
               {
                 "id": "links",
@@ -183,7 +186,10 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "request_id"},
+            "matcher": {
+              "id": "byName",
+              "options": "request_id"
+            },
             "properties": [
               {
                 "id": "links",
@@ -198,7 +204,10 @@
             ]
           },
           {
-            "matcher": {"id": "byName", "options": "client_host"},
+            "matcher": {
+              "id": "byName",
+              "options": "client_host"
+            },
             "properties": [
               {
                 "id": "links",
@@ -273,36 +282,97 @@
       "id": 7,
       "type": "table",
       "title": "준비 상태 실패 (/ready)",
-      "datasource": {"type": "loki", "uid": "${datasource}"},
-      "gridPos": {"x": 0, "y": 18, "w": 24, "h": 8},
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "{job=\"application\", service=\"${service}\"} | json | event=\"http_request_completed\" | route=\"/ready\" | status_code >= 400 | client_host=~\"${client_host_filter}\"",
           "refId": "A"
         }
       ],
-      "options": {"showHeader": true, "sortBy": [{"displayName": "Time", "desc": true}]},
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Time",
+            "desc": true
+          }
+        ]
+      },
       "fieldConfig": {
         "defaults": {},
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "client_host"},
-            "properties": [{"id": "links", "value": [{"title": "이 client_host로 필터링", "url": "/d/request_log_explorer?var-client_host_filter=${__value.raw}&${__url_time_range}", "targetBlank": false}]}]
+            "matcher": {
+              "id": "byName",
+              "options": "client_host"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 client_host로 필터링",
+                    "url": "/d/request_log_explorer?var-client_host_filter=${__value.raw}&${__url_time_range}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
       "transformations": [
-        {"id": "extractFields", "options": {"source": "Line", "format": "json", "replace": false}},
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Line",
+            "format": "json",
+            "replace": false
+          }
+        },
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"labels": true, "tsNs": true, "id": true, "labelTypes": true, "job": true, "stream": true, "container_id": true, "event": true, "detected_level": true, "service_name": true, "filename": true, "request_body": true, "response_body": true},
-            "indexByName": {"Time": 0, "status_code": 1, "readiness_status": 2, "readiness_dependencies": 3, "readiness_summary": 4, "latency_ms": 5, "client_host": 6, "service": 7, "Line": 20},
+            "excludeByName": {
+              "labels": true,
+              "tsNs": true,
+              "id": true,
+              "labelTypes": true,
+              "job": true,
+              "stream": true,
+              "container_id": true,
+              "event": true,
+              "detected_level": true,
+              "service_name": true,
+              "filename": true,
+              "request_body": true,
+              "response_body": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "status_code": 1,
+              "readiness_status": 2,
+              "readiness_dependencies": 3,
+              "readiness_summary": 4,
+              "latency_ms": 5,
+              "client_host": 6,
+              "service": 7,
+              "Line": 20
+            },
             "renameByName": {}
           }
         }
       ],
-      "description": "Gateway 또는 Risk Signal Service의 `/ready` 503 응답입니다.\n\n`readiness_summary`에서 준비되지 않은 의존성을 확인하세요. 모델 기동 중에는 일시적으로 발생할 수 있습니다."
+      "description": "Gateway 또는 Risk Signal Service의 `/ready` 503 응답입니다.\n\n`readiness_summary`에서 준비되지 않은 의존성을 확인하세요. 모델 기동 중에는 일시적으로 발생할 수 있습니다.\n\n요청 서비스와 Client Host만 적용됩니다. /ready 확인은 일반 API 오류 필터와 분리합니다."
     },
     {
       "id": 3,
@@ -341,7 +411,10 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "client_host"},
+            "matcher": {
+              "id": "byName",
+              "options": "client_host"
+            },
             "properties": [
               {
                 "id": "links",
@@ -399,7 +472,7 @@
           }
         }
       ],
-      "description": "모델 런타임의 HTTP 4xx/5xx 로그를 확인합니다.\n\nService 필터와 별도로 vLLM·MLX 로그를 검색합니다. Gateway 오류는 **API·스트림 오류**, 원문은 **런타임 원본 로그**에서 확인하세요."
+      "description": "모델 런타임의 HTTP 4xx/5xx 로그를 확인합니다.\n\nService 필터와 별도로 vLLM·MLX 로그를 검색합니다. Gateway 오류는 **API·스트림 오류**, 원문은 **런타임 원본 로그**에서 확인하세요.\n\n상단 애플리케이션 요청 필터는 이 런타임 로그 패널에 적용되지 않습니다. Runtime 원본 로그 검색만 해당 패널에 적용됩니다."
     },
     {
       "id": 4,
@@ -430,7 +503,7 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "모델 런타임의 시작·추론·종료 로그입니다. Service 필터와 별도로 검색합니다.\n\n- Search Text에 오류 문구나 `upstream_response_id`를 입력하세요.\n- 로그를 펼치고 `container_id`를 선택해 컨테이너를 좁히세요.\n\n런타임 원문에는 민감정보가 포함될 수 있습니다."
+      "description": "모델 런타임의 시작·추론·종료 로그입니다. Service 필터와 별도로 검색합니다.\n\n- Search Text에 오류 문구나 `upstream_response_id`를 입력하세요.\n- 로그를 펼치고 `container_id`를 선택해 컨테이너를 좁히세요.\n\n런타임 원문에는 민감정보가 포함될 수 있습니다.\n\n상단 애플리케이션 요청 필터는 이 런타임 로그 패널에 적용되지 않습니다. Runtime 원본 로그 검색만 해당 패널에 적용됩니다."
     },
     {
       "id": 5,
@@ -461,7 +534,7 @@
         "wrapLogMessage": true,
         "sortOrder": "Descending"
       },
-      "description": "초기화 실패·Python traceback 등 엔진 오류를 검색합니다.\n\nSearch Text로 오류 문구를 좁히세요. 결과가 없으면 **런타임 원본 로그**에서 같은 시간대를 확인하세요."
+      "description": "초기화 실패·Python traceback 등 엔진 오류를 검색합니다.\n\nSearch Text로 오류 문구를 좁히세요. 결과가 없으면 **런타임 원본 로그**에서 같은 시간대를 확인하세요.\n\n상단 애플리케이션 요청 필터는 이 런타임 로그 패널에 적용되지 않습니다. Runtime 원본 로그 검색만 해당 패널에 적용됩니다."
     },
     {
       "id": 6,
@@ -526,7 +599,7 @@
         },
         "hide": 0,
         "includeAll": false,
-        "label": "Service",
+        "label": "요청 서비스 (애플리케이션 로그)",
         "multi": false,
         "name": "service",
         "options": [
@@ -551,7 +624,7 @@
           "value": ".*"
         },
         "hide": 0,
-        "label": "Request ID (regex, 예: req_abc.*)",
+        "label": "요청 ID (애플리케이션 로그, 정규식)",
         "name": "request_id_filter",
         "options": [],
         "query": ".*",
@@ -564,7 +637,7 @@
           "value": ".*"
         },
         "hide": 0,
-        "label": "Client Host (regex, 예: 192.168.*)",
+        "label": "클라이언트 주소 (애플리케이션 로그, 정규식)",
         "name": "client_host_filter",
         "options": [],
         "query": ".*",
@@ -577,7 +650,7 @@
           "value": ".*"
         },
         "hide": 0,
-        "label": "Route (regex, 예: /v1/chat.*)",
+        "label": "요청 경로 (애플리케이션 로그, 정규식)",
         "name": "route_filter",
         "options": [],
         "query": ".*",
@@ -590,7 +663,7 @@
           "value": ".*"
         },
         "hide": 0,
-        "label": "Error Code (regex, 예: NOT_FOUND)",
+        "label": "오류 코드 (애플리케이션 로그, 정규식)",
         "name": "error_code_filter",
         "options": [],
         "query": ".*",
@@ -603,7 +676,7 @@
           "value": ".*"
         },
         "hide": 0,
-        "label": "Search Text (regex, 예: ValueError|18.65 GiB)",
+        "label": "Runtime 원본 로그 검색 (정규식)",
         "name": "search_text",
         "options": [],
         "query": ".*",

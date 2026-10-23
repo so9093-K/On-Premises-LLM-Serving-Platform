@@ -5,7 +5,7 @@ default_profile: cpu-gguf-text
 
 runtime:
   port: 8080
-  context_size: 2048
+  context_size: 8192
   gpu_layers: 0
   parallel: 1
   threads: 4
@@ -23,9 +23,9 @@ profiles:
       deployed_input: [text]
     gateway_policy:
       max_concurrency: 1
-      max_output_tokens: 256
+      max_output_tokens: 4096
       request_limits:
-        max_model_len: 2048
+        max_model_len: 8192
         input_modalities: [text]
       request_parameter_policy:
         allow_unlisted_parameters: false
