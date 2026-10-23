@@ -267,7 +267,6 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
 
       {run && verdict ? (
         <section className="playground-result" aria-live="polite" aria-label="Risk 결과">
-          {inputChangedSinceRequest ? <p className="playground-hint">마지막 검사 결과 · 현재 편집 중인 입력과 다릅니다.</p> : null}
           <div className="playground-result-headline" data-tone={verdict.tone}>
             <span>{run.checkLabel}</span>
             <strong>{verdict.title}</strong>

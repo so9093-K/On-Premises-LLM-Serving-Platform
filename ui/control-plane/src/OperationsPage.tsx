@@ -222,10 +222,8 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     getNextPageParam: (page) => page.next_cursor ?? undefined,
     enabled: runtimeEnabled,
     retry: false,
-    refetchInterval: (query) => {
-      const data = query.state.data as { pages?: unknown[] } | undefined;
-      return (data?.pages?.length ?? 0) > 1 ? false : pollWhileVisible();
-    },
+    refetchInterval: (query) =>
+      (query.state.data?.pages.length ?? 0) > 1 ? false : pollWhileVisible(),
     refetchIntervalInBackground: false,
   });
   const mainModelQuery = useQuery({
@@ -242,10 +240,8 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_cursor ?? undefined,
     retry: false,
-    refetchInterval: (query) => {
-      const data = query.state.data as { pages?: unknown[] } | undefined;
-      return (data?.pages?.length ?? 0) > 1 ? false : pollWhileVisible();
-    },
+    refetchInterval: (query) =>
+      (query.state.data?.pages.length ?? 0) > 1 ? false : pollWhileVisible(),
     refetchIntervalInBackground: false,
   });
 

@@ -289,7 +289,6 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
 
       {run ? (
         <section className="playground-result" aria-live="polite" aria-label="Embedding 결과">
-          {inputChangedSinceRequest ? <p className="playground-hint">마지막 실행 결과 · 현재 입력과 다릅니다.</p> : null}
           {run.result.similarity !== null ? (
             <div className="playground-result-headline">
               <span>Cosine similarity</span>
@@ -323,7 +322,6 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
 
       {retrievalRun ? (
         <section className="playground-result" aria-live="polite" aria-label="문서 관련도 결과">
-          {inputChangedSinceRequest ? <p className="playground-hint">마지막 실행 결과 · 현재 질문 또는 후보 문서와 다릅니다.</p> : null}
           <h3>문서 관련도 순위</h3>
           <p className="playground-vector-input">검색 질문: {retrievalRun.request.query}</p>
           <p className="playground-hint">Cosine similarity가 높은 순서입니다. 점수는 정답 확률이 아닙니다.</p>
