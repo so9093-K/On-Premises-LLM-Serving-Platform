@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import {
   fetchConfigurationHistory,
@@ -214,12 +214,17 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
   const pollWhileVisible = () => document.visibilityState === 'visible' ? 10_000 : false;
   const [filter, setFilter] = useState<ActivityFilter>('all');
 
-  const runtimeQuery = useQuery({
+  const runtimeQuery = useInfiniteQuery({
     queryKey: ['operations', 'runtime', authClass],
-    queryFn: () => fetchRuntimeOperations(token),
+    queryFn: ({ pageParam }) => fetchRuntimeOperations(token, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
     enabled: runtimeEnabled,
     retry: false,
-    refetchInterval: pollWhileVisible,
+    refetchInterval: (query) => {
+      const data = query.state.data as { pages?: unknown[] } | undefined;
+      return (data?.pages?.length ?? 0) > 1 ? false : pollWhileVisible();
+    },
     refetchIntervalInBackground: false,
   });
   const mainModelQuery = useQuery({
@@ -230,11 +235,16 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     refetchInterval: pollWhileVisible,
     refetchIntervalInBackground: false,
   });
-  const configurationQuery = useQuery({
+  const configurationQuery = useInfiniteQuery({
     queryKey: ['operations', 'configuration', authClass],
-    queryFn: () => fetchConfigurationHistory(token),
+    queryFn: ({ pageParam }) => fetchConfigurationHistory(token, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
     retry: false,
-    refetchInterval: pollWhileVisible,
+    refetchInterval: (query) => {
+      const data = query.state.data as { pages?: unknown[] } | undefined;
+      return (data?.pages?.length ?? 0) > 1 ? false : pollWhileVisible();
+    },
     refetchIntervalInBackground: false,
   });
 
@@ -248,37 +258,45 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     }
   }, [configurationQuery.error, mainModelQuery.error, onUnauthorized, runtimeQuery.error]);
 
+  // 커서 페이지와 최신 페이지가 일부 겹쳐도 작업을 중복 표시하지 않는다.
+  const runtimeItems = useMemo(() => Array.from(new Map(
+    (runtimeQuery.data?.pages.flatMap((page) => page.items) ?? [])
+      .map((item) => [item.operation_id, item] as const),
+  ).values()), [runtimeQuery.data]);
+  const configurationItems = useMemo(() => Array.from(new Map(
+    (configurationQuery.data?.pages.flatMap((page) => page.items) ?? [])
+      .map((item) => [item.operation_id, item] as const),
+  ).values()), [configurationQuery.data]);
+
   const activity = useMemo(() => {
     const items: ActivityItem[] = [];
-    if (runtimeEnabled && runtimeQuery.data) {
-      items.push(...runtimeQuery.data.items.map((item) => runtimeActivity(item, grafanaUrl)));
+    if (runtimeEnabled) {
+      items.push(...runtimeItems.map((item) => runtimeActivity(item, grafanaUrl)));
     }
     if (mainModelEnabled && mainModelQuery.data) {
       items.push(...mainModelQuery.data.items.map((item) => mainModelActivity(item, grafanaUrl, runtimeBackend)));
     }
-    if (configurationQuery.data) {
-      items.push(...configurationQuery.data.items.map((item) => configurationActivity(item, grafanaUrl)));
-    }
+    items.push(...configurationItems.map((item) => configurationActivity(item, grafanaUrl)));
     return items.sort((left, right) => (
       right.updatedAt - left.updatedAt || left.key.localeCompare(right.key)
     ));
   }, [
-    configurationQuery.data,
+    configurationItems,
     grafanaUrl,
     mainModelEnabled,
     mainModelQuery.data,
     runtimeBackend,
     runtimeEnabled,
-    runtimeQuery.data,
+    runtimeItems,
   ]);
 
   const filteredActivity = filter === 'all'
     ? activity
     : activity.filter((item) => item.source === filter);
 
-  const runtimeCount = runtimeEnabled ? (runtimeQuery.data?.items.length ?? 0) : 0;
+  const runtimeCount = runtimeEnabled ? runtimeItems.length : 0;
   const mainModelCount = mainModelEnabled ? (mainModelQuery.data?.items.length ?? 0) : 0;
-  const configurationCount = configurationQuery.data?.items.length ?? 0;
+  const configurationCount = configurationItems.length;
   const isRefreshing = (
     (runtimeEnabled && runtimeQuery.isFetching)
     || (mainModelEnabled && mainModelQuery.isFetching)
@@ -289,9 +307,7 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     || (mainModelEnabled && mainModelQuery.isPending)
     || configurationQuery.isPending
   ) && activity.length === 0;
-  const hasOlderHistory = Boolean(
-    runtimeQuery.data?.next_cursor || configurationQuery.data?.next_cursor,
-  );
+  const hasOlderHistory = runtimeQuery.hasNextPage || configurationQuery.hasNextPage;
 
   const filters: Array<{ key: ActivityFilter; label: string; disabled?: boolean }> = [
     { key: 'all', label: `전체 ${activity.length}` },
@@ -436,9 +452,24 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
           )}
 
           {hasOlderHistory ? (
-            <p className="configuration-help">
-              이 화면은 최근 기록을 우선 보여줍니다. 더 오래된 런타임·설정 이력은 각 영역의 원본 history API가 계속 소유합니다.
-            </p>
+            <div className="activity-pagination" role="group" aria-label="이전 운영 활동 보기">
+              {runtimeQuery.hasNextPage ? (
+                <Button variant="secondary" isDisabled={runtimeQuery.isFetchingNextPage} onClick={() => { void runtimeQuery.fetchNextPage(); }}>
+                  {runtimeQuery.isFetchingNextPage ? '런타임 작업 불러오는 중…' : '이전 런타임 작업 더 보기'}
+                </Button>
+              ) : null}
+              {configurationQuery.hasNextPage ? (
+                <Button variant="secondary" isDisabled={configurationQuery.isFetchingNextPage} onClick={() => { void configurationQuery.fetchNextPage(); }}>
+                  {configurationQuery.isFetchingNextPage ? '설정 변경 불러오는 중…' : '이전 설정 변경 더 보기'}
+                </Button>
+              ) : null}
+              <p className="configuration-help">기존 History API의 이전 페이지를 불러옵니다. 조회한 작업은 위 목록과 필터에 반영됩니다.</p>
+            </div>
+          ) : null}
+          {runtimeQuery.isFetchNextPageError || configurationQuery.isFetchNextPageError ? (
+            <Alert isInline variant="warning" title="이전 운영 활동을 불러오지 못했습니다.">
+              이미 확인한 작업은 유지됩니다. 다시 시도하려면 해당 버튼을 누르세요.
+            </Alert>
           ) : null}
         </CardBody>
       </Card>
