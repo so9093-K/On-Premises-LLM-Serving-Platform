@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+const previewPort = 4173;
+const previewUrl = `http://127.0.0.1:${previewPort}`;
+
 export default defineConfig({
   testDir: './tests/browser',
   testMatch: '**/*.spec.ts',
@@ -7,15 +10,15 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: previewUrl,
     browserName: 'chromium',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run build && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    command: `npm run build && npm exec -- vite preview --host 127.0.0.1 --port ${previewPort} --strictPort`,
+    url: previewUrl,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });
