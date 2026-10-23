@@ -140,7 +140,7 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
 
   const prompt = page.getByLabel('메시지');
   await expect(prompt).toBeVisible();
-  await expect(page.getByLabel('현재 요청 모델 한도').getByText('first-model', { exact: true })).toBeVisible();
+  await expect(page.locator('.chat-model-context').getByText('first-model', { exact: true })).toBeVisible();
   await prompt.fill('키 A로 작성한 초안');
   await page.getByRole('link', { name: /요청 설정/ }).click();
   await page.getByLabel('시스템 프롬프트').fill('키 A의 시스템 프롬프트');
@@ -152,8 +152,8 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
   await page.getByLabel('API 키').fill('second-user-key');
   await page.getByRole('button', { name: '사용', exact: true }).click();
   await expect(page.getByLabel('메시지')).toHaveValue('');
-  await expect(page.getByLabel('현재 요청 모델 한도').getByText('second-model', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('현재 요청 모델 한도').getByText('first-model', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.chat-model-context').getByText('second-model', { exact: true })).toBeVisible();
+  await expect(page.locator('.chat-model-context').getByText('first-model', { exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: /요청 설정/ }).click();
   await expect(page.getByLabel('시스템 프롬프트')).toHaveValue('');
 });
@@ -315,4 +315,46 @@ test('런타임 시작 검토를 선택하면 영향 확인 영역에 키보드 
   await expect(review).toBeFocused();
   await review.getByRole('button', { name: '취소' }).click();
   await expect(review).toHaveCount(0);
+});
+
+test('새 Chat에서 예제를 표시하고 대화 스크롤이 입력 영역을 밀지 않는다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: { target: 'linux-cpu-managed', display_name: 'CPU', runtime_backend: 'llama-cpp', features: ['chat', 'risk'] },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      object: 'list',
+      data: [{ id: 'local-main', backend: 'llama-cpp', display_name: 'CPU Model', capabilities: ['chat.completions'], input_modalities: ['text'], context_window: 8192, request_parameters: {} }],
+    }),
+  }));
+  await page.route('**/v1/chat/completions', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      id: 'chatcmpl-test', object: 'chat.completion', model: 'local-main', choices: [
+        { index: 0, message: { role: 'assistant', content: '응답 '.repeat(450) }, finish_reason: 'stop' },
+      ],
+      usage: { prompt_tokens: 2, completion_tokens: 500, total_tokens: 502 },
+    }),
+  }));
+  await page.goto('/admin/console/playground/chat');
+  const conversation = page.getByRole('region', { name: '대화와 시작 예제' });
+  const input = page.getByRole('textbox', { name: '메시지' });
+  await expect(page.getByRole('button', { name: '예제 닫기' })).toBeVisible();
+  await expect(conversation.getByRole('group', { name: '예제 선택' })).toBeVisible();
+  await expect(conversation.getByText('현재 모델은 이미지 입력을 지원하지 않습니다.', { exact: false }).first()).toBeVisible();
+  const initial = await input.boundingBox();
+  expect(initial).not.toBeNull();
+  await input.fill('긴 답변');
+  await page.getByRole('button', { name: '보내기' }).click();
+  await expect(conversation.getByText('응답 ', { exact: false }).first()).toBeVisible();
+  const after = await input.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.abs((after?.y ?? 0) - (initial?.y ?? 0))).toBeLessThan(3);
+  await expect(page.getByRole('button', { name: '예제로 시작하기' })).toBeVisible();
 });
