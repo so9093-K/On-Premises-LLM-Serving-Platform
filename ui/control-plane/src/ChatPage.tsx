@@ -62,7 +62,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
-  const [showExamples, setShowExamples] = useState(false);
+  const [showExamples, setShowExamples] = useState(() => exchanges.length === 0);
   const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
   const [appliedExampleId, setAppliedExampleId] = useState<string | null>(null);
   const [pendingModelId, setPendingModelId] = useState<string | null>(null);
@@ -79,6 +79,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const followRef = useRef(true);
   const followBeforeConfirmRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationScrollRef = useRef<HTMLDivElement | null>(null);
 
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const models = useMemo(
@@ -121,7 +122,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   // the state change that makes the input editable again.
   useEffect(() => {
     if (!focusComposerAfterExample || exampleLoading || attachmentBusy || pendingToolExchange) return;
-    composerRef.current?.focus();
+    composerRef.current?.focus({ preventScroll: true });
     setFocusComposerAfterExample(false);
   }, [focusComposerAfterExample, exampleLoading, attachmentBusy, pendingToolExchange]);
 
@@ -139,19 +140,19 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     if (normalized !== session.settings) session.updateSettings(normalized);
   }, [model, session.settings, session.updateSettings]);
 
-  // 모바일에서는 설정 패널이 채팅 뒤에 있으므로 문서의 맨 끝이 아닌 대화 끝만 추적한다.
-  // 사용자가 과거 응답을 읽고 있으면 새 스트리밍 토큰이 스크롤 위치를 빼앗지 않는다.
+  // 스크롤은 대화 영역만 소유한다. 전체 페이지를 움직이지 않으며,
+  // 사용자가 이전 응답을 읽는 중이라면 스트리밍 중에도 위치를 빼앗지 않는다.
+  const onConversationScroll = () => {
+    const region = conversationScrollRef.current;
+    if (!region) return;
+    followRef.current = conversationEndNearViewport(
+      region.scrollHeight - region.scrollTop, region.clientHeight,
+    );
+  };
   useEffect(() => {
-    const onScroll = () => {
-      const end = conversationEndRef.current;
-      if (end) followRef.current = conversationEndNearViewport(end.getBoundingClientRect().top, window.innerHeight);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-  useEffect(() => {
-    if (followRef.current) conversationEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [exchanges]);
+    const region = conversationScrollRef.current;
+    if (region && followRef.current) region.scrollTop = region.scrollHeight;
+  }, [exchanges, showExamples]);
 
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
     if (pendingModelId !== null) return;
@@ -277,6 +278,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     const error = send(model, text, attachments);
     setInputError(error);
     if (error === null) {
+      followRef.current = true;
       setDraft('');
       setAttachments([]);
       setAppliedExampleId(null);
@@ -440,6 +442,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
           </div>
           <div className="chat-layout">
             <div className="chat-main">
+            <div className="chat-scroll-region" ref={conversationScrollRef} onScroll={onConversationScroll} role="region" aria-label="대화와 시작 예제" tabIndex={0}>
             {showExamples ? (
               <PlaygroundExampleGallery
                 model={model}
@@ -475,6 +478,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 ))}
               </ol>
             ) : null}
+            <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
+            </div>
             <form
               className="chat-composer"
               onSubmit={(event) => {
@@ -514,10 +519,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
-              <div className="chat-composer-context" aria-label="현재 요청 모델 한도">
-                <span>{model.display_name ?? model.id}</span>
-                {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '모델 정책')}</small> : null}
-                {JSON.stringify(session.settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS) ? <small>요청 설정 변경됨</small> : null}
+              <div className="chat-composer-context" aria-label="현재 요청 설정">
+                {JSON.stringify(session.settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS) ? <small>요청 설정 변경됨 · 서버 한도 이내에서 적용</small> : <small>Enter 전송 · Shift+Enter 줄바꿈</small>}
               </div>
               <div className="chat-composer-tools">
                 {attachmentAccept(model) ? (
@@ -551,7 +554,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 )}
               </div>
             </form>
-            <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
           </div>
             <aside className="chat-side" id="chat-model-settings" aria-label="요청 설정">
               <ChatSettingsPanel model={model} detailsRef={settingsDetailsRef} />
