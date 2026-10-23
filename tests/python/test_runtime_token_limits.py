@@ -42,6 +42,7 @@ def test_cpu_context_and_gateway_output_change_together():
     assert profile.qualification["status"] == "unverified"
 
 
+
 @pytest.mark.parametrize(("context", "output"), [
     (0, 100), (True, 100), ("8192", 512), (32768, 512),
     (4096, 4097), (8192, False),
@@ -375,3 +376,10 @@ def test_failed_restart_validation_preserves_uncertain_derived_profile(tmp_path:
         assert profile.profile_id in restored.catalog.profiles
         await restored.aclose()
     asyncio.run(exercise())
+
+
+def test_cpu_profile_view_exposes_context_ceiling(tmp_path: Path):
+    catalog = cpu_catalog()
+    store = MainModelStateStore(tmp_path / "server-ceiling.json", "cpu-gguf-text")
+    manager = MainModelManager(catalog, store, FakeBackend("cpu-gguf-text"))
+    assert manager.profiles()[0]["context_tokens_ceiling"] == 16384

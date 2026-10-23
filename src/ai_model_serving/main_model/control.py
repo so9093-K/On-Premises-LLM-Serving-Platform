@@ -9,7 +9,7 @@ from typing import Any, NamedTuple, Protocol
 from .execution_policy import RECOVERING_POLICIES
 from .catalog import MainModelCatalog, MainModelProfile, resolve_boot_profile
 from .state import MainModelStateError, MainModelStateStore, MainModelSwitchLockError
-from .runtime_limits import build_runtime_limit_profile, restore_runtime_limit_profiles
+from .runtime_limits import CPU_MAX_CONTEXT_TOKENS, build_runtime_limit_profile, restore_runtime_limit_profiles
 from ..service_logging import service_logger
 
 _logger = service_logger("main_model_control")
@@ -225,6 +225,8 @@ class MainModelManager:
             {
                 **profile.public_view(),
                 "active": profile.profile_id == active,
+                **({"context_tokens_ceiling": CPU_MAX_CONTEXT_TOKENS}
+                   if profile.runtime_backend == "llama-cpp" else {}),
                 **({"base_profile_id": custom[profile.profile_id]["base_profile"]}
                    if profile.profile_id in custom else {}),
             }

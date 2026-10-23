@@ -300,11 +300,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     && (editContextTokens !== String(selectedTokenLimits.contextTokens ?? '')
       || editOutputTokens !== String(selectedTokenLimits.maxOutputTokens ?? ''));
   const declaredContextCeiling = reviewProfile?.runtime_backend === 'llama-cpp'
-    ? Math.max(0, ...profiles.filter((item) =>
-      item.runtime_backend === 'llama-cpp'
-      && item.upstream_model_id === reviewProfile.upstream_model_id
-      && item.revision === reviewProfile.revision,
-    ).map((item) => mainModelTokenLimits(item).contextTokens ?? 0))
+    ? (reviewProfile.context_tokens_ceiling ?? 0)
     : reviewProfile
       ? mainModelTokenLimits(
         profiles.find((item) => item.id === reviewProfile.base_profile_id) ?? reviewProfile,
