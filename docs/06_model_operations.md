@@ -702,3 +702,9 @@ Runtime Controller를 제공하는 Linux Target의 **메인 모델 → CPU llama
 자동 GPU 복구 정책은 기본 CPU 프리셋을 사용한다. 다른 CPU 프리셋을 수동으로 선택하면 CPU 고정 정책이 적용되므로, GPU 자동 복구를 원할 경우 실행 정책을 다시 선택해야 한다. 기본 8K/4K 및 경량·확장 프리셋 모두 변경 후 문맥·출력 상한과 4 GiB 메모리 적합성을 실장비에서 확인하기 전까지 미검증으로 표시한다. 기존 2K/256 CPU 실측 결과를 새 한도의 검증 근거로 재사용하지 않는다.
 
 `linux-cpu-managed`는 Controller가 아닌 Compose가 생명주기를 소유하므로 현재는 Console의 메인 모델 전환 기능을 제공하지 않는다. 해당 Target은 저장소 CPU 프로필의 기본값을 `make up`으로 반영하며, 외부 CPU Runtime(`linux-cpu-static`)의 실행 파라미터는 외부 운영자가 소유한다.
+
+### Console의 모델과 실행 구성 표시
+
+메인 모델 화면은 동일한 `upstream_model_id`, Revision, Runtime backend를 사용하는 프로필을 하나의 실제 모델 아래 묶어 보여준다. CPU 4K/1K·8K/4K·16K/4K는 동일 GGUF 모델의 실행 구성이지 별도 가중치가 아니다. 각 구성의 변경은 기존 Main Model 전환·Canary·Rollback이 적용된다.
+
+Playground의 **이번 요청 최대 출력 토큰**은 `/v1/models`에 광고된 요청 파라미터 범위만 변경하며 실행 인자와 서버의 최대 문맥/출력은 변경하지 않는다. 기존 메인 모델 제어 API는 선언된 프로필 ID 전환만 지원한다. 임의 숫자 토큰 한도 입력을 Runtime에 적용할 수 있는 것처럼 표시하지 않는다. 서버 실행 한도의 변경은 프로필 설정 Source of Truth와 실제 Runtime/Gateway 정책의 동기화, 재시작 복원·Rollback이 필요한 별도 운영 계약이다.
