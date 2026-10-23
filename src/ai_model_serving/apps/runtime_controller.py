@@ -745,8 +745,6 @@ def create_runtime_controller_app(
                 )
             except RuntimeLimitError as exc:
                 raise HTTPException(422, detail=str(exc)) from exc
-            if not context._catalog.runtime.get("adaptive"):
-                raise HTTPException(422, detail="server_limits editing requires a managed Runtime Controller")
             if payload.get("confirm_unverified") is not True:
                 raise HTTPException(409, detail="custom server limits require explicit unverified confirmation")
         try:

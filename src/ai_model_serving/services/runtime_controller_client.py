@@ -232,6 +232,7 @@ class RuntimeControllerClient:
         confirm_unverified: bool = False,
         request_id: str | None = None,
         execution_policy: str | None = None,
+        server_limits: dict[str, int] | None = None,
     ) -> dict:
         return await self._request(
             "POST",
@@ -243,6 +244,7 @@ class RuntimeControllerClient:
                 "confirm_unverified": confirm_unverified,
                 **({"request_id": request_id} if request_id else {}),
                 **({"execution_policy": execution_policy} if execution_policy is not None else {}),
+                **({"server_limits": server_limits} if server_limits is not None else {}),
             },
             # switch는 Runtime Controller의 5xx도 호출자에게 그대로 전달한다.
             server_errors_are_request_errors=True,

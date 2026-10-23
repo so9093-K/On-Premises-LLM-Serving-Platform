@@ -310,6 +310,16 @@ def build_router(
                                     "description": "configs/main_model_profiles.yaml의 profile ID",
                                 },
                                 "confirm_unverified": {"type": "boolean", "default": False},
+                                "server_limits": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "description": "Runtime Controller가 관리하는 모델의 서버 문맥/최대 출력 한도. 엔진과 Gateway에 함께 적용되며 확인 및 재시작이 필요합니다.",
+                                    "required": ["context_tokens", "max_output_tokens"],
+                                    "properties": {
+                                        "context_tokens": {"type": "integer", "minimum": 1},
+                                        "max_output_tokens": {"type": "integer", "minimum": 1},
+                                    },
+                                },
                                 "execution_policy": {"type": "string", "enum": list(EXECUTION_POLICIES)},
                                 "request_id": {
                                     "type": "string",
@@ -328,13 +338,21 @@ def build_router(
         payload = await request.json()
         if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str):
             raise ServiceError("VALIDATION_ERROR", "profile is required", param="profile")
-        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy"}
+        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy", "server_limits"}
         if unknown:
             raise ServiceError(
                 "VALIDATION_ERROR",
                 f"unsupported fields: {sorted(unknown)}",
                 param=sorted(unknown)[0],
             )
+        if "server_limits" in payload:
+            limits = payload["server_limits"]
+            if (
+                not isinstance(limits, dict)
+                or set(limits) != {"context_tokens", "max_output_tokens"}
+                or any(type(v) is not int or v <= 0 for v in limits.values())
+            ):
+                raise ServiceError("VALIDATION_ERROR", "invalid server_limits", param="server_limits")
         if "execution_policy" in payload and payload["execution_policy"] not in EXECUTION_POLICIES:
             raise ServiceError("VALIDATION_ERROR", "invalid execution_policy", param="execution_policy")
         client = await require_runtime_controller()
@@ -344,6 +362,7 @@ def build_router(
                 confirm_unverified=payload.get("confirm_unverified") is True,
                 request_id=payload.get("request_id"),
                 **({"execution_policy": payload["execution_policy"]} if "execution_policy" in payload else {}),
+                **({"server_limits": payload["server_limits"]} if "server_limits" in payload else {}),
             )
             return JSONResponse(result, status_code=202)
         except RuntimeControllerRequestError as exc:
