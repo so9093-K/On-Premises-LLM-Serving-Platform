@@ -282,7 +282,7 @@ Grafana Dashboard는 운영 목적에 따라 구분된다.
 
 full-stack의 Grafana Home Dashboard는 `서비스 개요`, static Metal은 `메인 런타임 상태 (Apple Silicon)`다.
 
-\`오늘 사용량\`의 기본 범위는 브라우저 시간대의 오늘 0시부터 현재까지다. 기간을 바꾸면
+`오늘 사용량`의 기본 범위는 브라우저 시간대의 오늘 0시부터 현재까지다. 기간을 바꾸면
 공개 API 요청·거부·Upstream 오류의 집계도 해당 범위를 따른다. 공개 API 요청 수는
 Gateway의 `/v1/*` HTTP 카운터를 Prometheus의 `increase()`로 추정하며 내부 모델 호출 수와 다르다.
 입력·출력 토큰 합계는 Loki의 Gateway 완료 이벤트에서 수집한 Chat·Responses 사용량으로 계산한다.
