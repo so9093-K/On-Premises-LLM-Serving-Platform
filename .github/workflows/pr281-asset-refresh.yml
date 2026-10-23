@@ -1,0 +1,42 @@
+# 임시 작업: Source of Truth에 맞춰 생성물을 다시 만들고 자신을 삭제한다.
+name: PR281 Asset Refresh
+on:
+  push:
+    branches: [feat/operator-runtime-token-limits]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: feat/operator-runtime-token-limits
+          persist-credentials: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ui/control-plane/.nvmrc
+          cache: npm
+          cache-dependency-path: ui/control-plane/package-lock.json
+      - name: Pin npm
+        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Prepare Python tools
+        run: make setup-dev PYTHON_BIN=python
+      - name: Regenerate canonical API and Console assets
+        run: |
+          make render-runtime-assets
+          make console-build
+      - name: Commit generated assets and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git rm -- .github/workflows/pr281-asset-refresh.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "build(runtime): 통합 관리형 API와 Console 생성 자산을 동기화한다"
+          git push origin HEAD:refs/heads/feat/operator-runtime-token-limits
