@@ -128,3 +128,38 @@ jobs:
               print(f"{name}: {job['result']}")
           sys.exit(1 if failures else 0)
           PY
+
+  generated-asset-sync:
+    name: Temporary PR 281 runtime limits assets
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/operator-runtime-token-limits' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          resolution-strategy: highest
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ui/control-plane/.nvmrc
+      - name: Pin npm
+        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
+      - name: Generate canonical API and Console assets
+        run: |
+          make setup-dev PYTHON_BIN=python
+          make console-build
+          make render-runtime-assets
+      - name: Commit generated artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- specs docs/reference src/ai_model_serving/static/control-plane ops/grafana/dashboards
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "build(assets): 서버 토큰 설정의 OpenAPI와 Console 번들을 동기화한다"
+          git push origin HEAD:refs/heads/feat/operator-runtime-token-limits
