@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Mapping
 
 from ..configuration import load_yaml_mapping
+from ..serving_profile import load_main_serving_catalog
 from ..image_refs import is_immutable_image_ref
 from ..port_namespace import load_port_namespace
 from .catalog import MainModelCatalog, load_main_model_catalog
@@ -30,6 +31,11 @@ def load_adaptive_catalog(
     cpu = load_cpu_profile(root, cpu_id, port, environment)
     artifact_document = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")
     profiles = {cpu_id: cpu}
+    for candidate_id in load_main_serving_catalog(
+        root / "configs/cpu_main_model_profiles.yaml"
+    ).profiles:
+        if candidate_id != cpu_id:
+            profiles[candidate_id] = load_cpu_profile(root, candidate_id, port, environment)
     gpu_error = None
     gpu_profiles = {}
     explicit_value = environment.get("ADAPTIVE_GPU_RESOURCE_POLICY", "").strip()
