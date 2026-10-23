@@ -63,11 +63,14 @@ type ChatSessionValue = {
   clear: () => void;
 };
 
+// QueryClient는 Shell보다 오래 살아 있으므로 재마운트해도 버전 키가 겹치면 안 된다.
+let nextCredentialRevision = 0;
+
 const ChatSessionContext = createContext<ChatSessionValue | null>(null);
 
 export function ChatSessionProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
-  const [credentialRevision, setCredentialRevision] = useState(0);
+  const [credentialRevision, setCredentialRevision] = useState(() => ++nextCredentialRevision);
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [apiKeyRejected, setApiKeyRejected] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
@@ -88,7 +91,11 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     latest.current = { apiKey, exchanges, settings };
   }, [apiKey, exchanges, settings]);
 
-  useEffect(() => () => { abortRef.current?.abort(); mediaRegistry.current.clear(); }, []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    mediaRegistry.current.clear();
+    queryClient.removeQueries({ queryKey: ['public-models'] });
+  }, [queryClient]);
 
   useEffect(() => {
     // /v1/models 캐시에는 API 키 문자열을 식별자로 보관하지 않는다.
@@ -103,7 +110,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     if (keyRef.current !== key) {
       // 인증 주체가 바뀌면 이전 대화와 전송 중 요청이 새 키에 섞이지 않아야 한다.
       credentialEpochRef.current += 1;
-      setCredentialRevision(credentialEpochRef.current);
+      setCredentialRevision(++nextCredentialRevision);
       abortRef.current?.abort();
       abortRef.current = null;
       mediaRegistry.current.clear();
