@@ -11,7 +11,7 @@ make setup-dev
 make setup-test-runners
 ```
 
-`make setup-test-runners`는 Control Plane의 기존 배포 의존성을 `npm ci`로 설치한 뒤 테스트 전용 Runner를 별도로 설치한다. 배포용 `package-lock.json`과 프로덕션 의존성에는 테스트 Runner를 추가하지 않는다. Chromium이 필요하면 `npm --prefix ui/control-plane exec -- playwright install chromium`을 별도로 실행한다.
+`make setup-test-runners`는 Control Plane의 기존 배포 의존성을 `npm ci`로 설치한 뒤 테스트 전용 Runner는 `scripts/quality/node_modules`에 독립적으로 설치하고 Console에는 실행 연결만 생성한다. 배포 의존성을 변경하지 않는다. 배포용 `package-lock.json`과 프로덕션 의존성에는 테스트 Runner를 추가하지 않는다. Chromium이 필요하면 `npm --prefix ui/control-plane exec -- playwright install chromium`을 별도로 실행한다.
 
 ## 실행 명령
 
