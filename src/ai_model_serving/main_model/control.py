@@ -802,6 +802,13 @@ class MainModelManager:
                         value.get("previous_known_good_profile"),
                         operation.get("previous_profile"),
                     }
+                    # 이전 Rollback 실패는 실제 Runtime 신원을 확정하지 못한
+                    # 상태다. 해당 기록을 새 전환 요청의 캐시 정리에서 지우지 않는다.
+                    protected.update(
+                        item.get("requested_profile")
+                        for item in value.get("operations", [])
+                        if item.get("status") == "rollback_failed"
+                    )
                     for stale_id in tuple(overrides):
                         if len(overrides) <= 32:
                             break

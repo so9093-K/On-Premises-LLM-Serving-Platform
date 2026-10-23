@@ -11,7 +11,7 @@ Status: Accepted
 - 이미지·모델 ID·Revision·기본 GPU 예약 등 신원/자원 정책은 선언된 기준 프로필이 계속 소유한다.
 - 운영자는 서버 `context_tokens`와 `max_output_tokens`만 요청한다. CPU는 동일 GGUF의 최대 선언 프리셋 이하, GPU는 기준 프로필의 문맥 이하에서만 변경한다. 미검증 설정은 명시적인 확인이 필요하다.
 - Runtime Controller는 기준 프로필과 숫자 한도에서 결정적 파생 프로필 ID, 실행 argv, Gateway admission 정책을 생성한다. 그 내용을 기존 Main Model state의 `runtime_limit_profiles`에 저장하고 재시작에 재구성해 신원·한도 무결성을 다시 검사한다.
-- 같은 기준 프로필과 한도 조합은 기존 파생 ID를 재사용한다. 지속 상태는 최대 32개를 유지하며 초과 시 현재 작업이 참조하지 않는 비활성 변형부터 제거한다. 이전 정상 Runtime으로 실제 복구한 실패의 파생 기록은 제거하지만, Rollback 자체가 실패하거나 관측 결과가 불확실하면 파생 신원을 보존하고 Gate를 닫는다. 현재 활성·마지막 정상·직전 정상 프로필과 진행 중인 전환 대상은 복구를 위해 보존한다. 이 정리는 실행 중인 컨테이너를 변경하지 않는다.
+- 같은 기준 프로필과 한도 조합은 기존 파생 ID를 재사용한다. 지속 상태는 최대 32개를 유지하며 초과 시 현재 작업이 참조하지 않는 비활성 변형부터 제거한다. 이전 정상 Runtime으로 실제 복구한 실패의 파생 기록은 제거하지만, Rollback 자체가 실패하거나 관측 결과가 불확실하면 파생 신원을 보존하고 Gate를 닫는다. 현재 활성·마지막 정상·직전 정상 프로필, 진행 중인 전환 대상 및 보존된 Rollback 실패 이력의 요청 프로필은 복구를 위해 보존한다. 이 정리는 실행 중인 컨테이너를 변경하지 않는다.
 - 변경은 기존 MainModelManager의 Gate/Drain/Replace/Canary/Commit/Rollback 작업으로만 수행한다. Compose·Docker 제어 권한은 Gateway에 추가하지 않는다.
 - 새 관리형 CPU 전용 설치는 공통 `linux-nvidia-dynamic POLICY=cpu`를 사용하며, CPU/GPU의 실행 변경은 Runtime Controller가 소유한다. `linux-cpu-managed`·`linux-adaptive`는 기존 설치의 명시적 이전을 기다리는 호환 Target이다. 기존 Compose CPU에는 Controller API를 지원하는 척하지 않으며, Static·external도 읽기 전용이다.
 - `cpu-gguf-text-compact`와 `cpu-gguf-text-extended` 식별자는 기존 활성/저장 프로필 복원을 위해 유지한다. 신규 직접 편집은 동일 GGUF의 파생 실행 구성으로 구현하고 원본 모델 가중치는 중복 설치하지 않는다.

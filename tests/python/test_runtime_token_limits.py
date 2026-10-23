@@ -182,6 +182,16 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
                 "max_output_tokens": 1024,
             }
         protected_id = list(records)[1]
+        unresolved_id = list(records)[0]
+        unresolved_operation = {
+            "id": "unresolved-rollback",
+            "requested_profile": unresolved_id,
+            "status": "rollback_failed",
+            "stage": "rolling_back",
+            "previous_profile": "cpu-gguf-text",
+            "created_at": 1.0,
+            "updated_at": 2.0,
+        }
         store = MainModelStateStore(tmp_path / "bounded.json", "cpu-gguf-text")
         store.update(lambda state: state.update(
             active_profile=protected_id,
@@ -190,6 +200,8 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
             gate="open",
             runtime_selection={"mode": "cpu"},
             runtime_limit_profiles=records,
+            last_operation=unresolved_operation,
+            operations=[unresolved_operation],
         ))
         backend = FakeBackend(protected_id)
         manager = MainModelManager(cpu_catalog(), store, backend)
@@ -202,6 +214,7 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
         removed = set(records) - set(saved)
         assert len(removed) == 1
         assert protected_id in saved
+        assert unresolved_id in saved
         assert all(item not in manager.catalog.profiles for item in removed)
         assert (await manager.wait_for_operation(result.operation_id))["status"] == "completed"
         assert store.read()["previous_known_good_profile"] == protected_id
