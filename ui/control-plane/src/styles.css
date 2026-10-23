@@ -2217,3 +2217,16 @@ a.overview-action-tile:hover {
   color: var(--console-text-muted);
 }
 .chat-composer-context > span { font-weight: 600; color: var(--console-text); }
+
+/* 기존 History API의 이전 페이지 조작은 필터·작업 목록 아래에서만 노출한다. */
+.activity-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.activity-pagination .configuration-help { flex: 1 1 100%; margin: 0; }
+@media (max-width: 600px) {
+  .activity-pagination > button { flex: 1 1 100%; }
+}

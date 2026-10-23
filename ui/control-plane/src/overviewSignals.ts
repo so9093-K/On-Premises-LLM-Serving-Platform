@@ -77,3 +77,18 @@ export function mainModelOverviewSignals(
 
   return signals;
 }
+
+/**
+ * 전환 API의 부재는 외부 관리나 모델 준비 완료를 의미하지 않는다.
+ * 실제 모델 기동/응답은 해당 Target의 기존 lifecycle에서 확인한다.
+ */
+export function unmanagedModelSummary(
+  runtimeBackend: string,
+  controlMode: string,
+  lifecycleOwner: string,
+): string {
+  if (runtimeBackend === 'none') return '메인 모델 없음 · Risk 등 기본 서비스 운영';
+  if (controlMode === 'managed_cpu') return 'CPU · 플랫폼 Compose 관리 · 준비 상태 별도 확인';
+  if (lifecycleOwner === 'external') return '외부 / 네이티브 모델 관리 · 상태 별도 확인';
+  return '플랫폼 관리 · 모델 전환 제어 없음 · 상태 별도 확인';
+}

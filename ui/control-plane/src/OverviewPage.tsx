@@ -14,7 +14,7 @@ import { serviceOverviewDashboardUrl } from './activityDiagnostics';
 import { playgroundPath } from './navigation';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { trafficTiles, trafficWindowLabel, type TrafficTone } from './trafficSummary';
-import { mainModelOverviewSignals, type OverviewSignalTone } from './overviewSignals';
+import { mainModelOverviewSignals, unmanagedModelSummary, type OverviewSignalTone } from './overviewSignals';
 import {
   accessProfileLabel,
   CAPABILITY_KEYS,
@@ -57,8 +57,11 @@ function mainModelSummary(
   enabled: boolean,
   pending: boolean,
   mainModel: ReturnType<typeof fetchMainModel> extends Promise<infer T> ? T | undefined : never,
+  deployment: BootstrapResponse['deployment'],
 ): string {
-  if (!enabled) return '외부 / 네이티브 관리';
+  if (!enabled) return unmanagedModelSummary(
+    deployment.runtime_backend, deployment.control_mode, deployment.lifecycle_owner,
+  );
   if (pending) return '확인 중';
   if (!mainModel) return '상태 확인 불가';
   if (mainModel.runtime_state === 'stopped') return '중지됨';
@@ -72,6 +75,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const authClass = token === null ? 'anonymous' : 'authenticated';
   const runtimeControlEnabled = bootstrap.deployment.features.includes('runtime_control');
   const modelSwitchingEnabled = bootstrap.deployment.features.includes('model_switching');
+  const managedCpuWithoutController = !modelSwitchingEnabled && bootstrap.deployment.control_mode === 'managed_cpu';
+  const noMainModel = bootstrap.deployment.runtime_backend === 'none';
 
   const runtimesQuery = useQuery({
     queryKey: ['runtime-control', 'runtimes', authClass],
@@ -144,18 +149,22 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     || unavailableTopology.length > 0
     || !bootstrap.configuration.write_available
     || bootstrap.deployment.lifecycle_owner === 'external'
+    || managedCpuWithoutController
   );
 
   const operatorStatus = checking
     ? { label: '상태 확인 중', color: 'blue' as const, description: '현재 제어 상태를 확인하고 있습니다.' }
     : hasAttention
       ? { label: '확인 필요', color: 'orange' as const, description: '운영자가 확인해야 할 상태가 있습니다.' }
-      : { label: '조회 결과 · 주의 없음', color: 'grey' as const, description: '' };
+      : managedCpuWithoutController
+        ? { label: '일부 상태 확인 불가', color: 'blue' as const, description: '관리형 CPU의 실제 준비 상태는 Console에서 관측하지 않습니다.' }
+        : { label: '조회 결과 · 주의 없음', color: 'grey' as const, description: '' };
 
   const capabilities = CAPABILITY_KEYS.map((feature) => capabilityPresentation(
     feature,
     bootstrap.deployment.features,
     bootstrap.deployment.lifecycle_owner,
+    bootstrap.deployment.runtime_backend,
   ));
 
   return (
@@ -180,12 +189,12 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             </div>
             <dl className="facts overview-status-facts">
               <dt>메인 모델</dt>
-              <dd>{mainModelSummary(modelSwitchingEnabled, mainModelQuery.isPending, mainModel)}</dd>
+              <dd>{mainModelSummary(modelSwitchingEnabled, mainModelQuery.isPending, mainModel, bootstrap.deployment)}</dd>
               <dt>런타임</dt>
               <dd>
                 {runtimeControlEnabled
                   ? `${runtimeStateCount(runtimes, 'active')}개 실행 중 · ${runtimeStateCount(runtimes, 'starting')}개 시작 중`
-                  : '외부 / 네이티브 관리'}
+                  : noMainModel ? '모델 Runtime 없음 · Risk 기본 서비스' : managedCpuWithoutController ? 'Compose 관리 · Control Plane 제어 없음' : '외부 / 네이티브 관리'}
               </dd>
               <dt>설정</dt>
               <dd>{bootstrap.configuration.write_available ? '변경 가능' : '읽기 전용 / 변경 불가'}</dd>
@@ -322,10 +331,13 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
         <Card className="overview-policy-card">
           <CardTitle>실행 환경 안내</CardTitle>
           <CardBody className="overview-policy-list">
-            {bootstrap.deployment.lifecycle_owner === 'external' ? (
-              <p>
-                메인 모델 실행·전환은 외부 또는 네이티브 런타임에서 관리됩니다.
-              </p>
+            {noMainModel ? (
+              <p>이 배포에는 메인 모델이 없습니다. Risk 등 제공되는 기본 API를 사용할 수 있으며 모델 장애로 해석하지 않습니다.</p>
+            ) : bootstrap.deployment.lifecycle_owner === 'external' ? (
+              <p>메인 모델 실행·전환은 외부 또는 네이티브 런타임에서 관리됩니다.</p>
+            ) : null}
+            {managedCpuWithoutController ? (
+              <p>CPU llama.cpp는 플랫폼 Compose가 관리합니다. Console은 실제 CPU 모델 준비 상태를 조회하지 않으므로 서버에서 <code>make status</code>로 확인하세요.</p>
             ) : null}
             {informationalSignals.map((signal) => (
               <p key={signal.key}>{signal.title} {signal.detail}</p>
@@ -353,11 +365,15 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             {!modelSwitchingEnabled ? (
               <>
                 <dl className="facts">
-                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                  <dt>관리 주체</dt><dd>{noMainModel ? '모델 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
                 </dl>
                 <p className="overview-muted overview-ownership-note">
-                  이 실행 환경에서는 Control Plane이 메인 모델 전환을 수행하지 않습니다.
+                  {noMainModel
+                    ? '이 배포에는 메인 모델이 없으며 Risk 등 기본 기능만 제공합니다.'
+                    : managedCpuWithoutController
+                      ? 'CPU Runtime은 플랫폼 Compose가 관리합니다. 실제 준비 상태는 서버의 make status로 확인하세요.'
+                      : '이 실행 환경에서는 Control Plane이 메인 모델 전환을 수행하지 않습니다.'}
                 </p>
               </>
             ) : mainModelQuery.isPending ? (
@@ -391,11 +407,15 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             {!runtimeControlEnabled ? (
               <>
                 <dl className="facts">
-                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                  <dt>관리 주체</dt><dd>{noMainModel ? '모델 Runtime 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
                 </dl>
                 <p className="overview-muted overview-ownership-note">
-                  이 실행 환경에서는 런타임 시작·중지와 GPU 실행 가능성 판단을 외부 구성요소가 관리합니다.
+                  {noMainModel
+                    ? '메인 모델 Runtime은 구성되지 않았습니다. 기본 서비스는 별도로 실행됩니다.'
+                    : managedCpuWithoutController
+                      ? 'CPU 모델의 시작·중지는 플랫폼 Compose가 담당하며 이 화면에서 직접 조작할 수 없습니다.'
+                      : '이 실행 환경에서는 런타임 시작·중지와 GPU 실행 가능성 판단을 외부 구성요소가 관리합니다.'}
                 </p>
               </>
             ) : runtimesQuery.isPending ? (
@@ -443,8 +463,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
             <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
             <dt>메인 모델 운영 모드</dt><dd>{bootstrap.deployment.target === "linux-nvidia-dynamic" ? "CPU/GPU 수동 선택" : modelRuntimeLabel(bootstrap.deployment.runtime_backend)}</dd>
-            <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-            <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+            <dt>관리 주체</dt><dd>{noMainModel ? '모델 Runtime 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+            <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
             <dt>구현·검증</dt>
             <dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)} · {qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
           </dl>

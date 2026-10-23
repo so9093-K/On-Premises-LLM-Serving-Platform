@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -92,6 +92,20 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
   const [review, setReview] = useState<RuntimePlanResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [operationId, setOperationId] = useState<string | null>(null);
+  const reviewRegionRef = useRef<HTMLDivElement | null>(null);
+  const operationRegionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (review === null) return;
+    reviewRegionRef.current?.focus({ preventScroll: true });
+    reviewRegionRef.current?.scrollIntoView({ block: 'start' });
+  }, [review]);
+
+  useEffect(() => {
+    if (operationId === null) return;
+    operationRegionRef.current?.focus({ preventScroll: true });
+    operationRegionRef.current?.scrollIntoView({ block: 'start' });
+  }, [operationId]);
 
   const authClass = token === null ? 'anonymous' : 'authenticated';
   const runtimesQuery = useQuery({
@@ -133,6 +147,7 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
     retry: false,
     onMutate: () => {
       setActionError(null);
+      setReview(null);
       setOperationId(null);
     },
     onSuccess: (plan) => setReview(plan),
@@ -309,6 +324,7 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
       {planMutation.isPending ? <div className="inline-loading"><Spinner size="md" aria-label="런타임 변경 계산 중" /> 변경 영향을 계산하는 중입니다.</div> : null}
 
       {review ? (
+        <div ref={reviewRegionRef} className="runtime-review-region" role="region" aria-label="런타임 변경 영향 확인" tabIndex={-1}>
         <Card className="review-card">
           <CardTitle>런타임 변경 검토 · {runtimeDisplayName(review.service_key)}</CardTitle>
           <CardBody>
@@ -369,9 +385,11 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
             </div>
           </CardBody>
         </Card>
+        </div>
       ) : null}
 
       {operationId !== null ? (
+        <div ref={operationRegionRef} className="runtime-operation-region" role="region" aria-label="런타임 작업 결과" tabIndex={-1}>
         <Card>
           <CardTitle>런타임 작업 결과</CardTitle>
           <CardBody>
@@ -396,6 +414,7 @@ export function RuntimePage({ token, onUnauthorized, grafanaUrl }: RuntimePagePr
             ) : null}
           </CardBody>
         </Card>
+        </div>
       ) : null}
     </section>
   );

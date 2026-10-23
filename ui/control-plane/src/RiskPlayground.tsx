@@ -66,6 +66,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
   const [pendingExampleId, setPendingExampleId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<RiskRun | null>(null);
+  const [inputChangedSinceRequest, setInputChangedSinceRequest] = useState(false);
   const [failure, setFailure] = useState<{ message: string; requestId: string | null } | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
   const [lastRequest, setLastRequest] = useState<PublicRequestRecord | null>(null);
@@ -86,7 +87,9 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
+    setRun(null);
     setFailure(null);
+    setInputChangedSinceRequest(false);
     setLastRequest({ kind: 'risk', path: check.path, requestJson });
     try {
       const { payload, requestId } = await postPublicJson(apiKey, check.path, requestJson, controller.signal);
@@ -157,6 +160,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
                 }
                 setCheckId(example.check);
                 setPrompt(example.prompt);
+                setInputChangedSinceRequest(false);
                 setInputError(null);
                 setRun(null);
                 setFailure(null);
@@ -180,6 +184,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
               if (example) {
                 setCheckId(example.check);
                 setPrompt(example.prompt);
+                setInputChangedSinceRequest(false);
                 setInputError(null);
                 setRun(null);
                 setFailure(null);
@@ -196,7 +201,11 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
           <legend>검사 종류</legend>
           {checks.map((item) => (
             <label key={item.id}>
-              <input type="radio" name="risk-check" checked={check.id === item.id} onChange={() => setCheckId(item.id)} />
+              <input type="radio" name="risk-check" checked={check.id === item.id} onChange={() => {
+                  setCheckId(item.id);
+                  setInputChangedSinceRequest(true);
+                  setPendingExampleId(null);
+                }} />
               <span>{item.label}<small>{riskCheckDescription(item, checks)}</small></span>
             </label>
           ))}
@@ -213,6 +222,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
             onChange={(event) => {
               setPendingExampleId(null);
               setPrompt(event.currentTarget.value);
+              setInputChangedSinceRequest(true);
             }}
           />
           <small className={length > MAX_RISK_PROMPT_CHARACTERS ? 'form-error' : undefined}>
@@ -228,6 +238,7 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
               isDisabled={busy || (!prompt && run === null && failure === null && lastRequest === null)}
               onClick={() => {
                 setPrompt('');
+                setInputChangedSinceRequest(false);
                 setRun(null);
                 setFailure(null);
                 setInputError(null);
@@ -240,6 +251,12 @@ export function RiskPlayground({ features }: { features: readonly string[] }) {
           </div>
         </div>
       </form>
+
+      {inputChangedSinceRequest && (run !== null || failure !== null || lastRequest !== null) ? (
+        <Alert isInline variant="info" title="이전 입력의 검사 결과입니다.">
+          현재 텍스트 또는 검사 종류가 마지막 요청 이후 바뀌었습니다. 화면 아래 결과와 코드 내보내기는 마지막 실행 당시 요청을 기준으로 합니다. 현재 입력을 확인하려면 다시 검사하세요.
+        </Alert>
+      ) : null}
 
       {failure ? (
         <Alert isInline variant="danger" title="Risk 요청이 완료되지 않았습니다.">
