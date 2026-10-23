@@ -412,7 +412,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
       <section className="model-groups" aria-label="사용할 모델과 실행 구성">
         <h2>모델별 실행 구성</h2>
-        <p className="configuration-help">동일한 실제 모델의 실행 프로필은 한곳에 묶었습니다. 한도를 선택하면 바로 변경하지 않고 기존 모델 전환의 영향 확인 단계를 거칩니다.</p>
+        <p className="configuration-help">동일한 실제 모델의 실행 프로필은 한곳에 묶었습니다. 한도를 선택하면 바로 변경하지 않고 기존 모델 전환의 영향 확인 단계를 거칩니다. 서버 한도의 임의 숫자 수정은 현재 지원되지 않으며, 표에 표시된 구성으로 안전하게 전환할 수 있습니다.</p>
         {groups.map((group) => (
           <Card key={group.key}>
             <CardTitle>{group.modelId}</CardTitle>

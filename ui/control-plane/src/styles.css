@@ -2289,3 +2289,7 @@ a.overview-action-tile:hover {
 .model-variant > button, .model-variant > .current-state-text { margin-top: auto; }
 .model-profile-details > summary { padding: 0.65rem 0; font-weight: 600; cursor: pointer; }
 .model-profile-details > .pf-v6-c-card { margin-top: 0.5rem; }
+ 
+.chat-quick-output { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.8rem; font-weight: 600; }
+.chat-quick-output input { width: 9rem; min-width: 0; box-sizing: border-box; border: 1px solid var(--console-border); padding: 0.35rem 0.5rem; color: inherit; background: var(--console-surface); border-radius: 0.375rem; font: inherit; }
+.chat-quick-output input:focus-visible { outline: 2px solid var(--console-focus); }

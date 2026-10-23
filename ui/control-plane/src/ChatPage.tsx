@@ -90,6 +90,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   // 사용 중이던 모델이 배포 변경으로 사라져도 초안을 기본 모델에 조용히 전송하지 않는다.
   const selectionUnavailable = selectedModelId !== null && models.length > 0 && retainedModel === null;
   const model = selectionUnavailable ? null : retainedModel ?? models[0] ?? null;
+  const maxOutputControl = model ? chatControls(model).maxTokens : null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
   const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
@@ -520,7 +521,19 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 onKeyDown={onKeyDown}
               />
               <div className="chat-composer-context" aria-label="현재 요청 설정">
-                {JSON.stringify(session.settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS) ? <small>요청 설정 변경됨 · 서버 한도 이내에서 적용</small> : <small>Enter 전송 · Shift+Enter 줄바꿈</small>}
+                {maxOutputControl ? (
+                  <label className="chat-quick-output" htmlFor="chat-request-max-tokens">
+                    <span>이번 요청의 최대 출력 토큰</span>
+                    <input id="chat-request-max-tokens" type="number" inputMode="numeric" step="1"
+                      min={maxOutputControl.minimum && !maxOutputControl.minimum.exclusive ? maxOutputControl.minimum.value : undefined}
+                      max={maxOutputControl.maximum && !maxOutputControl.maximum.exclusive ? maxOutputControl.maximum.value : undefined}
+                      value={session.settings.maxTokens}
+                      placeholder="모델 기본값"
+                      onChange={(event) => session.updateSettings({ maxTokens: event.currentTarget.value })}
+                    />
+                  </label>
+                ) : null}
+                <small>요청별 출력 제한입니다. 서버 문맥·출력 한도는 메인 모델 실행 설정에서 결정됩니다.</small>
               </div>
               <div className="chat-composer-tools">
                 {attachmentAccept(model) ? (
