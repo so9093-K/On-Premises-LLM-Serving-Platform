@@ -406,8 +406,12 @@ class MainModelManager:
         """중단된 작업의 재검증 실패를 종료 기록으로 남겨 재복구 경로를 연다."""
         operation = self.state_store.read().get("last_operation") or {}
         if operation and operation.get("status") not in _TERMINAL_STATES:
-            self._set_operation(operation["id"], "failed", stage=operation.get("stage", "validating"),
-                                error=error, recovered_after_restart=True)
+            self._set_operation(
+                operation["id"], "failed",
+                stage=operation.get("stage", "validating"),
+                error=error, recovered_after_restart=True,
+                uncertain_runtime=True,
+            )
             self._record_terminal(operation["id"], success=False)
         self.state_store.update(lambda s: s.update(gate="closed"))
 
@@ -808,7 +812,7 @@ class MainModelManager:
                     protected.update(
                         item.get("requested_profile")
                         for item in value.get("operations", [])
-                        if item.get("status") == "rollback_failed"
+                        if item.get("status") == "rollback_failed" or item.get("uncertain_runtime") is True
                     )
                     for stale_id in tuple(overrides):
                         if len(overrides) <= 32:
@@ -904,7 +908,7 @@ class MainModelManager:
                 stats["rollback_failures"] = int(stats.get("rollback_failures", 0)) + 1
             stats["last_switch_timestamp"] = now
             stats["last_switch_duration_seconds"] = duration
-            if not success and not rollback_failed:
+            if not success and not rollback_failed and not operation.get("uncertain_runtime"):
                 requested = operation.get("requested_profile")
                 protected = {
                     state.get("active_profile"),
@@ -914,7 +918,7 @@ class MainModelManager:
                 if isinstance(requested, str) and requested.startswith("limits-") and requested not in protected:
                     (state.get("runtime_limit_profiles") or {}).pop(requested, None)
         self.state_store.update(mutate)
-        if not success and not rollback_failed:
+        if not success and not rollback_failed and not operation.get("uncertain_runtime"):
             current = self.state_store.read()
             for stale_id in tuple(self.catalog.profiles):
                 if stale_id.startswith("limits-") and stale_id not in (current.get("runtime_limit_profiles") or {}):

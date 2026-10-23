@@ -334,3 +334,44 @@ def test_invalid_request_id_is_rejected_without_starting_operation(tmp_path: Pat
     assert not store.read().get("operations")
     assert not store.read().get("runtime_limit_profiles")
     assert not any(key.startswith("limits-") for key in manager.catalog.profiles)
+
+
+def test_failed_restart_validation_preserves_uncertain_derived_profile(tmp_path: Path):
+    """재시작 canary 실패 이후 상태가 확정될 때까지 파생 신원을 보존한다."""
+    async def exercise():
+        store = MainModelStateStore(tmp_path / "failed-restart.json", "cpu-gguf-text")
+        profile = build_runtime_limit_profile(cpu_catalog(), "cpu-gguf-text", 12288, 2048)
+        operation = {
+            "id": "restart-validation",
+            "requested_profile": profile.profile_id,
+            "previous_profile": "cpu-gguf-text",
+            "previous_gate": "open",
+            "status": "validating",
+            "stage": "validating",
+            "created_at": 1.0, "updated_at": 1.0,
+        }
+        store.update(lambda state: state.update(
+            active_profile="cpu-gguf-text",
+            last_known_good_profile="cpu-gguf-text",
+            gate="open", runtime_selection={"mode": "cpu"},
+            runtime_limit_profiles={profile.profile_id: {
+                "base_profile": "cpu-gguf-text", "context_tokens": 12288, "max_output_tokens": 2048,
+            }},
+            last_operation=operation, operations=[operation],
+        ))
+        backend = FakeBackend(profile.profile_id, reject_custom=True)
+        manager = MainModelManager(cpu_catalog(), store, backend)
+        with pytest.raises(RuntimeError, match="canary"):
+            await manager.initialize()
+        manager.record_initialization_failure("canary verification failed after restart")
+        state = store.read()
+        assert state["gate"] == "closed"
+        assert state["last_operation"]["status"] == "failed"
+        assert state["last_operation"]["uncertain_runtime"] is True
+        assert profile.profile_id in state["runtime_limit_profiles"]
+        assert profile.profile_id in manager.catalog.profiles
+        await manager.aclose()
+        restored = MainModelManager(cpu_catalog(), store, backend)
+        assert profile.profile_id in restored.catalog.profiles
+        await restored.aclose()
+    asyncio.run(exercise())
