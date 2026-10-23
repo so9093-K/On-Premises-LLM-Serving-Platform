@@ -275,3 +275,33 @@ def test_interrupted_switch_with_unknown_runtime_preserves_derived_identity(tmp_
         assert profile.profile_id in manager.catalog.profiles
         await manager.aclose()
     asyncio.run(exercise())
+
+
+def test_idempotent_retry_of_failed_limits_does_not_recreate_orphan(tmp_path: Path):
+    """종료된 실패 요청의 중복 응답이 파생 프로필을 다시 남기지 않는다."""
+    async def exercise():
+        store = MainModelStateStore(tmp_path / "idempotent-retry.json", "cpu-gguf-text")
+        store.update(lambda state: state.update(
+            active_profile="cpu-gguf-text",
+            last_known_good_profile="cpu-gguf-text",
+            gate="open", runtime_selection={"mode": "cpu"},
+        ))
+        backend = FakeBackend("cpu-gguf-text", reject_custom=True)
+        manager = MainModelManager(cpu_catalog(), store, backend)
+        first = manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="cpu", client_request_id="same-request",
+        )
+        assert (await manager.wait_for_operation(first.operation_id))["status"] == "failed"
+        assert not store.read().get("runtime_limit_profiles")
+        assert not any(p.startswith("limits-") for p in manager.catalog.profiles)
+        retry = manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="cpu", client_request_id="same-request",
+        )
+        assert retry.reused is True
+        assert retry.operation_id == first.operation_id
+        assert not any(p.startswith("limits-") for p in manager.catalog.profiles)
+        assert not store.read().get("runtime_limit_profiles")
+        await manager.aclose()
+    asyncio.run(exercise())

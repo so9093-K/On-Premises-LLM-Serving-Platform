@@ -679,7 +679,7 @@ class MainModelManager:
         previously_registered = profile.profile_id in self.catalog.profiles
         self.catalog.profiles[profile.profile_id] = profile
         try:
-            return self.request_switch(
+            outcome = self.request_switch(
                 profile.profile_id,
                 confirm_unverified=confirm_unverified,
                 client_request_id=client_request_id,
@@ -690,6 +690,13 @@ class MainModelManager:
                     "max_output_tokens": max_output_tokens,
                 },
             )
+            # 실패한 작업의 동일 request_id 재전송은 새 전환을 시작하지 않는다.
+            # 이때 임시로 등록한 파생 프로필도 영속 기록 없이 남기지 않는다.
+            if outcome.reused and not previously_registered:
+                persisted = self.state_store.read().get("runtime_limit_profiles") or {}
+                if profile.profile_id not in persisted:
+                    self.catalog.profiles.pop(profile.profile_id, None)
+            return outcome
         except Exception:
             # 전환이 접수되기 전에 거부되면 프로필 목록에 가짜 구성이
             # 남지 않아야 한다. 이미 커밋된 동일 ID의 변형은 보존한다.
