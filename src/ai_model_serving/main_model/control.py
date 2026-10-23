@@ -461,8 +461,18 @@ class MainModelManager:
             if interrupted and interrupted.get("status") not in _TERMINAL_STATES:
                 await self._recover_interrupted(interrupted, observed)
                 return
-            mode = (self.state_store.read().get("runtime_selection") or {}).get("mode")
-            target = "cpu-gguf-text" if mode == "cpu" else self.boot_profile
+            state = self.state_store.read()
+            mode = (state.get("runtime_selection") or {}).get("mode")
+            # CPU 고정 정책은 마지막으로 적용한 CPU 프리셋을 재시작 뒤에도 유지한다.
+            # 기존 기본 CPU 프로필만 강제하면 4K/16K 선택을 조용히 되돌리게 된다.
+            persisted_id = state.get("active_profile")
+            persisted_profile = self.catalog.profiles.get(persisted_id)
+            target = (
+                persisted_id
+                if mode == "cpu" and persisted_profile is not None
+                and persisted_profile.runtime_backend == "llama-cpp" and not self.profile_locked
+                else "cpu-gguf-text" if mode == "cpu" else self.boot_profile
+            )
             recovering = mode in RECOVERING_POLICIES
             if self.catalog.runtime.get("adaptive") or mode == "cpu" or recovering:
                 runtime = await self.backend.observe_runtime(self.catalog)
