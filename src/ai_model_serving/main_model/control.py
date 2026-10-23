@@ -9,6 +9,7 @@ from typing import Any, NamedTuple, Protocol
 from .execution_policy import RECOVERING_POLICIES
 from .catalog import MainModelCatalog, MainModelProfile, resolve_boot_profile
 from .state import MainModelStateError, MainModelStateStore, MainModelSwitchLockError
+from .runtime_limits import RuntimeLimitError, build_runtime_limit_profile, restore_runtime_limit_profiles
 from ..service_logging import service_logger
 
 _logger = service_logger("main_model_control")
@@ -130,6 +131,7 @@ class MainModelManager:
             startup = float(catalog.runtime.get("startup_timeout_seconds", 600))
             idempotency_ttl_seconds = 2.0 * startup
         self._idempotency_ttl = float(idempotency_ttl_seconds)
+        restore_runtime_limit_profiles(catalog, state_store.read().get("runtime_limit_profiles"))
         persisted = state_store.read().get("active_profile")
         self.boot_profile = resolve_boot_profile(
             catalog,
@@ -642,6 +644,42 @@ class MainModelManager:
             )
         return None
 
+    def request_limit_switch(
+        self,
+        profile_id: str,
+        *,
+        context_tokens: object,
+        max_output_tokens: object,
+        confirm_unverified: bool = False,
+        client_request_id: str | None = None,
+        execution_policy: str | None = None,
+    ) -> SwitchOutcome:
+        records = self.state_store.read().get("runtime_limit_profiles") or {}
+        # 기존 사용자 구성에서 다시 수정할 때에는 원래 선언된 모델 프로필을
+        # 기준으로 새 변형을 파생한다. 변형을 중첩하지 않는다.
+        base_id = (records.get(profile_id) or {}).get("base_profile", profile_id)
+        profile = build_runtime_limit_profile(
+            self.catalog, base_id, context_tokens, max_output_tokens,
+        )
+        if profile.profile_id not in records and len(records) >= 32:
+            raise MainModelSwitchError(
+                "RUNTIME_LIMIT_PROFILE_CAP_REACHED",
+                "too many runtime limit configurations; choose a declared profile",
+                status_code=422,
+            )
+        self.catalog.profiles[profile.profile_id] = profile
+        return self.request_switch(
+            profile.profile_id,
+            confirm_unverified=confirm_unverified,
+            client_request_id=client_request_id,
+            execution_policy=execution_policy,
+            runtime_limit_override={
+                "base_profile": base_id,
+                "context_tokens": context_tokens,
+                "max_output_tokens": max_output_tokens,
+            },
+        )
+
     def request_switch(
         self,
         profile_id: str,
@@ -650,6 +688,7 @@ class MainModelManager:
         boot_reconcile: bool = False,
         client_request_id: str | None = None,
         execution_policy: str | None = None,
+        runtime_limit_override: dict[str, Any] | None = None,
     ) -> SwitchOutcome:
         policy_error = self.switch_policy_error(profile_id, boot_reconcile=boot_reconcile)
         if policy_error is not None:
@@ -727,6 +766,8 @@ class MainModelManager:
                     "client_request_id": client_request_id,
                     **({"execution_policy": execution_policy} if execution_policy is not None else {}),
                 }
+                if runtime_limit_override is not None:
+                    value.setdefault("runtime_limit_profiles", {})[profile_id] = dict(runtime_limit_override)
                 value["last_operation"] = operation
                 value.setdefault("operations", []).append(operation)
                 value["operations"] = value["operations"][-50:]
