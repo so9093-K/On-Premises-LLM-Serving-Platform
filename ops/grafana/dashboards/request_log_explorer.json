@@ -79,10 +79,7 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {
-              "id": "byName",
-              "options": "client_host"
-            },
+            "matcher": {"id": "byName", "options": "client_host"},
             "properties": [
               {
                 "id": "links",
@@ -186,10 +183,7 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {
-              "id": "byName",
-              "options": "request_id"
-            },
+            "matcher": {"id": "byName", "options": "request_id"},
             "properties": [
               {
                 "id": "links",
@@ -204,10 +198,7 @@
             ]
           },
           {
-            "matcher": {
-              "id": "byName",
-              "options": "client_host"
-            },
+            "matcher": {"id": "byName", "options": "client_host"},
             "properties": [
               {
                 "id": "links",
@@ -282,92 +273,31 @@
       "id": 7,
       "type": "table",
       "title": "준비 상태 실패 (/ready)",
-      "datasource": {
-        "type": "loki",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 24,
-        "h": 8
-      },
+      "datasource": {"type": "loki", "uid": "${datasource}"},
+      "gridPos": {"x": 0, "y": 18, "w": 24, "h": 8},
       "targets": [
         {
           "expr": "{job=\"application\", service=\"${service}\"} | json | event=\"http_request_completed\" | route=\"/ready\" | status_code >= 400 | client_host=~\"${client_host_filter}\"",
           "refId": "A"
         }
       ],
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Time",
-            "desc": true
-          }
-        ]
-      },
+      "options": {"showHeader": true, "sortBy": [{"displayName": "Time", "desc": true}]},
       "fieldConfig": {
         "defaults": {},
         "overrides": [
           {
-            "matcher": {
-              "id": "byName",
-              "options": "client_host"
-            },
-            "properties": [
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "이 client_host로 필터링",
-                    "url": "/d/request_log_explorer?var-client_host_filter=${__value.raw}&${__url_time_range}",
-                    "targetBlank": false
-                  }
-                ]
-              }
-            ]
+            "matcher": {"id": "byName", "options": "client_host"},
+            "properties": [{"id": "links", "value": [{"title": "이 client_host로 필터링", "url": "/d/request_log_explorer?var-client_host_filter=${__value.raw}&${__url_time_range}", "targetBlank": false}]}]
           }
         ]
       },
       "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "Line",
-            "format": "json",
-            "replace": false
-          }
-        },
+        {"id": "extractFields", "options": {"source": "Line", "format": "json", "replace": false}},
         {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "labels": true,
-              "tsNs": true,
-              "id": true,
-              "labelTypes": true,
-              "job": true,
-              "stream": true,
-              "container_id": true,
-              "event": true,
-              "detected_level": true,
-              "service_name": true,
-              "filename": true,
-              "request_body": true,
-              "response_body": true
-            },
-            "indexByName": {
-              "Time": 0,
-              "status_code": 1,
-              "readiness_status": 2,
-              "readiness_dependencies": 3,
-              "readiness_summary": 4,
-              "latency_ms": 5,
-              "client_host": 6,
-              "service": 7,
-              "Line": 20
-            },
+            "excludeByName": {"labels": true, "tsNs": true, "id": true, "labelTypes": true, "job": true, "stream": true, "container_id": true, "event": true, "detected_level": true, "service_name": true, "filename": true, "request_body": true, "response_body": true},
+            "indexByName": {"Time": 0, "status_code": 1, "readiness_status": 2, "readiness_dependencies": 3, "readiness_summary": 4, "latency_ms": 5, "client_host": 6, "service": 7, "Line": 20},
             "renameByName": {}
           }
         }
@@ -411,10 +341,7 @@
         "defaults": {},
         "overrides": [
           {
-            "matcher": {
-              "id": "byName",
-              "options": "client_host"
-            },
+            "matcher": {"id": "byName", "options": "client_host"},
             "properties": [
               {
                 "id": "links",

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { fetchPublicModels } from './api';
 
+// API 키 문자열 대신 탭 내 인증 세션 버전을 캐시 식별자로 사용한다.
 export function publicModelsQueryKey(credentialRevision: number): readonly [string, number] {
   return ['public-models', credentialRevision];
 }
@@ -14,6 +15,5 @@ export function usePublicModels(apiKey: string | null, credentialRevision: numbe
     queryFn: () => fetchPublicModels(apiKey),
     retry: false,
     staleTime: 30_000,
-    // 인증 주체가 바뀌면 숫자 버전이 달라져 이전 키의 응답을 재사용하지 않는다.
   });
 }

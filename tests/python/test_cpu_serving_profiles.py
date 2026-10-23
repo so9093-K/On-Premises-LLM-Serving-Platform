@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+
+from ai_model_serving.main_model.catalog import MainModelCatalog
+from ai_model_serving.main_model.control import MainModelManager
+from ai_model_serving.main_model.state import MainModelStateStore
 
 from ai_model_serving.main_model.cpu import cpu_runtime_command
 from ai_model_serving.main_model.cpu_catalog import load_cpu_profile
@@ -42,14 +48,9 @@ def test_unknown_cpu_profile_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown CPU profile"):
         cpu_runtime_command(resolve_project_root(), profile_id="not-declared")
 
+
 def test_restart_preserves_selected_cpu_profile(tmp_path: Path) -> None:
     """CPU 고정 정책은 Controller 재시작 시 선택한 16K/4K를 8K로 되돌리지 않는다."""
-    from dataclasses import dataclass
-
-    from ai_model_serving.main_model.catalog import MainModelCatalog
-    from ai_model_serving.main_model.control import MainModelManager
-    from ai_model_serving.main_model.state import MainModelStateStore
-
     profiles = {
         key: load_cpu_profile(resolve_project_root(), key, 9401, {})
         for key, _, _ in CASES
@@ -89,8 +90,6 @@ def test_restart_preserves_selected_cpu_profile(tmp_path: Path) -> None:
         profiles=profiles,
     )
     manager = MainModelManager(catalog, store, backend, boot_profile="cpu-gguf-text")
-    import asyncio
-
     asyncio.run(manager.initialize())
     state = store.read()
     assert state["active_profile"] == "cpu-gguf-text-extended"

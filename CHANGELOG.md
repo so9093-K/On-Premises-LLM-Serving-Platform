@@ -15,14 +15,9 @@
 
 ### Changed
 
-- Playground의 공개 API 키를 삭제·교체하면 기존 Chat 요청을 중단하고 대화·미전송 입력·첨부·요청 설정을 새 인증 맥락에서 사용하지 않도록 분리한다. 기본값과 다른 요청 설정을 명시하고 Risk 예제 적용 시 입력 교체를 확인한다.
-- 메인 모델 화면은 현재 상태 → CPU 한도 프리셋 → 변경 영향 확인 → 전환 결과 순으로 운영 동선을 정리한다. Grafana 공개 API 경로별 사용량에서는 선택 기간과 경로를 유지해 Loki 로그로 이동할 수 있다.
-
-
-- CPU llama.cpp 기본 문맥·최대 출력 한도를 8,192/4,096으로 조정하고, Runtime Controller가 있는 배포에서는 CPU 고정 전환으로 4K/1K·8K/4K·16K/4K 프리셋을 선택한다. 별도 Compose 관리형 CPU는 기존 운영 명령이 소유한다.
-- Playground의 Chat 미전송 메시지·첨부를 같은 탭의 화면 이동 동안 유지하고, 예제·요청 설정은 명시적으로 열도록 정리했다. Embedding·Risk의 화면 이탈 시 삭제 원칙은 유지한다.
-- Grafana에서 공개 API 요청과 내부 Upstream 호출을 구별하고, 조회 시점 GPU 사용률과 vLLM 전용 토큰 처리율, Loki 요청·Runtime 로그 필터의 적용 범위를 명확히 한다.
-
+- CPU llama.cpp 기본 문맥·최대 출력 한도를 8,192/4,096으로 조정하고, 관리형 Runtime Controller 배포에서는 CPU 고정 모드로 4K/1K·8K/4K·16K/4K 프리셋을 선택한다. Compose 관리형 CPU는 기존 운영 명령이 소유한다.
+- Playground Chat의 초안·첨부·모델·요청 설정은 같은 탭에서 화면 이동 시 유지한다. API 키 교체·삭제 시 진행 중 요청을 중단하고 Chat 세션을 정리한다. 변경된 설정을 표시하고 Risk 예제의 입력 교체는 확인을 요구한다. Embedding·Risk 입력은 화면 이탈 시 삭제한다.
+- 메인 모델 상태 → CPU 프리셋 → 영향 확인 → 전환 결과로 운영 동선을 정리한다. Grafana에서는 공개 API 요청과 내부 호출을 구분하고, GPU 사용률·vLLM 처리율·Loki 토큰 합계를 설명하며 요청 경로·조회 기간을 유지해 로그로 이동한다.
 
 - `make up`은 Target별 실제 서비스 Readiness로 기동을 판정한다. 일반 전체 스택은 Main Chat 요청 가능 여부도 확인하며, 추가 기능별 검증은 독립된 `make smoke`가 담당한다. `make build-image`와 `make image-smoke`도 분리하고 CI에서는 각각 검증한다.
 - 로컬 Platform·vLLM 이미지는 각각의 실제 실행 입력으로 재사용을 결정한다. README·LICENSE·NOTICE의 변경·누락, Git 상태, 별도 Smoke 스크립트는 불필요한 재빌드 사유가 아니다. 기존 이미지에 실행 해시가 없다면 다음 기동 시 한 번 갱신될 수 있다. ([ADR-0062](docs/adr/0062-runtime-artifact-reuse.md))

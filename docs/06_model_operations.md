@@ -693,7 +693,6 @@ CPU를 쓴다고 GPU 예산이나 보조 Runtime 기동 정책을 우회하지 �
 결정과 검증 경계는 [ADR-0055](adr/0055-manual-cpu-profile-in-gpu-dynamic.md)와
 [검증 기록](resources/manual_cpu_model_validation.md)을 참고하세요.
 
-
 ## CPU llama.cpp 문맥·출력 프리셋
 
 관리형 CPU 모델의 기본값은 문맥 8,192토큰, 최대 출력 4,096토큰, 동시 요청 1개, Threads 4개다. Context Window는 입력과 출력을 합친 상한이며 최대 출력을 모두 사용할 수 있다는 보장은 아니다.
