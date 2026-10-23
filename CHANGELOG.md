@@ -15,6 +15,11 @@
 
 ### Changed
 
+- CPU llama.cpp 기본 문맥·최대 출력 한도를 8,192/4,096으로 조정하고, Runtime Controller가 있는 배포에서는 CPU 고정 전환으로 4K/1K·8K/4K·16K/4K 프리셋을 선택한다. 별도 Compose 관리형 CPU는 기존 운영 명령이 소유한다.
+- Playground의 Chat 미전송 메시지·첨부를 같은 탭의 화면 이동 동안 유지하고, 예제·요청 설정은 명시적으로 열도록 정리했다. Embedding·Risk의 화면 이탈 시 삭제 원칙은 유지한다.
+- Grafana에서 공개 API 요청과 내부 Upstream 호출을 구별하고, 조회 시점 GPU 사용률과 vLLM 전용 토큰 처리율, Loki 요청·Runtime 로그 필터의 적용 범위를 명확히 한다.
+
+
 - `make up`은 Target별 실제 서비스 Readiness로 기동을 판정한다. 일반 전체 스택은 Main Chat 요청 가능 여부도 확인하며, 추가 기능별 검증은 독립된 `make smoke`가 담당한다. `make build-image`와 `make image-smoke`도 분리하고 CI에서는 각각 검증한다.
 - 로컬 Platform·vLLM 이미지는 각각의 실제 실행 입력으로 재사용을 결정한다. README·LICENSE·NOTICE의 변경·누락, Git 상태, 별도 Smoke 스크립트는 불필요한 재빌드 사유가 아니다. 기존 이미지에 실행 해시가 없다면 다음 기동 시 한 번 갱신될 수 있다. ([ADR-0062](docs/adr/0062-runtime-artifact-reuse.md))
 - 포트 대역은 `.env`의 `PLATFORM_PORT_BASE`가 소유한다. 신규 설치는 `make up TARGET=<target> PORTS=9600`, 기존 환경은 `make ports BASE=9600` 후 `make up`으로 적용한다. 변경 시 Gateway·모델 컨테이너가 재생성되어 일시적인 중단이 생길 수 있으며, 소스 수정·Node.js·전체 테스트는 필요하지 않다. ([ADR-0064](docs/adr/0064-port-band-is-deployment-configuration.md))
