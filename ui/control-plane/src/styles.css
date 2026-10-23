@@ -2185,3 +2185,35 @@ a.overview-action-tile:hover {
 .chat-clear-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; padding: 0.75rem 1rem; border: 1px solid var(--console-border); border-radius: 0.5rem; background: var(--console-surface); }
 .chat-clear-confirm p { margin: 0; flex: 1 1 18rem; }
 @media (max-width: 600px) { .chat-clear-confirm > button { flex: 1 1 auto; } }
+
+/* 작업 전환 뒤 다음 액션과 적용 결과를 키보드 사용자에게도 명확히 노출한다. */
+.runtime-review-region:focus,
+.runtime-operation-region:focus { outline: 2px solid var(--console-focus); outline-offset: 0.25rem; }
+.playground-credential-confirm,
+.playground-example-confirm {
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--console-border);
+  border-left: 0.25rem solid var(--pf-t--global--color--status--warning--default, #f0ab00);
+  border-radius: 0.375rem;
+  background: var(--console-surface-raised);
+}
+.playground-credential-confirm p,
+.playground-example-confirm p { margin: 0 0 0.625rem; }
+.chat-settings-modified {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: var(--console-text-muted);
+  font-size: 0.8125rem;
+}
+.chat-composer-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--console-text-muted);
+}
+.chat-composer-context > span { font-weight: 600; color: var(--console-text); }

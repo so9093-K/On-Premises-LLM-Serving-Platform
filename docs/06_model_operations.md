@@ -692,3 +692,13 @@ CPU를 쓴다고 GPU 예산이나 보조 Runtime 기동 정책을 우회하지 �
 
 결정과 검증 경계는 [ADR-0055](adr/0055-manual-cpu-profile-in-gpu-dynamic.md)와
 [검증 기록](resources/manual_cpu_model_validation.md)을 참고하세요.
+
+## CPU llama.cpp 문맥·출력 프리셋
+
+관리형 CPU 모델의 기본값은 문맥 8,192토큰, 최대 출력 4,096토큰, 동시 요청 1개, Threads 4개다. Context Window는 입력과 출력을 합친 상한이며 최대 출력을 모두 사용할 수 있다는 보장은 아니다.
+
+Runtime Controller를 제공하는 Linux Target의 **메인 모델 → CPU llama.cpp 실행 설정**에서 기본(8K/4K), 경량(4K/1K), 확장(16K/4K) 프리셋을 선택할 수 있다. 설정은 모델별 프로필이 소유하며 선택은 기존 Main Model 전환 기능을 통해 진행된다. 프리셋 적용 중 기존 요청이 잠시 중단되고, 실패 시 이전 모델 복구를 시도한다.
+
+자동 GPU 복구 정책은 기본 CPU 프리셋을 사용한다. 다른 CPU 프리셋을 수동으로 선택하면 CPU 고정 정책이 적용되므로, GPU 자동 복구를 원할 경우 실행 정책을 다시 선택해야 한다. 기본 8K/4K 및 경량·확장 프리셋 모두 변경 후 문맥·출력 상한과 4 GiB 메모리 적합성을 실장비에서 확인하기 전까지 미검증으로 표시한다. 기존 2K/256 CPU 실측 결과를 새 한도의 검증 근거로 재사용하지 않는다.
+
+`linux-cpu-managed`는 Controller가 아닌 Compose가 생명주기를 소유하므로 현재는 Console의 메인 모델 전환 기능을 제공하지 않는다. 해당 Target은 저장소 CPU 프로필의 기본값을 `make up`으로 반영하며, 외부 CPU Runtime(`linux-cpu-static`)의 실행 파라미터는 외부 운영자가 소유한다.

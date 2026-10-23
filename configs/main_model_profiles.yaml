@@ -548,3 +548,7 @@ profiles:
 
   cpu-gguf-text:
     catalog: configs/cpu_main_model_profiles.yaml
+  cpu-gguf-text-compact:
+    catalog: configs/cpu_main_model_profiles.yaml
+  cpu-gguf-text-extended:
+    catalog: configs/cpu_main_model_profiles.yaml

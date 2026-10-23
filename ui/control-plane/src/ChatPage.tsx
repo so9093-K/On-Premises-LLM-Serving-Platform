@@ -58,14 +58,11 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
 
 export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear } = session;
-  const [draft, setDraft] = useState('');
+  const { apiKey, credentialRevision, apiKeyRejected, exchanges, selectedModelId, setSelectedModelId, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
   const [confirmClear, setConfirmClear] = useState(false);
-  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showExamples, setShowExamples] = useState(() => exchanges.length === 0);
+  const [showExamples, setShowExamples] = useState(false);
   const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
   const [appliedExampleId, setAppliedExampleId] = useState<string | null>(null);
   const [pendingModelId, setPendingModelId] = useState<string | null>(null);
@@ -75,6 +72,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const [focusComposerAfterExample, setFocusComposerAfterExample] = useState(false);
   const applySequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const settingsDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const clearConfirmRef = useRef<HTMLDivElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
@@ -82,12 +80,15 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const followBeforeConfirmRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
-  const modelsQuery = usePublicModels(apiKey);
+  const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const models = useMemo(
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
   );
-  const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
+  const retainedModel = models.find((item) => item.id === selectedModelId) ?? null;
+  // 사용 중이던 모델이 배포 변경으로 사라져도 초안을 기본 모델에 조용히 전송하지 않는다.
+  const selectionUnavailable = selectedModelId !== null && models.length > 0 && retainedModel === null;
+  const model = selectionUnavailable ? null : retainedModel ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
   const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
@@ -302,7 +303,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       clear();
       setShowExamples(true);
     }
-    setSelectedId(nextId);
+    setSelectedModelId(nextId);
     setAttachments([]);
     setAppliedExampleId(null);
     setSelectedExampleId(null);
@@ -349,8 +350,10 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             cancelExamplePreparation();
             setShowExamples((current) => !current);
             setExampleError(null);
-          }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
-          <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
+          }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
+          <a className="chat-settings-jump" href="#chat-model-settings" onClick={() => {
+            if (settingsDetailsRef.current) settingsDetailsRef.current.open = true;
+          }}>요청 설정 ↓</a>
           {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
             followBeforeConfirmRef.current = followRef.current;
             followRef.current = false;
@@ -387,7 +390,15 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
           {apiErrorMessage(modelsQuery.error)}
         </Alert>
       ) : null}
-      {modelsQuery.isSuccess && model === null ? (
+      {modelsQuery.isSuccess && selectionUnavailable ? (
+        <Alert isInline variant="warning" title="이전에 선택한 채팅 모델을 사용할 수 없습니다.">
+          <p>미전송 메시지는 유지했습니다. 새 모델의 입력 호환성을 확인하고 요청하세요.</p>
+          <Button variant="secondary" onClick={() => {
+            setAttachments([]);
+            setSelectedModelId(null);
+          }}>기본 모델 선택 · 미전송 첨부 제거</Button>
+        </Alert>
+      ) : modelsQuery.isSuccess && model === null ? (
         <Alert isInline variant="warning" title="채팅을 지원하는 공개 모델이 없습니다." />
       ) : null}
 
@@ -503,6 +514,11 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
+              <div className="chat-composer-context" aria-label="현재 요청 모델 한도">
+                <span>{model.display_name ?? model.id}</span>
+                {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '모델 정책')}</small> : null}
+                {JSON.stringify(session.settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS) ? <small>요청 설정 변경됨</small> : null}
+              </div>
               <div className="chat-composer-tools">
                 {attachmentAccept(model) ? (
                   <div className="chat-attachment-input">
@@ -538,7 +554,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
           </div>
             <aside className="chat-side" id="chat-model-settings" aria-label="요청 설정">
-              <ChatSettingsPanel model={model} />
+              <ChatSettingsPanel model={model} detailsRef={settingsDetailsRef} />
               <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
             </aside>
           </div>

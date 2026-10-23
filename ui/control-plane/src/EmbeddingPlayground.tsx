@@ -47,9 +47,9 @@ const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
 
 // 입력과 결과는 이 화면의 상태에만 둔다. 다른 메뉴나 작업 화면으로 이동하면 사라진다.
 export function EmbeddingPlayground({ features }: { features: readonly string[] }) {
-  const { apiKey, apiKeyRejected, rejectApiKey } = useChatSession();
+  const { apiKey, credentialRevision, apiKeyRejected, rejectApiKey } = useChatSession();
   const { token } = useAdminSession();
-  const modelsQuery = usePublicModels(apiKey);
+  const modelsQuery = usePublicModels(apiKey, credentialRevision);
   // Runtime 상태는 관리자 API의 보조 진단이다. 조회하지 못하면 안내만 생략하고 요청 판단은 Gateway가 한다.
   const runtimesQuery = useQuery({
     queryKey: ['runtime-control', 'runtimes', token === null ? 'anonymous' : 'authenticated'],
@@ -193,7 +193,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         ) : null}
 
         <fieldset className="playground-choice" disabled={busy}>
-          <legend>작업</legend>
+          <legend>작업 선택 · 벡터 변환과 문서 관련도 분석</legend>
           <label>
             <input type="radio" name="embedding-mode" checked={mode === 'single'} onChange={() => setMode('single')} />
             텍스트 변환
@@ -209,7 +209,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
             </label>
           ) : null}
         </fieldset>
-        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다.</p> : null}
+        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다. 지원 모델을 선택하면 사용할 수 있습니다.</p> : null}
 
         {mode === 'rank' ? (
           <div className="playground-retrieval-inputs">

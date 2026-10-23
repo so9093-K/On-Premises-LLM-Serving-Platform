@@ -92,7 +92,7 @@ def prepare_cpu_model(
 
 
 def cpu_runtime_command(
-    config_root: Path, *, port: int | None = None
+    config_root: Path, *, port: int | None = None, profile_id: str | None = None
 ) -> tuple[str, ...]:
     """CPU 명령은 프로필과 검증된 Artifact 선언에서만 생성한다."""
     from ..configuration import load_yaml_mapping
@@ -101,7 +101,14 @@ def cpu_runtime_command(
     artifact = load_yaml_mapping(config_root / "configs/cpu_model_artifact.yaml")[
         "model"
     ]
-    runtime = catalog["runtime"]
+    selected_profile = profile_id or str(catalog["default_profile"])
+    profiles = catalog["profiles"]
+    if selected_profile not in profiles:
+        raise ValueError(f"unknown CPU profile: {selected_profile}")
+    override = profiles[selected_profile].get("runtime", {})
+    if not isinstance(override, dict) or set(override) - {"context_size", "parallel", "threads"}:
+        raise ValueError("invalid CPU profile runtime override")
+    runtime = {**catalog["runtime"], **override}
     filename = str(artifact["filename"])
     if Path(filename).name != filename or not filename.endswith(".gguf"):
         raise ValueError("CPU model filename must be a GGUF basename")

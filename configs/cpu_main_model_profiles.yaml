@@ -5,7 +5,7 @@ default_profile: cpu-gguf-text
 
 runtime:
   port: 8080
-  context_size: 2048
+  context_size: 8192
   gpu_layers: 0
   parallel: 1
   threads: 4
@@ -17,17 +17,54 @@ profiles:
     compatibility:
       status: compatible
     qualification:
-      # Linux/Ryzen 9 7900X3D 실측(2026-10-21): docs/resources/manual_cpu_model_validation.md
-      status: verified
+      # 2026-10-21 실장비 검증은 문맥 2K / 출력 256이었다.
+      # 8K / 4K 정책은 동일 실장비에서 아직 검증하지 않았다.
+      status: unverified
     capabilities:
       deployed_input: [text]
-    gateway_policy:
+    gateway_policy: &cpu_gateway_policy
       max_concurrency: 1
-      max_output_tokens: 256
-      request_limits:
-        max_model_len: 2048
+      max_output_tokens: 4096
+      request_limits: &cpu_request_limits
+        max_model_len: 8192
         input_modalities: [text]
       request_parameter_policy:
         allow_unlisted_parameters: false
         supported_parameters: [stream, stream_options, temperature, max_tokens, top_p, top_k, stop, seed]
         max_n: 1
+
+  cpu-gguf-text-compact:
+    display_name: Local GGUF Text Chat (CPU / 4K)
+    served_model_name: local-main
+    compatibility:
+      status: compatible
+    qualification:
+      status: unverified
+    capabilities:
+      deployed_input: [text]
+    runtime:
+      context_size: 4096
+    gateway_policy:
+      <<: *cpu_gateway_policy
+      max_output_tokens: 1024
+      request_limits:
+        <<: *cpu_request_limits
+        max_model_len: 4096
+
+  cpu-gguf-text-extended:
+    display_name: Local GGUF Text Chat (CPU / 16K)
+    served_model_name: local-main
+    compatibility:
+      status: compatible
+    qualification:
+      status: unverified
+    capabilities:
+      deployed_input: [text]
+    runtime:
+      context_size: 16384
+    gateway_policy:
+      <<: *cpu_gateway_policy
+      max_output_tokens: 4096
+      request_limits:
+        <<: *cpu_request_limits
+        max_model_len: 16384

@@ -1,6 +1,8 @@
 import {
   createContext,
   type PropsWithChildren,
+  type Dispatch,
+  type SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -8,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, postChatCompletion } from './api';
 import { prepareChatRequest } from './publicChatRequest.ts';
@@ -38,11 +41,19 @@ import {
 // 아무것도 남기지 않는다(ADR-0027과 같은 원칙).
 type ChatSessionValue = {
   apiKey: string | null;
+  credentialRevision: number;
   setApiKey: (key: string | null) => void;
   apiKeyRejected: boolean;
   // Embedding·Risk 화면의 401도 Chat과 같은 API 키 입력 흐름을 사용한다.
   rejectApiKey: () => void;
   exchanges: Exchange[];
+  selectedModelId: string | null;
+  setSelectedModelId: Dispatch<SetStateAction<string | null>>;
+  // 작성 중인 Chat 입력과 첨부는 브라우저 탭의 세션에서만 유지한다.
+  draft: string;
+  setDraft: Dispatch<SetStateAction<string>>;
+  attachments: ChatAttachment[];
+  setAttachments: Dispatch<SetStateAction<ChatAttachment[]>>;
   settings: ChatSettings;
   updateSettings: (patch: Partial<ChatSettings>) => void;
   busy: boolean;
@@ -52,17 +63,27 @@ type ChatSessionValue = {
   clear: () => void;
 };
 
+// QueryClient는 Shell보다 오래 살아 있으므로 재마운트해도 버전 키가 겹치면 안 된다.
+let nextCredentialRevision = 0;
+
 const ChatSessionContext = createContext<ChatSessionValue | null>(null);
 
 export function ChatSessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
+  const [credentialRevision, setCredentialRevision] = useState(() => ++nextCredentialRevision);
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [apiKeyRejected, setApiKeyRejected] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const mediaRegistry = useRef(new MediaDataRegistry());
   const nextIdRef = useRef(0);
+  const keyRef = useRef<string | null>(null);
+  const credentialEpochRef = useRef(0);
   // send는 최신 대화·설정으로 요청을 만들어야 하지만 매 token마다 새 함수가 되면
   // 입력창까지 다시 그린다. 최신 값은 ref로 읽는다.
   const latest = useRef({ apiKey, exchanges, settings });
@@ -70,9 +91,37 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     latest.current = { apiKey, exchanges, settings };
   }, [apiKey, exchanges, settings]);
 
-  useEffect(() => () => { abortRef.current?.abort(); mediaRegistry.current.clear(); }, []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    mediaRegistry.current.clear();
+    queryClient.removeQueries({ queryKey: ['public-models'] });
+  }, [queryClient]);
+
+  useEffect(() => {
+    // /v1/models 캐시에는 API 키 문자열을 식별자로 보관하지 않는다.
+    // 인증 변경 뒤 이전 쿼리 캐시는 새로운 작업에 재사용하지 않는다.
+    queryClient.removeQueries({
+      queryKey: ['public-models'],
+      predicate: (query) => query.queryKey[1] !== credentialRevision,
+    });
+  }, [credentialRevision, queryClient]);
 
   const setApiKey = useCallback((key: string | null) => {
+    if (keyRef.current !== key) {
+      // 인증 주체가 바뀌면 이전 대화와 전송 중 요청이 새 키에 섞이지 않아야 한다.
+      credentialEpochRef.current += 1;
+      setCredentialRevision(++nextCredentialRevision);
+      abortRef.current?.abort();
+      abortRef.current = null;
+      mediaRegistry.current.clear();
+      setExchanges([]);
+      setDraft('');
+      setAttachments([]);
+      setSelectedModelId(null);
+      setSettings(DEFAULT_CHAT_SETTINGS);
+      setBusy(false);
+      keyRef.current = key;
+    }
     setApiKeyState(key);
     setApiKeyRejected(false);
   }, []);
@@ -102,6 +151,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
     // Serialize exactly once: the same bytes are sent over HTTP and exported later.
     const request = prepareChatRequest(body, requestMedia);
     const controller = new AbortController();
+    const credentialEpoch = credentialEpochRef.current;
     abortRef.current = controller;
     setBusy(true);
     setExchanges((items) => [
@@ -118,6 +168,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       },
     ]);
     const update = (change: (turn: AssistantTurn) => AssistantTurn) => {
+      if (credentialEpochRef.current !== credentialEpoch) return;
       setExchanges((items) => items.map((item) => (
         item.id === id ? { ...item, assistant: change(item.assistant) } : item
       )));
@@ -144,7 +195,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
         if (controller.signal.aborted) {
           update((turn) => stopTurn(turn, now));
         } else if (reason instanceof ApiError) {
-          if (reason.status === 401) setApiKeyRejected(true);
+          if (reason.status === 401 && credentialEpochRef.current === credentialEpoch) setApiKeyRejected(true);
           update((turn) => failTurn(turn, {
             code: reason.code,
             message: reason.status === 401 ? 'API 키가 필요하거나 유효하지 않습니다.' : reason.message,
@@ -157,8 +208,10 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
           }, now));
         }
       } finally {
-        if (abortRef.current === controller) abortRef.current = null;
-        setBusy(false);
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+          setBusy(false);
+        }
       }
     })();
   }, []);
@@ -198,10 +251,17 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const value = useMemo(
     () => ({
       apiKey,
+      credentialRevision,
       setApiKey,
       apiKeyRejected,
       rejectApiKey,
       exchanges,
+      selectedModelId,
+      setSelectedModelId,
+      draft,
+      setDraft,
+      attachments,
+      setAttachments,
       settings,
       updateSettings,
       busy,
@@ -210,7 +270,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       stop,
       clear,
     }),
-    [apiKey, setApiKey, apiKeyRejected, rejectApiKey, exchanges, settings, updateSettings, busy, send, sendToolResults, stop, clear],
+    [apiKey, credentialRevision, setApiKey, apiKeyRejected, rejectApiKey, exchanges, selectedModelId, draft, attachments, settings, updateSettings, busy, send, sendToolResults, stop, clear],
   );
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>;
 }

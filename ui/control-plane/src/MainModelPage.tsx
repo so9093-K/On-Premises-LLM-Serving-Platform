@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -146,6 +146,8 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const [reviewPolicy, setReviewPolicy] = useState<ExecutionPolicy | undefined>();
   const [actionError, setActionError] = useState<string | null>(null);
   const [operationId, setOperationId] = useState<string | null>(null);
+  const reviewRegionRef = useRef<HTMLDivElement | null>(null);
+  const operationRegionRef = useRef<HTMLDivElement | null>(null);
   const authClass = token === null ? 'anonymous' : 'authenticated';
 
   const statusQuery = useQuery({
@@ -196,6 +198,20 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       void queryClient.invalidateQueries({ queryKey: [...queryKey] });
     }
   }, [operationQuery.data, queryClient]);
+
+  useEffect(() => {
+    if (reviewProfileId !== null) {
+      reviewRegionRef.current?.focus({ preventScroll: true });
+      reviewRegionRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [reviewProfileId]);
+
+  useEffect(() => {
+    if (operationId !== null) {
+      operationRegionRef.current?.focus({ preventScroll: true });
+      operationRegionRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [operationId]);
 
   const profiles = profilesQuery.data?.profiles ?? [];
   const reviewProfile = useMemo(
@@ -391,55 +407,37 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </CardBody>
       </Card>
 
-      <Card>
-        <CardTitle>사용 가능한 프로필</CardTitle>
-        <CardBody>
-          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다.</p>
-          <div className="table-scroll">
-            <table className="runtime-table">
-              <thead>
-                <tr><th>프로필</th><th>호환성</th><th>검증 상태</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th title="실제 VRAM 점유량이나 모델 가중치 예상 크기가 아닌 예약 정책 비율입니다.">GPU 예약 비율</th><th>실행 전 판단</th><th>작업</th></tr>
-              </thead>
-              <tbody>
-                {profiles.map((profile) => {
-                  const preflight = mainModelPreflightView(profile);
-                  return (
-                    <tr key={profile.id}>
-                      <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code><br />{modelRuntimeLabel(profile.runtime_backend)}<br /><small>{profile.upstream_model_id}</small></td>
-                      <td><Label color={compatibilityVariant(profile.compatibility.status)}>{compatibilityLabel(profile.compatibility.status)}</Label></td>
-                      <td><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></td>
-                      <td>{mainModelResourcePolicyLabel(profile)}</td>
-                      <td>{inputList(profile.capabilities.deployed_input)}</td>
-                      <td>{formatTokenLimits(mainModelTokenLimits(profile))}</td>
-                      <td>{profile.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(profile.vram_fraction)}</td>
-                      <td><Label color={preflight.color}>{preflight.label}</Label></td>
-                      <td>
-                        {profile.active ? (
-                          <span className="current-state-text">현재 사용 중</span>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            isDisabled={switchMutation.isPending || busy}
-                            onClick={() => {
-                              setReviewPolicy(profile.runtime_backend === "llama-cpp" ? "cpu" : "gpu");
-                              setReviewProfileId(profile.id);
-                              setConfirmed(false);
-                              setActionError(null);
-                            }}
-                          >전환 검토</Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardBody>
-      </Card>
+      {profiles.some(profile => profile.runtime_backend === 'llama-cpp') ? (
+        <Card>
+          <CardTitle>CPU llama.cpp 실행 설정</CardTitle>
+          <CardBody>
+            <p>CPU 문맥과 최대 출력을 프리셋으로 선택합니다. 변경은 기존 Main Model 전환 경로를 거쳐 요청 정리·재기동·응답 확인을 수행합니다.</p>
+            <p className="configuration-help">기본 8,192 / 4,096 tokens · 동시 요청 1개 · Threads 4개 · 메모리 상한 4GiB. 입력과 출력은 동일한 문맥을 공유합니다.</p>
+            <div className="chat-heading-actions" role="group" aria-label="CPU 실행 한도 프리셋">
+              {profiles.filter(profile => profile.runtime_backend === 'llama-cpp').map(profile => (
+                <Button
+                  key={profile.id}
+                  variant={profile.active ? 'primary' : 'secondary'}
+                  isDisabled={(profile.active && selection?.mode === 'cpu') || locked || busy || switchMutation.isPending}
+                  onClick={() => {
+                    setReviewPolicy('cpu');
+                    setReviewProfileId(profile.id);
+                    setConfirmed(false);
+                    setActionError(null);
+                  }}
+                >
+                  {profile.display_name} · {formatTokenLimits(mainModelTokenLimits(profile))}
+                  {profile.active ? ' · 현재 모델' : ''}
+                </Button>
+              ))}
+            </div>
+            <p className="configuration-help">선택하면 바로 적용하지 않고 전환 영향 확인 화면을 엽니다. CPU 고정 정책으로 전환되어 GPU 자동 복귀가 중지됩니다. 실장비 검증 여부와 재기동 영향을 확인하세요.</p>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {reviewProfile ? (
+        <div ref={reviewRegionRef} className="runtime-review-region" role="region" aria-label="모델 전환 영향 확인" tabIndex={-1}>
         <Card className="review-card">
           <CardTitle>{isRecoveringPolicy(reviewPolicy) ? '실행 정책 변경 전 영향 확인' : '모델 전환 전 영향 확인'}</CardTitle>
           <CardBody>
@@ -595,9 +593,59 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
             </div>
           </CardBody>
         </Card>
+        </div>
       ) : null}
 
+      <Card>
+        <CardTitle>사용 가능한 프로필</CardTitle>
+        <CardBody>
+          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다.</p>
+          <div className="table-scroll">
+            <table className="runtime-table">
+              <thead>
+                <tr><th>프로필</th><th>호환성</th><th>검증 상태</th><th>리소스 정책</th><th>입력</th><th title="컨텍스트 길이 / 최대 출력 토큰">토큰 한도</th><th title="실제 VRAM 점유량이나 모델 가중치 예상 크기가 아닌 예약 정책 비율입니다.">GPU 예약 비율</th><th>실행 전 판단</th><th>작업</th></tr>
+              </thead>
+              <tbody>
+                {profiles.map((profile) => {
+                  const preflight = mainModelPreflightView(profile);
+                  return (
+                    <tr key={profile.id}>
+                      <td><strong>{profile.display_name}</strong><br /><code>{profile.id}</code><br />{modelRuntimeLabel(profile.runtime_backend)}<br /><small>{profile.upstream_model_id}</small></td>
+                      <td><Label color={compatibilityVariant(profile.compatibility.status)}>{compatibilityLabel(profile.compatibility.status)}</Label></td>
+                      <td><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></td>
+                      <td>{mainModelResourcePolicyLabel(profile)}</td>
+                      <td>{inputList(profile.capabilities.deployed_input)}</td>
+                      <td>{formatTokenLimits(mainModelTokenLimits(profile))}</td>
+                      <td>{profile.runtime_backend === "llama-cpp" ? "해당 없음" : formatPercent(profile.vram_fraction)}</td>
+                      <td><Label color={preflight.color}>{preflight.label}</Label></td>
+                      <td>
+                        {profile.active ? (
+                          <span className="current-state-text">현재 사용 중</span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            isDisabled={switchMutation.isPending || busy}
+                            onClick={() => {
+                              setReviewPolicy(profile.runtime_backend === "llama-cpp" ? "cpu" : "gpu");
+                              setReviewProfileId(profile.id);
+                              setConfirmed(false);
+                              setActionError(null);
+                            }}
+                          >전환 검토</Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
+
       {operationId ? (
+        <div ref={operationRegionRef} role="region" className="runtime-operation-region" aria-label="모델 전환 진행 상황" tabIndex={-1}>
         <Card>
           <CardTitle>모델 전환 진행 상황</CardTitle>
           <CardBody>
@@ -615,6 +663,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
             ) : null}
           </CardBody>
         </Card>
+        </div>
       ) : status.last_operation ? (
         <Card>
           <CardTitle>최근 전환</CardTitle>

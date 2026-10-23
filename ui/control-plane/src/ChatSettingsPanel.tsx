@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { Button } from '@patternfly/react-core';
 import { useChatSession } from './ChatSessionContext';
 import {
@@ -6,6 +6,7 @@ import {
   numberControlRangeHint,
   TOOL_CHOICE_DEFAULT,
   TOOL_CHOICE_NAMED,
+  DEFAULT_CHAT_SETTINGS,
   type NumberControl,
   type PublicModel,
 } from './chatSession';
@@ -86,10 +87,15 @@ function OptionalBooleanSetting({
   );
 }
 
-export function ChatSettingsPanel({ model }: { model: PublicModel }) {
+export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; detailsRef?: Ref<HTMLDetailsElement> }) {
   const { settings, updateSettings } = useChatSession();
+  const changedSettings = Object.keys(DEFAULT_CHAT_SETTINGS).filter((key) => {
+    const name = key as keyof typeof DEFAULT_CHAT_SETTINGS;
+    return JSON.stringify(settings[name]) !== JSON.stringify(DEFAULT_CHAT_SETTINGS[name]);
+  });
+  const hasChanges = changedSettings.length > 0;
   const controls = chatControls(model);
-  const [open, setOpen] = useState(() => window.matchMedia?.('(min-width: 981px)').matches ?? true);
+  const [open, setOpen] = useState(false);
   const logprobsDefault = controls.logprobs?.defaultEnabled ?? false;
   const logprobsEnabled = settings.logprobs ?? logprobsDefault;
 
@@ -110,9 +116,15 @@ export function ChatSettingsPanel({ model }: { model: PublicModel }) {
   ];
 
   return (
-    <details className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>요청 설정</summary>
+    <details ref={detailsRef} className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>요청 설정{hasChanges ? ` · 변경됨 (${changedSettings.length})` : ' · 모델 기본값'} · 시스템 프롬프트 / 출력 길이 / 스트리밍</summary>
       <div className="chat-settings-body">
+        {hasChanges ? (
+          <div className="chat-settings-modified" role="status">
+            <span>이 모델로 보내는 다음 요청에 변경된 설정이 적용됩니다.</span>
+            <Button variant="secondary" size="sm" onClick={() => updateSettings(DEFAULT_CHAT_SETTINGS)}>요청 설정 초기화</Button>
+          </div>
+        ) : null}
         <label htmlFor="chat-system-prompt">시스템 프롬프트</label>
         <textarea
           id="chat-system-prompt"

@@ -30,6 +30,15 @@ def load_adaptive_catalog(
     cpu = load_cpu_profile(root, cpu_id, port, environment)
     artifact_document = load_yaml_mapping(root / "configs/cpu_model_artifact.yaml")
     profiles = {cpu_id: cpu}
+    # Adaptive 배포에서 노출할 후보는 adaptive catalog의 명시적 참조만 소유한다.
+    # CPU 원본 카탈로그 전체를 자동 노출하면 Gateway serving 선언과 Controller
+    # 실제 전환 후보가 달라질 수 있다.
+    for candidate_id, candidate in document["profiles"].items():
+        if (
+            candidate_id != cpu_id
+            and candidate == {"catalog": "configs/cpu_main_model_profiles.yaml"}
+        ):
+            profiles[candidate_id] = load_cpu_profile(root, candidate_id, port, environment)
     gpu_error = None
     gpu_profiles = {}
     explicit_value = environment.get("ADAPTIVE_GPU_RESOURCE_POLICY", "").strip()

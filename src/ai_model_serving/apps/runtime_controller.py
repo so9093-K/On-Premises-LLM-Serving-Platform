@@ -731,8 +731,12 @@ def create_runtime_controller_app(
         try:
             async with context._budget_lock:
                 selected_mode = mode or ("cpu" if target_profile and target_profile.runtime_backend == "llama-cpp" else "gpu")
-                if selected_mode in CPU_FIRST_POLICIES and profile_id != selection_policy["cpu_profile"]:
-                    raise HTTPException(422, detail="fallback/automatic/cpu policy starts with the CPU profile")
+                if selected_mode in RECOVERING_POLICIES and profile_id != selection_policy["cpu_profile"]:
+                    raise HTTPException(422, detail="fallback/automatic policy starts with the default CPU profile")
+                if selected_mode == "cpu" and (
+                    target_profile is None or target_profile.runtime_backend != "llama-cpp"
+                ):
+                    raise HTTPException(422, detail="CPU policy requires a CPU profile")
                 if selected_mode == "gpu" and target_profile and target_profile.runtime_backend == "llama-cpp":
                     raise HTTPException(422, detail="GPU policy requires a GPU profile")
                 if selected_mode in RECOVERING_POLICIES and payload.get("confirm_unverified") is not True:

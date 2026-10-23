@@ -30,6 +30,18 @@
       "tooltip": "GPU 메모리·온도·컨테이너 자원",
       "type": "link",
       "url": "/d/gpu_capacity_and_oom_risk"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "요청 로그",
+      "tooltip": "선택 시간 범위의 요청과 오류 상세 보기",
+      "type": "link",
+      "url": "/d/request_log_explorer"
     }
   ],
   "liveNow": false,
@@ -37,7 +49,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "GPU 사용률",
+      "title": "현재 GPU 사용률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -94,12 +106,12 @@
         },
         "overrides": []
       },
-      "description": "조회 종료 시점의 GPU별 사용률 중 최댓값입니다. GPU가 연산 중이었던 시간 비율이며 VRAM 사용량과 다릅니다."
+      "description": "선택한 기간의 합계/평균이 아닌 조회 마지막 시점의 GPU 사용률 최댓값입니다. CPU-only 구성에서는 값이 없을 수 있습니다."
     },
     {
       "id": 2,
       "type": "bargauge",
-      "title": "대상별 호출 수",
+      "title": "공개 API 요청 수 (경로별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -112,9 +124,9 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(sum by (target) (increase(upstream_request_duration_seconds_count{service=\"gateway\"}[$__range])))",
+          "expr": "sort_desc(sum by (route) (increase(http_requests_total{service=\"gateway\",route=~\"/v1/.+\"}[$__range])))",
           "refId": "A",
-          "legendFormat": "{{target}}",
+          "legendFormat": "{{route}}",
           "instant": true
         }
       ],
@@ -145,16 +157,23 @@
             ]
           },
           "noValue": "수집 안 됨",
-          "min": 0
+          "min": 0,
+          "links": [
+            {
+              "title": "이 경로의 요청 로그 보기",
+              "url": "/d/request_log_explorer?from=${__from}&to=${__to}&var-service=gateway&var-route_filter=^${__field.labels.route}$",
+              "targetBlank": false
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "선택 기간에 Gateway가 기록한 모델·Risk 서비스 호출 수의 추정치입니다. 외부 API 요청 수와 다릅니다."
+      "description": "선택 기간 동안 Gateway의 공개 /v1/* API 경로별 요청 수입니다. Prometheus 카운터 증가량의 추정치이며 내부 모델 호출 횟수와 다릅니다. 해당 경로에서 '이 경로의 요청 로그 보기'를 선택하면 같은 시간 범위로 Loki 요청 로그를 조회합니다."
     },
     {
       "id": 3,
       "type": "table",
-      "title": "요청 거부 (사유별)",
+      "title": "공개 API 요청 거부 (사유별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -233,7 +252,7 @@
           }
         ]
       },
-      "description": "선택 기간에 Gateway가 검증 단계에서 거부한 요청입니다. 수집된 카운터 증가량으로 건수를 추정합니다.",
+      "description": "선택 기간 동안 Gateway가 검증 단계에서 거부한 공개 API 요청입니다. 해당 요청의 개별 진단은 요청 로그를 사용하세요.",
       "transformations": [
         {
           "id": "organize",
@@ -254,16 +273,110 @@
       ]
     },
     {
+      "id": 7,
+      "title": "입력 토큰 합계 (Loki)",
+      "type": "stat",
+      "description": "선택한 기간에 Loki 애플리케이션 완료 이벤트에서 관측된 Chat·Responses의 입력 토큰 합계입니다. HTTP 요청 수나 vLLM tok/s와 다르며 usage가 누락된 요청은 포함되지 않습니다. CPU llama.cpp와 GPU vLLM 요청을 모두 포함할 수 있지만, 로그 수집이 중단되면 누락됩니다.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "수집 안 됨",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "direction": "backward",
+          "expr": "sum(sum_over_time({job=\"application\",service=\"gateway\"} | json | event=\"http_request_completed\" | route=~\"/v1/(chat/completions|responses)\" | unwrap prompt_tokens | __error__=\"\" [$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "출력 토큰 합계 (Loki)",
+      "type": "stat",
+      "description": "선택한 기간에 Loki 애플리케이션 완료 이벤트에서 관측된 Chat·Responses의 출력 토큰 합계입니다. HTTP 요청 수나 vLLM tok/s와 다르며 usage가 누락된 요청은 포함되지 않습니다. CPU llama.cpp와 GPU vLLM 요청을 모두 포함할 수 있지만, 로그 수집이 중단되면 누락됩니다.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "수집 안 됨",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "instant",
+          "direction": "backward",
+          "expr": "sum(sum_over_time({job=\"application\",service=\"gateway\"} | json | event=\"http_request_completed\" | route=~\"/v1/(chat/completions|responses)\" | unwrap completion_tokens | __error__=\"\" [$__range]))"
+        }
+      ]
+    },
+    {
       "id": 4,
       "type": "timeseries",
-      "title": "vLLM 토큰 처리량",
+      "title": "vLLM 토큰 처리율 (GPU Runtime)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 10,
         "w": 24,
         "h": 7
       },
@@ -300,27 +413,27 @@
         },
         "overrides": []
       },
-      "description": "vLLM 전체의 입력·출력 토큰 처리율(최근 5분 평균)입니다. 내부·직접 호출도 포함하며 누적 토큰 수가 아닙니다."
+      "description": "vLLM 런타임의 최근 토큰 처리 속도(tok/s)입니다. 요청별/기간별 누적 토큰 사용량이 아니며 CPU llama.cpp Runtime에는 해당하지 않습니다."
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "대상별 호출률",
+      "title": "공개 API 요청률",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 17,
         "w": 24,
         "h": 7
       },
       "targets": [
         {
-          "expr": "sum by (target) (rate(upstream_request_duration_seconds_count{service=\"gateway\"}[$__rate_interval]))",
+          "expr": "sum by (route) (rate(http_requests_total{service=\"gateway\",route=~\"/v1/.+\"}[$__rate_interval]))",
           "refId": "A",
-          "legendFormat": "{{target}}"
+          "legendFormat": "{{route}}"
         }
       ],
       "options": {
@@ -338,19 +451,19 @@
         },
         "overrides": []
       },
-      "description": "Gateway가 기록한 대상별 호출의 초당 처리율입니다. 평균 구간은 조회 범위와 수집 간격에 따라 자동 조정됩니다."
+      "description": "Gateway가 처리한 공개 /v1/* API 요청의 초당 처리율입니다. 모델 Runtime에 대한 내부 요청률과 다릅니다."
     },
     {
       "id": 6,
       "type": "table",
-      "title": "대상별 호출 오류 (코드별)",
+      "title": "내부 모델 호출 오류 (대상·코드별)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 24,
         "w": 24,
         "h": 7
       },
@@ -422,7 +535,7 @@
           }
         ]
       },
-      "description": "선택 기간에 Gateway의 대상별 호출에서 기록된 오류입니다. 대상·코드별 건수는 수집된 카운터 증가량의 추정치입니다.",
+      "description": "Gateway→Model Runtime의 내부 호출 오류입니다. 외부 API 4xx/5xx 전체 집계가 아닙니다. 공개 요청의 실패 원인은 요청 로그에서 확인하세요.",
       "transformations": [
         {
           "id": "organize",
