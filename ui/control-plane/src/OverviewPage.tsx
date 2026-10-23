@@ -407,8 +407,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             {!runtimeControlEnabled ? (
               <>
                 <dl className="facts">
-                  <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-                  <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+                  <dt>관리 주체</dt><dd>{noMainModel ? '모델 Runtime 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+                  <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
                 </dl>
                 <p className="overview-muted overview-ownership-note">
                   {noMainModel
@@ -463,8 +463,8 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             <dt>실행 환경</dt><dd>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</dd>
             <dt>환경 ID</dt><dd><code>{bootstrap.deployment.target}</code></dd>
             <dt>메인 모델 운영 모드</dt><dd>{bootstrap.deployment.target === "linux-nvidia-dynamic" ? "CPU/GPU 수동 선택" : modelRuntimeLabel(bootstrap.deployment.runtime_backend)}</dd>
-            <dt>관리 주체</dt><dd>{lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
-            <dt>제어 방식</dt><dd>{controlModeLabel(bootstrap.deployment.control_mode)}</dd>
+            <dt>관리 주체</dt><dd>{noMainModel ? '모델 Runtime 없음' : lifecycleOwnerLabel(bootstrap.deployment.lifecycle_owner)}</dd>
+            <dt>제어 방식</dt><dd>{noMainModel ? '해당 없음' : controlModeLabel(bootstrap.deployment.control_mode)}</dd>
             <dt>구현·검증</dt>
             <dd>{implementationStatusLabel(bootstrap.deployment.implementation_status)} · {qualificationStatusLabel(bootstrap.deployment.qualification_status)}</dd>
           </dl>

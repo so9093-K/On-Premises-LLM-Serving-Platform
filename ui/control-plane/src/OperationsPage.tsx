@@ -16,6 +16,7 @@ import {
   requestLogDiagnosticsUrl,
 } from './activityDiagnostics';
 import { formatTimestamp, isoTimestamp } from './timeFormat';
+import { mergeOperationPages } from './operationsHistory';
 
 type OperationsPageProps = {
   token: string | null;
@@ -258,15 +259,12 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     }
   }, [configurationQuery.error, mainModelQuery.error, onUnauthorized, runtimeQuery.error]);
 
-  // 커서 페이지와 최신 페이지가 일부 겹쳐도 작업을 중복 표시하지 않는다.
-  const runtimeItems = useMemo(() => Array.from(new Map(
-    (runtimeQuery.data?.pages.flatMap((page) => page.items) ?? [])
-      .map((item) => [item.operation_id, item] as const),
-  ).values()), [runtimeQuery.data]);
-  const configurationItems = useMemo(() => Array.from(new Map(
-    (configurationQuery.data?.pages.flatMap((page) => page.items) ?? [])
-      .map((item) => [item.operation_id, item] as const),
-  ).values()), [configurationQuery.data]);
+  const runtimeItems = useMemo(() => mergeOperationPages(
+    runtimeQuery.data?.pages.map((page) => page.items) ?? [],
+  ), [runtimeQuery.data]);
+  const configurationItems = useMemo(() => mergeOperationPages(
+    configurationQuery.data?.pages.map((page) => page.items) ?? [],
+  ), [configurationQuery.data]);
 
   const activity = useMemo(() => {
     const items: ActivityItem[] = [];
@@ -308,6 +306,8 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
     || configurationQuery.isPending
   ) && activity.length === 0;
   const hasOlderHistory = runtimeQuery.hasNextPage || configurationQuery.hasNextPage;
+  const olderPagesLoaded = (runtimeQuery.data?.pages.length ?? 0) > 1
+    || (configurationQuery.data?.pages.length ?? 0) > 1;
 
   const filters: Array<{ key: ActivityFilter; label: string; disabled?: boolean }> = [
     { key: 'all', label: `전체 ${activity.length}` },
@@ -450,6 +450,12 @@ export function OperationsPage({ token, onUnauthorized, deploymentFeatures, graf
               ))}
             </ol>
           )}
+
+          {olderPagesLoaded ? (
+            <p className="configuration-help" role="status">
+              이전 작업 내역을 펼친 동안에는 해당 영역의 자동 갱신을 중지합니다. 최신 작업 상태를 확인하려면 상단 새로고침을 누르세요.
+            </p>
+          ) : null}
 
           {hasOlderHistory ? (
             <div className="activity-pagination" role="group" aria-label="이전 운영 활동 보기">

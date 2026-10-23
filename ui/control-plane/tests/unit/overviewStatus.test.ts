@@ -7,6 +7,7 @@ describe('전환 API가 없는 배포의 운영 개요', () => {
   it('Core는 외부 모델 관리가 아니라 모델이 없는 상태다', () => {
     expect(unmanagedModelSummary('none', 'static', 'external')).toContain('메인 모델 없음');
     expect(capabilityPresentation('model_switching', ['risk'], 'external', 'none').status).toBe('제공하지 않음');
+    expect(capabilityPresentation('runtime_control', ['risk'], 'external', 'none').status).toBe('제공하지 않음');
   });
 
   it('플랫폼 Compose 관리 CPU는 외부 관리로 표시하지 않는다', () => {

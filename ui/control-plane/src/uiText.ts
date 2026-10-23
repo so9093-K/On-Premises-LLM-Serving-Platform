@@ -203,7 +203,7 @@ export function capabilityPresentation(
   feature: string,
   enabledFeatures: readonly string[],
   lifecycleOwner: string,
-  runtimeBackend?: string,
+  runtimeBackend: string,
 ): CapabilityPresentation {
   const enabled = enabledFeatures.includes(feature);
   if (enabled) {
