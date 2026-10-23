@@ -72,6 +72,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const [focusComposerAfterExample, setFocusComposerAfterExample] = useState(false);
   const applySequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const settingsDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const clearConfirmRef = useRef<HTMLDivElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
@@ -347,7 +348,9 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setShowExamples((current) => !current);
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
-          <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
+          <a className="chat-settings-jump" href="#chat-model-settings" onClick={() => {
+            if (settingsDetailsRef.current) settingsDetailsRef.current.open = true;
+          }}>요청 설정 ↓</a>
           {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
             followBeforeConfirmRef.current = followRef.current;
             followRef.current = false;
@@ -535,7 +538,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
           </div>
             <aside className="chat-side" id="chat-model-settings" aria-label="요청 설정">
-              <ChatSettingsPanel model={model} />
+              <ChatSettingsPanel model={model} detailsRef={settingsDetailsRef} />
               <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
             </aside>
           </div>

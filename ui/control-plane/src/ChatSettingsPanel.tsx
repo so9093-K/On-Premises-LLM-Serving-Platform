@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { Button } from '@patternfly/react-core';
 import { useChatSession } from './ChatSessionContext';
 import {
@@ -86,7 +86,7 @@ function OptionalBooleanSetting({
   );
 }
 
-export function ChatSettingsPanel({ model }: { model: PublicModel }) {
+export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; detailsRef?: Ref<HTMLDetailsElement> }) {
   const { settings, updateSettings } = useChatSession();
   const controls = chatControls(model);
   const [open, setOpen] = useState(false);
@@ -110,7 +110,7 @@ export function ChatSettingsPanel({ model }: { model: PublicModel }) {
   ];
 
   return (
-    <details className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details ref={detailsRef} className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>요청 설정 · 시스템 프롬프트 / 출력 길이 / 스트리밍</summary>
       <div className="chat-settings-body">
         <label htmlFor="chat-system-prompt">시스템 프롬프트</label>

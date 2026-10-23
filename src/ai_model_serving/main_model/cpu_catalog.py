@@ -32,7 +32,7 @@ def load_cpu_profile(
     runtime = {**document["runtime"], **override}
     return MainModelProfile(
         profile_id=profile_id,
-        display_name=f"{artifact['repo_id'].rsplit('/', 1)[-1]}",
+        display_name=profile.display_name,
         model_id=artifact["repo_id"],
         revision=artifact["revision"],
         served_model_name=serving.public_model,
