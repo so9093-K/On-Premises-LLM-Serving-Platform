@@ -9,6 +9,7 @@ import pytest
 
 from ai_model_serving.main_model.catalog import MainModelCatalog
 from ai_model_serving.main_model.control import MainModelManager
+from ai_model_serving.deployment_target import load_deployment_target
 from ai_model_serving.main_model.cpu import cpu_runtime_command
 from ai_model_serving.main_model.cpu_catalog import load_cpu_profile
 from ai_model_serving.main_model.runtime_limits import (
@@ -117,3 +118,23 @@ def test_restart_preserves_custom_cpu_runtime(tmp_path: Path) -> None:
     assert store.read()["active_profile"] == derived.profile_id
     assert store.read()["gate"] == "open"
     assert backend.validation_count == 1
+
+
+@pytest.mark.parametrize("target_id", ["linux-cpu-managed", "linux-adaptive"])
+def test_removed_managed_targets_are_not_selectable(target_id: str) -> None:
+    """구형 Target은 별도 실행 소유권을 다시 생성할 수 없다."""
+    catalog = resolve_project_root() / "configs/deployment_targets.yaml"
+    with pytest.raises(RuntimeError, match="unknown DEPLOYMENT_TARGET"):
+        load_deployment_target(catalog, target_id)
+
+
+def test_managed_cpu_uses_shared_runtime_controller_target() -> None:
+    """CPU/GPU 관리형은 하나의 Controller Target을 공유하고 외부 CPU는 정적이다."""
+    catalog = resolve_project_root() / "configs/deployment_targets.yaml"
+    managed = load_deployment_target(catalog, "linux-nvidia-dynamic")
+    external = load_deployment_target(catalog, "linux-cpu-static")
+    assert managed.controllable
+    assert managed.supports("model_switching")
+    assert not managed.static_serving
+    assert external.static_serving
+    assert not external.controllable
