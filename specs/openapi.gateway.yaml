@@ -13,20 +13,19 @@ info:
     \ / 13,000 |\n| Gemma 4 E4B IT | GPU · vLLM | `text`, `image`, `audio`, `video`\
     \ | 65,000 / 15,000 |\n| Qwen 2.5 Omni 7B (Thinker) | GPU · vLLM | `text`, `image`,\
     \ `audio`, `video` | 32,768 / 13,000 |\n| Qwen3-0.6B-GGUF | CPU · llama.cpp |\
-    \ `text` | 8,192 / 4,096 |\n| Local GGUF Text Chat (CPU / 4K) | GPU · vLLM | `text`\
-    \ | 4,096 / 1,024 |\n| Local GGUF Text Chat (CPU / 16K) | GPU · vLLM | `text`\
-    \ | 16,384 / 4,096 |\n\n공개 이름은 `local-main`을 유지합니다. 실제 모델·입력·한도는 전환 후 `GET /v1/models`의\
-    \ `display_name`, `upstream_model_id`, `backend`, `context_window`, `request_parameters`를\
-    \ 다시 확인하세요.\n\n## 첫 호출\n\n아래 로컬 주소를 실제 Gateway 주소로 바꾸세요. 사용자 인증이 활성화돼 있으면 `API_KEY`도\
-    \ 설정해야 합니다.\n\n```bash\nGATEWAY_URL='http://127.0.0.1:9400'\ncurl --fail-with-body\
-    \ \"$GATEWAY_URL/v1/chat/completions\" \\\n  -H \"Authorization: Bearer $API_KEY\"\
-    \ \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"model\": \"local-main\"\
-    ,\n    \"messages\": [\n      {\"role\": \"user\", \"content\": \"안녕하세요\"}\n \
-    \   ]\n  }'\n```\n\n응답의 `choices[0].message.content`, `finish_reason`, `usage`를\
-    \ 확인하세요.\n요청 예시와 코드 샘플은 각 API의 요청 영역에서 선택할 수 있습니다.\n\n## 인증\n\n- 사용자 API(`/v1/*`):\
-    \ `Authorization: Bearer <API_KEY>` (`bearerAuth`).\n- 관리자 API(`/ready`, `/metrics`,\
-    \ 인증이 필요한 `/admin/*`): `Authorization: Bearer <ADMIN_API_KEY>` (`adminBearerAuth`).\n\
-    \n사용자 API 키와 관리자 API 키는 서로 대체할 수 없습니다. 요청 창에서 해당 인증 항목을 선택하세요.\n"
+    \ `text` | 8,192 / 4,096 |\n\n공개 이름은 `local-main`을 유지합니다. 실제 모델·입력·한도는 전환 후 `GET\
+    \ /v1/models`의 `display_name`, `upstream_model_id`, `backend`, `context_window`,\
+    \ `request_parameters`를 다시 확인하세요.\n\n## 첫 호출\n\n아래 로컬 주소를 실제 Gateway 주소로 바꾸세요.\
+    \ 사용자 인증이 활성화돼 있으면 `API_KEY`도 설정해야 합니다.\n\n```bash\nGATEWAY_URL='http://127.0.0.1:9400'\n\
+    curl --fail-with-body \"$GATEWAY_URL/v1/chat/completions\" \\\n  -H \"Authorization:\
+    \ Bearer $API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n\
+    \    \"model\": \"local-main\",\n    \"messages\": [\n      {\"role\": \"user\"\
+    , \"content\": \"안녕하세요\"}\n    ]\n  }'\n```\n\n응답의 `choices[0].message.content`,\
+    \ `finish_reason`, `usage`를 확인하세요.\n요청 예시와 코드 샘플은 각 API의 요청 영역에서 선택할 수 있습니다.\n\
+    \n## 인증\n\n- 사용자 API(`/v1/*`): `Authorization: Bearer <API_KEY>` (`bearerAuth`).\n\
+    - 관리자 API(`/ready`, `/metrics`, 인증이 필요한 `/admin/*`): `Authorization: Bearer <ADMIN_API_KEY>`\
+    \ (`adminBearerAuth`).\n\n사용자 API 키와 관리자 API 키는 서로 대체할 수 없습니다. 요청 창에서 해당 인증 항목을\
+    \ 선택하세요.\n"
   contact:
     name: AI Model Serving Platform 운영
   version: 0.0.1
@@ -4845,16 +4844,6 @@ paths:
                 summary: Qwen3-0.6B-GGUF (unverified)
                 value:
                   profile: cpu-gguf-text
-                  confirm_unverified: true
-              cpu_gguf_text_compact:
-                summary: Local GGUF Text Chat (CPU / 4K) (unverified)
-                value:
-                  profile: cpu-gguf-text-compact
-                  confirm_unverified: true
-              cpu_gguf_text_extended:
-                summary: Local GGUF Text Chat (CPU / 16K) (unverified)
-                value:
-                  profile: cpu-gguf-text-extended
                   confirm_unverified: true
         required: true
       responses:
