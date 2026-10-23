@@ -310,11 +310,11 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       && item.upstream_model_id === reviewProfile?.upstream_model_id
       && item.revision === reviewProfile?.revision,
     ).map((item) => mainModelTokenLimits(item).contextTokens ?? 0));
-  const limitsValid = Number.isInteger(parsedContextTokens)
+  const limitsValid = !limitsEdited || (Number.isInteger(parsedContextTokens)
     && Number.isInteger(parsedOutputTokens)
     && parsedContextTokens >= (reviewProfile?.runtime_backend === 'llama-cpp' ? 512 : 1024)
     && parsedContextTokens <= declaredContextCeiling
-    && parsedOutputTokens > 0 && parsedOutputTokens <= parsedContextTokens;
+    && parsedOutputTokens > 0 && parsedOutputTokens <= parsedContextTokens);
   const requiresConfirmation = reviewProfile ? limitsEdited || mainModelProfileRequiresConfirmation(reviewProfile)
     || (isRecoveringPolicy(reviewPolicy) && gpuCandidateProfile?.qualification.status !== 'verified') : false;
   const switchImpact = reviewProfile && active
@@ -658,7 +658,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               <Button variant="secondary" onClick={() => setReviewProfileId(null)} isDisabled={switchMutation.isPending || busy}>취소</Button>
               <Button
                 variant="primary"
-                isDisabled={switchMutation.isPending || busy || locked || !mainModelPolicySwitchable(reviewProfile, reviewPolicy) || !limitsValid || (requiresConfirmation && !confirmed)}
+                isDisabled={switchMutation.isPending || busy || locked || !mainModelPolicySwitchable(reviewProfile, reviewPolicy) || !limitsValid || (reviewProfile.active && !limitsEdited && !isRecoveringPolicy(reviewPolicy)) || (requiresConfirmation && !confirmed)}
                 onClick={() => switchMutation.mutate({
                   profile: reviewProfile,
                   accepted: confirmed,

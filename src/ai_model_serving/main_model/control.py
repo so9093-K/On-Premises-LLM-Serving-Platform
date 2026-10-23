@@ -667,18 +667,26 @@ class MainModelManager:
                 "too many runtime limit configurations; choose a declared profile",
                 status_code=422,
             )
+        previously_registered = profile.profile_id in self.catalog.profiles
         self.catalog.profiles[profile.profile_id] = profile
-        return self.request_switch(
-            profile.profile_id,
-            confirm_unverified=confirm_unverified,
-            client_request_id=client_request_id,
-            execution_policy=execution_policy,
-            runtime_limit_override={
-                "base_profile": base_id,
-                "context_tokens": context_tokens,
-                "max_output_tokens": max_output_tokens,
-            },
-        )
+        try:
+            return self.request_switch(
+                profile.profile_id,
+                confirm_unverified=confirm_unverified,
+                client_request_id=client_request_id,
+                execution_policy=execution_policy,
+                runtime_limit_override={
+                    "base_profile": base_id,
+                    "context_tokens": context_tokens,
+                    "max_output_tokens": max_output_tokens,
+                },
+            )
+        except Exception:
+            # 전환이 접수되기 전에 거부되면 프로필 목록에 가짜 구성이
+            # 남지 않아야 한다. 이미 커밋된 동일 ID의 변형은 보존한다.
+            if not previously_registered:
+                self.catalog.profiles.pop(profile.profile_id, None)
+            raise
 
     def request_switch(
         self,
