@@ -362,6 +362,7 @@ test('새 Chat에서 예제를 표시하고 대화 스크롤이 입력 영역을
 test('관리형 CPU 서버 한도 조정은 확인 후 Runtime Controller 요청으로 전달한다', async ({ page }) => {
   const profile = {
     id: 'cpu-gguf-text', display_name: 'Qwen3 0.6B · 기본 CPU',
+    context_tokens_ceiling: 16384,
     upstream_model_id: 'Qwen/Qwen3-0.6B-GGUF', revision: 'a'.repeat(40),
     runtime_backend: 'llama-cpp', served_model_name: 'local-main',
     compatibility: { status: 'compatible' }, qualification: { status: 'verified' },
@@ -419,7 +420,7 @@ test('관리형 CPU 서버 한도 조정은 확인 후 Runtime Controller 요청
   await page.getByRole('button', { name: '현재 구성 한도 조정' }).click();
   const settings = page.getByRole('group', { name: '서버 실행 토큰 한도 편집' });
   await expect(settings).toBeVisible();
-  await settings.getByLabel('문맥 토큰').fill('6144');
+  await settings.getByLabel('문맥 토큰').fill('12288');
   await settings.getByLabel('최대 출력 토큰').fill('2048');
   await expect(page.getByText('서버 실행 설정이 변경됩니다.')).toBeVisible();
   await page.getByRole('checkbox', { name: /미검증 상태를 확인했고/ }).check();
@@ -427,7 +428,7 @@ test('관리형 CPU 서버 한도 조정은 확인 후 Runtime Controller 요청
   await expect.poll(() => submitted).toMatchObject({
     profile: 'cpu-gguf-text', execution_policy: 'cpu',
     confirm_unverified: true,
-    server_limits: { context_tokens: 6144, max_output_tokens: 2048 },
+    server_limits: { context_tokens: 12288, max_output_tokens: 2048 },
   });
 });
 
