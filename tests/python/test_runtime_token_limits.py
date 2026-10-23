@@ -460,3 +460,46 @@ def test_compose_boot_and_cache_resolve_saved_cpu_server_limits(tmp_path: Path):
     assert profile_id == custom.profile_id
     command = override["services"]["main-llm-vllm"]["command"]
     assert command[command.index("--ctx-size") + 1] == "16384"
+
+
+def test_compose_boot_reconstructs_saved_gpu_server_limits(tmp_path: Path):
+    """GPU 고정 모드에서도 반복 make up의 부팅 명령이 사용자 한도를 유지한다."""
+    from ai_model_serving.main_model.boot import render_boot_override
+    from ai_model_serving.main_model.catalog import load_main_model_catalog
+
+    root = resolve_project_root()
+    env_image = "sha256:" + "b" * 64
+    env_path = tmp_path / "gpu.env"
+    env_path.write_text(
+        f"VLLM_IMAGE={env_image}\n"
+        "MAIN_MODEL_BOOT_PROFILE=gemma4-e4b-it\n"
+        "MAIN_MODEL_PROFILE_LOCKED=false\n",
+        encoding="utf-8",
+    )
+    catalog = load_main_model_catalog(
+        root / "configs/main_model_profiles.yaml",
+        env={"VLLM_IMAGE": env_image},
+    )
+    profile = build_runtime_limit_profile(
+        catalog, "gemma4-e4b-it", 32768, 8192
+    )
+    store = MainModelStateStore(tmp_path / "gpu-state.json", "gemma4-e4b-it")
+    store.update(lambda state: state.update(
+        active_profile=profile.profile_id,
+        last_known_good_profile=profile.profile_id,
+        gate="open",
+        runtime_selection={"mode": "gpu"},
+        runtime_limit_profiles={profile.profile_id: {
+            "base_profile": "gemma4-e4b-it",
+            "context_tokens": 32768,
+            "max_output_tokens": 8192,
+        }},
+    ))
+    selected, override = render_boot_override(
+        catalog_path=root / "configs/main_model_profiles.yaml",
+        state_path=store.path,
+        env_path=env_path,
+    )
+    assert selected == profile.profile_id
+    args = override["services"]["main-llm-vllm"]["command"]
+    assert args[args.index("--max-model-len") + 1] == "32768"
