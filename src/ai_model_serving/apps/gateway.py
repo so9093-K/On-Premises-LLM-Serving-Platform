@@ -338,10 +338,12 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
         },
         schema_narrowers={
             ("POST", "/v1/chat/completions"): lambda schema: narrow_chat_request_schema(
-                schema, settings.main_model_profile_policies
+                schema, settings.main_model_profile_policies,
+                allows_runtime_limit_edit=settings.deployment_target.control_mode == "runtime_controller",
             ),
             ("POST", "/v1/responses"): lambda schema: narrow_responses_request_schema(
-                schema, settings.main_model_profile_policies
+                schema, settings.main_model_profile_policies,
+                allows_runtime_limit_edit=settings.deployment_target.control_mode == "runtime_controller",
             ),
         },
         code_samples={

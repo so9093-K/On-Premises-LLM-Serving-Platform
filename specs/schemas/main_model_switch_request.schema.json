@@ -11,6 +11,16 @@
       "type": "string",
       "minLength": 1
     },
+    "server_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Runtime Controller 관리형 모델의 서버 문맥과 최대 출력 토큰. 실행 엔진과 Gateway에 함께 적용하며 미검증 설정 확인이 필요합니다.",
+      "required": ["context_tokens", "max_output_tokens"],
+      "properties": {
+        "context_tokens": {"type": "integer", "minimum": 1},
+        "max_output_tokens": {"type": "integer", "minimum": 1}
+      }
+    },
     "confirm_unverified": {
       "type": "boolean",
       "default": false

@@ -195,7 +195,6 @@
     "max_tokens": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 13000,
       "x-openai-compatibility": "standard"
     },
     "top_p": {
@@ -451,7 +450,6 @@
     "max_completion_tokens": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 13000,
       "description": "`max_tokens`와 같은 한도를 가리키는 OpenAI 표준 이름이다. 둘을 함께 보내면 거부한다.",
       "x-openai-compatibility": "standard"
     },
