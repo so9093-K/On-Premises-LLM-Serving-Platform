@@ -41,7 +41,7 @@ python scripts/quality_cli.py check
 - 프런트엔드 테스트: `ui/control-plane/tests/unit/`
 - 브라우저 테스트: `ui/control-plane/tests/browser/`
 - Suite 선택과 실행 명령: `scripts/quality_cli.py`
-- 프런트엔드 테스트 Runner 버전: `scripts/quality/setup_runners.sh`
+- 프런트엔드 테스트 Runner 버전: `scripts/quality/package.json`
 - CI: 위 명령을 호출하는 Thin Adapter
 
 운영 중 기동·상태 확인 및 요청 Readiness는 플랫폼의 운영 명령이 소유하며 품질 CLI에서 수행하지 않는다. 이미지 빌드·배포·운영 상태는 테스트 통과의 파생 상태가 아니다.

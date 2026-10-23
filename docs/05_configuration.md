@@ -461,7 +461,7 @@ runtime_override_example_keys
 └─ PROMPT_INJECTION_DETECTOR_*
 ```
 
-`make validate`는 example env 파일과 이 contract의 drift를 검사한다.
+환경변수 계약의 기준은 `configs/env_contract.yaml`이며 예시 파일을 수정할 때 동일한 키 집합과 문서 설명을 직접 확인한다. 현재 `make validate`는 env key 동기화 검사를 수행하지 않는다.
 
 ### API 문서·요청 경계 환경변수
 
