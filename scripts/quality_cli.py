@@ -27,9 +27,11 @@ def _invoke(name: str, command: list[str], *, cwd: Path, env: dict[str, str] | N
     except OSError as exc:
         print(f"[quality] {name}: 실행 실패: {exc}", file=sys.stderr)
         return 127
-    if result.returncode != 0:
-        print(f"[quality] {name}: 실패 (exit {result.returncode})", file=sys.stderr)
-    return result.returncode
+    # subprocess는 시그널 종료를 음수로 반환한다. Shell과 CI에서는 128 + signal 번호를 사용한다.
+    code = 128 - result.returncode if result.returncode < 0 else result.returncode
+    if code != 0:
+        print(f"[quality] {name}: 실패 (exit {code})", file=sys.stderr)
+    return code
 
 
 def _native_runner(name: str, junit_dir: Path | None) -> int:

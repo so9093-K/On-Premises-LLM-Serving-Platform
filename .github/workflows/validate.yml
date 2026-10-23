@@ -1,4 +1,4 @@
-name: Quality and platform image
+name: CI
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   python:
-    name: Python Native Runner (${{ matrix.os }})
+    name: Python (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -39,12 +39,12 @@ jobs:
         run: make setup-dev PYTHON_BIN=python
       - name: Run pytest
         run: make test
-      - name: Check canonical static contracts
+      - name: Check lint and generated assets
         if: matrix.os == 'ubuntu-24.04'
         run: make validate
 
   frontend:
-    name: Vitest and Control Plane
+    name: Frontend (Unit + Build)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -63,7 +63,7 @@ jobs:
         run: npm --prefix ui/control-plane run check:source
 
   browser:
-    name: Playwright Chromium
+    name: Browser (Chromium)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -91,7 +91,7 @@ jobs:
           retention-days: 5
 
   platform-image:
-    name: Platform image build
+    name: Container Image (Build + Smoke)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
