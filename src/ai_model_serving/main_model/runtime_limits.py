@@ -102,7 +102,7 @@ def restore_runtime_limit_profiles(catalog: MainModelCatalog, records: object) -
     """지속 상태의 한도를 다시 구성하고 파생 프로필과 실행 command를 검증한다."""
     if records is None:
         return
-    if not isinstance(records, dict) or len(records) > 32:
+    if not isinstance(records, dict):
         raise RuntimeLimitError("invalid persisted runtime token limits")
     for profile_id, entry in records.items():
         if not isinstance(entry, dict) or set(entry) != {"base_profile", "context_tokens", "max_output_tokens"}:

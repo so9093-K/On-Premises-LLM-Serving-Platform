@@ -800,33 +800,6 @@ class MainModelManager:
                 if runtime_limit_override is not None:
                     overrides = value.setdefault("runtime_limit_profiles", {})
                     overrides[profile_id] = dict(runtime_limit_override)
-                    # 현재/직전 정상 실행과 새 전환 대상은 롤백에 필요하므로
-                    # 생성 순서가 오래됐더라도 제거하지 않는다.
-                    protected = {
-                        profile_id,
-                        value.get("active_profile"),
-                        value.get("last_known_good_profile"),
-                        value.get("previous_known_good_profile"),
-                        operation.get("previous_profile"),
-                    }
-                    # 이전 Rollback 실패는 실제 Runtime 신원을 확정하지 못한
-                    # 상태다. 해당 기록을 새 전환 요청의 캐시 정리에서 지우지 않는다.
-                    protected.update(
-                        item.get("requested_profile")
-                        for item in value.get("operations", [])
-                        if item.get("status") == "rollback_failed" or item.get("uncertain_runtime") is True
-                    )
-                    for stale_id in tuple(overrides):
-                        if len(overrides) <= 32:
-                            break
-                        if stale_id not in protected:
-                            overrides.pop(stale_id)
-                    if len(overrides) > 32:
-                        raise MainModelSwitchError(
-                            "RUNTIME_LIMIT_PROFILE_CAP_REACHED",
-                            "too many protected runtime limit configurations",
-                            status_code=422,
-                        )
                 value["last_operation"] = operation
                 value.setdefault("operations", []).append(operation)
                 value["operations"] = value["operations"][-50:]
@@ -835,11 +808,6 @@ class MainModelManager:
             self.state_store.update(mutate)
             if reused_operation_id is not None:
                 return SwitchOutcome(reused_operation_id, True)
-            if runtime_limit_override is not None:
-                saved_ids = set(self.state_store.read().get("runtime_limit_profiles") or {})
-                for stale_id in tuple(self.catalog.profiles):
-                    if stale_id.startswith("limits-") and stale_id not in saved_ids:
-                        self.catalog.profiles.pop(stale_id, None)
             task = asyncio.create_task(
                 self._run(operation_id, lock_context, boot_reconcile=boot_reconcile),
                 name=operation_id,
@@ -910,21 +878,25 @@ class MainModelManager:
                 stats["rollback_failures"] = int(stats.get("rollback_failures", 0)) + 1
             stats["last_switch_timestamp"] = now
             stats["last_switch_duration_seconds"] = duration
-            if not success and not rollback_failed and not operation.get("uncertain_runtime"):
-                requested = operation.get("requested_profile")
-                protected = {
-                    state.get("active_profile"),
-                    state.get("last_known_good_profile"),
-                    state.get("previous_known_good_profile"),
-                }
-                if isinstance(requested, str) and requested.startswith("limits-") and requested not in protected:
-                    (state.get("runtime_limit_profiles") or {}).pop(requested, None)
+            # 파생 상태는 실행 복구에 필요한 신원만 소유한다.
+            # 과거 작업 이력은 별도의 operations에 그대로 보존한다.
+            retained = {
+                state.get("active_profile"),
+                state.get("last_known_good_profile"),
+                state.get("previous_known_good_profile"),
+            }
+            last = state.get("last_operation") or {}
+            if last.get("status") not in {"completed", "failed"} or last.get("uncertain_runtime"):
+                retained.update((last.get("requested_profile"), last.get("previous_profile")))
+            records = state.get("runtime_limit_profiles") or {}
+            state["runtime_limit_profiles"] = {
+                key: entry for key, entry in records.items() if key in retained
+            }
         self.state_store.update(mutate)
-        if not success and not rollback_failed and not operation.get("uncertain_runtime"):
-            current = self.state_store.read()
-            for stale_id in tuple(self.catalog.profiles):
-                if stale_id.startswith("limits-") and stale_id not in (current.get("runtime_limit_profiles") or {}):
-                    self.catalog.profiles.pop(stale_id, None)
+        current = self.state_store.read().get("runtime_limit_profiles") or {}
+        for stale_id in tuple(self.catalog.profiles):
+            if stale_id.startswith("limits-") and stale_id not in current:
+                self.catalog.profiles.pop(stale_id, None)
 
     async def _run(
         self,

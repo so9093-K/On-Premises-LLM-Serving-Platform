@@ -169,8 +169,8 @@ def test_custom_limits_do_not_override_automatic_fallback_policy(tmp_path: Path)
     assert not store.read().get("runtime_limit_profiles")
 
 
-def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: Path):
-    """한도를 반복 변경해도 32개 한도 때문에 새 요청을 차단하지 않는다."""
+def test_new_limit_retains_only_runtime_recovery_profiles(tmp_path: Path):
+    """과거 32개 구성에서 새 적용을 끝내면 복구에 필요한 신원만 남는다."""
     async def exercise():
         catalog = cpu_catalog()
         records = {}
@@ -210,14 +210,13 @@ def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: P
             "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
             confirm_unverified=True, execution_policy="cpu",
         )
-        saved = store.read()["runtime_limit_profiles"]
-        assert len(saved) == 32
-        removed = set(records) - set(saved)
-        assert len(removed) == 1
-        assert protected_id in saved
-        assert unresolved_id in saved
-        assert all(item not in manager.catalog.profiles for item in removed)
         assert (await manager.wait_for_operation(result.operation_id))["status"] == "completed"
+        saved = store.read()["runtime_limit_profiles"]
+        assert len(saved) == 2
+        assert protected_id in saved
+        assert unresolved_id not in saved
+        assert all(item in {protected_id, store.read()["active_profile"]} for item in saved)
+        assert all(item not in manager.catalog.profiles for item in set(records) - set(saved))
         assert store.read()["previous_known_good_profile"] == protected_id
         await manager.aclose()
     asyncio.run(exercise())
