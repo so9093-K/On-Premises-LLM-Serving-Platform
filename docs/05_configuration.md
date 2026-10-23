@@ -555,17 +555,17 @@ bash scripts/compose/compose_config.sh
 
 | 변경 영역 | 대표 파일 | 주요 영향 | 일반적인 후속 작업 |
 |---|---|---|---|
-| 모델 metadata / capability | `model_catalog.yaml` | model listing, capability contract | `make validate`, 관련 API 검토 |
-| Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | `make validate`, 대상 service 재기동 및 runtime 검증 |
-| Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | `make validate`, model prepare / switch 검증 |
-| GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make validate`, full-stack readiness |
-| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `make validate`, `bash scripts/compose/compose_config.sh` |
-| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make validate`, `make up ACCESS=...` |
+| 모델 metadata / capability | `model_catalog.yaml` | model listing, capability contract | `GET /v1/models` 및 관련 API 확인 |
+| Gateway runtime 정책 | `model_serving.yaml` | endpoint, timeout, routing, admission | 대상 서비스 재기동·`make status`·필요시 `make smoke` |
+| Main Model profile | `main_model_profiles.yaml` | Main Model boot command, capability, Gateway API 정책 | model prepare / switch 및 실제 신원 확인 |
+| GPU budget | `gpu_budgets.yaml` | runtime admission, co-residency | `make up`·`make status`에서 실제 admission 확인 |
+| Service / port | `services.yaml` | Compose / host boundary / Prometheus projection | `bash scripts/compose/compose_config.sh`의 effective 구성 확인 |
+| Access profile | `access_profiles.yaml` | 사용자 접근 의도를 auth/audience/bind/TLS로 투영 | `make up ACCESS=...` 및 host bind 확인 |
 | Runtime Startup Profile | `deploy_profiles.yaml` | non-main Model Runtime 초기 상태 | full-stack `make up` 또는 runtime reconcile |
-| Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | `make validate`, auth plan/apply/doctor |
-| Environment example contract | `env_contract.yaml` | example env key | example env 갱신, `make up`(기존 `.env` 동기화), `make validate` |
+| Auth profile | `auth_profiles.yaml` | API / Admin / internal auth 정책 | auth plan/apply/doctor |
+| Environment example contract | `env_contract.yaml` | example env key | example env 갱신·확인, `make up`의 기존 `.env` 동기화 |
 | `.env` | runtime environment | 현재 실행 instance의 endpoint, secret, timeout 등 | 대상 process/container 재기동 가능 |
-| API schema | `specs/schemas/*.json` | 외부 API contract | OpenAPI/API Reference 검토, `make validate` |
+| API schema | `specs/schemas/*.json` | 외부 API contract | OpenAPI/API Reference 검토 및 생성 산출물 Drift 확인 |
 
 설정 변경의 세부 배포 절차는 [10. 배포](./10_deployment.md), 변경 유형별 체크리스트는 [13. 변경 가이드](./13_change_guide.md)에서 이어서 다룬다.
 

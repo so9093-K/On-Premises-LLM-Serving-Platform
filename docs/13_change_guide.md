@@ -18,7 +18,7 @@ Runtime 적용 / 배포
 정상 동작 확인
 ```
 
-이 장은 자주 발생하는 변경 작업을 기준으로 **변경 위치, 실제 반영 경로, 검증·배포 범위**를 연결한다. 설정 항목의 의미는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 검증 단계는 [8. 테스트와 검증](./08_testing_validation.md), 배포 방식은 [10. 배포](./10_deployment.md)를 따른다.
+이 장은 자주 발생하는 변경 작업을 기준으로 **변경 위치, 실제 반영 경로, 검증·배포 범위**를 연결한다. 현재 `make validate`는 Ruff 및 생성 산출물 Drift에 한정되며 설정·스키마·Compose 정책의 의미를 포괄적으로 검증하는 명령이 아니다. 설정 항목의 의미는 [5. 설정 체계와 Source of Truth](./05_configuration.md), 검증 단계는 [8. 테스트와 검증](./08_testing_validation.md), 배포 방식은 [10. 배포](./10_deployment.md)를 따른다.
 
 ---
 
@@ -511,7 +511,7 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
 | Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |
 | Unified vLLM | Unified Image Build | `make up`, `make smoke` | Runtime Image / Full |
-| Compose / Exposure | `make validate`, `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
+| Compose / Exposure | `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
 | 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
 
@@ -567,7 +567,7 @@ GPU·vLLM 변경 후에는 해당 Target으로 `make up`·`make status`를 확�
 | 모델 추가 | catalog + serving + 모델 참고 문서 + compose | `validate` | full-stack + runtime validation |
 | vLLM patch / Dockerfile | `ops/images/vllm-unified/`, `ops/patches/` | Unified Build | `make up` + runtime validation |
 | Service port | `services.yaml` | 생성 파일 + validate | implementation Compose config + `make up` |
-| Access / host exposure | `access_profiles.yaml` + Compose `ports` | `make validate` | effective Compose port/bind 확인 |
+| Access / host exposure | `access_profiles.yaml` + Compose `ports` | effective Compose 구성 확인 | 실제 host port/bind 확인 |
 | Dashboard | Dashboard JSON | `make validate` | Grafana / runtime validation |
 | Workflow | `.github/workflows/` | GitHub 문법 + `make check` | 해당 workflow |
 | Lifecycle logic | `scripts/platform_cli.py`, `scripts/ops/` | validate | 선택 target lifecycle + readiness |
