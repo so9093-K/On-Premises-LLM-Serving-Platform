@@ -20,7 +20,7 @@ export function mainModelProfileGroups(profiles: readonly MainModelProfile[]): M
     } else {
       groups.set(key, {
         key, modelId: profile.upstream_model_id, revision: profile.revision ?? '미표시',
-        backend: profile.runtime_backend, profiles: [profile],
+        backend: profile.runtime_backend ?? 'unknown', profiles: [profile],
       });
     }
   }

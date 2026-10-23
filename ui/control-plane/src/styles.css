@@ -2234,7 +2234,7 @@ a.overview-action-tile:hover {
 
 /* Playground Chat: 작업 공간 높이와 대화 스크롤을 분리해 입력 영역을 고정한다. */
 .chat-layout {
-  height: clamp(25rem, calc(100dvh - 20rem), 55rem);
+  height: clamp(18rem, calc(100dvh - 28rem), 52rem);
   min-height: 0;
 }
 .chat-main {
@@ -2270,10 +2270,10 @@ a.overview-action-tile:hover {
   resize: vertical;
 }
 @media (max-width: 980px) {
-  .chat-layout { height: clamp(24rem, calc(100dvh - 18rem), 55rem); }
+  .chat-layout { height: clamp(18rem, calc(100dvh - 26rem), 52rem); }
 }
 @media (max-width: 600px) {
-  .chat-layout { height: clamp(22rem, calc(100dvh - 15rem), 52rem); }
+  .chat-layout { height: clamp(17rem, calc(100dvh - 23rem), 45rem); }
   .chat-composer { max-height: min(42dvh, 20rem); }
   .chat-scroll-region { scrollbar-gutter: auto; }
 }
