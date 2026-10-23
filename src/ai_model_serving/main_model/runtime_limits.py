@@ -13,6 +13,9 @@ from .catalog import MainModelCatalog, MainModelProfile
 from .engine_policy import CpuEnginePolicy, VllmEnginePolicy
 
 
+CPU_MAX_CONTEXT_TOKENS = 16_384
+
+
 class RuntimeLimitError(ValueError):
     pass
 
@@ -61,17 +64,12 @@ def build_runtime_limit_profile(
         raise RuntimeLimitError("max_output_tokens must not exceed context_tokens")
     base_context = _limit_from_profile(base)
     if base.runtime_backend == "llama-cpp":
-        declared_max = max(
-            _limit_from_profile(p)
-            for p in catalog.profiles.values()
-            if not p.profile_id.startswith("limits-")
-            and p.runtime_backend == "llama-cpp"
-            and p.model_id == base.model_id and p.revision == base.revision
-        )
-        # 미검증 장문맥의 무제한 확장을 허용하지 않는다. 기존 선언된 최대 CPU
-        # 프리셋을 안전 경계로 삼고 실제 RAM/지연은 전환 시 검증한다.
-        if context < 512 or context > declared_max:
-            raise RuntimeLimitError(f"CPU context_tokens must be in 512..{declared_max}")
+        # CPU 기준 모델은 하나다. 허용 상한은 제거된 16K 프리셋이 아니라
+        # 명시적인 런타임 정책이 소유하며, 장비 성능이 검증됐다는 뜻은 아니다.
+        if context < 512 or context > CPU_MAX_CONTEXT_TOKENS:
+            raise RuntimeLimitError(
+                f"CPU context_tokens must be in 512..{CPU_MAX_CONTEXT_TOKENS}"
+            )
         command = _set_flag(base.command, "--ctx-size", context)
         engine = CpuEnginePolicy(context, base.resolved_engine_policy.max_num_seqs)
     else:

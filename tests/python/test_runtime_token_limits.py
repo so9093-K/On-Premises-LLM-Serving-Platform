@@ -19,7 +19,7 @@ from ai_model_serving.project_paths import resolve_project_root
 
 
 def cpu_catalog() -> MainModelCatalog:
-    ids = ("cpu-gguf-text-compact", "cpu-gguf-text", "cpu-gguf-text-extended")
+    ids = ("cpu-gguf-text",)
     return MainModelCatalog(
         public_model="local-main",
         default_profile="cpu-gguf-text",
