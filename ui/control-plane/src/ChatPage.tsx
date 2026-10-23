@@ -85,7 +85,10 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
   );
-  const model = models.find((item) => item.id === selectedModelId) ?? models[0] ?? null;
+  const retainedModel = models.find((item) => item.id === selectedModelId) ?? null;
+  // 사용 중이던 모델이 배포 변경으로 사라져도 초안을 기본 모델에 조용히 전송하지 않는다.
+  const selectionUnavailable = selectedModelId !== null && models.length > 0 && retainedModel === null;
+  const model = selectionUnavailable ? null : retainedModel ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
   const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
@@ -387,7 +390,15 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
           {apiErrorMessage(modelsQuery.error)}
         </Alert>
       ) : null}
-      {modelsQuery.isSuccess && model === null ? (
+      {modelsQuery.isSuccess && selectionUnavailable ? (
+        <Alert isInline variant="warning" title="이전에 선택한 채팅 모델을 사용할 수 없습니다.">
+          <p>미전송 메시지는 유지했습니다. 새 모델의 입력 호환성을 확인하고 요청하세요.</p>
+          <Button variant="secondary" onClick={() => {
+            setAttachments([]);
+            setSelectedModelId(null);
+          }}>기본 모델 선택 · 미전송 첨부 제거</Button>
+        </Alert>
+      ) : modelsQuery.isSuccess && model === null ? (
         <Alert isInline variant="warning" title="채팅을 지원하는 공개 모델이 없습니다." />
       ) : null}
 
