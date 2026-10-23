@@ -74,7 +74,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
           <p>공개 Gateway API로 모델 기능을 확인합니다.</p>
           <details className="playground-data-help">
             <summary>입력 보관 안내</summary>
-            <p>Chat 대화는 화면 이동 후에도 유지되지만, Embedding·Risk의 입력과 결과는 해당 화면을 떠나면 사라집니다. 새로고침하면 API 키와 대화도 지워집니다. 입력은 브라우저의 영구 저장소에 보관하지 않습니다.</p>
+            <p>Chat 대화·작성 중인 메시지·첨부·요청 설정은 같은 탭에서 화면을 이동해도 유지됩니다. Embedding·Risk의 입력과 결과는 해당 화면을 떠나면 삭제됩니다. 새로고침하면 API 키와 Chat 세션도 지워집니다. 입력은 브라우저의 영구 저장소에 보관하지 않습니다.</p>
           </details>
         </div>
         {apiKey !== null ? (

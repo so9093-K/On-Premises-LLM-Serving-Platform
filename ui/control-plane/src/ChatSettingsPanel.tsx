@@ -89,7 +89,7 @@ function OptionalBooleanSetting({
 export function ChatSettingsPanel({ model }: { model: PublicModel }) {
   const { settings, updateSettings } = useChatSession();
   const controls = chatControls(model);
-  const [open, setOpen] = useState(() => window.matchMedia?.('(min-width: 981px)').matches ?? true);
+  const [open, setOpen] = useState(false);
   const logprobsDefault = controls.logprobs?.defaultEnabled ?? false;
   const logprobsEnabled = settings.logprobs ?? logprobsDefault;
 
@@ -111,7 +111,7 @@ export function ChatSettingsPanel({ model }: { model: PublicModel }) {
 
   return (
     <details className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>요청 설정</summary>
+      <summary>요청 설정 · 시스템 프롬프트 / 출력 길이 / 스트리밍</summary>
       <div className="chat-settings-body">
         <label htmlFor="chat-system-prompt">시스템 프롬프트</label>
         <textarea

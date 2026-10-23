@@ -58,14 +58,12 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
 
 export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, busy, send, sendToolResults, stop, clear } = session;
-  const [draft, setDraft] = useState('');
+  const { apiKey, apiKeyRejected, exchanges, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
   const [confirmClear, setConfirmClear] = useState(false);
-  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showExamples, setShowExamples] = useState(() => exchanges.length === 0);
+  const [showExamples, setShowExamples] = useState(false);
   const [selectedExampleId, setSelectedExampleId] = useState<string | null>(null);
   const [appliedExampleId, setAppliedExampleId] = useState<string | null>(null);
   const [pendingModelId, setPendingModelId] = useState<string | null>(null);
@@ -349,7 +347,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             cancelExamplePreparation();
             setShowExamples((current) => !current);
             setExampleError(null);
-          }}>{showExamples ? '예제 닫기' : '예제 보기'}</Button>
+          }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
           <a className="chat-settings-jump" href="#chat-model-settings">요청 설정 ↓</a>
           {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
             followBeforeConfirmRef.current = followRef.current;
