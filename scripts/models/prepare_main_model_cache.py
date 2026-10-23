@@ -11,6 +11,7 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from ai_model_serving.main_model.catalog import load_main_model_catalog  # noqa: E402
+from ai_model_serving.main_model.runtime_limits import cache_profile_for_persisted_limit  # noqa: E402
 from ai_model_serving.settings_parts.env import default_env_path  # noqa: E402
 from ai_model_serving.main_model.boot import (  # noqa: E402
     read_env_values,
@@ -33,13 +34,17 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=ROOT / "ops/compose/full-stack.private-network.yaml",
     )
+    parser.add_argument("--state", type=Path, default=None)
     args = parser.parse_args(argv)
 
     # 이 명령은 cache만 준비하며 runtime을 만들지 않는다. image digest 해석은
     # Compose/Runtime Controller의 runtime 경계에서만 수행한다.
     catalog = load_main_model_catalog(args.catalog, resolve_runtime_images=False)
     try:
-        profile = catalog.profiles[args.profile]
+        profile = cache_profile_for_persisted_limit(
+            catalog, args.profile,
+            args.state or args.catalog.resolve().parent.parent / ".runtime/main-model/main-model-state.json",
+        )
     except KeyError as exc:
         raise SystemExit(f"unknown main-model profile: {args.profile}") from exc
     env = read_env_values(args.env_file)

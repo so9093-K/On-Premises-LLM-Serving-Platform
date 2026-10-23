@@ -415,3 +415,48 @@ def test_cpu_first_initialization_preserves_restorable_custom_limits():
             }
         }}
     )
+
+
+def test_compose_boot_and_cache_resolve_saved_cpu_server_limits(tmp_path: Path):
+    """Controller 복원보다 먼저 실행되는 Compose/Cache도 사용자 한도 신원을 읽는다."""
+    from ai_model_serving.main_model.boot import render_boot_override
+    from ai_model_serving.main_model.runtime_limits import cache_profile_for_persisted_limit
+
+    root = resolve_project_root()
+    base_catalog = cpu_catalog()
+    custom = build_runtime_limit_profile(base_catalog, "cpu-gguf-text", 16384, 4096)
+    state_path = tmp_path / "main-model-state.json"
+    store = MainModelStateStore(state_path, "cpu-gguf-text")
+    store.update(lambda state: state.update(
+        active_profile=custom.profile_id,
+        last_known_good_profile=custom.profile_id,
+        gate="open",
+        runtime_selection={"mode": "cpu"},
+        runtime_limit_profiles={custom.profile_id: {
+            "base_profile": "cpu-gguf-text",
+            "context_tokens": 16384,
+            "max_output_tokens": 4096,
+        }},
+    ))
+    resolved = cache_profile_for_persisted_limit(
+        cpu_catalog(), custom.profile_id, state_path
+    )
+    assert resolved.model_id == base_catalog.profiles["cpu-gguf-text"].model_id
+    assert resolved.revision == base_catalog.profiles["cpu-gguf-text"].revision
+    assert resolved.command[resolved.command.index("--ctx-size") + 1] == "16384"
+
+    env_path = tmp_path / "cpu.env"
+    env_path.write_text(
+        "VLLM_IMAGE=sha256:" + "a" * 64 + "\n"
+        "MAIN_MODEL_BOOT_PROFILE=cpu-gguf-text\n"
+        "MAIN_MODEL_PROFILE_LOCKED=false\n",
+        encoding="utf-8",
+    )
+    profile_id, override = render_boot_override(
+        catalog_path=root / "configs/main_model_profiles.yaml",
+        state_path=state_path,
+        env_path=env_path,
+    )
+    assert profile_id == custom.profile_id
+    command = override["services"]["main-llm-vllm"]["command"]
+    assert command[command.index("--ctx-size") + 1] == "16384"

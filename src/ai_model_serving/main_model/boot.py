@@ -26,7 +26,8 @@ BootOverrideLoader.add_constructor(
 from .catalog import (
     resolve_boot_profile,
 )
-from .state import read_active_profile
+from .state import read_main_model_state_file
+from .runtime_limits import restore_runtime_limit_profiles
 from ..settings_parts.dotenv_parser import load_strict_env_file
 
 
@@ -67,11 +68,18 @@ def render_boot_override(
         env.get("MAIN_MODEL_PROFILE_LOCKED", "false"),
         key="MAIN_MODEL_PROFILE_LOCKED",
     )
+    persisted_state = read_main_model_state_file(state_path) or {}
+    if not cpu_template:
+        # Controller 본체의 restore보다 Compose 부트 구성이 먼저 만들어진다.
+        # 사용자 지정 limits-... 실행 신원도 같은 검증된 command로 부팅한다.
+        restore_runtime_limit_profiles(
+            catalog, persisted_state.get("runtime_limit_profiles")
+        )
     profile_id = "cpu-gguf-text" if cpu_template else resolve_boot_profile(
         catalog,
         configured_profile=configured,
         locked=locked,
-        persisted_profile=read_active_profile(state_path),
+        persisted_profile=persisted_state.get("active_profile"),
     )
     profile = catalog.profiles[profile_id]
     override = {

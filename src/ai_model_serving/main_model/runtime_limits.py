@@ -8,9 +8,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from pathlib import Path
 
 from .catalog import MainModelCatalog, MainModelProfile
 from .engine_policy import CpuEnginePolicy, VllmEnginePolicy
+from .state import read_main_model_state_file
 
 
 CPU_MAX_CONTEXT_TOKENS = 16_384
@@ -113,3 +115,15 @@ def restore_runtime_limit_profiles(catalog: MainModelCatalog, records: object) -
         if profile_id != derived.profile_id or profile_id in catalog.profiles:
             raise RuntimeLimitError("persisted runtime limit profile identity mismatch")
         catalog.profiles[profile_id] = derived
+
+
+def cache_profile_for_persisted_limit(
+    catalog: MainModelCatalog, profile_id: str, state_path: Path
+) -> MainModelProfile:
+    """Cache 준비는 파생 실행 설정을 검증한 뒤 같은 원본 모델 신원을 사용한다."""
+    if profile_id not in catalog.profiles and profile_id.startswith("limits-"):
+        state = read_main_model_state_file(state_path)
+        restore_runtime_limit_profiles(
+            catalog, (state or {}).get("runtime_limit_profiles")
+        )
+    return catalog.profiles[profile_id]
