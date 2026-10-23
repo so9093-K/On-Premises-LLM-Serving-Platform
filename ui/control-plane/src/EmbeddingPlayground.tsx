@@ -73,6 +73,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
   const [busy, setBusy] = useState(false);
   const [run, setRun] = useState<EmbeddingRun | null>(null);
   const [failure, setFailure] = useState<EmbeddingFailure | null>(null);
+  const [inputChangedSinceRequest, setInputChangedSinceRequest] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [lastRequest, setLastRequest] = useState<PublicRequestRecord | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -86,6 +87,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
     setFailure(null);
     setLastRequest(null);
     setInputError(null);
+    setInputChangedSinceRequest(false);
     setBusy(false);
     return () => abortRef.current?.abort();
   }, [model?.id, mode]);
@@ -109,6 +111,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
+    setInputChangedSinceRequest(false);
     setRun(null);
     setRetrievalRun(null);
     setFailure(null);
@@ -216,11 +219,11 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
             <div className="playground-retrieval-query">
               <div className="playground-field">
                 <label htmlFor="retrieval-query">검색 질문</label>
-                <textarea id="retrieval-query" rows={3} value={query} disabled={busy} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="GPU 메모리 부족 원인" />
+                <textarea id="retrieval-query" rows={3} value={query} disabled={busy} onChange={(event) => { setQuery(event.currentTarget.value); setInputChangedSinceRequest(true); }} placeholder="GPU 메모리 부족 원인" />
               </div>
               <div className="playground-field">
                 <label htmlFor="retrieval-top-n">상위 결과 개수</label>
-                <input id="retrieval-top-n" type="number" min={1} max={RETRIEVAL_TOP_N_MAX} step={1} value={topN} disabled={busy} onChange={(event) => setTopN(event.currentTarget.value)} />
+                <input id="retrieval-top-n" type="number" min={1} max={RETRIEVAL_TOP_N_MAX} step={1} value={topN} disabled={busy} onChange={(event) => { setTopN(event.currentTarget.value); setInputChangedSinceRequest(true); }} />
               </div>
             </div>
             <div className="playground-retrieval-documents" role="group" aria-label="후보 문서">
@@ -228,17 +231,19 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
                 <div className="playground-field" key={item.id}>
                   <div className="playground-document-heading">
                     <label htmlFor={`retrieval-document-${item.id}`}>문서 {index + 1}</label>
-                    <Button size="sm" variant="link" isDisabled={busy || documents.length <= 1} onClick={() => setDocuments((current) => current.filter((entry) => entry.id !== item.id))} aria-label={`문서 ${index + 1} 제거`}>제거</Button>
+                    <Button size="sm" variant="link" isDisabled={busy || documents.length <= 1} onClick={() => { setDocuments((current) => current.filter((entry) => entry.id !== item.id)); setInputChangedSinceRequest(true); }} aria-label={`문서 ${index + 1} 제거`}>제거</Button>
                   </div>
                   <textarea id={`retrieval-document-${item.id}`} rows={2} value={item.text} disabled={busy} onChange={(event) => {
                     const text = event.currentTarget.value;
                     setDocuments((current) => current.map((entry) => entry.id === item.id ? { ...entry, text } : entry));
+                    setInputChangedSinceRequest(true);
                   }} />
                 </div>
               ))}
               <Button size="sm" variant="secondary" isDisabled={busy || documents.length >= RETRIEVAL_MAX_DOCUMENTS} onClick={() => {
                 const id = nextDocumentId.current++;
                 setDocuments((current) => [...current, { id, text: '' }]);
+                setInputChangedSinceRequest(true);
               }}>문서 추가</Button>
               <small className="playground-hint">최대 {RETRIEVAL_MAX_DOCUMENTS}개 문서</small>
             </div>
@@ -255,6 +260,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
               onChange={(event) => {
                 const value = event.currentTarget.value;
                 setInputs((current) => current.map((item, position) => (position === index ? value : item)));
+                setInputChangedSinceRequest(true);
               }}
             />
           </div>
@@ -268,6 +274,12 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         </div>
       </form>
 
+      {inputChangedSinceRequest && (run !== null || retrievalRun !== null || failure !== null || lastRequest !== null) ? (
+        <Alert isInline variant="info" title="이전 입력의 실행 결과입니다.">
+          현재 입력이 마지막 요청 이후 변경됐습니다. 아래 결과와 코드 내보내기는 마지막으로 전송한 요청 기준입니다. 현재 입력을 반영하려면 다시 실행하세요.
+        </Alert>
+      ) : null}
+
       {failure ? (
         <Alert isInline variant="danger" title={mode === 'rank' ? '문서 관련도 요청이 완료되지 않았습니다.' : 'Embedding 요청이 완료되지 않았습니다.'}>
           <p>{failure.message}</p>
@@ -277,6 +289,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
 
       {run ? (
         <section className="playground-result" aria-live="polite" aria-label="Embedding 결과">
+          {inputChangedSinceRequest ? <p className="playground-hint">마지막 실행 결과 · 현재 입력과 다릅니다.</p> : null}
           {run.result.similarity !== null ? (
             <div className="playground-result-headline">
               <span>Cosine similarity</span>
@@ -310,6 +323,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
 
       {retrievalRun ? (
         <section className="playground-result" aria-live="polite" aria-label="문서 관련도 결과">
+          {inputChangedSinceRequest ? <p className="playground-hint">마지막 실행 결과 · 현재 질문 또는 후보 문서와 다릅니다.</p> : null}
           <h3>문서 관련도 순위</h3>
           <p className="playground-vector-input">검색 질문: {retrievalRun.request.query}</p>
           <p className="playground-hint">Cosine similarity가 높은 순서입니다. 점수는 정답 확률이 아닙니다.</p>
