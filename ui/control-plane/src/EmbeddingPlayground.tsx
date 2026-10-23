@@ -193,7 +193,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         ) : null}
 
         <fieldset className="playground-choice" disabled={busy}>
-          <legend>작업</legend>
+          <legend>작업 선택 · 벡터 변환과 문서 관련도 분석</legend>
           <label>
             <input type="radio" name="embedding-mode" checked={mode === 'single'} onChange={() => setMode('single')} />
             텍스트 변환
@@ -209,7 +209,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
             </label>
           ) : null}
         </fieldset>
-        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다.</p> : null}
+        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다. 지원 모델을 선택하면 사용할 수 있습니다.</p> : null}
 
         {mode === 'rank' ? (
           <div className="playground-retrieval-inputs">

@@ -102,7 +102,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
       ) : null}
       <nav className="playground-tabs" aria-label="Playground 기능">
         {workspaces.map((workspace) => (
-          <NavLink key={workspace.path} to={playgroundPath(workspace.path)}>{workspace.label}</NavLink>
+          <NavLink key={workspace.path} to={playgroundPath(workspace.path)}>{workspace.path === 'embeddings' && features.includes('retrieval') ? 'Embedding · Retrieval' : workspace.label}</NavLink>
         ))}
       </nav>
       {needsKey ? <PublicApiKeyForm rejected={apiKey !== null} /> : null}

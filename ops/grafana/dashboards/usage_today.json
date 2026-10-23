@@ -157,11 +157,18 @@
             ]
           },
           "noValue": "수집 안 됨",
-          "min": 0
+          "min": 0,
+          "links": [
+            {
+              "title": "이 경로의 요청 로그 보기",
+              "url": "/d/request_log_explorer?from=${__from}&to=${__to}&var-service=gateway&var-route_filter=^${__field.labels.route}$",
+              "targetBlank": false
+            }
+          ]
         },
         "overrides": []
       },
-      "description": "선택 기간 동안 Gateway의 공개 /v1/* API 경로별 요청 수입니다. Prometheus 카운터 증가량의 추정치이며 내부 모델 호출 횟수와 다릅니다."
+      "description": "선택 기간 동안 Gateway의 공개 /v1/* API 경로별 요청 수입니다. Prometheus 카운터 증가량의 추정치이며 내부 모델 호출 횟수와 다릅니다. 해당 경로에서 '이 경로의 요청 로그 보기'를 선택하면 같은 시간 범위로 Loki 요청 로그를 조회합니다."
     },
     {
       "id": 3,
