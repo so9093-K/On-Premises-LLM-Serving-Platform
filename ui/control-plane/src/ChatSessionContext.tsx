@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, postChatCompletion } from './api';
 import { prepareChatRequest } from './publicChatRequest.ts';
@@ -40,6 +41,7 @@ import {
 // 아무것도 남기지 않는다(ADR-0027과 같은 원칙).
 type ChatSessionValue = {
   apiKey: string | null;
+  credentialRevision: number;
   setApiKey: (key: string | null) => void;
   apiKeyRejected: boolean;
   // Embedding·Risk 화면의 401도 Chat과 같은 API 키 입력 흐름을 사용한다.
@@ -64,6 +66,8 @@ type ChatSessionValue = {
 const ChatSessionContext = createContext<ChatSessionValue | null>(null);
 
 export function ChatSessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
+  const [credentialRevision, setCredentialRevision] = useState(0);
   const [apiKey, setApiKeyState] = useState<string | null>(null);
   const [apiKeyRejected, setApiKeyRejected] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
@@ -86,10 +90,20 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => () => { abortRef.current?.abort(); mediaRegistry.current.clear(); }, []);
 
+  useEffect(() => {
+    // /v1/models 캐시에는 API 키 문자열을 식별자로 보관하지 않는다.
+    // 인증 변경 뒤 이전 쿼리 캐시는 새로운 작업에 재사용하지 않는다.
+    queryClient.removeQueries({
+      queryKey: ['public-models'],
+      predicate: (query) => query.queryKey[1] !== credentialRevision,
+    });
+  }, [credentialRevision, queryClient]);
+
   const setApiKey = useCallback((key: string | null) => {
     if (keyRef.current !== key) {
       // 인증 주체가 바뀌면 이전 대화와 전송 중 요청이 새 키에 섞이지 않아야 한다.
       credentialEpochRef.current += 1;
+      setCredentialRevision(credentialEpochRef.current);
       abortRef.current?.abort();
       abortRef.current = null;
       mediaRegistry.current.clear();
@@ -230,6 +244,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
   const value = useMemo(
     () => ({
       apiKey,
+      credentialRevision,
       setApiKey,
       apiKeyRejected,
       rejectApiKey,
@@ -248,7 +263,7 @@ export function ChatSessionProvider({ children }: PropsWithChildren) {
       stop,
       clear,
     }),
-    [apiKey, setApiKey, apiKeyRejected, rejectApiKey, exchanges, selectedModelId, draft, attachments, settings, updateSettings, busy, send, sendToolResults, stop, clear],
+    [apiKey, credentialRevision, setApiKey, apiKeyRejected, rejectApiKey, exchanges, selectedModelId, draft, attachments, settings, updateSettings, busy, send, sendToolResults, stop, clear],
   );
   return <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>;
 }

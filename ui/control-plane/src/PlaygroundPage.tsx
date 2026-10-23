@@ -57,10 +57,10 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
 // Playground는 Deployment Target이 공개한 기능별 작업 화면을 묶는다. 각 화면은 기존 공개
 // Gateway API만 호출하며, API 키는 화면 사이에서 공유하되 탭 메모리 밖에 저장하지 않는다.
 export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPageProps) {
-  const { apiKey, setApiKey, apiKeyRejected, exchanges, draft, attachments, settings } = useChatSession();
+  const { apiKey, credentialRevision, setApiKey, apiKeyRejected, exchanges, draft, attachments, settings } = useChatSession();
   const [confirmKeyClear, setConfirmKeyClear] = useState(false);
   const hasChatWork = exchanges.length > 0 || Boolean(draft.trim()) || attachments.length > 0 || JSON.stringify(settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS);
-  const modelsQuery = usePublicModels(apiKey);
+  const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const workspaces = visiblePlaygroundWorkspaces(features);
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const elements: Record<PlaygroundWorkspace['path'], ReactNode> = {

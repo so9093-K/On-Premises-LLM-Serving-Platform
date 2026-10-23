@@ -47,9 +47,9 @@ const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
 
 // 입력과 결과는 이 화면의 상태에만 둔다. 다른 메뉴나 작업 화면으로 이동하면 사라진다.
 export function EmbeddingPlayground({ features }: { features: readonly string[] }) {
-  const { apiKey, apiKeyRejected, rejectApiKey } = useChatSession();
+  const { apiKey, credentialRevision, apiKeyRejected, rejectApiKey } = useChatSession();
   const { token } = useAdminSession();
-  const modelsQuery = usePublicModels(apiKey);
+  const modelsQuery = usePublicModels(apiKey, credentialRevision);
   // Runtime 상태는 관리자 API의 보조 진단이다. 조회하지 못하면 안내만 생략하고 요청 판단은 Gateway가 한다.
   const runtimesQuery = useQuery({
     queryKey: ['runtime-control', 'runtimes', token === null ? 'anonymous' : 'authenticated'],

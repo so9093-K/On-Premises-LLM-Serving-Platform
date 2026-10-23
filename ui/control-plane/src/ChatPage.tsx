@@ -58,7 +58,7 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
 
 export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const session = useChatSession();
-  const { apiKey, apiKeyRejected, exchanges, selectedModelId, setSelectedModelId, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
+  const { apiKey, credentialRevision, apiKeyRejected, exchanges, selectedModelId, setSelectedModelId, draft, setDraft, attachments, setAttachments, busy, send, sendToolResults, stop, clear } = session;
   const [confirmClear, setConfirmClear] = useState(false);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const followBeforeConfirmRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
-  const modelsQuery = usePublicModels(apiKey);
+  const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const models = useMemo(
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
