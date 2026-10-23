@@ -27,6 +27,7 @@ from ..main_model.catalog import (
     resource_variant_from_mapping,
 )
 from ..main_model.control import MainModelManager, MainModelSwitchError, MainModelRuntimeBackend
+from ..main_model.runtime_limits import RuntimeLimitError, build_runtime_limit_profile
 from ..main_model.switch_preflight import project_switch_preflight
 from ..main_model.state import MainModelStateError, MainModelStateStore
 from ..log_target_manifest import build_targets, write_manifest
@@ -720,14 +721,34 @@ def create_runtime_controller_app(
         authorization: str | None = Header(default=None),
     ) -> JSONResponse:
         await _require_runtime_controller_token(authorization)
-        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy"}
+        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy", "server_limits"}
         if unknown:
             raise HTTPException(422, detail=f"unsupported fields: {sorted(unknown)}")
         mode = payload.get("execution_policy")
         if "execution_policy" in payload and mode not in EXECUTION_POLICIES:
             raise HTTPException(422, detail="invalid execution_policy")
         profile_id = str(payload.get("profile", ""))
+        limits = payload.get("server_limits")
+        if limits is not None and (
+            not isinstance(limits, dict)
+            or set(limits) != {"context_tokens", "max_output_tokens"}
+        ):
+            raise HTTPException(422, detail="server_limits requires context_tokens and max_output_tokens")
         target_profile = context._catalog.profiles.get(profile_id)
+        if limits is not None:
+            stored = context._state_store.read().get("runtime_limit_profiles") or {}
+            base_id = (stored.get(profile_id) or {}).get("base_profile", profile_id)
+            try:
+                target_profile = build_runtime_limit_profile(
+                    context._catalog, base_id,
+                    limits["context_tokens"], limits["max_output_tokens"],
+                )
+            except RuntimeLimitError as exc:
+                raise HTTPException(422, detail=str(exc)) from exc
+            if not context._catalog.runtime.get("adaptive"):
+                raise HTTPException(422, detail="server_limits editing requires a managed Runtime Controller")
+            if payload.get("confirm_unverified") is not True:
+                raise HTTPException(409, detail="custom server limits require explicit unverified confirmation")
         try:
             async with context._budget_lock:
                 selected_mode = mode or ("cpu" if target_profile and target_profile.runtime_backend == "llama-cpp" else "gpu")
@@ -752,16 +773,28 @@ def create_runtime_controller_app(
                 if target_profile is not None:
                     # 사전 판단과 동일하게 기술·명시적 리소스 정책을 먼저 확인한다.
                     # 확실히 거부할 요청에서 Docker GPU 관측을 수행하지 않는다.
-                    policy_error = context._main_model_manager.switch_policy_error(profile_id)
+                    policy_error = context._main_model_manager.switch_policy_error(
+                        base_id if limits is not None else profile_id
+                    )
                     if policy_error is not None:
                         raise policy_error
                     await _admit_profile_switch_or_raise(target_profile.vram_fraction)
-                outcome = context._main_model_manager.request_switch(
-                    profile_id,
-                    confirm_unverified=payload.get("confirm_unverified") is True,
-                    client_request_id=payload.get("request_id"),
-                    execution_policy=selected_mode,
-                )
+                if limits is not None:
+                    outcome = context._main_model_manager.request_limit_switch(
+                        profile_id,
+                        context_tokens=limits["context_tokens"],
+                        max_output_tokens=limits["max_output_tokens"],
+                        confirm_unverified=True,
+                        client_request_id=payload.get("request_id"),
+                        execution_policy=selected_mode,
+                    )
+                else:
+                    outcome = context._main_model_manager.request_switch(
+                        profile_id,
+                        confirm_unverified=payload.get("confirm_unverified") is True,
+                        client_request_id=payload.get("request_id"),
+                        execution_policy=selected_mode,
+                    )
         except MainModelSwitchError as exc:
             raise HTTPException(
                 exc.status_code,
