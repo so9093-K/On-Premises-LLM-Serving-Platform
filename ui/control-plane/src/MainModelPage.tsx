@@ -371,6 +371,35 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Alert>
       ) : null}
 
+      {profiles.some(profile => profile.runtime_backend === 'llama-cpp') ? (
+        <Card>
+          <CardTitle>CPU llama.cpp 실행 설정</CardTitle>
+          <CardBody>
+            <p>CPU 문맥과 최대 출력을 프리셋으로 선택합니다. 변경은 기존 Main Model 전환 경로를 거쳐 요청 정리·재기동·응답 확인을 수행합니다.</p>
+            <p className="configuration-help">기본 8,192 / 4,096 tokens · 동시 요청 1개 · Threads 4개 · 메모리 상한 4GiB. 입력과 출력은 동일한 문맥을 공유합니다.</p>
+            <div className="chat-heading-actions" role="group" aria-label="CPU 실행 한도 프리셋">
+              {profiles.filter(profile => profile.runtime_backend === 'llama-cpp').map(profile => (
+                <Button
+                  key={profile.id}
+                  variant={profile.active ? 'primary' : 'secondary'}
+                  isDisabled={profile.active || locked || busy || switchMutation.isPending}
+                  onClick={() => {
+                    setReviewPolicy('cpu');
+                    setReviewProfileId(profile.id);
+                    setConfirmed(false);
+                    setActionError(null);
+                  }}
+                >
+                  {formatTokenLimits(mainModelTokenLimits(profile))}
+                  {profile.active ? ' · 적용 중' : ''}
+                </Button>
+              ))}
+            </div>
+            <p className="configuration-help">프리셋 선택 시 CPU 고정 정책이 적용됩니다. 자동 GPU 복구는 기본 CPU 프리셋을 사용하며, 실장비에서 확인하지 않은 프리셋은 별도 확인이 필요합니다.</p>
+          </CardBody>
+        </Card>
+      ) : null}
+
       <Card>
         <CardTitle>현재 모델 상태</CardTitle>
         <CardBody>
