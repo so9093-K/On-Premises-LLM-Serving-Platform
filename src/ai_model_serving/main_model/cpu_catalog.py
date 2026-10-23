@@ -28,13 +28,15 @@ def load_cpu_profile(
     )
     if not is_immutable_image_ref(image):
         raise ValueError("LLAMA_CPP_IMAGE must be an immutable image reference")
+    override = document["profiles"][profile_id].get("runtime", {})
+    runtime = {**document["runtime"], **override}
     return MainModelProfile(
         profile_id=profile_id,
         display_name=f"{artifact['repo_id'].rsplit('/', 1)[-1]}",
         model_id=artifact["repo_id"],
         revision=artifact["revision"],
         served_model_name=serving.public_model,
-        command=cpu_runtime_command(root, port=port),
+        command=cpu_runtime_command(root, port=port, profile_id=profile_id),
         compatibility=profile.compatibility,
         qualification=profile.qualification,
         capabilities={"deployed_input": list(profile.deployed_input)},
@@ -42,6 +44,6 @@ def load_cpu_profile(
         image=image,
         runtime_backend="llama-cpp",
         resolved_engine_policy=CpuEnginePolicy(
-            document["runtime"]["context_size"], document["runtime"]["parallel"]
+            runtime["context_size"], runtime["parallel"]
         ),
     )

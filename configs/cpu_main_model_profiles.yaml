@@ -21,13 +21,49 @@ profiles:
       status: verified
     capabilities:
       deployed_input: [text]
-    gateway_policy:
+    gateway_policy: &cpu_gateway_policy
       max_concurrency: 1
       max_output_tokens: 4096
-      request_limits:
+      request_limits: &cpu_request_limits
         max_model_len: 8192
         input_modalities: [text]
       request_parameter_policy:
         allow_unlisted_parameters: false
         supported_parameters: [stream, stream_options, temperature, max_tokens, top_p, top_k, stop, seed]
         max_n: 1
+
+  cpu-gguf-text-compact:
+    display_name: Local GGUF Text Chat (CPU / 4K)
+    served_model_name: local-main
+    compatibility:
+      status: compatible
+    qualification:
+      status: unverified
+    capabilities:
+      deployed_input: [text]
+    runtime:
+      context_size: 4096
+    gateway_policy:
+      <<: *cpu_gateway_policy
+      max_output_tokens: 1024
+      request_limits:
+        <<: *cpu_request_limits
+        max_model_len: 4096
+
+  cpu-gguf-text-extended:
+    display_name: Local GGUF Text Chat (CPU / 16K)
+    served_model_name: local-main
+    compatibility:
+      status: compatible
+    qualification:
+      status: unverified
+    capabilities:
+      deployed_input: [text]
+    runtime:
+      context_size: 16384
+    gateway_policy:
+      <<: *cpu_gateway_policy
+      max_output_tokens: 4096
+      request_limits:
+        <<: *cpu_request_limits
+        max_model_len: 16384
