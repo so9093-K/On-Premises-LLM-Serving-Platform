@@ -153,8 +153,8 @@ jobs:
       - name: Render canonical runtime assets and Console
         run: |
           make setup-dev PYTHON_BIN=python
-          make render-runtime-assets
           make console-build
+          make render-runtime-assets
       - name: Push generated artifacts to PR branch
         run: |
           git config user.name "github-actions[bot]"
