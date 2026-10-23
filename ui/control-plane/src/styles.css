@@ -2230,3 +2230,66 @@ a.overview-action-tile:hover {
 @media (max-width: 600px) {
   .activity-pagination > button { flex: 1 1 100%; }
 }
+ 
+
+/* Playground Chat: 작업 공간 높이와 대화 스크롤을 분리해 입력 영역을 고정한다. */
+.chat-layout {
+  height: clamp(18rem, calc(100dvh - 28rem), 52rem);
+  min-height: 0;
+}
+.chat-main {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chat-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.125rem 0.375rem 0.75rem 0.125rem;
+}
+.chat-scroll-region:focus-visible { outline: 2px solid var(--console-focus); outline-offset: -2px; }
+.chat-composer {
+  position: static;
+  flex: 0 0 auto;
+  max-height: min(46dvh, 23rem);
+  overflow-y: auto;
+  border-top: 1px solid var(--console-border);
+  padding: 0.75rem 0 0.5rem;
+}
+.chat-composer textarea {
+  min-height: 4.5rem;
+  max-height: 10rem;
+  resize: vertical;
+}
+@media (max-width: 980px) {
+  .chat-layout { height: clamp(18rem, calc(100dvh - 26rem), 52rem); }
+}
+@media (max-width: 600px) {
+  .chat-layout { height: clamp(17rem, calc(100dvh - 23rem), 45rem); }
+  .chat-composer { max-height: min(42dvh, 20rem); }
+  .chat-scroll-region { scrollbar-gutter: auto; }
+}
+
+/* 실제 모델 신원과 프로필별 실행 설정을 분리한다. */
+.model-groups { display: grid; gap: 0.875rem; min-width: 0; }
+.model-groups > h2 { margin: 0; font-size: 1.05rem; }
+.model-variant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0.75rem; }
+.model-variant { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 0.875rem; border: 1px solid var(--console-border); border-radius: 0.5rem; min-width: 0; }
+.model-variant-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.model-variant > small { color: var(--console-text-muted); overflow-wrap: anywhere; }
+.model-variant .facts { width: 100%; }
+.model-variant > button, .model-variant > .current-state-text { margin-top: auto; }
+.model-profile-details > summary { padding: 0.65rem 0; font-weight: 600; cursor: pointer; }
+.model-profile-details > .pf-v6-c-card { margin-top: 0.5rem; }
+ 
+.chat-quick-output { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.8rem; font-weight: 600; }
+.chat-quick-output input { width: 9rem; min-width: 0; box-sizing: border-box; border: 1px solid var(--console-border); padding: 0.35rem 0.5rem; color: inherit; background: var(--console-surface); border-radius: 0.375rem; font: inherit; }
+.chat-quick-output input:focus-visible { outline: 2px solid var(--console-focus); }
