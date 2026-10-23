@@ -151,8 +151,7 @@ Runtime lifecycle은 backend 이름이나 운영체제에서 추론하지 않는
 
 | Target contract | 의미 |
 |---|---|
-| `control_mode=runtime_controller` / `lifecycle_owner=platform` | Platform이 GPU runtime mutation과 reconciliation을 소유 |
-| `control_mode=managed_cpu` / `lifecycle_owner=platform` | Platform Compose가 CPU 모델 실행과 재시작을 소유하며 GPU Controller 제어 API와 분리 |
+| `control_mode=runtime_controller` / `lifecycle_owner=platform` | Runtime Controller가 관리형 CPU/GPU Main 모델의 실행·교체·복구를 단독 소유 |
 | `control_mode=static` / `lifecycle_owner=external` | 외부/native runtime이 lifecycle을 소유하고 Gateway는 고정 endpoint 사용 |
 
 따라서 Linux/NVIDIA와 macOS/Metal의 차이는 core/secondary가 아니라

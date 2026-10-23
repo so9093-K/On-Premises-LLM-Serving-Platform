@@ -30,7 +30,7 @@ make status
 Console에서 CPU 고정, 고급 선택인 자동 전환·GPU 고정으로 변경할 수 있다. 저장된 정책은 보존하며
 정책이 없는 GPU 설정은 기본 CPU 복구 정책을 사용한다. CPU 복구 정책은 Core를 유지하면서
 Main Runtime을 전환하며 Gate·Drain·Canary·Rollback을 적용한다.
-[ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)의 소유권·복구 계약을 따른다.
+실행 권한은 [ADR-0061](adr/0061-managed-linux-execution-policy.md), GPU 우선·CPU 복구 정책은 [ADR-0063](adr/0063-gpu-preferred-cpu-recovery.md)을 따른다.
 
 ### CPU Static (llama.cpp)
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — CPU 수동 선택과 Gateway 복구 계약은 유효하다. 이전 Adaptive Target의 독립 제어 권한은 [ADR-0061](0061-managed-linux-execution-policy.md), 기본 실행 정책은 [ADR-0063](0063-gpu-preferred-cpu-recovery.md)으로 대체됐다.
 
 ## Context
 

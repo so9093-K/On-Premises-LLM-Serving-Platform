@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 자동 선택 정책은 [ADR-0054](0054-managed-cpu-gpu-runtime-selection.md)로 대체
+Accepted — Core 및 외부 CPU Static 계약은 유효하다. 독립 관리형 CPU는 [ADR-0061](0061-managed-linux-execution-policy.md)로 폐기됐으며 기본 실행 정책은 [ADR-0063](0063-gpu-preferred-cpu-recovery.md)이 소유한다.
 
 ## Context
 
