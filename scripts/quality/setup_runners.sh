@@ -9,7 +9,7 @@ TOOLS="$ROOT/scripts/quality"
 npm --prefix "$CONSOLE" ci
 
 # Runner의 의존성은 분리된 node_modules에 설치하여 제품 번들에 영향을 주지 않는다.
-npm --prefix "$TOOLS" install --package-lock=false --ignore-scripts --no-audit --no-fund
+npm --prefix "$TOOLS" ci --ignore-scripts --no-audit --no-fund
 
 # Native Runner만 Console 실행 경로에 투영한다. 제품 의존성은 변경하지 않는다.
 mkdir -p "$CONSOLE/node_modules/.bin" "$CONSOLE/node_modules/@playwright"

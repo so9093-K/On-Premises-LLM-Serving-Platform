@@ -52,7 +52,9 @@ jobs:
         with:
           node-version-file: ui/control-plane/.nvmrc
           cache: npm
-          cache-dependency-path: ui/control-plane/package-lock.json
+          cache-dependency-path: |
+          ui/control-plane/package-lock.json
+          scripts/quality/package-lock.json
       - name: Pin npm
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Prepare frontend runners
@@ -71,7 +73,9 @@ jobs:
         with:
           node-version-file: ui/control-plane/.nvmrc
           cache: npm
-          cache-dependency-path: ui/control-plane/package-lock.json
+          cache-dependency-path: |
+          ui/control-plane/package-lock.json
+          scripts/quality/package-lock.json
       - name: Pin npm
         run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
       - name: Prepare frontend runners
@@ -105,44 +109,6 @@ jobs:
           PLATFORM_IMAGE: ai-model-serving-platform:ci-${{ github.sha }}
           PLATFORM_BUILD_PLATFORM: linux/amd64
         run: make image-smoke
-
-  quality-lock-candidates:
-    name: Generate temporary quality lock candidates
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ui/control-plane/.nvmrc
-      - name: Pin npm
-        run: npm install --global "npm@$(node -p "require('./ui/control-plane/package.json').engines.npm")"
-      - name: Generate npm candidate
-        run: |
-          npm --prefix scripts/quality install --package-lock-only --ignore-scripts --no-audit --no-fund
-          python3 - <<'PY'
-          import base64, hashlib
-          from pathlib import Path
-          data = Path("scripts/quality/package-lock.json").read_bytes()
-          encoded = base64.b64encode(data).decode("ascii")
-          for i in range(0, len(encoded), 3500):
-              print(f"QUALITY_LOCK:NPM:{i//3500:04d}:{encoded[i:i+3500]}")
-          print(f"QUALITY_LOCK_SHA:NPM:{hashlib.sha256(data).hexdigest()}")
-          PY
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        with:
-          resolution-strategy: highest
-      - name: Generate uv candidate
-        run: |
-          uv lock
-          python3 - <<'PY'
-          import base64, hashlib
-          from pathlib import Path
-          data = Path("uv.lock").read_bytes()
-          encoded = base64.b64encode(data).decode("ascii")
-          for i in range(0, len(encoded), 3500):
-              print(f"QUALITY_LOCK:UV:{i//3500:04d}:{encoded[i:i+3500]}")
-          print(f"QUALITY_LOCK_SHA:UV:{hashlib.sha256(data).hexdigest()}")
-          PY
 
   ci-gate:
     name: CI Gate
