@@ -26,6 +26,7 @@ app-only 개발 흐름은 다음과 같다.
 
 ```bash
 make setup-dev
+make setup-test-runners
 make check
 make init-env-local
 make up

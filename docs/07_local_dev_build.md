@@ -67,10 +67,17 @@ make setup-dev
 make app-check
 ```
 
-`make app-check`는 Python application/config/contracts만 검증한다. Control Plane까지 포함한 저장소 전체
-변경은 `make check`를 사용하며, 이 경우 `ui/control-plane/package.json`의 `engines`와
-`packageManager`에 고정된 Node.js/npm toolchain이 추가로 필요하다. `make check`는 내부적으로
-`make app-check`와 `make console-check`를 순서대로 호출한다.
+`make app-check`는 Python의 pytest와 Ruff·생성 산출물 Drift를 확인한다. Control Plane까지 포함한 기본 품질
+변경에는 지정된 Node.js/npm 도구를 준비한 다음 아래 명령을 사용한다.
+
+```bash
+make setup-test-runners
+make check
+```
+
+`make check`는 Ruff·생성 산출물 Drift·pytest·Vitest·Control Plane 소스 빌드 검사를 실행한다.
+Chromium UI 실행은 `make browser-test`로 별도 호출하며, 실제 Runtime/GPU 준비 상태는
+`make up`·`make status`가 소유한다.
 
 로컬 개발은 Python 3.13을 권장한다. 별도로 설치한 Python을 쓰려면
 `make setup-dev PYTHON_BIN=/path/to/python3.13`으로 지정한다. uv는 기존 `.venv`가 없으면
@@ -521,7 +528,7 @@ Compose effective config만 확인하는 maintainer 작업은
 | local state 초기화 | `make reset` |
 | project cache/artifact 폐기 | `make purge SCOPE=cache|all` |
 | application 변경 검증 | `make app-check` |
-| repository 전체 검증 | `make check` |
+| 기본 품질·Control Plane 검사 | `make check` |
 
 개별 image build와 Compose/Metal lifecycle script는 구현 계층의 도구다. 이미지와 실행 중인
 서비스에 대한 추가 기능 검증은 `make image-smoke`와 `make smoke`를 통해 명시적으로 실행한다.
