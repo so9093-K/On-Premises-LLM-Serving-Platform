@@ -382,3 +382,36 @@ def test_cpu_profile_view_exposes_context_ceiling(tmp_path: Path):
     store = MainModelStateStore(tmp_path / "server-ceiling.json", "cpu-gguf-text")
     manager = MainModelManager(catalog, store, FakeBackend("cpu-gguf-text"))
     assert manager.profiles()[0]["context_tokens_ceiling"] == 16384
+
+
+def test_cpu_first_initialization_preserves_restorable_custom_limits():
+    """GPU Catalog가 없어도 CPU 파생 한도를 8K 기본값으로 초기화하지 않는다."""
+    from ai_model_serving.main_model.managed_catalog import active_profile_resolvable
+
+    catalog = cpu_catalog()
+    profile = build_runtime_limit_profile(catalog, "cpu-gguf-text", 16384, 4096)
+    stored = {
+        "active_profile": profile.profile_id,
+        "runtime_limit_profiles": {
+            profile.profile_id: {
+                "base_profile": "cpu-gguf-text",
+                "context_tokens": 16384,
+                "max_output_tokens": 4096,
+            }
+        },
+    }
+    # Manager 복원이 실행되기 전 Catalog에는 파생 ID가 없다.
+    assert profile.profile_id not in catalog.profiles
+    assert active_profile_resolvable(catalog, stored)
+    assert not active_profile_resolvable(
+        catalog, {**stored, "runtime_limit_profiles": {}}
+    )
+    assert not active_profile_resolvable(
+        catalog, {**stored, "runtime_limit_profiles": {
+            profile.profile_id: {
+                "base_profile": "cpu-gguf-text",
+                "context_tokens": 8192,
+                "max_output_tokens": 4096,
+            }
+        }}
+    )

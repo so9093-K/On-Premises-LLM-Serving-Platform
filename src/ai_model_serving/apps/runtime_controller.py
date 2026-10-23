@@ -18,7 +18,7 @@ from ..main_model.execution_policy import (
 from ..main_model.adaptive import AdaptiveMainModelControl
 from ..main_model.adaptive_backend import ManagedDockerBackend, AdaptiveResourceReader
 from ..main_model.adaptive_catalog import load_adaptive_catalog
-from ..main_model.managed_catalog import load_managed_catalog
+from ..main_model.managed_catalog import active_profile_resolvable, load_managed_catalog
 from ..configuration import load_yaml_mapping
 from ..runtime_controller_config import RuntimeControllerConfig, load_runtime_controller_config
 from ..gpu_budget import Participant, budget_snapshot, plan_activation
@@ -205,7 +205,7 @@ def create_runtime_controller_app(
         f"http://{observer['compose_service']}:{observer['container_port']}", context.RUNTIME_CONTROLLER_TOKEN
     )
     state = context._state_store.read()
-    if seed in CPU_FIRST_POLICIES and state.get("active_profile") not in {None, *context._catalog.profiles}:
+    if seed in CPU_FIRST_POLICIES and not active_profile_resolvable(context._catalog, state):
         def recover_missing_artifact(value):
             value.update(active_profile=None, gate="closed")
             operation = value.get("last_operation") or {}
