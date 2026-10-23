@@ -1,12 +1,6 @@
-# 자동 관리도 원본 프로필의 입력·출력 정책과 모델 신원을 재사용한다.
+# 공통 관리형 Linux의 CPU/GPU 후보 선택과 복구 타이밍 정책이다.
+# 실제 모델·프로필 신원은 cpu_main_model_profiles.yaml과 main_model_profiles.yaml이 소유한다.
 version: 1
-public_model: local-main
-default_profile: cpu-gguf-text
-profiles:
-  cpu-gguf-text:
-    catalog: configs/cpu_main_model_profiles.yaml
-  gemma4-e4b-it:
-    catalog: configs/main_model_profiles.yaml
 runtime:
   compose_service: main-llm-vllm
   container_port: 9401
