@@ -524,12 +524,7 @@ generated artifact를 갱신할 때는 다음 명령을 사용한다.
 make render-runtime-assets
 ```
 
-`make validate`의 access/host-boundary 단계는 `configs/services.yaml` service role과 target Compose의
-실제 `ports` 집합을 직접 대조한다.
-
-Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하고, access/host-boundary 단계는
-지원 host exposure invariant를 확인한다. OpenAPI는 축약 전·후의
-계약 의미 보존도 함께 검증한다.
+현재 `make validate`는 Ruff 정적 검사와 `render_runtime_assets.py --check`를 실행한다. Access Profile 및 host 노출 정책은 배포 설정과 effective Compose에서 별도로 확인한다.
 
 ---
 
@@ -541,17 +536,8 @@ Generated artifacts 단계는 OpenAPI와 runtime projection drift를 확인하�
 make validate
 ```
 
-현재 정적 검증에는 다음 영역이 포함된다.
-
-| 검증 | 주요 확인 내용 |
-|---|---|
-| Contract validation | registry, schema, 설정 간 invariant |
-| Shell syntax | 운영 shell script 구문 |
-| Access / host-boundary validation | Access Profile safety와 service registry ↔ Compose host publication 정합성 |
-| Compose topology drift | canonical/target Compose의 host publication과 runtime projection 일치 여부 |
-| Env contract validation | `.env.*.example`과 env contract 일치 여부 |
-| Generated artifacts | 생성 파일 drift와 OpenAPI projection 의미 보존 |
-| Auth profile sanity | auth profile과 생성값 일관성 |
+현재 `make validate`는 Ruff 오류와 생성 산출물 Drift를 확인한다. 예전의 정적 정책·스키마·host 노출 검사 전체를 수행하지 않는다.
+Compose 변경의 effective 설정은 `bash scripts/compose/compose_config.sh`를 사용한다.
 
 Compose 관련 설정을 변경했다면 effective configuration도 함께 확인한다.
 
@@ -559,7 +545,7 @@ Compose 관련 설정을 변경했다면 effective configuration도 함께 확�
 bash scripts/compose/compose_config.sh
 ```
 
-모델 runtime이나 GPU 설정 변경에는 static validation과 full-stack readiness를 함께 수행한다. 실제 API 계약 확인이 필요한 경우 [8. 테스트와 검증](./08_testing_validation.md)의 runtime validation을 추가한다.
+모델 Runtime/GPU 변경은 해당 Target의 `make up`/`make status`로 실제 상태를 확인한다. 선택적 `make smoke`는 대표 Gateway API만 확인하며 과거 Runtime validator와 동일하지 않다.
 
 ---
 

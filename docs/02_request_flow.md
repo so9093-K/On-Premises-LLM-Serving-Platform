@@ -528,9 +528,7 @@ Compose Network
 
 애플리케이션 요청은 Gateway를 통해 내부 runtime으로 전달된다.
 
-제품·애플리케이션 연동과 runtime qualification 모두 raw runtime의 host publication을
-요구하지 않는다. 일반 요청은 Gateway를 통과하고, `make runtime-validate`의 one-off
-validator만 Compose 내부 service DNS로 runtime·Risk·Prometheus를 직접 검사한다.
+제품·애플리케이션 요청은 Gateway를 통과하며 raw Runtime은 host에 직접 publish하지 않는다. 내부 서비스는 Compose DNS를 사용한다. 선택적 `make smoke`는 Gateway의 대표 API 요청을 확인하며 내부 Endpoint를 공개하지 않는다.
 
 
 ### Admin Control 경로

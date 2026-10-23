@@ -30,7 +30,6 @@
 | Qualification | 특정 Main Model 또는 Deployment Target을 maintainer가 실제 장비에서 검증했는지 나타내는 선언. | `qualification.status`, `qualification_status` |
 | Readiness | 서비스와 필요한 Model Runtime이 실제 요청을 처리할 준비가 된 상태. | `/ready` |
 | Smoke Test | 기동과 독립적으로 활성 Runtime의 대표 API 요청을 검증하는 품질 확인. | `make smoke` |
-| Runtime Validation | GPU, serving engine, Model Runtime 등 실제 실행 환경을 확인하는 검증. | `make runtime-validate` |
 | Platform Image | Gateway, Risk Signal Service, Runtime Controller 애플리케이션을 실행하는 Container Image. | `PLATFORM_IMAGE` |
 | Unified vLLM Image | Main Model, Embedding, Prompt Injection Detector Runtime이 공유하는 vLLM 기반 Runtime Image. | `VLLM_IMAGE` |
 | Image Digest | Registry의 Container Image 내용을 고유하게 식별하는 `sha256` 값. | `image@sha256:...` |
@@ -68,7 +67,7 @@
 | Loki | `loki` | `3100` | - | Log 저장 및 조회 |
 | Alloy | `alloy` | - | - | Container/Application Log 수집 및 Loki 전달 |
 
-Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 target의 Grafana만 Host에 공개된다. 모델 Runtime과 운영용 backend는 Compose 내부 네트워크에서 사용한다. Runtime qualification도 내부망 one-off validator가 수행하므로 추가 host publish는 필요하지 않다.
+Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 target의 Grafana만 Host에 공개된다. 모델 Runtime과 운영용 backend는 Compose 내부 네트워크에서 사용한다. Runtime의 host 노출 정책은 현재 배포·서비스 설정이 소유하며 검증 목적의 공개 포트는 추가하지 않는다.
 
 상세 네트워크 구성은 [4. 실행 환경과 모드](./04_runtime_modes.md)를 참고한다.
 
@@ -99,7 +98,6 @@ Canonical host boundary에서는 Gateway와, monitoring stack을 제공하는 ta
 | Platform Image HTTP 검증 | `make image-smoke` | [8. 테스트와 검증](./08_testing_validation.md) |
 | 실행 중 Runtime 대표 Smoke | `make smoke` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Unified vLLM Image 직접 Build | `make build-vllm-unified-image` | [7. 로컬 개발과 빌드](./07_local_dev_build.md) |
-| GPU/vLLM qualification 검증 | `make runtime-validate` | [8. 테스트와 검증](./08_testing_validation.md) |
 | Generated artifact 갱신 | `make render-runtime-assets` | [5. 설정 체계와 Source of Truth](./05_configuration.md) |
 
 Readiness·Compose 설정 확인·진단과 정리 스크립트는 제품 기동·운영의 내부 도구다.
@@ -136,9 +134,8 @@ Smoke는 제품 기동과 독립된 공개 검증 명령(`make smoke`, `make ima
 | Platform Lifecycle | `scripts/platform_cli.py` | target-aware `up/status/down/logs/reset/purge` intent 구현 |
 | Build Script | `scripts/build/` | Container Image build와 개발 환경 준비 |
 | Compose Script | `scripts/compose/` | Compose 실행, 구성 확인, diagnostics |
-| Validation Script | `scripts/validation/` | 정적 검증과 Runtime 검증 |
+| Quality CLI | `scripts/quality_cli.py` | Native Runner 실행과 최소 정적 검사 |
 | Operations Script | `scripts/ops/` | Readiness, smoke test 등 운영 확인 |
-| Runtime 검증 산출물 | `reports/runtime/` | `make runtime-validate`가 생성하는 JSON·Markdown 결과. 저장소가 소유하지 않는 실행 산출물이다 |
 | API Reference | `docs/reference/api_reference.md` | API 사용 방법, 요청·응답, 오류와 제약 설명 |
 | OpenAI 호환 범위 | `docs/reference/openai_compatibility.md` | 계약 스키마에서 생성하는 파라미터 호환 표. 직접 고치지 않는다 |
 | 모델 참고 자료 | `docs/reference/models/` | upstream 모델 사양, 라이선스, 알려진 제약 |
