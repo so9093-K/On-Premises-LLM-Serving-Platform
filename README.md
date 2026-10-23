@@ -97,11 +97,13 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 |---|---|---|---|
 | `linux-core` | 없음 | Gateway·Control Plane·PII/Secret Risk | 기본 서비스만 실행 |
 | `linux-cpu-static` | 외부 llama.cpp CPU Runtime | Text Chat·Responses, PII·Secret Risk | 외부 모델 서버 · 미검증 |
-| `linux-cpu-managed` | 관리형 llama.cpp CPU Runtime | 고정 CPU 모델의 Text Chat·Responses, PII·Secret Risk | 플랫폼 관리 · 미검증 |
+| `linux-cpu-managed` | 기존 Compose 관리형 CPU Runtime | 고정 CPU 모델의 Text Chat·Responses, PII·Secret Risk | 기존 설치 호환 · 직접 한도 편집 미지원 |
 | `linux-adaptive` | 기존 자동 선택 구성 | 활성 모델별 Chat·Responses, PII·Secret Risk | 기존 배포 호환 · 미검증 |
 | `linux-nvidia-dynamic` | vLLM GPU / llama.cpp CPU · 자동 또는 고정 정책 | 활성 모델별 Chat·Responses, Embedding·Retrieval, Risk | 플랫폼 관리 · 모델 전환·GPU 제어 |
 | `linux-nvidia-static` | 외부 vLLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
 | `macos-metal-static` | MLX-VLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
+
+새 관리형 CPU 설치는 `make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local`을 사용합니다. 기존 Compose 관리형 CPU Target은 이전 배포의 호환성을 위해 유지되며, 직접 서버 한도 편집은 공통 Controller를 사용하는 배포에서 제공합니다.
 
 기능별 지원·검증 상태와 모델 자원 조건은 [Deployment Target](configs/deployment_targets.yaml) 및 [모델 운영](docs/06_model_operations.md)을 참고하세요.
 

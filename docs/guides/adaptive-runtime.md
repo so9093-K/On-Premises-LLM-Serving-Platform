@@ -36,8 +36,9 @@ CPU를 유지하며, 이후 GPU 여유가 생겨도 자동 복귀하지 않습�
 `POLICY=...`는 최초 설정용이며, 이후에는 Console에서 검토·적용합니다.
 
 기존 `linux-adaptive`·`linux-cpu-managed`에서 공통 구성으로 이전하려면 `make down` 후
-`make up TARGET=linux-nvidia-dynamic ACCESS=local`을 실행합니다. 인증값·포트·캐시·Main 상태는
-보존됩니다. 기존 `linux-adaptive`는 별도 이전 전까지 기존 기능 범위로 동작합니다.
+`make up TARGET=linux-nvidia-dynamic ACCESS=local`을 실행합니다. CPU 고정으로 새로 시작하는 경우 `POLICY=cpu`를 지정합니다. 인증값·포트·캐시·Main 상태는
+보존됩니다. 기존 설치에서 영속된 실행 정책은 최초 `POLICY` 인자보다 우선하므로 이전 뒤 Console에서 현재 정책을 확인하세요.
+두 기존 Target은 명시적으로 이전하기 전까지 이전 기능 범위로 동작합니다.
 
 Gateway와 로컬 Risk가 먼저 기동합니다. CPU 모델의 고정 SHA-256 검증·적재·실제 응답
 검증에 성공하면 요청을 받습니다. GPU image 준비 실패는 CPU와 Core를 중지하지 않습니다.

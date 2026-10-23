@@ -15,7 +15,7 @@
 
 ### Changed
 
-- Runtime Controller 관리형 CPU/GPU Main Model에서 서버 문맥·최대 출력 토큰의 직접 변경을 지원한다. 모델 신원은 유지하고 Gateway 한도와 실행 엔진 인자를 동기화하며, 기존 전환·실패 복구·재시작 복원 경로를 재사용한다. Compose 독립 CPU와 외부 Runtime의 권한은 변경하지 않는다.
+- Runtime Controller 관리형 CPU/GPU Main Model에서 서버 문맥·최대 출력 토큰의 직접 변경을 지원한다. 모델 신원은 유지하고 Gateway 한도와 실행 엔진 인자를 동기화하며, 기존 전환·실패 복구·재시작 복원 경로를 재사용한다. 외부 Runtime의 권한은 변경하지 않으며, Compose 독립 CPU는 기존 배포 호환 경로로 유지한다.
 
 - Playground Chat은 시작 예제를 기본으로 보여주며, 대화 영역만 스크롤해 입력창 위치를 유지한다. 지원되지 않는 예제도 미지원 사유를 포함해 표시한다. 요청별 최대 출력 토큰은 입력창에서 조정하며 서버 실행 한도와 구분한다.
 - 메인 모델 화면은 동일 모델·Revision·엔진의 실행 프로필을 하나의 모델 아래 묶고, 프로필 세부 정책은 펼쳐 확인한다. 실제 Runtime 토큰 한도는 선언된 실행 구성의 선택으로만 변경할 수 있다.
@@ -42,6 +42,7 @@
 
 ### Migration
 
+- 새 관리형 CPU 전용 설치는 `make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local`을 사용한다. 기존 `linux-cpu-managed`·`linux-adaptive` Target은 사용자 설정을 조용히 바꾸지 않는 호환 배포 경로로 유지하되, 서버 한도 직접 편집은 공통 Runtime Controller 경로에서 제공한다. 기존 4K·16K CPU 프리셋 ID는 저장된 상태의 복구와 16K 최대 선언을 위해 유지한다.
 - 기존 배포에서 `ACCESS_PROFILE`이 없다면 `make up ACCESS=local`(또는 `private`, `edge`)로 변경 내용을 먼저 검토하고, 적용 시에는 같은 명령에 `CONFIRM=access`를 추가한다. 과거 `EXPOSURE_MODE=master_open` 상태는 자동으로 이관하지 않는다. ([접근 설정](docs/05_configuration.md#59-인증과-노출-정책))
 - 기존 `linux-adaptive`·`linux-cpu-managed` 배포를 관리형 `linux-nvidia-dynamic`의 공통 CPU/GPU 정책으로 바꾸려면 `make down` 후 `make up TARGET=linux-nvidia-dynamic`을 실행한다. 기존 접근 프로필과 인증 설정은 유지한다. 이미 실행 중인 배포의 Target을 자동으로 바꾸지 않는다. ([실행 정책](docs/guides/adaptive-runtime.md))
 - 새로운 실행 설정은 `MAIN_MODEL_*`, `RUNTIME_CONTROLLER_URL`, 공유 `VLLM_IMAGE`를 기준으로 한다. 이전 키를 직접 사용하는 자동화는 현행 설정을 확인해 갱신해야 한다. 기존 배포 환경의 설정 동기화는 `make up`이 담당한다. ([환경 설정](docs/05_configuration.md#510-환경-파일))

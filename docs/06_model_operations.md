@@ -715,4 +715,4 @@ Playground의 **이번 요청 최대 출력 토큰**은 `/v1/models`에 광고�
 
 같은 모델·Revision·이미지의 변형 프로필 ID를 Main Model의 기존 지속 상태에 저장하여 Controller 재시작 뒤 복원한다. 전환은 기존 Gate → Drain → Replace → Canary → Commit 또는 이전 프로필 Rollback 단계로 수행한다. 변경 요청은 미검증 설정 확인을 요구한다. CPU 문맥은 같은 GGUF의 선언된 최대 프리셋 이하, GPU 문맥은 원래 선택한 기준 프로필 상한 이하에서 허용한다. 실제 RAM·GPU 메모리 및 지연 성능은 장비에서 별도 검증이 필요하다.
 
-`linux-cpu-managed`의 Compose 독립 CPU는 Runtime Controller가 관리하지 않으므로 이 API로 한도를 수정할 수 없다. 해당 배포의 지속적인 한도 변경은 Compose 설정 소유자가 수행해야 하며, 외부·Static 런타임은 기존 권한 경계를 유지한다. **Playground의 이번 요청 최대 출력 토큰은 서버 한도 변경이 아니다.**
+새 관리형 CPU 설치는 `linux-nvidia-dynamic POLICY=cpu`를 사용한다. 이전 설치의 `linux-cpu-managed`는 Compose 독립 CPU 경로로 계속 동작하지만 이 API로 한도를 수정할 수 없다. 기존 CPU 프리셋 프로필 ID는 상태 복원과 16K 선언 한도의 근거를 위해 유지한다. 외부·Static 런타임은 기존 권한 경계를 유지한다. **Playground의 이번 요청 최대 출력 토큰은 서버 한도 변경이 아니다.**

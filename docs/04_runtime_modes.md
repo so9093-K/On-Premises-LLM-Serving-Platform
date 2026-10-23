@@ -12,7 +12,16 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 
 ### CPU Managed (llama.cpp)
 
-`linux-cpu-managed`는 플랫폼 Compose가 CPU-only llama.cpp 서버를
+새 설치의 공식 관리형 CPU 경로는 Runtime Controller가 동일한 `main-llm-vllm` 컨테이너에
+llama.cpp를 실행하는 `linux-nvidia-dynamic POLICY=cpu`다. GPU나 CUDA 없이도 실행하며,
+서버 문맥과 출력 한도 조정은 이 경로의 Main Model 전환 계약으로 처리한다.
+
+```bash
+make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local
+make status
+```
+
+기존 `linux-cpu-managed`는 플랫폼 Compose가 CPU-only llama.cpp 서버를
 시작·중지·재시작하는 Deployment Target이다. 모델은
 `configs/cpu_model_artifact.yaml`에서 선언한 Qwen3 0.6B GGUF를
 고정 Revision과 SHA-256으로 다운로드·검증한 뒤 Cache에 보존한다.
@@ -21,13 +30,10 @@ Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
 CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인한다.
 모델 준비 전에 Gateway와 로컬 Risk 서비스를 먼저 기동한다. 모델 준비에 실패하면
 `make up`은 실패를 반환하지만 Core는 진단을 위해 유지된다.
-공통 관리형 구성에서 자동 복구를 사용하려면 [실행 정책](guides/adaptive-runtime.md)을 선택한다.
-
-```bash
-make up TARGET=linux-cpu-managed ACCESS=local
-make smoke
-make status
-```
+이 Target은 이전 설치의 호환 경로다. 기존 운영자는 `make up TARGET=linux-cpu-managed ACCESS=local`을
+계속 사용할 수 있지만, Console에서 서버 실행 토큰 한도를 직접 변경하는 기능은 제공하지 않는다.
+대상 이전은 `make down` 후 공통 Target의 `make up`을 사용하며, 자동으로 전환하지 않는다.
+CPU/GPU 복구 정책의 세부 의미는 [실행 정책](guides/adaptive-runtime.md)을 따른다.
 
 설치 시 후보를 자동 선택하고 싶다면 **최초 실행에서만**
 `make up TARGET=auto ACCESS=local`을 사용한다. GPU VRAM이 충분해도
