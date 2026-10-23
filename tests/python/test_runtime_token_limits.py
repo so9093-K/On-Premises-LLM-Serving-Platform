@@ -108,6 +108,8 @@ def test_custom_cpu_apply_and_restart_restore(tmp_path: Path):
         assert active_id == backend.current
         assert active_id.startswith("limits-")
         assert manager.catalog.profiles[active_id].gateway_policy["max_output_tokens"] == 2048
+        profile_view = next(p for p in manager.profiles() if p["id"] == active_id)
+        assert profile_view["base_profile_id"] == "cpu-gguf-text"
         await manager.aclose()
         restarted = MainModelManager(cpu_catalog(), store, backend)
         await restarted.initialize()
@@ -156,3 +158,44 @@ def test_custom_limits_do_not_override_automatic_fallback_policy(tmp_path: Path)
             confirm_unverified=True, execution_policy="automatic",
         )
     assert not store.read().get("runtime_limit_profiles")
+
+
+def test_new_limit_evicts_old_unused_profile_without_losing_rollback(tmp_path: Path):
+    """한도를 반복 변경해도 32개 한도 때문에 새 요청을 차단하지 않는다."""
+    async def exercise():
+        catalog = cpu_catalog()
+        records = {}
+        for i in range(32):
+            context = 2048 + i * 256
+            profile = build_runtime_limit_profile(catalog, "cpu-gguf-text", context, 1024)
+            records[profile.profile_id] = {
+                "base_profile": "cpu-gguf-text",
+                "context_tokens": context,
+                "max_output_tokens": 1024,
+            }
+        oldest_id = next(iter(records))
+        protected_id = list(records)[1]
+        store = MainModelStateStore(tmp_path / "bounded.json", "cpu-gguf-text")
+        store.update(lambda state: state.update(
+            active_profile=protected_id,
+            last_known_good_profile=protected_id,
+            previous_known_good_profile="cpu-gguf-text",
+            gate="open",
+            runtime_selection={"mode": "cpu"},
+            runtime_limit_profiles=records,
+        ))
+        backend = FakeBackend(protected_id)
+        manager = MainModelManager(cpu_catalog(), store, backend)
+        result = manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="cpu",
+        )
+        saved = store.read()["runtime_limit_profiles"]
+        assert len(saved) == 32
+        assert oldest_id not in saved
+        assert protected_id in saved
+        assert manager.catalog.profiles.get(oldest_id) is None
+        assert (await manager.wait_for_operation(result.operation_id))["status"] == "completed"
+        assert store.read()["previous_known_good_profile"] == protected_id
+        await manager.aclose()
+    asyncio.run(exercise())

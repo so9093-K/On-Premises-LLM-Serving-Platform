@@ -305,9 +305,11 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       && item.upstream_model_id === reviewProfile.upstream_model_id
       && item.revision === reviewProfile.revision,
     ).map((item) => mainModelTokenLimits(item).contextTokens ?? 0))
-    : mainModelTokenLimits(
-      profiles.find((item) => item.id === reviewProfile?.base_profile_id) ?? reviewProfile,
-    ).contextTokens ?? 0;
+    : reviewProfile
+      ? mainModelTokenLimits(
+        profiles.find((item) => item.id === reviewProfile.base_profile_id) ?? reviewProfile,
+      ).contextTokens ?? 0
+      : 0;
   const limitsValid = !limitsEdited || (Number.isInteger(parsedContextTokens)
     && Number.isInteger(parsedOutputTokens)
     && parsedContextTokens >= (reviewProfile?.runtime_backend === 'llama-cpp' ? 512 : 1024)

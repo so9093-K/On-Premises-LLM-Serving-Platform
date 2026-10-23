@@ -674,12 +674,8 @@ class MainModelManager:
         profile = build_runtime_limit_profile(
             self.catalog, base_id, context_tokens, max_output_tokens,
         )
-        if profile.profile_id not in records and len(records) >= 32:
-            raise MainModelSwitchError(
-                "RUNTIME_LIMIT_PROFILE_CAP_REACHED",
-                "too many runtime limit configurations; choose a declared profile",
-                status_code=422,
-            )
+        # 상태 저장 시 오래된 비활성 변형을 자동 정리한다. 더는 과거 설정의
+        # 개수 때문에 새로운 문맥 설정을 거부하지 않는다.
         previously_registered = profile.profile_id in self.catalog.profiles
         self.catalog.profiles[profile.profile_id] = profile
         try:
@@ -788,7 +784,28 @@ class MainModelManager:
                     **({"execution_policy": execution_policy} if execution_policy is not None else {}),
                 }
                 if runtime_limit_override is not None:
-                    value.setdefault("runtime_limit_profiles", {})[profile_id] = dict(runtime_limit_override)
+                    overrides = value.setdefault("runtime_limit_profiles", {})
+                    overrides[profile_id] = dict(runtime_limit_override)
+                    # 현재/직전 정상 실행과 새 전환 대상은 롤백에 필요하므로
+                    # 생성 순서가 오래됐더라도 제거하지 않는다.
+                    protected = {
+                        profile_id,
+                        value.get("active_profile"),
+                        value.get("last_known_good_profile"),
+                        value.get("previous_known_good_profile"),
+                        operation.get("previous_profile"),
+                    }
+                    for stale_id in tuple(overrides):
+                        if len(overrides) <= 32:
+                            break
+                        if stale_id not in protected:
+                            overrides.pop(stale_id)
+                    if len(overrides) > 32:
+                        raise MainModelSwitchError(
+                            "RUNTIME_LIMIT_PROFILE_CAP_REACHED",
+                            "too many protected runtime limit configurations",
+                            status_code=422,
+                        )
                 value["last_operation"] = operation
                 value.setdefault("operations", []).append(operation)
                 value["operations"] = value["operations"][-50:]
@@ -797,6 +814,11 @@ class MainModelManager:
             self.state_store.update(mutate)
             if reused_operation_id is not None:
                 return SwitchOutcome(reused_operation_id, True)
+            if runtime_limit_override is not None:
+                saved_ids = set(self.state_store.read().get("runtime_limit_profiles") or {})
+                for stale_id in tuple(self.catalog.profiles):
+                    if stale_id.startswith("limits-") and stale_id not in saved_ids:
+                        self.catalog.profiles.pop(stale_id, None)
             task = asyncio.create_task(
                 self._run(operation_id, lock_context, boot_reconcile=boot_reconcile),
                 name=operation_id,
