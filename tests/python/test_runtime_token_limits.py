@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from ai_model_serving.main_model.catalog import MainModelCatalog
-from ai_model_serving.main_model.control import MainModelManager
+from ai_model_serving.main_model.control import MainModelManager, MainModelSwitchError
 from ai_model_serving.main_model.cpu_catalog import load_cpu_profile
 from ai_model_serving.main_model.engine_policy import VllmEnginePolicy
 from ai_model_serving.main_model.runtime_limits import (
@@ -145,3 +145,14 @@ def test_corrupted_persisted_limits_fail_closed():
         restore_runtime_limit_profiles(catalog, {"limits-forged": {
             "base_profile": "cpu-gguf-text", "context_tokens": 12288, "max_output_tokens": 2048,
         }})
+
+
+def test_custom_limits_do_not_override_automatic_fallback_policy(tmp_path: Path):
+    store = MainModelStateStore(tmp_path / "automatic.json", "cpu-gguf-text")
+    manager = MainModelManager(cpu_catalog(), store, FakeBackend("cpu-gguf-text"))
+    with pytest.raises(MainModelSwitchError, match="fixed CPU or GPU"):
+        manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=12288, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="automatic",
+        )
+    assert not store.read().get("runtime_limit_profiles")
