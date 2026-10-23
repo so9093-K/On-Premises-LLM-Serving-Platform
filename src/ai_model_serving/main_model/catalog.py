@@ -381,11 +381,17 @@ def load_main_model_catalog(
         if not isinstance(item, dict):
             raise MainModelConfigurationError(f"profile {profile_id} must be an object")
         if "catalog" in item:
-            # 실행 가능한 외부 Catalog 참조는 고정 CPU 계약 한 종만 허용한다.
-            if item != {"catalog": "configs/cpu_main_model_profiles.yaml"} or profile_id != "cpu-gguf-text":
+            # CPU 원본 카탈로그가 명시적으로 선언한 실행 프리셋만 수용한다.
+            if item != {"catalog": "configs/cpu_main_model_profiles.yaml"}:
                 raise MainModelConfigurationError("unsupported runtime profile catalog reference")
+            from ..serving_profile import load_main_serving_catalog
             from .cpu_catalog import load_cpu_profile
-            profiles[str(profile_id)] = load_cpu_profile(path.resolve().parent.parent, str(profile_id), port, env or {})
+
+            root = path.resolve().parent.parent
+            declared = load_main_serving_catalog(root / "configs/cpu_main_model_profiles.yaml")
+            if str(profile_id) not in declared.profiles:
+                raise MainModelConfigurationError("unknown CPU runtime profile reference")
+            profiles[str(profile_id)] = load_cpu_profile(root, str(profile_id), port, env or {})
             continue
         revision = str(item.get("revision", ""))
         if not _REVISION_RE.fullmatch(revision):
