@@ -2277,3 +2277,15 @@ a.overview-action-tile:hover {
   .chat-composer { max-height: min(42dvh, 20rem); }
   .chat-scroll-region { scrollbar-gutter: auto; }
 }
+
+/* 실제 모델 신원과 프로필별 실행 설정을 분리한다. */
+.model-groups { display: grid; gap: 0.875rem; min-width: 0; }
+.model-groups > h2 { margin: 0; font-size: 1.05rem; }
+.model-variant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0.75rem; }
+.model-variant { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 0.875rem; border: 1px solid var(--console-border); border-radius: 0.5rem; min-width: 0; }
+.model-variant-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.model-variant > small { color: var(--console-text-muted); overflow-wrap: anywhere; }
+.model-variant .facts { width: 100%; }
+.model-variant > button, .model-variant > .current-state-text { margin-top: auto; }
+.model-profile-details > summary { padding: 0.65rem 0; font-weight: 600; cursor: pointer; }
+.model-profile-details > .pf-v6-c-card { margin-top: 0.5rem; }

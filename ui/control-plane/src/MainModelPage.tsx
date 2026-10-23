@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Label, Spinner } from '@patternfly/react-core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -12,6 +12,7 @@ import {
   type MainModelProfile,
 } from './api';
 import { executionPolicyPresentation, isRecoveringPolicy, type ExecutionPolicy } from './mainModelExecutionPolicy';
+import { mainModelProfileGroups, profileVariantLabel } from './mainModelProfileGroups';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { playgroundPath } from './navigation';
 import {
@@ -214,6 +215,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   }, [operationId]);
 
   const profiles = profilesQuery.data?.profiles ?? [];
+  const groups = mainModelProfileGroups(profiles);
   const reviewProfile = useMemo(
     () => profiles.find((profile) => profile.id === reviewProfileId) ?? null,
     [profiles, reviewProfileId],
@@ -407,34 +409,51 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </CardBody>
       </Card>
 
-      {profiles.some(profile => profile.runtime_backend === 'llama-cpp') ? (
-        <Card>
-          <CardTitle>CPU llama.cpp 실행 설정</CardTitle>
-          <CardBody>
-            <p>CPU 문맥과 최대 출력을 프리셋으로 선택합니다. 변경은 기존 Main Model 전환 경로를 거쳐 요청 정리·재기동·응답 확인을 수행합니다.</p>
-            <p className="configuration-help">기본 8,192 / 4,096 tokens · 동시 요청 1개 · Threads 4개 · 메모리 상한 4GiB. 입력과 출력은 동일한 문맥을 공유합니다.</p>
-            <div className="chat-heading-actions" role="group" aria-label="CPU 실행 한도 프리셋">
-              {profiles.filter(profile => profile.runtime_backend === 'llama-cpp').map(profile => (
-                <Button
-                  key={profile.id}
-                  variant={profile.active ? 'primary' : 'secondary'}
-                  isDisabled={(profile.active && selection?.mode === 'cpu') || locked || busy || switchMutation.isPending}
-                  onClick={() => {
-                    setReviewPolicy('cpu');
-                    setReviewProfileId(profile.id);
-                    setConfirmed(false);
-                    setActionError(null);
-                  }}
-                >
-                  {profile.display_name} · {formatTokenLimits(mainModelTokenLimits(profile))}
-                  {profile.active ? ' · 현재 모델' : ''}
-                </Button>
-              ))}
-            </div>
-            <p className="configuration-help">선택하면 바로 적용하지 않고 전환 영향 확인 화면을 엽니다. CPU 고정 정책으로 전환되어 GPU 자동 복귀가 중지됩니다. 실장비 검증 여부와 재기동 영향을 확인하세요.</p>
-          </CardBody>
-        </Card>
-      ) : null}
+
+      <section className="model-groups" aria-label="사용할 모델과 실행 구성">
+        <h2>모델별 실행 구성</h2>
+        <p className="configuration-help">동일한 실제 모델의 실행 프로필은 한곳에 묶었습니다. 한도를 선택하면 바로 변경하지 않고 기존 모델 전환의 영향 확인 단계를 거칩니다.</p>
+        {groups.map((group) => (
+          <Card key={group.key}>
+            <CardTitle>{group.modelId}</CardTitle>
+            <CardBody>
+              <p className="configuration-help">{modelRuntimeLabel(group.backend)} · {group.profiles.length}개 실행 구성 · Revision <code>{group.revision}</code></p>
+              <div className="model-variant-grid">
+                {group.profiles.map((profile) => {
+                  const preflight = mainModelPreflightView(profile);
+                  return (
+                    <div key={profile.id} className="model-variant">
+                      <div className="model-variant-heading">
+                        <strong>{profileVariantLabel(profile)}</strong>
+                        {profile.active ? <Label color="green">현재 사용 중</Label> : null}
+                      </div>
+                      <small>{profile.display_name} · <code>{profile.id}</code></small>
+                      <dl className="facts">
+                        <dt>문맥 / 최대 출력</dt><dd>{formatTokenLimits(mainModelTokenLimits(profile))}</dd>
+                        <dt>검증 상태</dt><dd><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></dd>
+                        <dt>실행 전 판단</dt><dd><Label color={preflight.color}>{preflight.label}</Label></dd>
+                      </dl>
+                      {profile.active ? (
+                        <span className="current-state-text">활성 구성</span>
+                      ) : (
+                        <Button size="sm" variant="secondary"
+                          isDisabled={switchMutation.isPending || busy || locked}
+                          onClick={() => {
+                            setReviewPolicy(profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu');
+                            setReviewProfileId(profile.id);
+                            setConfirmed(false);
+                            setActionError(null);
+                          }}
+                        >이 구성으로 전환 검토</Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardBody>
+          </Card>
+        ))}
+      </section>
 
       {reviewProfile ? (
         <div ref={reviewRegionRef} className="runtime-review-region" role="region" aria-label="모델 전환 영향 확인" tabIndex={-1}>
@@ -596,10 +615,12 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </div>
       ) : null}
 
+      <details className="model-profile-details">
+        <summary>실행 프로필 세부 정책 확인</summary>
       <Card>
-        <CardTitle>사용 가능한 프로필</CardTitle>
+        <CardTitle>프로필별 세부 정책</CardTitle>
         <CardBody>
-          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다.</p>
+          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다. 서버 실행 한도는 현재 프로필에서 정의되며, 이 목록만으로 임의 토큰 한도가 변경되지는 않습니다.</p>
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
@@ -643,6 +664,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
           </div>
         </CardBody>
       </Card>
+      </details>
 
       {operationId ? (
         <div ref={operationRegionRef} role="region" className="runtime-operation-region" aria-label="모델 전환 진행 상황" tabIndex={-1}>
