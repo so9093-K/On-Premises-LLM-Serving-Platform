@@ -332,9 +332,6 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
             ) : bootstrap.deployment.lifecycle_owner === 'external' ? (
               <p>메인 모델 실행·전환은 외부 또는 네이티브 런타임에서 관리됩니다.</p>
             ) : null}
-            {managedCpuWithoutController ? (
-              <p>CPU llama.cpp는 플랫폼 Compose가 관리합니다. Console은 실제 CPU 모델 준비 상태를 조회하지 않으므로 서버에서 <code>make status</code>로 확인하세요.</p>
-            ) : null}
             {informationalSignals.map((signal) => (
               <p key={signal.key}>{signal.title} {signal.detail}</p>
             ))}
@@ -367,9 +364,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <p className="overview-muted overview-ownership-note">
                   {noMainModel
                     ? '이 배포에는 메인 모델이 없으며 Risk 등 기본 기능만 제공합니다.'
-                    : managedCpuWithoutController
-                      ? 'CPU Runtime은 플랫폼 Compose가 관리합니다. 실제 준비 상태는 서버의 make status로 확인하세요.'
-                      : '이 실행 환경에서는 Control Plane이 메인 모델 전환을 수행하지 않습니다.'}
+                    : '이 실행 환경에서는 Control Plane이 메인 모델 전환을 수행하지 않습니다.'}
                 </p>
               </>
             ) : mainModelQuery.isPending ? (
@@ -409,9 +404,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
                 <p className="overview-muted overview-ownership-note">
                   {noMainModel
                     ? '메인 모델 Runtime은 구성되지 않았습니다. 기본 서비스는 별도로 실행됩니다.'
-                    : managedCpuWithoutController
-                      ? 'CPU 모델의 시작·중지는 플랫폼 Compose가 담당하며 이 화면에서 직접 조작할 수 없습니다.'
-                      : '이 실행 환경에서는 런타임 시작·중지와 GPU 실행 가능성 판단을 외부 구성요소가 관리합니다.'}
+                    : '이 실행 환경에서는 런타임 시작·중지와 GPU 실행 가능성 판단을 외부 구성요소가 관리합니다.'}
                 </p>
               </>
             ) : runtimesQuery.isPending ? (
