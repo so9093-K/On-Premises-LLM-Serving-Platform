@@ -21,6 +21,7 @@ from ...api_examples import (
     main_model_runtime_engine_example,
 )
 from ...errors import ServiceError
+from ...openapi_contracts import load_contract_schema
 from ...services.runtime_controller_client import (
     RuntimeControllerClient,
     RuntimeControllerRequestError,
@@ -300,34 +301,7 @@ def build_router(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["profile"],
-                            "properties": {
-                                "profile": {
-                                    "type": "string",
-                                    "description": "configs/main_model_profiles.yaml의 profile ID",
-                                },
-                                "confirm_unverified": {"type": "boolean", "default": False},
-                                "server_limits": {
-                                    "type": "object",
-                                    "additionalProperties": False,
-                                    "description": "Runtime Controller가 관리하는 모델의 서버 문맥/최대 출력 한도. 엔진과 Gateway에 함께 적용되며 확인 및 재시작이 필요합니다.",
-                                    "required": ["context_tokens", "max_output_tokens"],
-                                    "properties": {
-                                        "context_tokens": {"type": "integer", "minimum": 1},
-                                        "max_output_tokens": {"type": "integer", "minimum": 1},
-                                    },
-                                },
-                                "execution_policy": {"type": "string", "enum": list(EXECUTION_POLICIES)},
-                                "request_id": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 128,
-                                },
-                            },
-                        },
+                        "schema": load_contract_schema("main_model_switch_request.schema.json"),
                         "examples": _switch_examples(settings.main_model_profile_summaries),
                     }
                 },
@@ -336,7 +310,7 @@ def build_router(
     )
     async def switch_main_model(request: Request) -> JSONResponse:
         payload = await request.json()
-        if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str):
+        if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str) or not payload["profile"]:
             raise ServiceError("VALIDATION_ERROR", "profile is required", param="profile")
         unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy", "server_limits"}
         if unknown:
@@ -345,6 +319,16 @@ def build_router(
                 f"unsupported fields: {sorted(unknown)}",
                 param=sorted(unknown)[0],
             )
+        if "confirm_unverified" in payload and type(payload["confirm_unverified"]) is not bool:
+            raise ServiceError("VALIDATION_ERROR", "confirm_unverified must be a boolean", param="confirm_unverified")
+        if "request_id" in payload:
+            request_id = payload["request_id"]
+            if (
+                not isinstance(request_id, str)
+                or not 1 <= len(request_id) <= 128
+                or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-" for ch in request_id)
+            ):
+                raise ServiceError("VALIDATION_ERROR", "invalid request_id", param="request_id")
         if "server_limits" in payload:
             limits = payload["server_limits"]
             if (

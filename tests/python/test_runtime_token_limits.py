@@ -318,3 +318,19 @@ def test_idempotent_retry_of_failed_limits_does_not_recreate_orphan(tmp_path: Pa
         assert not store.read().get("runtime_limit_profiles")
         await manager.aclose()
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("request_id", [0, False, [], {}, "invalid id", ""])
+def test_invalid_request_id_is_rejected_without_starting_operation(tmp_path: Path, request_id):
+    store = MainModelStateStore(tmp_path / "invalid-request-id.json", "cpu-gguf-text")
+    manager = MainModelManager(cpu_catalog(), store, FakeBackend("cpu-gguf-text"))
+    with pytest.raises(MainModelSwitchError) as error:
+        manager.request_limit_switch(
+            "cpu-gguf-text", context_tokens=8192, max_output_tokens=2048,
+            confirm_unverified=True, execution_policy="cpu",
+            client_request_id=request_id,
+        )
+    assert error.value.status_code == 422
+    assert not store.read().get("operations")
+    assert not store.read().get("runtime_limit_profiles")
+    assert not any(key.startswith("limits-") for key in manager.catalog.profiles)

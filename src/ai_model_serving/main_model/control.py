@@ -724,8 +724,9 @@ class MainModelManager:
                 "the selected model is not qualified as verified; explicit confirmation is required",
                 status_code=409,
             )
-        if client_request_id is not None and not _CLIENT_REQUEST_RE.fullmatch(
-            client_request_id
+        if client_request_id is not None and (
+            not isinstance(client_request_id, str)
+            or not _CLIENT_REQUEST_RE.fullmatch(client_request_id)
         ):
             raise MainModelSwitchError(
                 "INVALID_SWITCH_REQUEST_ID",

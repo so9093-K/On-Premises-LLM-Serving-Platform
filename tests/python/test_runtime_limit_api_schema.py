@@ -36,3 +36,11 @@ def test_controller_managed_responses_schema_does_not_publish_stale_output_ceili
         allows_runtime_limit_edit=True,
     )
     assert "maximum" not in schema["properties"]["max_output_tokens"]
+
+
+def test_main_model_switch_request_schema_is_single_source_of_truth():
+    schema = load_contract_schema("main_model_switch_request.schema.json")
+    limits = schema["properties"]["server_limits"]
+    assert limits["additionalProperties"] is False
+    assert set(limits["required"]) == {"context_tokens", "max_output_tokens"}
+    assert schema["properties"]["request_id"]["pattern"] == "^[A-Za-z0-9._:-]+$"
