@@ -18,7 +18,7 @@ make down
 이후 재기동은 `make up`만 사용한다. project-local state 초기화는 `make reset`,
 비싼 project-owned image/model cache와 volume까지 폐기할 때만 `make purge`를 사용한다.
 
-이 디렉터리의 세부 script는 public command의 구현, 장애 evidence 수집, release,
+이 디렉터리의 세부 script는 public command의 구현, 장애 진단, release,
 변경 범위별 검증을 위해 존재한다. script가 존재한다는 이유만으로 operator command를
 추가하지 않는다.
 
@@ -54,7 +54,7 @@ make down
 | `platform_cli.py` | `up/status/down`의 target-aware operator lifecycle을 소유하고 setup/build/cache/readiness 세부 단계를 implementation script에 위임한다. |
 | `build/setup_dev.py` | Platform `uv.lock`에서 개발용 `.venv`를 동기화한다. 기존 환경이 손상됐거나 Python minor가 다르면 자동 삭제하지 않는다. |
 | `build/check_dev_environment.py` | Python 정책과 운영 shell helper에 필요한 Bash 4 이상을 진단한다. |
-| `build/build_platform_image.sh` | Platform 실행 이미지를 생성하고 소스 내용 해시·상태·target platform·Git 출처를 이미지에 기록한다. 별도의 이미지 Smoke 실행은 요구하지 않는다. |
+| `build/build_platform_image.sh` | Platform 실행 이미지를 생성하고 소스 내용 해시·상태·target platform·Git 출처를 이미지에 기록한다. 이미지 HTTP 확인은 별도의 `make image-smoke`가 수행한다. |
 | `build/smoke_platform_image.sh` | 생성된 이미지의 app 초기화와 실제 Gateway·Console·Docs HTTP 기능을 독립적으로 검증한다. |
 | `build/build_vllm_unified_image.sh` | Unified vLLM Docker build 경로다. `vllm_unified_build.yaml`의 target/base/pin을 사용하며 native Linux amd64 Docker daemon만 허용한다. |
 | `config/setup_env.py` | `.env`를 생성·동기화하고 target이 소유한 Main profile·endpoint를 투영한다. 기존 인증·노출·image 값은 재생성하지 않는다. |

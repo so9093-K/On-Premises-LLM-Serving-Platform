@@ -50,7 +50,7 @@ Runtime 적용 / 배포
 7. 배포 및 Runtime 확인
 ```
 
-애플리케이션 내부 변경은 app-only와 Platform Image 검증이 중심이 된다. 모델 Runtime, Compose, GPU, vLLM 실행 환경에 영향을 주는 변경은 full-stack과 Runtime 검증까지 이어진다.
+애플리케이션 내부 변경은 기본 품질 검사와 Platform Image 빌드·Smoke로 확인한다. 모델 Runtime, Compose, GPU, vLLM 실행 환경에 영향을 주는 변경은 실제 대상의 기동·Readiness와 변경 범위의 수동 확인을 별도로 수행한다. 기본 품질 CLI가 전체 Runtime 검증을 대신하지는 않는다.
 
 ---
 
@@ -63,9 +63,9 @@ Runtime 적용 / 배포
 | 모델 정책·제한값 | `configs/model_serving.yaml` | Gateway + 모델 정책 | 생성 파일 + 정적 검증 |
 | Main Model Profile | `configs/main_model_profiles.yaml` | Main Model Runtime | Profile + 모델 전환 검증 |
 | 모델 추가·제거 | Model Registry 관련 설정 | API 목록, Runtime, 모니터링 | `make validate` + full-stack |
-| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | `make validate` + Unified Image + bounded Runtime 검증 |
+| Unified vLLM | Dockerfile, patch, build 설정 | vLLM Runtime | Unified Image 빌드 + 대상 기동·Readiness·실제 추론 확인 |
 | 서비스 / 포트 | `configs/services.yaml` | Compose, 노출, 모니터링 | 생성 파일 + Compose 확인 |
-| 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | `make validate` + effective Compose |
+| 네트워크 / 노출 | Access Profile, `services.yaml`, Compose | Host bind와 공개 service boundary | effective Compose + 실제 host bind 확인 |
 | 모니터링 | `configs/monitoring.yaml`, `ops/` | Metrics, Logs, Dashboard | 생성 파일 + Dashboard 확인 |
 | 자동화 경계 | `.github/workflows/`, `scripts/platform_cli.py`, `scripts/build/`, `scripts/ops/`, `scripts/quality_cli.py` | GitHub 품질 검증 명령과 provider-neutral build·local lifecycle | `make check` + 변경한 진입점 확인 |
 
@@ -512,7 +512,7 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 | Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |
 | Unified vLLM | Unified Image Build | `make up`, `make smoke` | Runtime Image / Full |
 | Compose / Exposure | `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
-| 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
+| 모니터링 | 생성 파일 Drift 확인 | Dashboard + 실제 Metrics·Logs 확인 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
 
 전체 application 품질 gate와 선택 target convergence:
