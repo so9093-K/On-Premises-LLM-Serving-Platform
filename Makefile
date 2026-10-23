@@ -13,8 +13,8 @@ AUTH_ENV ?= $(if $(ENV_FILE),$(ENV_FILE),$(ENV))
 AUTH_ENV_ARG = $(if $(AUTH_ENV),--env $(AUTH_ENV),)
 
 
-.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image image-smoke smoke build-vllm-unified-image lock runtime-validate auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
-.PHONY: setup-dev doctor-dev cpu-runtime-validate
+.PHONY: help up status down check app-check init-env-local metal-doctor metal-command metal-start metal-supervisor-install metal-supervisor-uninstall validate test build-image image-smoke smoke build-vllm-unified-image lock auth-status auth-doctor auth-plan auth-apply main-model-prepare logs reset reset-version render-runtime-assets fetch-docs-assets console-build console-check purge
+.PHONY: setup-dev doctor-dev setup-test-runners browser-test
 
 PUBLIC_TARGETS := up status ports down logs reset purge
 QUALITY_TARGETS := check smoke image-smoke
@@ -44,13 +44,18 @@ reset: ## 로컬 설정·runtime state 초기화 plan (적용: CONFIRM=reset)
 
 purge: ## project cache/artifact 삭제 plan (SCOPE=cache|all, 적용: CONFIRM=purge)
 	@bash scripts/ops/purge_all.sh --scope "$(or $(SCOPE),all)" $(if $(filter purge,$(CONFIRM)),--confirm purge,)
-app-check: ## Python application·config·contract 검증
+app-check: ## Python 기본 품질 실행
 	$(MAKE) validate
 	$(MAKE) test
 
-check: ## repository 전체 application·Control Plane 검증
-	$(MAKE) app-check
-	$(MAKE) console-check
+check: ## 공통 CLI 전체 기본 품질 실행
+	@"$(PYTHON)" scripts/quality_cli.py check
+
+setup-test-runners: ## Vitest·Playwright 테스트 도구 준비
+	@bash scripts/quality/setup_runners.sh
+
+browser-test: ## Playwright Chromium 실행
+	@"$(PYTHON)" scripts/quality_cli.py run browser
 
 setup-dev: ## Platform 개발용 .venv 준비 (Docker·GPU·.env 불필요)
 	"$(PYTHON)" scripts/build/setup_dev.py
@@ -77,9 +82,6 @@ help:
 init-env-local: ## 로컬 app-only .env 생성
 	$(PYTHON) scripts/config/setup_env.py --profile local
 
-cpu-runtime-validate: ## 실제 관리형 CPU llama.cpp 모델 신원·Chat·Streaming 검증
-	@"$(PYTHON)" scripts/validation/smoke_cpu_runtime.py $(if $(BASE_URL),--base-url "$(BASE_URL)",)
-
 metal-doctor: ## Apple Silicon과 고정 MLX runtime 설정 확인
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py doctor
 
@@ -95,11 +97,11 @@ metal-supervisor-install: ## launchd가 MLX runtime을 재기동하도록 등록
 metal-supervisor-uninstall: ## launchd 등록 해제 후 project 소유 기동으로 복귀
 	$(PYTHON) scripts/runtime/macos_mlx_runtime.py uninstall-supervisor
 
-validate: ## 정적 계약·설정·생성물 drift 검증
-	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/run_validate.sh
+validate: ## Ruff 및 생성 산출물 Drift 확인
+	@"$(PYTHON)" scripts/quality_cli.py validate
 
-test: ## 결정론적 unit·contract 테스트
-	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/run_test.sh
+test: ## pytest Native Runner
+	@"$(PYTHON)" scripts/quality_cli.py run python
 
 build-image: ## 로컬 Docker Platform 이미지 생성 (실제 HTTP 검증은 별도 image-smoke)
 	bash scripts/build/build_platform_image.sh
@@ -116,9 +118,6 @@ build-vllm-unified-image: ## native linux/amd64 Docker의 NVIDIA vLLM image buil
 lock: ## Platform과 MLX dependency lock 갱신 (암묵적 전체 upgrade 없음)
 	$(UV) lock
 	$(UV) lock --project runtimes/mlx
-
-runtime-validate: ## 실제 서비스·GPU 검증
-	@PYTHON_BIN="$(PYTHON)" bash scripts/validation/runtime_validate_compose.sh
 
 auth-status: ## 현재 public/admin/internal 인증 상태
 	$(PYTHON) scripts/auth/auth_status.py $(AUTH_ENV_ARG)
@@ -154,9 +153,9 @@ console-build: ## Control Plane frontend 의존성 설치 후 checked-in runtime
 	npm --prefix ui/control-plane ci
 	npm --prefix ui/control-plane run build
 
-console-check: ## Control Plane type/API/generated asset drift 검증
-	npm --prefix ui/control-plane ci
-	npm --prefix ui/control-plane run check
+console-check: ## Vitest·Control Plane 소스 검사
+	@"$(PYTHON)" scripts/quality_cli.py run frontend
+	@npm --prefix ui/control-plane run check:source
 
 .PHONY: ports
 ports: ## BASE=<대역> 포트 대역 변경 (.env만 변경, 적용은 make up, PLAN=1은 확인만)

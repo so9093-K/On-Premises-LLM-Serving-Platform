@@ -63,14 +63,11 @@ extend-exclude = ["src/ai_model_serving/static", "ui", "runtimes"]
 select = ["F", "E9", "PLE"]
 
 [tool.ruff.lint.per-file-ignores]
-# Gateway 테스트는 helpers.py의 공용 fixture를 star import로 공유한다.
-"tests/unit/gateway/**" = ["F403", "F405"]
-"tests/unit/gateway/helpers.py" = ["F401"]
 # vLLM image build 입력이다. byte가 바뀌면 image를 다시 qualification해야 한다.
 "ops/patches/**" = ["F401"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit", "tests/contract"]
+testpaths = ["tests/python"]
 python_files = ["test_*.py"]
 pythonpath = ["src", "."]
 addopts = "-p no:cacheprovider -p no:ddtrace -p no:asyncio --strict-markers"

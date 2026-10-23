@@ -295,7 +295,7 @@ Face 환경에서 profile config를 확인하고 실제 모델 전환 흐름은 
 `verified`는 model ID·immutable revision·`deployed_input` 조합에 대한 선언이다. 이 셋 중 하나가
 바뀌면 `unverified`로 되돌리고 다시 검증한다. GPU 제품·driver 변경, resource policy override,
 재기동이나 시간 경과, runtime image digest 변경만으로는 되돌리지 않는다. 그런 변화는
-compatibility/resource admission과 `make runtime-validate`로 확인한다.
+compatibility/resource admission과 `make smoke`로 확인한다.
 
 ---
 
@@ -512,7 +512,7 @@ GitHub app/contract workflow 변경 때문에 GPU 배포 회귀를 반복하지 
 | API / Schema | `make validate`, `make test` | app-only 또는 full-stack | Platform Image |
 | 일반 Config | `make validate` + 생성기 입력일 때만 생성 파일 갱신 | 영향 서비스 확인 | 변경 내용 기준 |
 | Main Model Profile | config/profile 검증 | Main Model prepare/switch + `make status` | Main Model / Full 가능 |
-| Unified vLLM | Unified Image Build | `make up`, `make runtime-validate` | Runtime Image / Full |
+| Unified vLLM | Unified Image Build | `make up`, `make smoke` | Runtime Image / Full |
 | Compose / Exposure | `make validate`, `bash scripts/compose/compose_config.sh` | `make up` | Compose / Full 가능 |
 | 모니터링 | 생성 파일 + `make validate` | Dashboard + Runtime 검증 | Monitoring 적용 |
 | 자동화 진입점 | `make validate` + 관련 명령 | Workflow 또는 로컬 실행 | 변경한 경계만 확인 |
@@ -559,7 +559,7 @@ make runtime-validate
 - 제거된 persistent env 키를 Preflight 오류 안내에 다시 권장하지 않는다. `configs/env_contract.yaml:removed_keys`는 이행용 입력이며 활성 설정이 아니다.
 - Source of Truth 설정이 생성기 입력이라면 생성 artifact를 갱신하고 `make validate`로 drift를 확인한다. 그렇지 않다면 해당 설정의 consumer와 영향 범위만 확인한다.
 - 일반 application 변경은 `make validate`, `make test`와 영향 범위의 app-only 또는 full-stack 확인을 한다.
-- vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make runtime-validate`까지 연결한다.
+- vLLM image 입력 변경은 Unified derived image build 후 `make up`, `make smoke`까지 연결한다.
 
 ---
 
