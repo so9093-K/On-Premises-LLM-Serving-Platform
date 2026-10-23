@@ -461,7 +461,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         main_model_catalog.profiles[selected_main_profile].gateway_policy
         if main_model_catalog is not None else {}
     )
-    if (deployment_target.static_serving or deployment_target.adaptive) and "max_concurrency" in selected_gateway_policy:
+    if deployment_target.static_serving and "max_concurrency" in selected_gateway_policy:
         max_concurrency = int(selected_gateway_policy["max_concurrency"])
         if max_concurrency < 1:
             raise RuntimeError("static main profile max_concurrency must be at least 1")
@@ -469,9 +469,6 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
             runtime_endpoints["main_llm"], max_concurrency=max_concurrency
         )
     main_presentation = {}
-    if deployment_target.control_mode == "managed_cpu":
-        artifact = load_yaml_mapping(project_root / "configs/cpu_model_artifact.yaml")["model"]
-        main_presentation = {"display_name": f"{artifact['repo_id'].rsplit('/', 1)[-1]}", "upstream_model_id": artifact["repo_id"]}
     profile_summaries = []
     if deployment_target.supports("model_switching"):
         for profile in main_model_catalog.profiles.values():
@@ -573,11 +570,7 @@ def load_settings(root: Path | None = None, env_file: Path | str | None = None) 
         runtime_endpoints=runtime_endpoints,
         required_runtime_keys=required_runtime_keys,
         runtime_service_ids={
-            key: (
-                "cpu_main_llama"
-                if key == "main_llm" and deployment_target.control_mode == "managed_cpu"
-                else binding.service_id
-            )
+            key: binding.service_id
             for key, binding in runtime_topology.bindings_by_key.items()
         },
         runtime_topology_status=runtime_topology_status,

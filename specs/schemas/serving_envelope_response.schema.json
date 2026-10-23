@@ -31,7 +31,7 @@
     },
     "control_mode": {
       "type": "string",
-      "enum": ["runtime_controller", "static", "managed_cpu"]
+      "enum": ["runtime_controller", "static"]
     },
     "profile": {
       "type": "object",

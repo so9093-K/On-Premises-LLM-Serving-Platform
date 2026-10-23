@@ -154,7 +154,7 @@ def sync_deployment_target(
             raise
         projected = deployment_target_values(target_id)
 
-    if previous_target and previous_target != target_id and (target.controllable or target.control_mode == "managed_cpu"):
+    if previous_target and previous_target != target_id and target.controllable:
         existing["MAIN_MODEL_BASE_URL"] = projected["MAIN_MODEL_BASE_URL"]
     existing["DEPLOYMENT_TARGET"] = target_id
     existing[profile_key] = projected[profile_key]

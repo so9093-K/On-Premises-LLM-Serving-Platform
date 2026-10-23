@@ -117,7 +117,7 @@ def _target(explicit: str | None, *, require_env: bool = True) -> DeploymentTarg
         explicit = candidate[0]
         print(f"[platform] initial target: {explicit} ({candidate[1]})")
     if explicit and configured and explicit != configured:
-        managed = {"linux-nvidia-dynamic", "linux-adaptive", "linux-cpu-managed", "linux-core"}
+        managed = {"linux-nvidia-dynamic", "linux-core"}
         if explicit not in managed or configured not in managed:
             raise RuntimeError("target ownership changes require a separate deployment directory")
         from scripts.ops.compose_ownership import owned_container_ids
@@ -539,9 +539,6 @@ def prepare_target(target: DeploymentTarget) -> None:
             "scripts/runtime/macos_mlx_runtime.py",
             "prepare",
         )
-    elif target.control_mode == "managed_cpu":
-        _run_step("Preparing pinned CPU GGUF model",
-            sys.executable, "scripts/models/prepare_cpu_model.py")
     elif target.controllable:
         from ai_model_serving.main_model.boot import render_boot_override
         profile, _ = render_boot_override(
@@ -572,50 +569,12 @@ def _static_compose(target: DeploymentTarget, label: str, *arguments: str) -> No
 
 def start_core(target: DeploymentTarget) -> None:
     """모델 Artifact 준비 전에 운영 화면과 로컬 Risk 경로를 기동한다."""
-    if target.static_serving or target.adaptive:
+    if target.static_serving:
         _static_compose(target, "Starting Core services", "up", "-d", "--no-deps", "risk-signal-service", "gateway")
     else:
         _run_step("Starting Core services", "bash", "scripts/compose/compose_up.sh", "--core-only")
     url = _wait_for_gateway(_env_values(), "/health")
     print(f"[platform] Core available: {url}; model readiness is checked separately")
-
-
-def up_adaptive_target(target: DeploymentTarget) -> None:
-    """Compose는 최초 템플릿만 생성하고 이후 Main 교체는 Controller가 소유한다."""
-    # ps는 created/exited 컨테이너도 포함한다. 재실행으로 서빙 중인 GPU를 CPU로 덮어쓰지 않는다.
-    values = _env_values()
-    project = os.environ.get("STATIC_COMPOSE_PROJECT_NAME", "ai-model-serving-static")
-    existing = subprocess.run([
-        "docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}",
-        "--filter", "label=com.docker.compose.service=main-llm-vllm",
-    ], cwd=ROOT, check=True, text=True, capture_output=True)
-    if not existing.stdout.strip():
-        _static_compose(target, "Creating CPU runtime template", "create", "main-llm-vllm")
-    _static_compose(target, "Starting automatic runtime control", "up", "-d", "--no-deps", "runtime-controller")
-    if read_host_resource_snapshot().gpus:
-        try:
-            # GPU 이미지 준비 실패는 CPU 서빙과 Core 생존의 실패로 전파하지 않는다.
-            ensure_target_artifacts(target, include_platform=False)
-            _static_compose(target, "Loading GPU artifact policy", "up", "-d", "--no-deps", "runtime-controller")
-            _static_compose(target, "Starting GPU resource observation", "--profile", "gpu-observation", "up", "-d", "--no-deps", "resource-observer")
-        except (OSError, RuntimeError, subprocess.CalledProcessError):
-            print("[platform] GPU preparation unavailable; Core and CPU runtime control remain running")
-    values = _env_values()
-    deadline = time.monotonic() + 300
-    while True:
-        code, model = _gateway_json(values, "/admin/main-model", admin=True)
-        if code == 200 and model and model.get("runtime_state") == "stopped":
-            print("[platform] Core available; Main is explicitly stopped. Resume it from the Console Runtime page.")
-            _print_next_steps(values)
-            return
-        url, ready = _gateway_probe(values, "/ready")
-        if ready:
-            break
-        if time.monotonic() >= deadline:
-            raise _readiness_timeout(values)
-        time.sleep(1)
-    print(f"[platform] ready: target={target.target_id} gateway={url}")
-    _print_next_steps(values)
 
 
 def managed_execution_policy(values: dict[str, str]) -> str:
@@ -690,7 +649,7 @@ def up_target(target: DeploymentTarget) -> None:
             _run_step("Verifying serving readiness", "bash", "scripts/ops/ready_full.sh")
         url = _wait_for_gateway(
             values, "/ready",
-            timeout=180 if target.control_mode == "managed_cpu" else 60,
+            timeout=60,
         )
     except (OSError, RuntimeError, subprocess.CalledProcessError):
         if metal_started_here:
@@ -772,12 +731,9 @@ def reconcile_up_target(
     values = _env_values()
     _assert_host_ports_available(values)
     if values.get("BUILD_PROFILE") != "local":
-        if target.controllable or target.control_mode == "managed_cpu":
+        if target.controllable:
             ensure_target_artifacts(target, include_runtime=False)
             start_core(target)
-            if target.adaptive:
-                up_adaptive_target(target)
-                return
             if target.target_id == "linux-nvidia-dynamic":
                 policy = managed_execution_policy(values)
                 labels = {"fallback": "GPU 우선 · CPU 복구 · GPU 복귀는 수동", "automatic": "CPU/GPU 자동 전환", "cpu": "CPU 고정", "gpu": "GPU 고정 · CPU 자동 복구 없음"}

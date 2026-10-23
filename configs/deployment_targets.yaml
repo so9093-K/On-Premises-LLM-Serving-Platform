@@ -2,31 +2,6 @@ version: 1
 default_target: linux-nvidia-dynamic
 
 targets:
-  linux-adaptive:
-    display_name: Linux — 기존 자동 CPU/GPU Main Runtime (호환 배포)
-    platform: linux
-    runtime_backend: adaptive
-    runs_monitoring_stack: false
-    main_profile_catalog: configs/adaptive_main_model_profiles.yaml
-    control_mode: runtime_controller
-    lifecycle_owner: platform
-    internal_service_token_required: true
-    implementation_status: implemented
-    qualification_status: unverified
-    compose_files:
-      - ops/compose/static-main.external-runtime.yaml
-      - ops/compose/overrides/static.local-risk.yaml
-      - ops/compose/overrides/adaptive.main.yaml
-    features:
-      chat: true
-      embeddings: false
-      retrieval: false
-      risk: true
-      prompt_detection: false
-      runtime_control: true
-      model_switching: true
-      gpu_admission: true
-
   linux-core:
     display_name: Linux — Core Services (No Model Runtime)
     platform: linux
@@ -65,32 +40,6 @@ targets:
     compose_files:
       - ops/compose/static-main.external-runtime.yaml
       - ops/compose/overrides/static.local-risk.yaml
-    features:
-      chat: true
-      embeddings: false
-      retrieval: false
-      risk: true
-      prompt_detection: false
-      runtime_control: false
-      model_switching: false
-      gpu_admission: false
-
-  linux-cpu-managed:
-    display_name: Linux — 기존 Compose 관리형 CPU Runtime (호환 배포)
-    platform: linux
-    runtime_backend: llama-cpp
-    runs_monitoring_stack: false
-    main_profile_catalog: configs/cpu_main_model_profiles.yaml
-    control_mode: managed_cpu
-    lifecycle_owner: platform
-    internal_service_token_required: true
-    implementation_status: implemented
-    qualification_status: unverified
-    gateway_runtime_host: cpu-main
-    compose_files:
-      - ops/compose/static-main.external-runtime.yaml
-      - ops/compose/overrides/static.local-risk.yaml
-      - ops/compose/overrides/managed.cpu-main.yaml
     features:
       chat: true
       embeddings: false
