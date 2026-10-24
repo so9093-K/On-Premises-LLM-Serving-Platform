@@ -2269,18 +2269,38 @@ a.overview-action-tile:hover {
   border-top: 1px solid var(--console-border);
   padding: 0.75rem 0 0.5rem;
 }
+/* 높이는 ChatPage가 내용에 맞춰 정한다. 짧은 화면에서는 대화 영역을 남기도록 더 일찍 멈춘다. */
 .chat-composer textarea {
   height: 4.5rem;
   min-height: 4.5rem;
-  max-height: 10rem;
-  resize: vertical;
+  max-height: min(10rem, 18dvh);
+  resize: none;
+}
+.chat-composer-tools .chat-applied-example {
+  min-width: 0;
+  margin-left: auto;
+  padding: 0.125rem 0.25rem 0.125rem 0.5rem;
+}
+.chat-empty-state {
+  margin: auto;
+  padding: 1rem;
+  color: var(--console-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
 }
 /* 넓은 화면에서는 첨부와 보내기를 한 줄에 두어 짧은 화면에서도 대화 영역을 남긴다. */
 @media (min-width: 601px) {
   .chat-composer { grid-template-columns: minmax(0, 1fr) auto; column-gap: 1rem; }
   .chat-composer > * { grid-column: 1 / -1; }
-  .chat-composer > .chat-composer-tools { grid-column: 1; }
-  .chat-composer > .chat-composer-actions { grid-column: 2; }
+  .chat-composer > .chat-composer-tools { grid-column: 1; flex-wrap: nowrap; min-width: 0; }
+  /* 도구 줄 내용이 바뀌어도 보내기 버튼 위치는 움직이지 않는다. */
+  .chat-composer > .chat-composer-actions { grid-column: 2; align-self: end; }
+  .chat-composer-tools .chat-attachment-input { flex: 0 0 auto; }
+  .chat-composer-tools .chat-applied-example span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 @media (max-width: 980px) {
   /* 좁은 폭에서는 모델 정보가 줄바꿈되어 위쪽 영역이 더 높다. */
@@ -2299,7 +2319,8 @@ a.overview-action-tile:hover {
 @media (max-width: 600px) {
   /* 모바일은 탐색 메뉴가 위에 쌓여 페이지가 어차피 스크롤된다. 대화 영역까지 내려오면 화면을 채운다. */
   .chat-main { height: clamp(26rem, calc(100dvh - 8rem), 45rem); }
-  .chat-composer { max-height: min(42dvh, 20rem); }
+  /* 한 열 입력 영역은 첨부·설정·보내기가 쌓여 높다. 보내기 버튼이 내부 스크롤에 가리지 않게 한다. */
+  .chat-composer { max-height: min(60dvh, 30rem); }
   .chat-scroll-region { scrollbar-gutter: auto; }
 }
 
