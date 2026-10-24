@@ -62,7 +62,8 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
 }
 
 // 배포가 제공하지 않는 기능은 숨기지 않고 무엇인지·왜 없는지·어떻게 쓸 수 있는지 안내한다.
-// 요청을 보내는 화면은 열지 않는다.
+// Embedding은 실제 화면을 미리보기로 보여 준다. 모델 정보가 있어야 그릴 수 있는 Chat(모델 없는 Core)은
+// 이 안내만 보여 준다. 어느 쪽도 요청을 보내지 않는다.
 function UnavailableWorkspace({ workspace }: { workspace: PlaygroundWorkspace }) {
   const headingId = `playground-unavailable-${workspace.path}`;
   return (
@@ -146,7 +147,9 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
           <Route key={workspace.path} path={workspace.path} element={elements[workspace.path]} />
         ))}
         {unavailable.map((workspace) => (
-          <Route key={workspace.path} path={workspace.path} element={<UnavailableWorkspace workspace={workspace} />} />
+          <Route key={workspace.path} path={workspace.path} element={workspace.path === 'embeddings'
+            ? <EmbeddingPlayground features={features} preview />
+            : <UnavailableWorkspace workspace={workspace} />} />
         ))}
         {workspaces.length > 0 ? (
           <Route path="*" element={<Navigate to={playgroundPath(workspaces[0].path)} replace />} />

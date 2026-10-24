@@ -49,7 +49,7 @@ Core는 메인 모델을 제공하지 않으므로 '모델 없음'으로 표시�
 
 ## 3. Playground
 
-Playground는 기능별 화면(**Chat** · **Embedding** · **Risk**)을 탭으로 보여 줍니다. 현재 배포가 제공하지 않는 화면은 **미제공** 탭으로 표시되며, 선택하면 기능 설명과 미제공 이유를 안내하고 요청은 보내지 않습니다. 모델이 없는 `linux-core`에서도 **Risk** 화면으로 PII·Secret 탐지를 확인할 수 있습니다. Chat이 필요하면 Host 운영자가 모델 Runtime을 제공하는 배포 환경을 구성해야 합니다. 사용자 API Key는 세 화면이 함께 사용하며 탭 메모리에만 유지됩니다. **API 키 지우기**는 Chat 대화뿐 아니라 현재 Embedding·Retrieval·Risk 입력·결과에도 영향을 주므로 확인 후 삭제합니다.
+Playground는 기능별 화면(**Chat** · **Embedding** · **Risk**)을 탭으로 보여 줍니다. 현재 배포가 제공하지 않는 화면은 **미제공** 탭으로 표시됩니다. Embedding은 실제 화면 구성과 입력 방식을 미리 볼 수 있고 모델 선택·실행만 막히며, 모델이 없는 배포의 Chat은 미제공 이유와 다음 행동을 안내합니다. 미제공 화면은 요청을 보내지 않습니다. 모델이 없는 `linux-core`에서도 **Risk** 화면으로 PII·Secret 탐지를 확인할 수 있습니다. Chat이 필요하면 Host 운영자가 모델 Runtime을 제공하는 배포 환경을 구성해야 합니다. 사용자 API Key는 세 화면이 함께 사용하며 탭 메모리에만 유지됩니다. **API 키 지우기**는 Chat 대화뿐 아니라 현재 Embedding·Retrieval·Risk 입력·결과에도 영향을 주므로 확인 후 삭제합니다.
 
 ### Chat
 
@@ -74,7 +74,7 @@ Chat은 새 대화에서 예제 갤러리를 기본으로 보여 줍니다. 이�
 
 ### Embedding
 
-`linux-nvidia-dynamic`처럼 Embedding Runtime을 제공하는 배포에서 사용할 수 있습니다. 다른 배포에서는 **미제공** 탭으로 표시됩니다.
+`linux-nvidia-dynamic`처럼 Embedding Runtime을 제공하는 배포에서 사용할 수 있습니다. 다른 배포에서는 **미제공** 탭에서 텍스트 변환·두 문장 유사도·문서 관련도 순위 화면을 미리 볼 수 있지만 요청은 보내지 않습니다.
 
 1. Embedding 모델과 벡터 차원을 확인합니다.
 2. **텍스트 변환**으로 벡터를 만들거나, **두 문장 유사도**로 두 문장을 한 요청에서 변환해 cosine similarity를 확인합니다.
