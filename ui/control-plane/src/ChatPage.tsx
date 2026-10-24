@@ -2,7 +2,7 @@ import { modelRuntimeLabel, modelServingNotice } from './uiText';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Spinner } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
-import { conversationEndNearViewport, followScrollTop } from './chatScroll';
+import { conversationEndNearViewport } from './chatScroll';
 
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { useChatSession } from './ChatSessionContext';
@@ -199,12 +199,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       region.scrollTop = 0;
       return;
     }
-    if (!followRef.current) return;
-    const details = region.querySelector<HTMLElement>('.chat-log > li:last-child :is(.chat-facts, .chat-result-links)');
-    const detailsTop = details
-      ? details.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop
-      : null;
-    region.scrollTop = followScrollTop(detailsTop, region.scrollHeight, region.clientHeight);
+    // 답변 아래 지표·요청 정보는 말풍선 밖의 작은 메타 줄이라 끝까지 따라가도 답변을 가리지 않는다.
+    if (followRef.current) region.scrollTop = region.scrollHeight;
   }, [exchanges, showExamples]);
 
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -482,6 +478,9 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
 
       {model !== null ? (
         <>
+          <div className="chat-layout">
+            {/* 모델 정보·대화·입력을 하나의 대화창으로 묶는다. 모델 정보는 창의 머리글이다. */}
+            <div className="chat-main">
           <div className="chat-model-bar">
             <div className="chat-model-selection">
               {models.length > 1 ? (
@@ -516,8 +515,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               </div>
             ) : null}
           </div>
-          <div className="chat-layout">
-            <div className="chat-main">
             <div className="chat-scroll-region" ref={conversationScrollRef} onScroll={onConversationScroll} role="region" aria-label="대화와 시작 예제" tabIndex={0}>
             {showExamples ? (
               <PlaygroundExampleGallery
@@ -585,7 +582,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               <textarea
                 id="chat-input"
                 aria-label="메시지"
-                rows={3}
+                rows={1}
                 value={draft}
                 ref={composerRef}
                 disabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || pendingModelId !== null}
@@ -595,33 +592,24 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={onKeyDown}
               />
-              <div className="chat-composer-context" aria-label="현재 요청 설정">
-                {maxOutputControl ? (
-                  <label className="chat-quick-output" htmlFor="chat-request-max-tokens">
-                    <span>이번 요청의 최대 출력 토큰</span>
-                    <input id="chat-request-max-tokens" type="number" inputMode="numeric" step="1"
-                      min={maxOutputControl.minimum && !maxOutputControl.minimum.exclusive ? maxOutputControl.minimum.value : undefined}
-                      max={maxOutputControl.maximum && !maxOutputControl.maximum.exclusive ? maxOutputControl.maximum.value : undefined}
-                      value={session.settings.maxTokens}
-                      placeholder="모델 기본값"
-                      onChange={(event) => session.updateSettings({ maxTokens: event.currentTarget.value })}
-                    />
-                  </label>
-                ) : null}
-                <small>요청별 출력 제한입니다. 서버 문맥·출력 한도는 메인 모델 실행 설정에서 결정됩니다.</small>
-              </div>
+              {inputError ? <p className="form-error chat-composer-status" role="alert">{inputError}</p>
+                : exampleLoading ? <p className="chat-composer-status">예제 파일 준비 중…</p>
+                  : attachmentBusy ? <p className="chat-composer-status">첨부 파일 읽는 중…</p> : null}
+              {/* 입력바 도구 줄: 첨부 · 예제 표시 | 이번 요청 출력 한도 | 보내기 */}
               <div className="chat-composer-tools">
                 {attachmentAccept(model) ? (
                   <div className="chat-attachment-input">
-                    <label htmlFor="chat-attachments">파일 첨부</label>
+                    {/* 기본 파일 입력은 숨기고 label을 버튼처럼 쓴다. 선택한 파일은 위 첨부 목록이 보여준다. */}
                     <input
                       id="chat-attachments"
+                      className="sr-only"
                       type="file"
                       multiple
                       accept={attachmentAccept(model)}
                       disabled={busy || attachmentBusy || exampleLoading || pendingToolExchange !== null || pendingModelId !== null}
                       onChange={(event) => { void onAttachmentsSelected(event); }}
                     />
+                    <label htmlFor="chat-attachments"><span aria-hidden="true">＋</span> 파일 첨부</label>
                   </div>
                 ) : <small>현재 모델은 파일 입력을 광고하지 않습니다.</small>}
                 {/* 이미 있는 도구 줄에 둔다. 입력창 위에 새 줄로 생기면 입력 영역 경계가 위아래로 튄다. */}
@@ -633,10 +621,25 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                   </div>
                 ) : null}
               </div>
+              {maxOutputControl ? (
+                <div className="chat-composer-context">
+                  <label className="chat-quick-output" htmlFor="chat-request-max-tokens"
+                    title="요청별 출력 제한입니다. 서버 문맥·출력 한도는 메인 모델 실행 설정에서 결정됩니다.">
+                    <span aria-hidden="true">최대 출력</span>
+                    <input id="chat-request-max-tokens" type="number" inputMode="numeric" step="1"
+                      aria-label="이번 요청의 최대 출력 토큰"
+                      aria-describedby="chat-request-max-tokens-help"
+                      min={maxOutputControl.minimum && !maxOutputControl.minimum.exclusive ? maxOutputControl.minimum.value : undefined}
+                      max={maxOutputControl.maximum && !maxOutputControl.maximum.exclusive ? maxOutputControl.maximum.value : undefined}
+                      value={session.settings.maxTokens}
+                      placeholder="기본값"
+                      onChange={(event) => session.updateSettings({ maxTokens: event.currentTarget.value })}
+                    />
+                  </label>
+                  <span id="chat-request-max-tokens-help" className="sr-only">요청별 출력 제한입니다. 서버 문맥·출력 한도는 메인 모델 실행 설정에서 결정됩니다.</span>
+                </div>
+              ) : null}
               <div className="chat-composer-actions">
-                {inputError ? <p className="form-error" role="alert">{inputError}</p>
-                  : exampleLoading ? <span>예제 파일 준비 중…</span>
-                    : attachmentBusy ? <span>첨부 파일 읽는 중…</span> : <span />}
                 {busy ? (
                   <Button type="submit" variant="danger">중지</Button>
                 ) : (
