@@ -165,6 +165,24 @@ def _active_gateway_policy(main_model: dict[str, Any]) -> dict[str, Any] | None:
     return dict(policy) if isinstance(policy, dict) else None
 
 
+def _complete_listing_policy(policy: dict[str, Any] | None) -> bool:
+    """현재 실행 한도의 필수 신원이 누락되면 기본 프로필을 대신 광고하지 않는다."""
+    if not isinstance(policy, dict):
+        return False
+    limits = policy.get("request_limits")
+    params = policy.get("request_parameter_policy")
+    if not isinstance(limits, dict) or not isinstance(params, dict):
+        return False
+    context = limits.get("max_model_len")
+    output = policy.get("max_output_tokens")
+    return (
+        type(context) is int
+        and type(output) is int
+        and 0 < output <= context
+        and isinstance(params.get("supported_parameters"), list)
+    )
+
+
 def _active_main_capabilities(
     capabilities: list[Any],
     modalities: tuple[str, ...],
@@ -275,23 +293,31 @@ def build_router(
             ).get("input_modalities", settings.runtime("main_llm").allowed_input_modalities))
             if not managed else None
         )
-        if managed and policy_status == "active" and (
-            not active_policy or not active_modalities
-        ):
-            policy_status = "unverified"
+        if managed and policy_status == "active":
+            profile = active_snapshot["active_profile"]
+            backend = profile.get("runtime_backend")
+            if (
+                not _complete_listing_policy(active_policy)
+                or not active_modalities
+                or not isinstance(backend, str)
+                or not backend
+            ):
+                policy_status = "unverified"
         for item in items:
             if item.get("id") != main_model_id:
                 continue
             if managed:
                 item["serving_policy_status"] = policy_status
+                # 정적 Registry projection은 기본 프로필의 값이다. 실제 ledger
+                # 정책을 검증했더라도 재사용하지 않고 현재 활성 정책만 투영한다.
+                for key in (
+                    "display_name", "upstream_model_id", "context_window",
+                    "input_modalities", "request_limits", "fixed_parameters",
+                ):
+                    item.pop(key, None)
                 if policy_status != "active":
                     # Catalog 자체는 유지한다. 단, 마지막 기본 프로필의 세부 능력과
                     # 실행 한도를 현재 Runtime의 검증된 사실인 것처럼 광고하지 않는다.
-                    for key in (
-                        "display_name", "upstream_model_id", "context_window",
-                        "input_modalities", "request_limits", "fixed_parameters",
-                    ):
-                        item.pop(key, None)
                     item["backend"] = "unknown"
                     item["capabilities"] = [
                         cap for cap in item.get("capabilities", ())
@@ -301,10 +327,9 @@ def build_router(
                     continue
                 active = active_snapshot["active_profile"]
                 for key in ("display_name", "upstream_model_id"):
-                    item.pop(key, None)
                     if isinstance(active.get(key), str) and active[key]:
                         item[key] = active[key]
-                item["backend"] = active.get("runtime_backend") or "unknown"
+                item["backend"] = active["runtime_backend"]
             if active_modalities is not None:
                 item["input_modalities"] = list(active_modalities)
             if active_policy:

@@ -120,6 +120,45 @@ def test_current_policy_is_advertised_only_with_open_gate_and_active_profile():
     assert "chat.completions.vision" not in main["capabilities"]
 
 
+def test_open_gate_with_incomplete_policy_does_not_reuse_default_context():
+    active = {
+        "id": "incomplete", "runtime_backend": "llama-cpp",
+        "capabilities": {"deployed_input": ["text"]},
+        "gateway_policy": {
+            "max_output_tokens": 1024,
+            "request_limits": {"input_modalities": ["text"]},
+            "request_parameter_policy": {"supported_parameters": ["max_tokens"]},
+        },
+    }
+    main = asyncio.run(_models(_settings(), Controller({
+        "gate": "open", "active_profile": active,
+    })))[0]
+    assert main["serving_policy_status"] == "unverified"
+    assert main["backend"] == "unknown"
+    assert "context_window" not in main
+    assert main["request_parameters"] == {}
+
+
+def test_confirmed_policy_does_not_retain_stale_multimodal_limits():
+    active = {
+        "id": "cpu", "runtime_backend": "llama-cpp",
+        "capabilities": {"deployed_input": ["text"]},
+        "gateway_policy": {
+            "max_output_tokens": 2048,
+            "request_limits": {"max_model_len": 16384, "input_modalities": ["text"]},
+            "request_parameter_policy": {"supported_parameters": ["max_tokens"]},
+        },
+    }
+    main = asyncio.run(_models(_settings(), Controller({
+        "gate": "open", "active_profile": active,
+    })))[0]
+    assert main["serving_policy_status"] == "active"
+    assert main["context_window"] == 16384
+    assert "request_limits" not in main
+    assert "fixed_parameters" not in main
+    assert main["input_modalities"] == ["text"]
+
+
 def test_missing_controller_client_marks_managed_policy_unavailable():
     main, embedding = asyncio.run(_models(_settings(), None))
     assert main["serving_policy_status"] == "controller_unavailable"
