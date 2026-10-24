@@ -77,8 +77,13 @@ class ModelListSchemaProjection:
                                 "description": "논리 모델을 이 계약으로 서빙하는 주체입니다. 업스트림 가중치의 원저작자가 아닙니다.",
                             },
                             "backend": {"type": "string", "minLength": 1},
-                            "display_name": {"type": "string", "description": "Controller 활성 프로필 또는 관리형 CPU 설정에서 가져온 모델 표시 이름입니다."},
+                            "display_name": {"type": "string", "description": "Controller가 확인한 활성 프로필 또는 외부 Static 구성의 모델 표시 이름입니다."},
                             "upstream_model_id": {"type": "string", "description": "활성 모델의 실제 체크포인트 식별자입니다. 외부 CPU 모델 신원을 모르면 생략합니다."},
+                            "serving_policy_status": {
+                                "type": "string",
+                                "enum": ["active", "gate_closed", "controller_unavailable", "unverified"],
+                                "description": "관리형 Main Model의 Controller ledger가 제공하는 활성 실행 정책 확인 상태이며 실제 Readiness는 /ready가 소유합니다.",
+                            },
                             "context_window": {"type": "integer", "minimum": 1, "description": "현재 메인 모델에 적용하는 Gateway 문맥 토큰 한도입니다."},
                             "capabilities": {
                                 "type": "array",

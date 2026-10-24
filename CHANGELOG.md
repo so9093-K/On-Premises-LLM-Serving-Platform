@@ -3,6 +3,9 @@
 이 파일은 사용자와 운영자에게 의미 있는 변경·호환성·마이그레이션을 기록한다. 내부 구현과 수정 과정은 Git commit/PR 이력을 따른다.
 
 ## [Unreleased]
+- Controller 장애·Gate 차단 중 `/v1/models`는 논리 모델 목록을 유지하되 확인되지 않은 Main 실행 한도·Backend를 광고하지 않고 정책 상태를 구분한다.
+- 폐기된 관리형 CPU·Adaptive Target을 공통 Runtime Controller로 이전하는 계획/명시적 적용 명령을 제공한다. 인증·포트·모델 캐시를 보존하고 Main 상태만 별도 백업 후 초기화한다.
+- 독립 CPU Compose를 위해 남은 `cpu_main_llama` 서비스 선언을 제거한다.
 
 ### Added
 

@@ -25,6 +25,26 @@ Control Plane operations
 
 ---
 
+
+### 이전 관리형 Target을 공통 Runtime Controller로 전환
+
+`linux-cpu-managed` 및 `linux-adaptive`는 제거됐다. 이전 구성은 **자동으로 새 Target에 매핑되지 않는다.** `make reset`은 인증 설정과 전체 Runtime 상태까지 지우므로 이 이전에 사용하지 않는다.
+
+1. **기존 버전에서** `make down`을 실행해 해당 Checkout 소유 컨테이너를 중지한다. 이미 새 버전으로 전환했다면 `python scripts/ops/compose_ownership.py down`으로 동일 Checkout 소유 리소스를 정리한다. 다른 Checkout이나 레이블이 없는 컨테이너는 임의 삭제하지 않는다.
+2. 새 버전의 동일 Checkout에서 원하는 정책을 명시한다. CPU-only는 `cpu`, GPU 우선·CPU 복구는 `fallback`, 자동 복귀는 `automatic`이다. GPU 고정은 `--policy gpu --profile <GPU_PROFILE>`을 사용한다.
+3. 실행 전 다음 명령으로 영향을 확인하고, 같은 명령에 `--confirm migrate`를 추가해 적용한다.
+
+```bash
+python scripts/ops/migrate_managed_target.py --policy cpu
+python scripts/ops/migrate_managed_target.py --policy cpu --confirm migrate
+make up TARGET=linux-nvidia-dynamic
+```
+
+전환은 `.env`의 **Target·부팅 프로필·실행 정책·Main 내부 URL**만 변경한다. `API_KEYS`, `ADMIN_API_KEYS`, 내부 인증 토큰, 기존 포트 대역, 무관한 `.runtime` 파일과 모델 캐시는 유지한다. 기존 Main 상태 파일은 `.runtime/migrations/`에 백업 후 활성 위치에서 제외해 새 정책을 새로 검증하도록 한다. 백업한 `.env`에는 인증 정보가 있으므로 외부로 공유하지 않는다.
+
+실행 중 컨테이너가 남아 있거나 영속 상태가 손상됐다면 변경하지 않고 실패한다. 완료 뒤 Console과 `/ready`, `/v1/models`로 현재 실행 정책을 확인한다.
+
+
 ## 10.1 배포 authority
 
 Repository가 소유하는 canonical lifecycle은 다음 명령이다.

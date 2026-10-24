@@ -10,6 +10,8 @@
 
 ## 빠른 시작
 
+이전 `linux-cpu-managed` 또는 `linux-adaptive` 설치는 <a href="docs/10_deployment.md">배포 전환 가이드</a>에서 보존 범위를 확인하고 `scripts/ops/migrate_managed_target.py`로 명시적으로 전환합니다.
+
 Python·uv, Docker가 필요합니다. 소스는 [ZIP 다운로드](https://github.com/so9093-K/On-Premises-LLM-Serving-Platform/archive/refs/heads/main.zip) 또는 Git으로 준비합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
 
 압축을 풀거나 복제한 소스의 `Makefile`이 있는 디렉터리에서 실행합니다.
