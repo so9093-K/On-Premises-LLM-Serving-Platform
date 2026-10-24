@@ -38,7 +38,7 @@ from ai_model_serving.access_profile import (
     default_access_profile,
     load_access_profile,
 )
-from ai_model_serving.deployment_target import load_deployment_target
+from ai_model_serving.deployment_target import DeploymentTarget, load_deployment_target
 from ai_model_serving.port_namespace import load_port_namespace
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
 from ai_model_serving.settings_parts.env import default_env_path
@@ -118,6 +118,21 @@ def deployment_target_values(target_id: str, main_profile: str | None = None) ->
     return values
 
 
+def _supported_existing_target(values: dict[str, str]) -> DeploymentTarget | None:
+    """지원하지 않는 기존 Target을 어떤 .env 변경보다 먼저 거부한다."""
+    previous_id = values.get("DEPLOYMENT_TARGET")
+    if not previous_id:
+        return None
+    try:
+        return load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_id)
+    except RuntimeError as exc:
+        raise ValueError(
+            f"기존 .env의 DEPLOYMENT_TARGET={previous_id!r}은 지원하지 않습니다. "
+            "새 설치에서는 지원하는 TARGET으로 환경을 명시적으로 다시 구성하세요. "
+            "이 명령은 기존 .env와 Main 상태를 자동 변경하지 않습니다."
+        ) from exc
+
+
 def sync_deployment_target(
     env_path: Path,
     target_id: str,
@@ -137,14 +152,14 @@ def sync_deployment_target(
         if target.static_serving
         else "MAIN_MODEL_BOOT_PROFILE"
     )
+    previous_target = existing.get("DEPLOYMENT_TARGET")
+    previous = _supported_existing_target(existing)
     if not target.supports("chat"):
         if main_profile is not None or main_base_url is not None:
             raise ValueError(f"deployment target {target_id!r} has no Main Model endpoint")
         existing["DEPLOYMENT_TARGET"] = target_id
         write_env(lines, existing, env_path)
         return
-    previous_target = existing.get("DEPLOYMENT_TARGET")
-    previous = load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_target) if previous_target else None
     previous_profile = existing.get("MAIN_MODEL_STATIC_PROFILE" if previous and previous.static_serving else "MAIN_MODEL_BOOT_PROFILE")
     selected_profile = main_profile or previous_profile or existing.get(profile_key) or None
     try:
@@ -183,7 +198,7 @@ def managed_endpoint_changes(values: dict[str, str]) -> dict[str, tuple[str, str
             runtime = read_yaml(ROOT / target.main_profile_catalog).get("runtime", {}) if target.main_profile_catalog else {}
         except (OSError, RuntimeError, ValueError):
             target, runtime = None, {}
-        # Host의 Metal Runtime처럼 대역 포트를 쓰는 Main만 대상이다. CPU Static의 cpu-main:8080은 제외한다.
+        # Host의 Metal Runtime처럼 대역 포트를 쓰는 Main만 대상이다. 외부 CPU Static endpoint는 제외한다.
         port = (runtime.get("port") or runtime.get("container_port")) if isinstance(runtime, dict) else None
         if target is not None and target.gateway_runtime_host and port == namespace.default_base + namespace.offsets["main_llm_vllm"]:
             runtime_host = target.gateway_runtime_host
@@ -401,6 +416,7 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
         raise FileNotFoundError(f".env 파일이 없습니다: {env_path}")
 
     env_lines, existing = parse_env_template(env_path)
+    _supported_existing_target(existing)
     retired_exposure_mode = existing.get("EXPOSURE_MODE", "").strip()
     if retired_exposure_mode and retired_exposure_mode != "private_network":
         raise ValueError(
@@ -706,6 +722,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.sync_env:
         try:
+            # Access/템플릿 수정 전에 폐기된 Target을 먼저 검증해 부분 변경을 방지한다.
+            if out_path.is_file():
+                _supported_existing_target(parse_env_template(out_path)[1])
             if args.confirm_access and not args.access_profile:
                 raise ValueError("--confirm-access requires --access-profile")
             if args.access_profile and any(

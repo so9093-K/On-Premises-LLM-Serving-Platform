@@ -62,18 +62,11 @@ services:
       - model_runtime
       - vllm_runtime
 
-  # 정적 CPU-only Compose에만 있는 Runtime. Full-stack Loki 런타임 패널의
-  # model_runtime 목록과 달리 관측/로그 수집이 아직 제공되지 않는다.
+  # 관리형 Linux의 GPU/CPU 자원 관측은 별도 observer가 소유한다.
   host_resource_observer:
     compose_service: resource-observer
     container_port: 8081
     categories: [host_resource_observation]
-
-  cpu_main_llama:
-    compose_service: cpu-main
-    container_port: 8080
-    categories:
-      - cpu_model_runtime
 
   # 범용 embedding 및 retrieval용 runtime.
   embedding_vllm:

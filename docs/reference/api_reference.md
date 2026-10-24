@@ -232,6 +232,8 @@ curl "$GATEWAY_URL/v1/models" \
 }
 ```
 
+관리형 `local-main`은 `serving_policy_status`를 반환한다. `active`는 Controller ledger의 Gate가 열리고 활성 프로필의 정책을 확인했다는 뜻이며 실제 Runtime 준비 여부는 별도의 `/ready`가 소유한다. `gate_closed`·`controller_unavailable`·`unverified`라면 모델 ID와 논리 Chat/Responses 기능만 목록에 남기고, 현재 적용됐다고 확인할 수 없는 `context_window`, `input_modalities`, `request_limits`, `fixed_parameters`를 제외한다. `request_parameters`는 필수 응답 필드로서 빈 객체, `backend`는 `unknown`이다. Embedding·Risk 및 외부 Static 모델 조회 계약은 변경하지 않는다.
+
 현재 serving 가능 여부는 `/ready`에서 확인한다.
 
 ---

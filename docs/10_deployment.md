@@ -25,6 +25,13 @@ Control Plane operations
 
 ---
 
+
+### 지원하지 않는 이전 관리형 Target
+
+`linux-cpu-managed`와 `linux-adaptive`는 현재 지원 Target이 아니다. 이전 구조의 실행 권한이나 Main 모델 상태를 새 Runtime Controller에 자동 이전하지 않는다. 기존 `.env`에 미지원 Target이 남아 있으면 설정 변경을 거부하고 오류를 표시한다.
+
+신규 개발 환경은 지원되는 `linux-nvidia-dynamic` Target과 필요한 CPU/GPU 정책으로 직접 구성한다. `make reset`은 `.env`와 전체 `.runtime`을 삭제하므로 단순 Target 변경을 위한 기본 절차가 아니다. 실제 이전 버전으로 실행 중인 운영 환경이 있다면 별도로 영향·데이터 보존 요구를 확인한 후 전환 방법을 결정한다.
+
 ## 10.1 배포 authority
 
 Repository가 소유하는 canonical lifecycle은 다음 명령이다.

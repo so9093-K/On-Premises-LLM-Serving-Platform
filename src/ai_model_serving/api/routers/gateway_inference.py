@@ -165,6 +165,24 @@ def _active_gateway_policy(main_model: dict[str, Any]) -> dict[str, Any] | None:
     return dict(policy) if isinstance(policy, dict) else None
 
 
+def _complete_listing_policy(policy: dict[str, Any] | None) -> bool:
+    """현재 실행 한도의 필수 신원이 누락되면 기본 프로필을 대신 광고하지 않는다."""
+    if not isinstance(policy, dict):
+        return False
+    limits = policy.get("request_limits")
+    params = policy.get("request_parameter_policy")
+    if not isinstance(limits, dict) or not isinstance(params, dict):
+        return False
+    context = limits.get("max_model_len")
+    output = policy.get("max_output_tokens")
+    return (
+        type(context) is int
+        and type(output) is int
+        and 0 < output <= context
+        and isinstance(params.get("supported_parameters"), list)
+    )
+
+
 def _active_main_capabilities(
     capabilities: list[Any],
     modalities: tuple[str, ...],
@@ -241,63 +259,103 @@ def build_router(
         items = [dict(item) for item in settings.public_models]
         if not settings.feature_enabled("chat"):
             return {"object": "list", "data": items}
-        # active main-model 프로필의 입력 modality를 덮어써서, listing이 정적
-        # catalog 기본값이 아니라 chat validator와 동일하게 지금 실제로 서빙
-        # 가능한 것(예: 멀티모달 프로필의 audio/video)을 알리도록 한다.
-        active_policy = settings.default_main_model_gateway_policy
-        active_modalities = tuple(
-            str(item)
-            for item in active_policy.get("request_limits", {}).get(
-                "input_modalities", settings.runtime("main_llm").allowed_input_modalities
-            )
-        )
-        if runtime_controller is not None:
-            active_snapshot = None
-            try:
-                # /v1/models는 active profile의 modality·정책만 읽는다.
-                active_snapshot = await runtime_controller.main_model(observed=False)
-            except RuntimeControllerUnavailableError:
-                # 이 라우트는 경로/본문 파라미터가 없어 4xx가 나올 수 없다.
-                active_snapshot = None
-            if isinstance(active_snapshot, dict):
-                active_modalities = _active_input_modalities(active_snapshot) or active_modalities
-                active_policy = _active_gateway_policy(active_snapshot) or active_policy
-            active = (active_snapshot or {}).get("active_profile")
-            for item in items:
-                if item.get("id") != settings.runtime("main_llm").model:
-                    continue
-                # Controller를 관측할 수 없을 때 이전 모델 신원을 현재처럼 표시하지 않는다.
-                for key in ("display_name", "upstream_model_id"):
-                    item.pop(key, None)
-                if isinstance(active, dict):
-                    for key in ("display_name", "upstream_model_id"):
-                        if isinstance(active.get(key), str) and active[key]:
-                            item[key] = active[key]
-                    if active.get("runtime_backend"):
-                        item["backend"] = active["runtime_backend"]
         main_model_id = settings.runtime("main_llm").model
+        managed = settings.deployment_target.control_mode == "runtime_controller"
+        policy_status = "active"
+        active_snapshot: dict[str, Any] | None = None
+        if managed:
+            if runtime_controller is None:
+                policy_status = "controller_unavailable"
+            else:
+                try:
+                    # 조회는 Docker 관측 없이 Controller의 현재 ledger만 확인한다.
+                    active_snapshot = await runtime_controller.main_model(observed=False)
+                except RuntimeControllerUnavailableError:
+                    policy_status = "controller_unavailable"
+                except RuntimeControllerRequestError:
+                    policy_status = "controller_unavailable"
+                if policy_status == "active" and not main_model_serving_open(active_snapshot):
+                    policy_status = (
+                        "gate_closed"
+                        if isinstance(active_snapshot, dict) and active_snapshot.get("gate") == "closed"
+                        else "unverified"
+                    )
+        active_policy = (
+            _active_gateway_policy(active_snapshot)
+            if managed and policy_status == "active" and active_snapshot is not None
+            else settings.default_main_model_gateway_policy if not managed else None
+        )
+        active_modalities = (
+            _active_input_modalities(active_snapshot)
+            if managed and policy_status == "active" and active_snapshot is not None
+            else tuple(str(item) for item in settings.default_main_model_gateway_policy.get(
+                "request_limits", {}
+            ).get("input_modalities", settings.runtime("main_llm").allowed_input_modalities))
+            if not managed else None
+        )
+        if managed and policy_status == "active":
+            profile = active_snapshot["active_profile"]
+            backend = profile.get("runtime_backend")
+            policy_limits = (
+                active_policy.get("request_limits") if isinstance(active_policy, dict) else None
+            )
+            if (
+                not isinstance(profile.get("id"), str)
+                or not profile["id"]
+                or not _complete_listing_policy(active_policy)
+                or not active_modalities
+                or not isinstance(policy_limits, dict)
+                or policy_limits.get("input_modalities") != list(active_modalities or ())
+                or not isinstance(backend, str)
+                or not backend
+            ):
+                policy_status = "unverified"
         for item in items:
-            if item.get("id") == main_model_id:
+            if item.get("id") != main_model_id:
+                continue
+            if managed:
+                item["serving_policy_status"] = policy_status
+                # 정적 Registry projection은 기본 프로필의 값이다. 실제 ledger
+                # 정책을 검증했더라도 재사용하지 않고 현재 활성 정책만 투영한다.
+                for key in (
+                    "display_name", "upstream_model_id", "context_window",
+                    "input_modalities", "request_limits", "fixed_parameters",
+                ):
+                    item.pop(key, None)
+                if policy_status != "active":
+                    # Catalog 자체는 유지한다. 단, 마지막 기본 프로필의 세부 능력과
+                    # 실행 한도를 현재 Runtime의 검증된 사실인 것처럼 광고하지 않는다.
+                    item["backend"] = "unknown"
+                    item["capabilities"] = [
+                        cap for cap in item.get("capabilities", ())
+                        if cap in {"chat.completions", "responses"}
+                    ]
+                    item["request_parameters"] = {}
+                    continue
+                active = active_snapshot["active_profile"]
+                for key in ("display_name", "upstream_model_id"):
+                    if isinstance(active.get(key), str) and active[key]:
+                        item[key] = active[key]
+                item["backend"] = active["runtime_backend"]
+            if active_modalities is not None:
                 item["input_modalities"] = list(active_modalities)
-                if active_policy:
-                    context = active_policy.get("request_limits", {}).get("max_model_len")
-                    if context:
-                        item["context_window"] = int(context)
-                    item["capabilities"] = _active_main_capabilities(
-                        item.get("capabilities", []), active_modalities, active_policy
-                    )
-                    item["request_parameters"] = chat_request_parameter_surface(
-                        active_policy.get("request_parameter_policy", {}),
-                        max_output_tokens=int(active_policy.get("max_output_tokens", 0)) or None,
-                    )
-                    # 한도도 같은 active snapshot에서 나온다. 광고와 검증이 한
-                    # 스냅샷을 공유하므로 프로필을 바꿔도 둘이 갈라지지 않는다.
-                    limits = chat_request_limit_surface(
-                        active_policy.get("request_limits", {}),
-                        input_modalities=active_modalities,
-                    )
-                    if limits:
-                        item["request_limits"] = limits
+            if active_policy:
+                context = active_policy.get("request_limits", {}).get("max_model_len")
+                if context:
+                    item["context_window"] = int(context)
+                item["capabilities"] = _active_main_capabilities(
+                    item.get("capabilities", []), active_modalities or (), active_policy
+                )
+                item["request_parameters"] = chat_request_parameter_surface(
+                    active_policy.get("request_parameter_policy", {}),
+                    max_output_tokens=int(active_policy.get("max_output_tokens", 0)) or None,
+                )
+                limits = chat_request_limit_surface(
+                    active_policy.get("request_limits", {}),
+                    input_modalities=active_modalities or (),
+                )
+                if limits:
+                    item["request_limits"] = limits
         return {"object": "list", "data": items}
 
     _s = _GW[("POST", "/v1/chat/completions")]
