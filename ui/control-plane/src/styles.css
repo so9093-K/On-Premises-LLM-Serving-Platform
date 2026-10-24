@@ -1067,6 +1067,7 @@ input {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .chat-attachment-input label {
@@ -1076,6 +1077,7 @@ input {
 
 .chat-attachment-input input {
   max-width: 100%;
+  min-width: 0;
 }
 
 .chat-composer-actions {
@@ -1581,7 +1583,6 @@ a.overview-action-tile:hover {
   flex-wrap: wrap;
   gap: 0.625rem 1.25rem;
   padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
   border: 1px solid var(--console-border);
   border-radius: 0.5rem;
   background: var(--console-surface);
@@ -2232,16 +2233,18 @@ a.overview-action-tile:hover {
 }
  
 
-/* Playground Chat: 작업 공간 높이와 대화 스크롤을 분리해 입력 영역을 고정한다. */
+/* Playground Chat: 작업 공간 높이와 대화 스크롤을 분리해 입력 영역을 고정한다.
+   높이는 chat-main이 소유한다. 한 열 배치에서 설정 패널이 대화 높이를 나눠 쓰지 않게 한다. */
 .chat-layout {
-  height: clamp(18rem, calc(100dvh - 28rem), 52rem);
   min-height: 0;
 }
 .chat-main {
   min-height: 0;
-  height: 100%;
+  height: clamp(18rem, calc(100dvh - 27rem), 52rem);
   display: flex;
   flex-direction: column;
+  /* 대화 영역의 아래 여백과 입력 영역의 경계선이 이미 둘을 구분한다. */
+  gap: 0;
   overflow: hidden;
 }
 .chat-scroll-region {
@@ -2259,21 +2262,43 @@ a.overview-action-tile:hover {
 .chat-composer {
   position: static;
   flex: 0 0 auto;
+  /* auto 트랙은 textarea·파일 입력의 고유 폭으로 넓어져 좁은 화면에서 가로 스크롤이 생긴다. */
+  grid-template-columns: minmax(0, 1fr);
   max-height: min(46dvh, 23rem);
   overflow-y: auto;
   border-top: 1px solid var(--console-border);
   padding: 0.75rem 0 0.5rem;
 }
 .chat-composer textarea {
+  height: 4.5rem;
   min-height: 4.5rem;
   max-height: 10rem;
   resize: vertical;
 }
+/* 넓은 화면에서는 첨부와 보내기를 한 줄에 두어 짧은 화면에서도 대화 영역을 남긴다. */
+@media (min-width: 601px) {
+  .chat-composer { grid-template-columns: minmax(0, 1fr) auto; column-gap: 1rem; }
+  .chat-composer > * { grid-column: 1 / -1; }
+  .chat-composer > .chat-composer-tools { grid-column: 1; }
+  .chat-composer > .chat-composer-actions { grid-column: 2; }
+}
 @media (max-width: 980px) {
-  .chat-layout { height: clamp(18rem, calc(100dvh - 26rem), 52rem); }
+  /* 좁은 폭에서는 모델 정보가 줄바꿈되어 위쪽 영역이 더 높다. */
+  .chat-main { height: clamp(18rem, calc(100dvh - 29rem), 52rem); }
+}
+/* 노트북처럼 세로가 짧은 화면에서는 Chat의 보조 설명과 간격을 줄여 대화 영역을 남긴다.
+   입력 영역은 페이지 스크롤 없이 화면 안에 둔다. */
+@media (min-width: 601px) and (max-height: 820px) {
+  .playground-page:has(.chat-page),
+  .chat-page { gap: 0.75rem; }
+  .chat-page .playground-panel-heading p { display: none; }
+}
+@media (min-width: 981px) and (max-height: 820px) {
+  .chat-main { height: clamp(18rem, calc(100dvh - 25rem), 52rem); }
 }
 @media (max-width: 600px) {
-  .chat-layout { height: clamp(17rem, calc(100dvh - 23rem), 45rem); }
+  /* 모바일은 탐색 메뉴가 위에 쌓여 페이지가 어차피 스크롤된다. 대화 영역까지 내려오면 화면을 채운다. */
+  .chat-main { height: clamp(26rem, calc(100dvh - 8rem), 45rem); }
   .chat-composer { max-height: min(42dvh, 20rem); }
   .chat-scroll-region { scrollbar-gutter: auto; }
 }

@@ -78,6 +78,26 @@ export function mainModelOverviewSignals(
   return signals;
 }
 
+type ReadinessSnapshot = {
+  required_not_ready_dependencies: string[];
+  dependencies: { name: string; message?: string | null }[];
+};
+
+// Console이 메인 모델을 직접 제어·관측하지 않는 Target에서도 Gateway는 필수 의존 서비스의
+// 준비 상태를 확인한다. Gateway가 보고한 결과만 전달하고 Runtime의 원인은 추측하지 않는다.
+export function gatewayReadinessSignals(readiness: ReadinessSnapshot | null | undefined): OverviewSignal[] {
+  if (!readiness) return [];
+  return readiness.required_not_ready_dependencies.map((name) => {
+    const message = readiness.dependencies.find((dependency) => dependency.name === name)?.message;
+    return {
+      key: `gateway-readiness-${name}`,
+      tone: 'warning',
+      title: 'Gateway의 필수 의존 서비스가 준비되지 않았습니다.',
+      detail: `${name}${message ? ` · ${message}` : ''} · 서버 운영자가 make status로 원인을 확인합니다.`,
+    };
+  });
+}
+
 /**
  * 전환 API의 부재는 외부 관리나 모델 준비 완료를 의미하지 않는다.
  * 실제 모델 기동/응답은 해당 Target의 기존 lifecycle에서 확인한다.

@@ -50,6 +50,7 @@ function latencyTile(
   label: string,
   distribution: Distribution,
   minimumP95: number,
+  emptyDetail: string,
 ): TrafficTile {
   if (distribution.p95 === null) {
     return {
@@ -57,7 +58,7 @@ function latencyTile(
       label,
       value: distribution.samples === 0 ? '요청 없음' : '표본 부족',
       detail: distribution.samples === 0
-        ? '이 구간에 해당 요청이 없습니다.'
+        ? emptyDetail
         : `p95는 ${minimumP95}건 이상일 때 계산합니다 (현재 ${distribution.samples}건).`,
       tone: 'neutral',
     };
@@ -92,7 +93,11 @@ export function trafficTiles(summary: RecentTrafficSummary): TrafficTile[] {
         : `요청 거부(4xx) ${clientErrors.toLocaleString('ko-KR')}건`,
       tone: serverErrors > 0 ? 'warning' : 'good',
     },
-    latencyTile('completion-latency', '응답 시간 p95', summary.completion_latency_seconds, summary.minimum_samples.p95),
-    latencyTile('first-chunk', '첫 응답 p95 (스트리밍)', summary.time_to_first_chunk_seconds, summary.minimum_samples.p95),
+    // Gateway는 비스트리밍 Chat·Responses만 응답 시간 표본으로 쓴다. Playground는 스트리밍으로
+    // 요청하므로 이름에 범위를 밝히지 않으면 Chat을 사용한 직후에도 "요청 없음"이 모순처럼 보인다.
+    latencyTile('completion-latency', '응답 시간 p95 (비스트리밍)', summary.completion_latency_seconds,
+      summary.minimum_samples.p95, '이 구간에 비스트리밍 Chat·Responses 요청이 없습니다.'),
+    latencyTile('first-chunk', '첫 응답 p95 (스트리밍)', summary.time_to_first_chunk_seconds,
+      summary.minimum_samples.p95, '이 구간에 스트리밍 요청이 없습니다.'),
   ];
 }
