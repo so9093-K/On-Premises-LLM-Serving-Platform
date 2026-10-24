@@ -55,7 +55,7 @@
           },
           "display_name": {
             "type": "string",
-            "description": "Controller 활성 프로필 또는 관리형 CPU 설정에서 가져온 모델 표시 이름입니다."
+            "description": "Controller가 확인한 활성 프로필 또는 외부 Static 구성의 모델 표시 이름입니다."
           },
           "upstream_model_id": {
             "type": "string",
