@@ -100,6 +100,7 @@ def test_migration_refuses_running_containers_without_mutation(tmp_path):
     ("gpu", None),
     ("fallback", "gemma4-e4b-it"),
     ("nonexistent", None),
+    ("gpu", "cpu-gguf-text"),
 ])
 def test_migration_rejects_unsupported_policy_or_profile(tmp_path, policy, profile):
     env, state = _fixture(tmp_path)

@@ -56,6 +56,8 @@ def migration_plan(
         raise ValueError("CPU 시작 정책의 기준 프로필은 cpu-gguf-text여야 합니다")
     if not chosen:
         raise ValueError("GPU 고정 정책은 --profile GPU_PROFILE을 지정해야 합니다")
+    if policy == "gpu" and chosen == CPU_PROFILE:
+        raise ValueError("GPU 고정 정책에서는 CPU 프로필을 선택할 수 없습니다")
     projected = projection(MANAGED_TARGET, chosen)
     values = dict(existing)
     values["DEPLOYMENT_TARGET"] = MANAGED_TARGET
@@ -71,6 +73,8 @@ def migration_plan(
     state_path = root / ".runtime/main-model/main-model-state.json"
     if state_path.is_symlink():
         raise ValueError("Main Model 상태 파일은 symlink일 수 없습니다")
+    if state_path.exists() and not state_path.is_file():
+        raise ValueError("Main Model 상태 파일은 일반 파일이어야 합니다")
     if state_path.exists():
         read_main_model_state_file(state_path)
     return lines, existing, values, state_path

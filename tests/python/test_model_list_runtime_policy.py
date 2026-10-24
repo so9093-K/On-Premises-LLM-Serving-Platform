@@ -120,6 +120,14 @@ def test_current_policy_is_advertised_only_with_open_gate_and_active_profile():
     assert "chat.completions.vision" not in main["capabilities"]
 
 
+def test_missing_controller_client_marks_managed_policy_unavailable():
+    main, embedding = asyncio.run(_models(_settings(), None))
+    assert main["serving_policy_status"] == "controller_unavailable"
+    assert main["backend"] == "unknown"
+    assert "context_window" not in main
+    assert embedding["id"] == "local-embed"
+
+
 def test_static_model_list_uses_declared_policy_without_controller():
     result = asyncio.run(_models(_settings(managed=False), None))
     main = result[0]
