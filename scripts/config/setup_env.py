@@ -118,6 +118,21 @@ def deployment_target_values(target_id: str, main_profile: str | None = None) ->
     return values
 
 
+def _supported_existing_target(values: dict[str, str]) -> DeploymentTarget | None:
+    """지원하지 않는 기존 Target을 어떤 .env 변경보다 먼저 거부한다."""
+    previous_id = values.get("DEPLOYMENT_TARGET")
+    if not previous_id:
+        return None
+    try:
+        return load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_id)
+    except RuntimeError as exc:
+        raise ValueError(
+            f"기존 .env의 DEPLOYMENT_TARGET={previous_id!r}은 지원하지 않습니다. "
+            "새 설치에서는 지원하는 TARGET으로 환경을 명시적으로 다시 구성하세요. "
+            "이 명령은 기존 .env와 Main 상태를 자동 변경하지 않습니다."
+        ) from exc
+
+
 def sync_deployment_target(
     env_path: Path,
     target_id: str,
@@ -138,19 +153,7 @@ def sync_deployment_target(
         else "MAIN_MODEL_BOOT_PROFILE"
     )
     previous_target = existing.get("DEPLOYMENT_TARGET")
-    # 폐기된 Target을 복원·변환하지 않는다. 과거 실행 소유권을 새 Target의
-    # 제어 권한으로 조용히 매핑하면 상태와 실제 Runtime이 어긋날 수 있다.
-    try:
-        previous = (
-            load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_target)
-            if previous_target else None
-        )
-    except RuntimeError as exc:
-        raise ValueError(
-            f"기존 .env의 DEPLOYMENT_TARGET={previous_target!r}은 지원하지 않습니다. "
-            "새 설치에서는 지원하는 TARGET으로 환경을 명시적으로 다시 구성하세요. "
-            "이 명령은 기존 .env와 Main 상태를 자동 변경하지 않습니다."
-        ) from exc
+    previous = _supported_existing_target(existing)
     if not target.supports("chat"):
         if main_profile is not None or main_base_url is not None:
             raise ValueError(f"deployment target {target_id!r} has no Main Model endpoint")
@@ -413,6 +416,7 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
         raise FileNotFoundError(f".env 파일이 없습니다: {env_path}")
 
     env_lines, existing = parse_env_template(env_path)
+    _supported_existing_target(existing)
     retired_exposure_mode = existing.get("EXPOSURE_MODE", "").strip()
     if retired_exposure_mode and retired_exposure_mode != "private_network":
         raise ValueError(
@@ -718,6 +722,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.sync_env:
         try:
+            # Access/템플릿 수정 전에 폐기된 Target을 먼저 검증해 부분 변경을 방지한다.
+            if out_path.is_file():
+                _supported_existing_target(parse_env_template(out_path)[1])
             if args.confirm_access and not args.access_profile:
                 raise ValueError("--confirm-access requires --access-profile")
             if args.access_profile and any(
