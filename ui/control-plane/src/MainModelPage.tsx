@@ -144,6 +144,8 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const queryClient = useQueryClient();
   const [reviewProfileId, setReviewProfileId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [editContextTokens, setEditContextTokens] = useState('');
+  const [editOutputTokens, setEditOutputTokens] = useState('');
   const [reviewPolicy, setReviewPolicy] = useState<ExecutionPolicy | undefined>();
   const [actionError, setActionError] = useState<string | null>(null);
   const [operationId, setOperationId] = useState<string | null>(null);
@@ -222,8 +224,14 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   );
 
   const switchMutation = useMutation({
-    mutationFn: ({ profile, accepted }: { profile: MainModelProfile; accepted: boolean }) =>
-      switchMainModel(token, mainModelSwitchRequest(profile, accepted, reviewPolicy)),
+    mutationFn: ({ profile, accepted, limits }: {
+      profile: MainModelProfile;
+      accepted: boolean;
+      limits?: { context_tokens: number; max_output_tokens: number };
+    }) => switchMainModel(token, {
+      ...mainModelSwitchRequest(profile, accepted, reviewPolicy),
+      ...(limits ? { server_limits: limits, confirm_unverified: true } : {}),
+    }),
     retry: false,
     onMutate: () => setActionError(null),
     onSuccess: async (result) => {
@@ -285,11 +293,39 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   const gpuPolicy = active?.runtime_backend === "vllm-cuda"
     ? selection?.gpu_assignment : selection?.gpu_candidate;
   const gpuCandidateProfile = profiles.find(profile => profile.id === selection?.gpu_profile);
-  const requiresConfirmation = reviewProfile ? mainModelProfileRequiresConfirmation(reviewProfile)
+  const selectedTokenLimits = reviewProfile ? mainModelTokenLimits(reviewProfile) : null;
+  const parsedContextTokens = Number(editContextTokens);
+  const parsedOutputTokens = Number(editOutputTokens);
+  const limitsEdited = selectedTokenLimits !== null
+    && (editContextTokens !== String(selectedTokenLimits.contextTokens ?? '')
+      || editOutputTokens !== String(selectedTokenLimits.maxOutputTokens ?? ''));
+  const declaredContextCeiling = reviewProfile?.runtime_backend === 'llama-cpp'
+    ? (reviewProfile.context_tokens_ceiling ?? 0)
+    : reviewProfile
+      ? mainModelTokenLimits(
+        profiles.find((item) => item.id === reviewProfile.base_profile_id) ?? reviewProfile,
+      ).contextTokens ?? 0
+      : 0;
+  const limitsValid = !limitsEdited || (Number.isInteger(parsedContextTokens)
+    && Number.isInteger(parsedOutputTokens)
+    && parsedContextTokens >= (reviewProfile?.runtime_backend === 'llama-cpp' ? 512 : 1024)
+    && parsedContextTokens <= declaredContextCeiling
+    && parsedOutputTokens > 0 && parsedOutputTokens <= parsedContextTokens);
+  const requiresConfirmation = reviewProfile ? limitsEdited || mainModelProfileRequiresConfirmation(reviewProfile)
     || (isRecoveringPolicy(reviewPolicy) && gpuCandidateProfile?.qualification.status !== 'verified') : false;
   const switchImpact = reviewProfile && active
     ? mainModelProfileImpact(active, reviewProfile)
     : null;
+
+  const beginReview = (profile: MainModelProfile, mode: ExecutionPolicy) => {
+    const limits = mainModelTokenLimits(profile);
+    setReviewPolicy(mode);
+    setReviewProfileId(profile.id);
+    setEditContextTokens(String(limits.contextTokens ?? ''));
+    setEditOutputTokens(String(limits.maxOutputTokens ?? ''));
+    setConfirmed(false);
+    setActionError(null);
+  };
 
   const policyAction = (mode: ExecutionPolicy) => {
     if (!selection) return null;
@@ -300,7 +336,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     return <Button key={mode} variant="secondary"
       isDisabled={switchMutation.isPending || busy || !target || (selection.mode === mode && !retry)}
       onClick={() => {
-        if (target) { setReviewPolicy(mode); setReviewProfileId(target.id); setConfirmed(false); setActionError(null); }
+        if (target) beginReview(target, mode);
       }}>
       {retry ? 'GPU 다시 확인' : executionPolicyPresentation[mode].label}
     </Button>;
@@ -412,7 +448,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
 
       <section className="model-groups" aria-label="사용할 모델과 실행 구성">
         <h2>모델별 실행 구성</h2>
-        <p className="configuration-help">동일한 실제 모델의 실행 프로필은 한곳에 묶었습니다. 한도를 선택하면 바로 변경하지 않고 기존 모델 전환의 영향 확인 단계를 거칩니다. 서버 한도의 임의 숫자 수정은 현재 지원되지 않으며, 표에 표시된 구성으로 안전하게 전환할 수 있습니다.</p>
+        <p className="configuration-help">동일한 모델의 실행 구성을 묶었습니다. 전환 검토에서 서버 문맥·최대 출력 토큰을 직접 조정할 수 있습니다. Runtime Controller가 관리하는 모델만 편집 가능하며, 입력값은 적용 전에 서버에서 다시 검증합니다.</p>
         {groups.map((group) => (
           <Card key={group.key}>
             <CardTitle>{group.modelId}</CardTitle>
@@ -433,18 +469,11 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                         <dt>검증 상태</dt><dd><Label color={qualificationVariant(profile.qualification.status)}>{qualificationLabel(profile.qualification.status)}</Label></dd>
                         <dt>실행 전 판단</dt><dd><Label color={preflight.color}>{preflight.label}</Label></dd>
                       </dl>
-                      {profile.active ? (
-                        <span className="current-state-text">활성 구성</span>
-                      ) : (
+                      {(
                         <Button size="sm" variant="secondary"
                           isDisabled={switchMutation.isPending || busy || locked}
-                          onClick={() => {
-                            setReviewPolicy(profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu');
-                            setReviewProfileId(profile.id);
-                            setConfirmed(false);
-                            setActionError(null);
-                          }}
-                        >이 구성으로 전환 검토</Button>
+                          onClick={() => beginReview(profile, profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu')}
+                        >{profile.active ? '현재 구성 한도 조정' : '이 구성으로 전환 검토'}</Button>
                       )}
                     </div>
                   );
@@ -587,8 +616,30 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               </dl>
             </details>
 
+            {!isRecoveringPolicy(reviewPolicy) && (reviewProfile.runtime_backend === 'llama-cpp' || reviewProfile.runtime_backend === 'vllm-cuda') ? (
+              <div className="model-server-limits" role="group" aria-label="서버 실행 토큰 한도 편집">
+                <strong>서버 실행 토큰 한도</strong>
+                <p className="configuration-help">이 값은 Runtime 엔진 및 Gateway 요청 제한에 함께 적용됩니다. 적용 중 요청이 일시 중단되며, 새 Runtime은 실제 응답 검증을 통과해야 합니다.</p>
+                <div className="model-server-limit-fields">
+                  <label>문맥 토큰
+                    <input type="number" inputMode="numeric" min={reviewProfile.runtime_backend === 'llama-cpp' ? 512 : 1024}
+                      max={declaredContextCeiling} step="1" value={editContextTokens}
+                      onChange={(event) => { setEditContextTokens(event.currentTarget.value); setConfirmed(false); }}/>
+                  </label>
+                  <label>최대 출력 토큰
+                    <input type="number" inputMode="numeric" min="1" max={parsedContextTokens} step="1"
+                      value={editOutputTokens}
+                      onChange={(event) => { setEditOutputTokens(event.currentTarget.value); setConfirmed(false); }}/>
+                  </label>
+                </div>
+                <p className="configuration-help">서버 허용 문맥: {reviewProfile.runtime_backend === 'llama-cpp' ? '512' : '1,024'} ~ {declaredContextCeiling.toLocaleString()}토큰. 입력과 출력이 같은 문맥 예산을 공유합니다. GPU 문맥 상향은 기존 기준 프로필의 상한을 초과할 수 없습니다.</p>
+                {!limitsValid ? <Alert isInline variant="danger" title="실행 한도 값이 유효하지 않습니다.">허용 범위의 정수를 입력하고 최대 출력을 문맥 이하로 설정하세요.</Alert> : null}
+                {limitsEdited && limitsValid ? <Alert isInline variant="warning" title="서버 실행 설정이 변경됩니다.">기존 실행 프로필을 기반으로 사용자 한도 변형을 만들고 Runtime 재시작·검증·실패 시 이전 설정 복구를 진행합니다. 새 한도는 실장비 성능이 검증된 값이 아닙니다.</Alert> : null}
+              </div>
+            ) : null}
+
             {requiresConfirmation ? (
-              <Alert isInline variant="warning" title="미검증 프로필 확인이 필요합니다.">
+              <Alert isInline variant="warning" title="미검증 실행 설정 확인이 필요합니다.">
                 <p>{isRecoveringPolicy(reviewPolicy) && gpuCandidateProfile?.qualification.status !== 'verified'
                   ? `GPU 후보 ${gpuCandidateProfile?.display_name ?? selection?.gpu_profile ?? ''}의 실제 장비 검증이 완료되지 않았습니다.`
                   : '전환 대상 프로필의 실제 장비 검증이 완료되지 않았습니다.'}</p>
@@ -606,9 +657,13 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
               <Button variant="secondary" onClick={() => setReviewProfileId(null)} isDisabled={switchMutation.isPending || busy}>취소</Button>
               <Button
                 variant="primary"
-                isDisabled={switchMutation.isPending || busy || locked || !mainModelPolicySwitchable(reviewProfile, reviewPolicy) || (requiresConfirmation && !confirmed)}
-                onClick={() => switchMutation.mutate({ profile: reviewProfile, accepted: confirmed })}
-              >{switchMutation.isPending ? '요청 중…' : '전환 요청'}</Button>
+                isDisabled={switchMutation.isPending || busy || locked || !mainModelPolicySwitchable(reviewProfile, reviewPolicy) || !limitsValid || (reviewProfile.active && !limitsEdited && !isRecoveringPolicy(reviewPolicy)) || (requiresConfirmation && !confirmed)}
+                onClick={() => switchMutation.mutate({
+                  profile: reviewProfile,
+                  accepted: confirmed,
+                  limits: limitsEdited ? { context_tokens: parsedContextTokens, max_output_tokens: parsedOutputTokens } : undefined,
+                })}
+              >{switchMutation.isPending ? '요청 중…' : limitsEdited ? '실행 한도 변경 요청' : '전환 요청'}</Button>
             </div>
           </CardBody>
         </Card>
@@ -620,7 +675,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
       <Card>
         <CardTitle>프로필별 세부 정책</CardTitle>
         <CardBody>
-          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다. 서버 실행 한도는 현재 프로필에서 정의되며, 이 목록만으로 임의 토큰 한도가 변경되지는 않습니다.</p>
+          <p className="configuration-help">GPU 예약 비율은 정책값이며 실제 VRAM 사용량과 다릅니다. 서버 실행 한도는 프로필 변경 검토에서 조정할 수 있습니다.</p>
           <div className="table-scroll">
             <table className="runtime-table">
               <thead>
@@ -647,12 +702,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
                             size="sm"
                             variant="secondary"
                             isDisabled={switchMutation.isPending || busy}
-                            onClick={() => {
-                              setReviewPolicy(profile.runtime_backend === "llama-cpp" ? "cpu" : "gpu");
-                              setReviewProfileId(profile.id);
-                              setConfirmed(false);
-                              setActionError(null);
-                            }}
+                            onClick={() => beginReview(profile, profile.runtime_backend === 'llama-cpp' ? 'cpu' : 'gpu')}
                           >전환 검토</Button>
                         )}
                       </td>

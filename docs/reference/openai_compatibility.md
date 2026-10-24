@@ -27,8 +27,8 @@
 | `user` | 표준(좁힘) | string | 형식만 검증하고 upstream에 전달하지 않는다. |
 | `frequency_penalty` | 표준 | number, 최소 -2, 최대 2 | - |
 | `logprobs` | 표준 | boolean | - |
-| `max_completion_tokens` | 표준 | integer, 최소 1, 최대 13000 | `max_tokens`와 같은 한도를 가리키는 OpenAI 표준 이름이다. 둘을 함께 보내면 거부한다. |
-| `max_tokens` | 표준 | integer, 최소 1, 최대 13000 | - |
+| `max_completion_tokens` | 표준 | integer, 최소 1 | `max_tokens`와 같은 한도를 가리키는 OpenAI 표준 이름이다. 둘을 함께 보내면 거부한다. |
+| `max_tokens` | 표준 | integer, 최소 1 | - |
 | `messages` (필수) | 표준 | array | - |
 | `parallel_tool_calls` | 표준 | boolean | - |
 | `presence_penalty` | 표준 | number, 최소 -2, 최대 2 | - |

@@ -21,6 +21,7 @@ from ...api_examples import (
     main_model_runtime_engine_example,
 )
 from ...errors import ServiceError
+from ...openapi_contracts import load_contract_schema
 from ...services.runtime_controller_client import (
     RuntimeControllerClient,
     RuntimeControllerRequestError,
@@ -300,24 +301,7 @@ def build_router(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["profile"],
-                            "properties": {
-                                "profile": {
-                                    "type": "string",
-                                    "description": "configs/main_model_profiles.yaml의 profile ID",
-                                },
-                                "confirm_unverified": {"type": "boolean", "default": False},
-                                "execution_policy": {"type": "string", "enum": list(EXECUTION_POLICIES)},
-                                "request_id": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 128,
-                                },
-                            },
-                        },
+                        "schema": load_contract_schema("main_model_switch_request.schema.json"),
                         "examples": _switch_examples(settings.main_model_profile_summaries),
                     }
                 },
@@ -326,15 +310,33 @@ def build_router(
     )
     async def switch_main_model(request: Request) -> JSONResponse:
         payload = await request.json()
-        if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str):
+        if not isinstance(payload, dict) or not isinstance(payload.get("profile"), str) or not payload["profile"]:
             raise ServiceError("VALIDATION_ERROR", "profile is required", param="profile")
-        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy"}
+        unknown = set(payload) - {"profile", "confirm_unverified", "request_id", "execution_policy", "server_limits"}
         if unknown:
             raise ServiceError(
                 "VALIDATION_ERROR",
                 f"unsupported fields: {sorted(unknown)}",
                 param=sorted(unknown)[0],
             )
+        if "confirm_unverified" in payload and type(payload["confirm_unverified"]) is not bool:
+            raise ServiceError("VALIDATION_ERROR", "confirm_unverified must be a boolean", param="confirm_unverified")
+        if "request_id" in payload:
+            request_id = payload["request_id"]
+            if (
+                not isinstance(request_id, str)
+                or not 1 <= len(request_id) <= 128
+                or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-" for ch in request_id)
+            ):
+                raise ServiceError("VALIDATION_ERROR", "invalid request_id", param="request_id")
+        if "server_limits" in payload:
+            limits = payload["server_limits"]
+            if (
+                not isinstance(limits, dict)
+                or set(limits) != {"context_tokens", "max_output_tokens"}
+                or any(type(v) is not int or v <= 0 for v in limits.values())
+            ):
+                raise ServiceError("VALIDATION_ERROR", "invalid server_limits", param="server_limits")
         if "execution_policy" in payload and payload["execution_policy"] not in EXECUTION_POLICIES:
             raise ServiceError("VALIDATION_ERROR", "invalid execution_policy", param="execution_policy")
         client = await require_runtime_controller()
@@ -344,6 +346,7 @@ def build_router(
                 confirm_unverified=payload.get("confirm_unverified") is True,
                 request_id=payload.get("request_id"),
                 **({"execution_policy": payload["execution_policy"]} if "execution_policy" in payload else {}),
+                **({"server_limits": payload["server_limits"]} if "server_limits" in payload else {}),
             )
             return JSONResponse(result, status_code=202)
         except RuntimeControllerRequestError as exc:

@@ -12,9 +12,7 @@ Accepted. ADR-0054의 자동 전환 계약을 공통 Runtime Controller로 확�
 
 ## Decision
 
-1. `linux-nvidia-dynamic`을 관리형 Linux의 공통 구성으로 사용한다. 기존 ID는 호환성을 위해
-   유지하고 최초 `TARGET=auto`는 이 구성의 자동 정책을 선택한다. 외부 Runtime과 macOS는
-   기존 생명주기 소유권을 유지한다. 이전 `linux-adaptive` 배포도 명시적으로 이전할 때까지 유지한다.
+1. `linux-nvidia-dynamic`을 유일한 관리형 Linux Target으로 사용한다. 최초 `TARGET=auto`는 이 구성의 자동 정책을 선택한다. 기존 독립 CPU Compose와 Adaptive Target은 중복 권한을 만들므로 제거한다. 외부 Runtime과 macOS는 기존 생명주기 소유권을 유지한다.
 2. Main 실행 정책은 `automatic`·`cpu`·`gpu`다. Console은 모델과 지원 입력 변경을 검토한 뒤
    기존 Main 전환 API로 정책을 적용한다. 자동 정책은 Qwen CPU부터 검증하고 Gemma GPU를
    안정 관측·Admission·Drain·Canary 뒤 선택한다. 고정 정책은 다른 엔진으로 자동 전환하지 않는다.
@@ -27,8 +25,10 @@ Accepted. ADR-0054의 자동 전환 계약을 공통 Runtime Controller로 확�
 5. CPU 우선 기동은 Main 템플릿만 생성하고 실제 시작·교체는 Controller가 수행한다.
    GPU 이미지·드라이버·관측 준비 실패는 Core·CPU·관측 서비스의 기동 실패로 전파하지 않는다.
    반복 `make up`은 실행 중 Main을 CPU로 덮어쓰지 않는다.
-6. 관리형 Linux Target 이전은 Checkout 소유 컨테이너를 종료한 뒤 수행한다. `.env`의 인증값·
-   포트·캐시와 Main 상태를 보존하며 Target 소유 내부 endpoint만 갱신한다.
+6. 관리형 Linux Target 이전은 이전 버전에서 Checkout 소유 컨테이너를 종료한 뒤 수행한다.
+   인증값·포트·모델 캐시는 유지한다. 삭제된 Target·CPU 프리셋 ID가 기록된 Main 상태는
+   새 Controller가 호환성을 가장하지 않으며, 운영자가 지원되는 기준 프로필로 명시적으로
+   초기화한 뒤 새 관리형 구성을 시작한다.
 
 ## Consequences
 

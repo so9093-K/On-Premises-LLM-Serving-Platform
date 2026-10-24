@@ -102,7 +102,7 @@ access_example_profiles:
 service_env_projections:
   static_gateway:
     service: gateway
-    deployment_targets: [linux-nvidia-static, linux-cpu-static, linux-cpu-managed, macos-metal-static]
+    deployment_targets: [linux-nvidia-static, linux-cpu-static, macos-metal-static]
     required_source_keys:
       - APP_ENV
       - MAIN_MODEL_BASE_URL
@@ -142,7 +142,7 @@ service_env_projections:
 
   static_risk_signal_service:
     service: risk_signal_service
-    deployment_targets: [linux-nvidia-static, linux-cpu-static, linux-cpu-managed, macos-metal-static]
+    deployment_targets: [linux-nvidia-static, linux-cpu-static, macos-metal-static]
     required_source_keys:
       - APP_ENV
       - MAIN_MODEL_STATIC_PROFILE
@@ -169,7 +169,7 @@ service_env_projections:
 
   core_gateway:
     service: gateway
-    deployment_targets: [linux-core, linux-adaptive]
+    deployment_targets: [linux-core]
     required_source_keys:
       - APP_ENV
     runtime_keys:
@@ -207,7 +207,7 @@ service_env_projections:
 
   core_risk_signal_service:
     service: risk_signal_service
-    deployment_targets: [linux-core, linux-adaptive]
+    deployment_targets: [linux-core]
     required_source_keys:
       - APP_ENV
     runtime_keys:
@@ -230,29 +230,6 @@ service_env_projections:
       - RISK_SIGNAL_SERVICE_TIMEOUT_SECONDS
       - RISK_INPUT_MAX_CHARS
       - LOG_REQUEST_RESPONSE_BODY
-
-  adaptive_runtime_controller:
-    service: runtime_controller
-    deployment_targets: [linux-adaptive]
-    required_source_keys: [APP_ENV]
-    runtime_keys:
-      - APP_ENV
-      - DEPLOYMENT_TARGET
-      - PLATFORM_PORT_BASE
-      - INTERNAL_SERVICE_AUTH_REQUIRED
-      - INTERNAL_SERVICE_TOKEN
-      - VLLM_IMAGE
-      - LLAMA_CPP_IMAGE
-      - MAIN_MODEL_RESOURCE_VARIANT
-      - ADAPTIVE_GPU_RESOURCE_POLICY
-      - HF_TOKEN
-      - HUGGING_FACE_HUB_TOKEN
-
-  adaptive_host_resource_observer:
-    service: host_resource_observer
-    deployment_targets: [linux-adaptive]
-    required_source_keys: [APP_ENV]
-    runtime_keys: [APP_ENV, DEPLOYMENT_TARGET, INTERNAL_SERVICE_AUTH_REQUIRED, INTERNAL_SERVICE_TOKEN]
 
 # ── sync-env가 기존 .env에서 제거하는 키 ────────────────────────────────
 # `make up`의 .env 동기화(scripts/config/setup_env.py --sync-env)가 기존 .env에서 지우는 키이자,

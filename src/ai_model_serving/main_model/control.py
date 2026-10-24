@@ -9,6 +9,7 @@ from typing import Any, NamedTuple, Protocol
 from .execution_policy import RECOVERING_POLICIES
 from .catalog import MainModelCatalog, MainModelProfile, resolve_boot_profile
 from .state import MainModelStateError, MainModelStateStore, MainModelSwitchLockError
+from .runtime_limits import CPU_MAX_CONTEXT_TOKENS, build_runtime_limit_profile, restore_runtime_limit_profiles
 from ..service_logging import service_logger
 
 _logger = service_logger("main_model_control")
@@ -130,6 +131,7 @@ class MainModelManager:
             startup = float(catalog.runtime.get("startup_timeout_seconds", 600))
             idempotency_ttl_seconds = 2.0 * startup
         self._idempotency_ttl = float(idempotency_ttl_seconds)
+        restore_runtime_limit_profiles(catalog, state_store.read().get("runtime_limit_profiles"))
         persisted = state_store.read().get("active_profile")
         self.boot_profile = resolve_boot_profile(
             catalog,
@@ -216,9 +218,18 @@ class MainModelManager:
         return snapshot
 
     def profiles(self) -> list[dict[str, Any]]:
-        active = self.state_store.read().get("active_profile")
+        state = self.state_store.read()
+        active = state.get("active_profile")
+        custom = state.get("runtime_limit_profiles") or {}
         return [
-            {**profile.public_view(), "active": profile.profile_id == active}
+            {
+                **profile.public_view(),
+                "active": profile.profile_id == active,
+                **({"context_tokens_ceiling": CPU_MAX_CONTEXT_TOKENS}
+                   if profile.runtime_backend == "llama-cpp" else {}),
+                **({"base_profile_id": custom[profile.profile_id]["base_profile"]}
+                   if profile.profile_id in custom else {}),
+            }
             for profile in self.catalog.profiles.values()
         ]
 
@@ -397,8 +408,12 @@ class MainModelManager:
         """중단된 작업의 재검증 실패를 종료 기록으로 남겨 재복구 경로를 연다."""
         operation = self.state_store.read().get("last_operation") or {}
         if operation and operation.get("status") not in _TERMINAL_STATES:
-            self._set_operation(operation["id"], "failed", stage=operation.get("stage", "validating"),
-                                error=error, recovered_after_restart=True)
+            self._set_operation(
+                operation["id"], "failed",
+                stage=operation.get("stage", "validating"),
+                error=error, recovered_after_restart=True,
+                uncertain_runtime=True,
+            )
             self._record_terminal(operation["id"], success=False)
         self.state_store.update(lambda s: s.update(gate="closed"))
 
@@ -642,6 +657,59 @@ class MainModelManager:
             )
         return None
 
+    def request_limit_switch(
+        self,
+        profile_id: str,
+        *,
+        context_tokens: object,
+        max_output_tokens: object,
+        confirm_unverified: bool = False,
+        client_request_id: str | None = None,
+        execution_policy: str | None = None,
+    ) -> SwitchOutcome:
+        if execution_policy in RECOVERING_POLICIES:
+            raise MainModelSwitchError(
+                "RUNTIME_LIMIT_RECOVERY_POLICY_UNSUPPORTED",
+                "custom server limits require fixed CPU or GPU execution policy",
+                status_code=422,
+            )
+        records = self.state_store.read().get("runtime_limit_profiles") or {}
+        # 기존 사용자 구성에서 다시 수정할 때에는 원래 선언된 모델 프로필을
+        # 기준으로 새 변형을 파생한다. 변형을 중첩하지 않는다.
+        base_id = (records.get(profile_id) or {}).get("base_profile", profile_id)
+        profile = build_runtime_limit_profile(
+            self.catalog, base_id, context_tokens, max_output_tokens,
+        )
+        # 상태 저장 시 오래된 비활성 변형을 자동 정리한다. 더는 과거 설정의
+        # 개수 때문에 새로운 문맥 설정을 거부하지 않는다.
+        previously_registered = profile.profile_id in self.catalog.profiles
+        self.catalog.profiles[profile.profile_id] = profile
+        try:
+            outcome = self.request_switch(
+                profile.profile_id,
+                confirm_unverified=confirm_unverified,
+                client_request_id=client_request_id,
+                execution_policy=execution_policy,
+                runtime_limit_override={
+                    "base_profile": base_id,
+                    "context_tokens": context_tokens,
+                    "max_output_tokens": max_output_tokens,
+                },
+            )
+            # 실패한 작업의 동일 request_id 재전송은 새 전환을 시작하지 않는다.
+            # 이때 임시로 등록한 파생 프로필도 영속 기록 없이 남기지 않는다.
+            if outcome.reused and not previously_registered:
+                persisted = self.state_store.read().get("runtime_limit_profiles") or {}
+                if profile.profile_id not in persisted:
+                    self.catalog.profiles.pop(profile.profile_id, None)
+            return outcome
+        except Exception:
+            # 전환이 접수되기 전에 거부되면 프로필 목록에 가짜 구성이
+            # 남지 않아야 한다. 이미 커밋된 동일 ID의 변형은 보존한다.
+            if not previously_registered:
+                self.catalog.profiles.pop(profile.profile_id, None)
+            raise
+
     def request_switch(
         self,
         profile_id: str,
@@ -650,6 +718,7 @@ class MainModelManager:
         boot_reconcile: bool = False,
         client_request_id: str | None = None,
         execution_policy: str | None = None,
+        runtime_limit_override: dict[str, Any] | None = None,
     ) -> SwitchOutcome:
         policy_error = self.switch_policy_error(profile_id, boot_reconcile=boot_reconcile)
         if policy_error is not None:
@@ -661,8 +730,9 @@ class MainModelManager:
                 "the selected model is not qualified as verified; explicit confirmation is required",
                 status_code=409,
             )
-        if client_request_id is not None and not _CLIENT_REQUEST_RE.fullmatch(
-            client_request_id
+        if client_request_id is not None and (
+            not isinstance(client_request_id, str)
+            or not _CLIENT_REQUEST_RE.fullmatch(client_request_id)
         ):
             raise MainModelSwitchError(
                 "INVALID_SWITCH_REQUEST_ID",
@@ -727,6 +797,9 @@ class MainModelManager:
                     "client_request_id": client_request_id,
                     **({"execution_policy": execution_policy} if execution_policy is not None else {}),
                 }
+                if runtime_limit_override is not None:
+                    overrides = value.setdefault("runtime_limit_profiles", {})
+                    overrides[profile_id] = dict(runtime_limit_override)
                 value["last_operation"] = operation
                 value.setdefault("operations", []).append(operation)
                 value["operations"] = value["operations"][-50:]
@@ -805,7 +878,25 @@ class MainModelManager:
                 stats["rollback_failures"] = int(stats.get("rollback_failures", 0)) + 1
             stats["last_switch_timestamp"] = now
             stats["last_switch_duration_seconds"] = duration
+            # 파생 상태는 실행 복구에 필요한 신원만 소유한다.
+            # 과거 작업 이력은 별도의 operations에 그대로 보존한다.
+            retained = {
+                state.get("active_profile"),
+                state.get("last_known_good_profile"),
+                state.get("previous_known_good_profile"),
+            }
+            last = state.get("last_operation") or {}
+            if last.get("status") not in {"completed", "failed"} or last.get("uncertain_runtime"):
+                retained.update((last.get("requested_profile"), last.get("previous_profile")))
+            records = state.get("runtime_limit_profiles") or {}
+            state["runtime_limit_profiles"] = {
+                key: entry for key, entry in records.items() if key in retained
+            }
         self.state_store.update(mutate)
+        current = self.state_store.read().get("runtime_limit_profiles") or {}
+        for stale_id in tuple(self.catalog.profiles):
+            if stale_id.startswith("limits-") and stale_id not in current:
+                self.catalog.profiles.pop(stale_id, None)
 
     async def _run(
         self,
@@ -880,7 +971,7 @@ class MainModelManager:
                 self._record_terminal(operation_id, success=False)
                 return
             self._set_operation(operation_id, "rolling_back", error=str(exc))
-            if entered_replace_phase and previous_id in self.catalog.profiles:
+            if previous_id in self.catalog.profiles:
                 previous = self.catalog.profiles[previous_id]
                 try:
                     await self.backend.replace(self.catalog, previous)
@@ -899,22 +990,31 @@ class MainModelManager:
                         rollback_failed=True,
                     )
                     return
+            # 교체 이후 복구할 이전 프로필이 없다면 실제 컨테이너 신원을
+            # 확정할 수 없다. 기록을 정리하지 않고 Gate를 닫아 두어야 한다.
+            if previous_id not in self.catalog.profiles:
+                self._set_operation(
+                    operation_id,
+                    "rollback_failed",
+                    stage=failed_stage,
+                    error=str(exc),
+                    rollback_error="previous known-good profile is unavailable",
+                )
+                self._record_terminal(
+                    operation_id, success=False, rollback=True, rollback_failed=True,
+                )
+                return
             self._set_operation(
                 operation_id,
                 "failed",
                 stage=failed_stage,
                 error=str(exc),
             )
-            if previous_id:
-                def reopen(state: dict[str, Any]) -> None:
-                    state["active_profile"] = previous_id
-                    state["gate"] = "open"
-                self.state_store.update(reopen)
-            self._record_terminal(
-                operation_id,
-                success=False,
-                rollback=entered_replace_phase and previous_id in self.catalog.profiles,
-            )
+            def reopen(state: dict[str, Any]) -> None:
+                state["active_profile"] = previous_id
+                state["gate"] = "open"
+            self.state_store.update(reopen)
+            self._record_terminal(operation_id, success=False, rollback=True)
             return
 
         def commit(state: dict[str, Any]) -> None:

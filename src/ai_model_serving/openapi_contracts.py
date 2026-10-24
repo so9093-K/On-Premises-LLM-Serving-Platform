@@ -260,7 +260,8 @@ def _narrow_tool_choice_schema(
 
 
 def narrow_chat_request_schema(
-    schema: dict[str, Any], policies: "Sequence[dict[str, Any]] | None"
+    schema: dict[str, Any], policies: "Sequence[dict[str, Any]] | None",
+    *, allows_runtime_limit_edit: bool = False,
 ) -> dict[str, Any]:
     """chat 요청 스키마의 한도를 배포된 프로필 전체의 **상한**으로 맞춘다.
 
@@ -296,9 +297,18 @@ def narrow_chat_request_schema(
         if isinstance(target, dict) and value:
             target[key] = value
 
-    max_output = ceiling("max_output_tokens")
-    set_bound("max_tokens", "maximum", max_output)
-    set_bound("max_completion_tokens", "maximum", max_output)
+    # Controller 관리형 모델은 새 서버 한도를 동적으로 만들 수 있다.
+    # 문서가 부팅 시점의 고정 프로필보다 좁은 최대 출력을 광고하지 않도록 한다.
+    # 현재 활성 한도는 /v1/models가 소유하고 요청 시 Gateway가 검증한다.
+    if allows_runtime_limit_edit:
+        for name in ("max_tokens", "max_completion_tokens"):
+            field = properties.get(name)
+            if isinstance(field, dict):
+                field.pop("maximum", None)
+    else:
+        max_output = ceiling("max_output_tokens")
+        set_bound("max_tokens", "maximum", max_output)
+        set_bound("max_completion_tokens", "maximum", max_output)
     set_bound("n", "maximum", ceiling("request_parameter_policy", "max_n"))
     set_bound("top_logprobs", "maximum", ceiling("request_parameter_policy", "top_logprobs", "max"))
 
@@ -329,7 +339,8 @@ def narrow_chat_request_schema(
 
 
 def narrow_responses_request_schema(
-    schema: dict[str, Any], policies: "Sequence[dict[str, Any]] | None"
+    schema: dict[str, Any], policies: "Sequence[dict[str, Any]] | None",
+    *, allows_runtime_limit_edit: bool = False,
 ) -> dict[str, Any]:
     """Responses schema를 deployed Main Model profiles의 union capability로 좁힌다.
 
@@ -344,8 +355,11 @@ def narrow_responses_request_schema(
 
     max_outputs = [p.get("max_output_tokens") for p in policies]
     max_outputs = [v for v in max_outputs if isinstance(v, int) and not isinstance(v, bool) and v > 0]
-    if max_outputs and isinstance(properties.get("max_output_tokens"), dict):
-        properties["max_output_tokens"]["maximum"] = max(max_outputs)
+    if isinstance(properties.get("max_output_tokens"), dict):
+        if allows_runtime_limit_edit:
+            properties["max_output_tokens"].pop("maximum", None)
+        elif max_outputs:
+            properties["max_output_tokens"]["maximum"] = max(max_outputs)
 
     tool_policies = [((p.get("request_parameter_policy") or {}).get("tool_calling") or {}) for p in policies]
     tool_policies = [p for p in tool_policies if isinstance(p, dict)]

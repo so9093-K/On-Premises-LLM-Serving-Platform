@@ -28,8 +28,7 @@ def load_cpu_profile(
     )
     if not is_immutable_image_ref(image):
         raise ValueError("LLAMA_CPP_IMAGE must be an immutable image reference")
-    override = document["profiles"][profile_id].get("runtime", {})
-    runtime = {**document["runtime"], **override}
+    runtime = document["runtime"]
     return MainModelProfile(
         profile_id=profile_id,
         display_name=profile.display_name,

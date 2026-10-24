@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted; deployment state vocabulary updated by [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md). Static Risk capability projection extended by [ADR-0044](./0044-risk-capability-and-prompt-runtime-separation.md).
+Accepted — Target capability 구분은 유효하다. 관리형 Control Mode는 [ADR-0061](./0061-managed-linux-execution-policy.md)에 따라 `runtime_controller` 하나로 통합됐고, 상태 용어는 [ADR-0030](./0030-target-architecture-state-and-artifact-boundary.md), Static Risk는 [ADR-0044](./0044-risk-capability-and-prompt-runtime-separation.md)가 소유한다.
 
 ## Context
 

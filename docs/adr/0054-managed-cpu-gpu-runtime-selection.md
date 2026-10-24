@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded — 관리형 Linux의 Target 통합은 ADR-0061, 기본 실행 정책은 ADR-0063, 직접 한도 제어는 ADR-0066이 소유한다.
 
 ## Context
 

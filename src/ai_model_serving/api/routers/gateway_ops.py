@@ -103,8 +103,6 @@ async def _readiness(
     probes = list(embedding_probes)
     main_evaluator = None
     main_blocked_reason = None
-    if settings.deployment_target.control_mode == "managed_cpu":
-        main_evaluator = lambda body: _managed_cpu_model_readiness(body, settings.runtime("main_llm").model)
     if getattr(clients, "runtime_controller", None) is not None:
         # Controller 관리형 Target의 추론 요청은 Controller가 검증해 연 Gate를 통과해야
         # 한다. Runtime이 /models에 응답해도 Controller를 관측할 수 없거나 Gate가 닫혀
@@ -248,7 +246,7 @@ def build_router(admin_dependencies: list, clients: Any, metrics: Any, settings:
             "runtime": "main_llm",
             "public_model": main_endpoint.model,
             "deployment_target": target.target_id,
-            "backend": active_profile["runtime_backend"] if target.adaptive else target.runtime_backend,
+            "backend": active_profile["runtime_backend"] if target.controllable else target.runtime_backend,
             "control_mode": target.control_mode,
             "profile": {
                 "id": profile_id,

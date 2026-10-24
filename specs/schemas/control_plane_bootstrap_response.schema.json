@@ -65,8 +65,7 @@
           "type": "string",
           "enum": [
             "runtime_controller",
-            "static",
-            "managed_cpu"
+            "static"
           ]
         },
         "lifecycle_owner": {

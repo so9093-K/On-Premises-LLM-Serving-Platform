@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .catalog import load_main_model_catalog
 from .cache import default_hf_hub_cache_dir, prepare_model_snapshot
+from .runtime_limits import cache_profile_for_persisted_limit
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,13 +24,17 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=default_hf_hub_cache_dir(),
     )
+    parser.add_argument("--state", type=Path, default=None)
     args = parser.parse_args(argv)
 
     # Cache 준비에는 pinned model_id/revision만 필요하다. runtime image는 Compose가
     # 실제 컨테이너를 만들 때 해석하므로, 여기서 배포 digest를 요구하지 않는다.
     catalog = load_main_model_catalog(args.catalog, resolve_runtime_images=False)
     try:
-        profile = catalog.profiles[args.profile]
+        profile = cache_profile_for_persisted_limit(
+            catalog, args.profile,
+            args.state or args.catalog.resolve().parent.parent / ".runtime/main-model/main-model-state.json",
+        )
     except KeyError as exc:
         raise SystemExit(f"unknown main-model profile: {args.profile}") from exc
     if profile.runtime_backend == "llama-cpp":

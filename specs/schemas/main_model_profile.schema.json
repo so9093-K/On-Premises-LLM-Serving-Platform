@@ -49,6 +49,16 @@
       "type": "string",
       "minLength": 1
     },
+    "context_tokens_ceiling": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "관리형 CPU 모델의 허용 문맥 상한. 선언된 기준 프로필의 현재 문맥과 다를 수 있습니다."
+    },
+    "base_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "사용자 지정 실행 한도가 파생된 기준 프로필. 선언된 원본 프로필에는 없습니다."
+    },
     "display_name": {
       "type": "string",
       "minLength": 1

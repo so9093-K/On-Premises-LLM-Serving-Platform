@@ -71,7 +71,7 @@ sys.path.insert(0, "src")
 from pathlib import Path
 from ai_model_serving.deployment_target import load_deployment_target
 target = load_deployment_target(Path("configs/deployment_targets.yaml"), sys.argv[1])
-if not target.static_serving and not target.adaptive:
+if not target.static_serving:
     raise SystemExit(f"DEPLOYMENT_TARGET {target.target_id!r} is not a static target")
 print("\n".join(target.compose_files))
 ' "$DEPLOYMENT_TARGET")
@@ -97,32 +97,6 @@ if [[ "$DEPLOYMENT_TARGET" == "macos-metal-static" ]]; then
   PORT_RUNTIME_ARGS=(--prometheus "$ROOT/.runtime/prometheus/prometheus.macos-metal.yml" --variant macos-metal)
 fi
 compose_context_export_ports "$ROOT" "$ENV_FILE_ABS" "${PORT_RUNTIME_ARGS[@]}"
-
-# 자동 배포와 CPU 명령의 입력은 사용자 env가 아니라 Catalog에서 계산한다.
-if [[ "$DEPLOYMENT_TARGET" == "linux-cpu-managed" || "$DEPLOYMENT_TARGET" == "linux-adaptive" ]]; then
-  CPU_MAIN_COMMAND="$(PYTHONPATH="$ROOT/src" "$PYTHON_BIN" -c '
-import os,shlex,sys
-from pathlib import Path
-from ai_model_serving.main_model.cpu import cpu_runtime_command
-port = int(os.environ["PLATFORM_PORT_MAIN_LLM"]) if sys.argv[1] == "linux-adaptive" else None
-print(shlex.join(cpu_runtime_command(Path.cwd(), port=port)))
-' "$DEPLOYMENT_TARGET")"
-  CPU_MEMORY_LIMIT_BYTES="$("$PYTHON_BIN" -c 'import yaml; print(int(yaml.safe_load(open("configs/cpu_model_artifact.yaml"))["runtime"]["memory_limit_mib"])*1024*1024)')"
-  export CPU_MAIN_COMMAND CPU_MEMORY_LIMIT_BYTES
-fi
-if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" ]]; then
-  ADAPTIVE_CONTROLLER_ENV_FILE="$ROOT/.runtime/env/linux-adaptive-controller.env"
-  HOST_RESOURCE_OBSERVER_ENV_FILE="$ROOT/.runtime/env/linux-adaptive-resource-observer.env"
-  export ADAPTIVE_CONTROLLER_ENV_FILE HOST_RESOURCE_OBSERVER_ENV_FILE STATIC_COMPOSE_PROJECT_NAME
-  if [[ "$COMPOSE_ACTION" == "down" ]]; then
-    for projection in "$ADAPTIVE_CONTROLLER_ENV_FILE" "$HOST_RESOURCE_OBSERVER_ENV_FILE"; do
-      if [[ ! -e "$projection" ]]; then install -m 0600 /dev/null "$projection"; fi
-    done
-  else
-    "$PYTHON_BIN" scripts/config/render_service_env.py --target "$DEPLOYMENT_TARGET" --service runtime_controller --source-env "$ENV_FILE_ABS" --output "$ADAPTIVE_CONTROLLER_ENV_FILE"
-    "$PYTHON_BIN" scripts/config/render_service_env.py --target "$DEPLOYMENT_TARGET" --service host_resource_observer --source-env "$ENV_FILE_ABS" --output "$HOST_RESOURCE_OBSERVER_ENV_FILE"
-  fi
-fi
 
 # 어떤 secret 파일이 필요한지는 Compose 정의가 소유한다. secret 이름이나 경로를
 # 여기 다시 적으면 Compose가 바뀔 때 조용히 어긋난다.
@@ -172,7 +146,6 @@ if [[ "$COMPOSE_ACTION" == "up" ]]; then
     exit 2
   fi
 fi
-COMPOSE_PROFILE_ARGS=()
 if [[ "$COMPOSE_ACTION" == "up" || "$COMPOSE_ACTION" == "create" ]]; then
   VOLUME_FILE_ARGS=()
   for compose_file in "${COMPOSE_FILE_PATHS[@]}"; do
@@ -181,14 +154,10 @@ if [[ "$COMPOSE_ACTION" == "up" || "$COMPOSE_ACTION" == "create" ]]; then
   compose_context_preserve_volumes "${VOLUME_FILE_ARGS[@]}"
   COMPOSE_FILES+=("${COMPOSE_VOLUME_ARGS[@]}")
 fi
-if [[ "$DEPLOYMENT_TARGET" == "linux-adaptive" && "$COMPOSE_ACTION" == "down" ]]; then
-  COMPOSE_PROFILE_ARGS=(--profile gpu-observation)
-fi
 if [[ "$COMPOSE_ACTION" == "down" ]]; then
   exec "$PYTHON_BIN" scripts/ops/compose_ownership.py down
 fi
 exec docker compose \
-  "${COMPOSE_PROFILE_ARGS[@]}" \
   --project-name "$STATIC_COMPOSE_PROJECT_NAME" \
   "${COMPOSE_FILES[@]}" \
   --env-file "$ENV_FILE_ABS" \

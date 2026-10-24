@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, aclosing
@@ -242,30 +241,6 @@ def build_router(
         items = [dict(item) for item in settings.public_models]
         if not settings.feature_enabled("chat"):
             return {"object": "list", "data": items}
-        if settings.deployment_target.control_mode == "managed_cpu":
-            # 이 Target은 Runtime Controller가 없는 플랫폼 관리형 CPU 프로세스다.
-            # 설정상 모델이 있어도 실제 서버가 준비되지 않았다면 광고하면 안 된다.
-            # 별도 probe_json은 inference circuit/admission을 건드리지 않는다.
-            active_model_id = settings.runtime("main_llm").model
-            try:
-                observed = await asyncio.wait_for(
-                    service.clients.main_llm.probe_json("models"),
-                    timeout=settings.readiness_probe_timeout_seconds,
-                )
-                available = (
-                    isinstance(observed, dict)
-                    and isinstance(observed.get("data"), list)
-                    and any(
-                        isinstance(model, dict)
-                        and model.get("id") == active_model_id
-                        and isinstance(model.get("meta"), dict)
-                        for model in observed["data"]
-                    )
-                )
-            except (ServiceError, TimeoutError):
-                available = False
-            if not available:
-                items = [item for item in items if item.get("id") != active_model_id]
         # active main-model 프로필의 입력 modality를 덮어써서, listing이 정적
         # catalog 기본값이 아니라 chat validator와 동일하게 지금 실제로 서빙
         # 가능한 것(예: 멀티모달 프로필의 audio/video)을 알리도록 한다.
@@ -300,14 +275,6 @@ def build_router(
                             item[key] = active[key]
                     if active.get("runtime_backend"):
                         item["backend"] = active["runtime_backend"]
-            if settings.deployment_target.adaptive:
-                active = (active_snapshot or {}).get("active_profile")
-                if not main_model_serving_open(active_snapshot):
-                    items = [item for item in items if item.get("id") != settings.runtime("main_llm").model]
-                else:
-                    for item in items:
-                        if item.get("id") == settings.runtime("main_llm").model:
-                            item["backend"] = active["runtime_backend"]
         main_model_id = settings.runtime("main_llm").model
         for item in items:
             if item.get("id") == main_model_id:

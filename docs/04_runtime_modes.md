@@ -12,20 +12,12 @@ AI Model Serving Platform은 개발 목적의 **app-only**, 전체 lifecycle을 
 
 ### CPU Managed (llama.cpp)
 
-`linux-cpu-managed`는 플랫폼 Compose가 CPU-only llama.cpp 서버를
-시작·중지·재시작하는 Deployment Target이다. 모델은
-`configs/cpu_model_artifact.yaml`에서 선언한 Qwen3 0.6B GGUF를
-고정 Revision과 SHA-256으로 다운로드·검증한 뒤 Cache에 보존한다.
-Server Image는 `configs/recommended_images.yaml`의 Digest 고정 정책을
-적용하고, Runtime은 CPU/GPU 혼합 Offloading을 활성화하지 않는다.
-CPU 모델 캐시를 재사용할 때에도 가용 RAM을 매번 다시 확인한다.
-모델 준비 전에 Gateway와 로컬 Risk 서비스를 먼저 기동한다. 모델 준비에 실패하면
-`make up`은 실패를 반환하지만 Core는 진단을 위해 유지된다.
-공통 관리형 구성에서 자동 복구를 사용하려면 [실행 정책](guides/adaptive-runtime.md)을 선택한다.
+새 설치의 공식 관리형 CPU 경로는 Runtime Controller가 동일한 `main-llm-vllm` 컨테이너에
+llama.cpp를 실행하는 `linux-nvidia-dynamic POLICY=cpu`다. GPU나 CUDA 없이도 실행하며,
+서버 문맥과 출력 한도 조정은 이 경로의 Main Model 전환 계약으로 처리한다.
 
 ```bash
-make up TARGET=linux-cpu-managed ACCESS=local
-make smoke
+make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local
 make status
 ```
 
@@ -37,9 +29,8 @@ make status
 `linux-nvidia-dynamic`의 기본 Main 실행 정책은 GPU 우선·CPU 복구이며 CPU 복구 후 GPU 복귀는 수동이다.
 Console에서 CPU 고정, 고급 선택인 자동 전환·GPU 고정으로 변경할 수 있다. 저장된 정책은 보존하며
 정책이 없는 GPU 설정은 기본 CPU 복구 정책을 사용한다. CPU 복구 정책은 Core를 유지하면서
-Main Runtime을 전환하며 Gate·Drain·Canary·Rollback을 적용한다. `linux-adaptive`는 이전
-배포의 호환 구성이며 새 설치에는 공통 관리형 구성을 사용한다.
-[ADR-0054](adr/0054-managed-cpu-gpu-runtime-selection.md)의 소유권·복구 계약을 따른다.
+Main Runtime을 전환하며 Gate·Drain·Canary·Rollback을 적용한다.
+실행 권한은 [ADR-0061](adr/0061-managed-linux-execution-policy.md), GPU 우선·CPU 복구 정책은 [ADR-0063](adr/0063-gpu-preferred-cpu-recovery.md)을 따른다.
 
 ### CPU Static (llama.cpp)
 
@@ -410,7 +401,7 @@ optional_not_ready_dependencies: [...]
 
 Runtime Startup Profile에서 stopped 또는 deferred로 지정된 non-main Model Runtime은 optional dependency로 처리될 수 있다.
 
-Runtime Controller가 Main Model을 관리하는 Target(`linux-nvidia-dynamic`, `linux-adaptive`)에서는
+Runtime Controller가 Main Model을 관리하는 `linux-nvidia-dynamic`에서는
 Main dependency가 Chat·Responses 요청 Admission과 같은 판정을 따른다. Controller가 검증된
 활성 Profile로 Gate를 열었을 때만 Main Runtime 자체의 준비 상태를 확인하며, 그 전에는
 Runtime이 응답하더라도 준비 완료로 보지 않는다. Main dependency의 `message`는 원인을 구분한다.
