@@ -6,12 +6,13 @@ export const NAVIGATION_GROUPS = ['service', 'operations', 'development'] as con
 export type NavigationGroup = typeof NAVIGATION_GROUPS[number];
 
 // Playground 안의 작업 화면이다. 각 화면은 해당 공개 API를 제공하는 feature가 있을 때만
-// 열리고, Playground 메뉴는 그중 하나라도 있으면 보인다. Chat이 없는 Core에서도
-// PII·Secret Risk 화면에 접근할 수 있어야 한다.
+// 요청을 보내고, Playground 메뉴는 그중 하나라도 있으면 보인다. Chat이 없는 Core에서도
+// PII·Secret Risk 화면에 접근할 수 있어야 한다. 제공하지 않는 화면도 탭으로는 보여
+// 기능의 존재와 미제공 이유를 알린다.
 export const PLAYGROUND_WORKSPACES = [
-  { path: 'chat', label: 'Chat', feature: 'chat' },
-  { path: 'embeddings', label: 'Embedding', feature: 'embeddings' },
-  { path: 'risk', label: 'Risk', feature: 'risk' },
+  { path: 'chat', label: 'Chat', feature: 'chat', description: '모델에 메시지를 보내 스트리밍 응답·도구 호출·멀티모달 입력을 확인합니다.' },
+  { path: 'embeddings', label: 'Embedding', feature: 'embeddings', description: '텍스트를 벡터로 바꾸고 두 문장 유사도와 문서 관련도 순위를 확인합니다.' },
+  { path: 'risk', label: 'Risk', feature: 'risk', description: '텍스트의 PII·Secret 위험 신호를 검사합니다.' },
 ] as const;
 
 export type PlaygroundWorkspace = typeof PLAYGROUND_WORKSPACES[number];
@@ -50,6 +51,10 @@ export function visibleNavigationSections(features: readonly string[]) {
 
 export function visiblePlaygroundWorkspaces(features: readonly string[]): PlaygroundWorkspace[] {
   return PLAYGROUND_WORKSPACES.filter((workspace) => features.includes(workspace.feature));
+}
+
+export function unavailablePlaygroundWorkspaces(features: readonly string[]): PlaygroundWorkspace[] {
+  return PLAYGROUND_WORKSPACES.filter((workspace) => !features.includes(workspace.feature));
 }
 
 export function playgroundPath(workspace: PlaygroundWorkspace['path']): string {

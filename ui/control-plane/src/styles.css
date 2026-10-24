@@ -2040,6 +2040,16 @@ a.overview-action-tile:hover {
   border-bottom-color: var(--pf-t--global--color--brand--default, #06c);
 }
 .playground-tabs a:focus-visible { outline: 2px solid var(--console-focus); outline-offset: -2px; }
+.playground-tabs a.is-unavailable:not(.active) { opacity: 0.7; }
+.playground-tab-badge {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--console-border);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: 0.0625rem;
+}
 .playground-panel-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
 .playground-panel-heading h2 { margin: 0; font-size: 1.05rem; }
 .playground-panel-heading p { margin: 0.25rem 0 0; color: var(--console-text-muted); font-size: 0.875rem; }
