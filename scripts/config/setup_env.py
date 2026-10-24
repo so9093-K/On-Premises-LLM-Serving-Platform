@@ -144,7 +144,19 @@ def sync_deployment_target(
         write_env(lines, existing, env_path)
         return
     previous_target = existing.get("DEPLOYMENT_TARGET")
-    previous = load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_target) if previous_target else None
+    # 폐기된 Target을 복원·변환하지 않는다. 과거 실행 소유권을 새 Target의
+    # 제어 권한으로 조용히 매핑하면 상태와 실제 Runtime이 어긋날 수 있다.
+    try:
+        previous = (
+            load_deployment_target(ROOT / "configs/deployment_targets.yaml", previous_target)
+            if previous_target else None
+        )
+    except RuntimeError as exc:
+        raise ValueError(
+            f"기존 .env의 DEPLOYMENT_TARGET={previous_target!r}은 지원하지 않습니다. "
+            "새 설치에서는 지원하는 TARGET으로 환경을 명시적으로 다시 구성하세요. "
+            "이 명령은 기존 .env와 Main 상태를 자동 변경하지 않습니다."
+        ) from exc
     previous_profile = existing.get("MAIN_MODEL_STATIC_PROFILE" if previous and previous.static_serving else "MAIN_MODEL_BOOT_PROFILE")
     selected_profile = main_profile or previous_profile or existing.get(profile_key) or None
     try:

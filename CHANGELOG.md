@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 - Controller 장애·Gate 차단 중 `/v1/models`는 논리 모델 목록을 유지하되 확인되지 않은 Main 실행 한도·Backend를 광고하지 않고 정책 상태를 구분한다.
-- 폐기된 관리형 CPU·Adaptive Target을 공통 Runtime Controller로 이전하는 계획/명시적 적용 명령을 제공한다. 인증·포트·모델 캐시를 보존하고 Main 상태만 별도 백업 후 초기화한다.
+- 미지원 이전 Target은 설정 변경 시 명확히 거부한다. 자동 전환·상태 이전이나 인증 설정을 변경하는 호환 계층은 추가하지 않는다.
 - 독립 CPU Compose를 위해 남은 `cpu_main_llama` 서비스 선언을 제거한다.
 
 ### Added
