@@ -38,7 +38,7 @@ from ai_model_serving.access_profile import (
     default_access_profile,
     load_access_profile,
 )
-from ai_model_serving.deployment_target import load_deployment_target
+from ai_model_serving.deployment_target import DeploymentTarget, load_deployment_target
 from ai_model_serving.port_namespace import load_port_namespace
 from ai_model_serving.settings_parts.dotenv_parser import load_strict_env_file
 from ai_model_serving.settings_parts.env import default_env_path
