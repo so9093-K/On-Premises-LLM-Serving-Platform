@@ -22,8 +22,10 @@ def test_stale_target_is_rejected_without_modifying_environment(
         encoding="utf-8",
     )
     initial = env.read_bytes()
-    with pytest.raises(ValueError, match="지원하지 않습니다"):
-        sync_deployment_target(
-            env, "linux-nvidia-dynamic", main_profile="cpu-gguf-text"
-        )
-    assert env.read_bytes() == initial
+    for selected, profile in (
+        ("linux-nvidia-dynamic", "cpu-gguf-text"),
+        ("linux-core", None),
+    ):
+        with pytest.raises(ValueError, match="지원하지 않습니다"):
+            sync_deployment_target(env, selected, main_profile=profile)
+        assert env.read_bytes() == initial

@@ -137,12 +137,6 @@ def sync_deployment_target(
         if target.static_serving
         else "MAIN_MODEL_BOOT_PROFILE"
     )
-    if not target.supports("chat"):
-        if main_profile is not None or main_base_url is not None:
-            raise ValueError(f"deployment target {target_id!r} has no Main Model endpoint")
-        existing["DEPLOYMENT_TARGET"] = target_id
-        write_env(lines, existing, env_path)
-        return
     previous_target = existing.get("DEPLOYMENT_TARGET")
     # 폐기된 Target을 복원·변환하지 않는다. 과거 실행 소유권을 새 Target의
     # 제어 권한으로 조용히 매핑하면 상태와 실제 Runtime이 어긋날 수 있다.
@@ -157,6 +151,12 @@ def sync_deployment_target(
             "새 설치에서는 지원하는 TARGET으로 환경을 명시적으로 다시 구성하세요. "
             "이 명령은 기존 .env와 Main 상태를 자동 변경하지 않습니다."
         ) from exc
+    if not target.supports("chat"):
+        if main_profile is not None or main_base_url is not None:
+            raise ValueError(f"deployment target {target_id!r} has no Main Model endpoint")
+        existing["DEPLOYMENT_TARGET"] = target_id
+        write_env(lines, existing, env_path)
+        return
     previous_profile = existing.get("MAIN_MODEL_STATIC_PROFILE" if previous and previous.static_serving else "MAIN_MODEL_BOOT_PROFILE")
     selected_profile = main_profile or previous_profile or existing.get(profile_key) or None
     try:

@@ -142,8 +142,8 @@ def load_deployment_target(path: Path, target_id: str | None = None) -> Deployme
         raise RuntimeError(
             f"deployment target {selected!r} main_profile_catalog must be a safe relative path"
         )
-    # Static·Adaptive 진입점과 노출 진단은 같은 Compose 목록을 사용한다.
-    # GPU Dynamic 진입점은 실행 시 override를 조합한다.
+    # Static 진입점과 노출 진단은 선언된 Compose 목록을 사용한다.
+    # 관리형 Linux는 Runtime Controller가 실행 시 override를 조합한다.
     raw_compose_files = raw.get("compose_files")
     if control_mode == "static":
         if not isinstance(raw_compose_files, list) or not raw_compose_files:
