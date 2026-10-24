@@ -1,5 +1,5 @@
 import { modelRuntimeLabel, modelServingNotice } from './uiText';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Spinner } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
 import { conversationEndNearViewport, followScrollTop } from './chatScroll';
@@ -142,6 +142,22 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     cancelExamplePreparation();
     setExampleError(null);
   }, [model, session.settings, exchanges]);
+
+  // 입력창은 내용만큼 자라고 CSS max-height에서 멈춘다. 고정 높이에서는 여러 줄 예제와 입력이
+  // 잘리고 칸 안에서 밀려 올라간다. 보내기 줄은 아래에 고정되고 대화 영역이 그만큼 줄어든다.
+  useLayoutEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    const fit = () => {
+      textarea.style.height = '0px';
+      const border = textarea.offsetHeight - textarea.clientHeight;
+      textarea.style.height = `${textarea.scrollHeight + border}px`;
+    };
+    fit();
+    // 창 폭이 바뀌면 같은 글도 줄 수가 달라진다.
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [draft, model]);
 
   // A disabled textarea cannot receive focus. Focus after React has committed
   // the state change that makes the input editable again.
@@ -378,6 +394,11 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     if (!busy) submit();
   }
 
+  const appliedExampleLabel = appliedExampleId
+    ? `${PLAYGROUND_EXAMPLES.find((item) => item.id === appliedExampleId)?.title} 예제에서 시작${
+      attachments.length ? ` · ${exampleAttachmentSummary(attachments)}` : ''}`
+    : '';
+
   return (
     <section className="chat-page" aria-labelledby="chat-workspace-title">
       <div className="playground-panel-heading">
@@ -536,6 +557,13 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 ))}
               </ol>
             ) : null}
+            {!showExamples && exchanges.length === 0 ? (
+              <p className="chat-empty-state">
+                {appliedExampleId
+                  ? '예제를 입력창에 넣었습니다. 내용을 확인하거나 고친 뒤 보내기를 누르세요.'
+                  : '보낸 메시지와 모델 응답이 여기에 표시됩니다.'}
+              </p>
+            ) : null}
             <div ref={conversationEndRef} className="chat-conversation-end" aria-hidden="true" />
             </div>
             <form
@@ -546,16 +574,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                 else submit();
               }}
             >
-              {appliedExampleId ? (
-                <div className="chat-applied-example" role="status">
-                  <span aria-hidden="true">✓</span>
-                  <span>
-                    {PLAYGROUND_EXAMPLES.find((item) => item.id === appliedExampleId)?.title} 예제에서 시작
-                    {attachments.length ? ` · ${exampleAttachmentSummary(attachments)}` : ''}
-                  </span>
-                  <button type="button" onClick={() => setAppliedExampleId(null)} aria-label="예제 적용 표시 닫기">×</button>
-                </div>
-              ) : null}
               <AttachmentList
                 attachments={attachments}
                 removable
@@ -606,6 +624,14 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                     />
                   </div>
                 ) : <small>현재 모델은 파일 입력을 광고하지 않습니다.</small>}
+                {/* 이미 있는 도구 줄에 둔다. 입력창 위에 새 줄로 생기면 입력 영역 경계가 위아래로 튄다. */}
+                {appliedExampleId ? (
+                  <div className="chat-applied-example" role="status">
+                    <span aria-hidden="true">✓</span>
+                    <span title={appliedExampleLabel}>{appliedExampleLabel}</span>
+                    <button type="button" onClick={() => setAppliedExampleId(null)} aria-label="예제 적용 표시 닫기">×</button>
+                  </div>
+                ) : null}
               </div>
               <div className="chat-composer-actions">
                 {inputError ? <p className="form-error" role="alert">{inputError}</p>
