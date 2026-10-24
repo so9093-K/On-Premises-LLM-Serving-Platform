@@ -15,10 +15,12 @@ export function toolArgumentsAreJson(call: ChatToolCall): boolean {
 export function ToolResultForm({
   exchange,
   busy,
+  sendingDisabled,
   onSend,
 }: {
   exchange: Exchange;
   busy: boolean;
+  sendingDisabled: boolean;
   onSend: (results: readonly ChatToolResult[]) => string | null;
 }) {
   const calls = exchange.assistant.toolCalls;
@@ -63,7 +65,8 @@ export function ToolResultForm({
         </div>
       ))}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <Button type="submit" variant="secondary" isDisabled={busy}>
+      {sendingDisabled ? <small role="status">모델 정책을 확인한 뒤 도구 결과를 보낼 수 있습니다. 작성한 도구 결과는 유지됩니다.</small> : null}
+      <Button type="submit" variant="secondary" isDisabled={busy || sendingDisabled}>
         도구 결과 보내기
       </Button>
     </form>

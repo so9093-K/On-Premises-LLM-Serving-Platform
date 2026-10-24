@@ -16,6 +16,7 @@ export type PublicModel = {
   context_window?: number;
   id: string;
   backend: string;
+  serving_policy_status?: string;
   capabilities: readonly string[];
   input_modalities?: readonly string[];
   request_limits?: Record<string, ParameterSpec>;

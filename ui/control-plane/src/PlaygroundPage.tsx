@@ -8,7 +8,6 @@ import { useChatSession } from './ChatSessionContext';
 import { EmbeddingPlayground } from './EmbeddingPlayground';
 import { playgroundPath, visiblePlaygroundWorkspaces, type PlaygroundWorkspace } from './navigation';
 import { usePublicModels } from './publicModelsQuery';
-import { DEFAULT_CHAT_SETTINGS } from './chatSession';
 import { RiskPlayground } from './RiskPlayground';
 
 type PlaygroundPageProps = {
@@ -57,9 +56,8 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
 // Playground는 Deployment Target이 공개한 기능별 작업 화면을 묶는다. 각 화면은 기존 공개
 // Gateway API만 호출하며, API 키는 화면 사이에서 공유하되 탭 메모리 밖에 저장하지 않는다.
 export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPageProps) {
-  const { apiKey, credentialRevision, setApiKey, apiKeyRejected, exchanges, draft, attachments, settings } = useChatSession();
+  const { apiKey, credentialRevision, setApiKey, apiKeyRejected } = useChatSession();
   const [confirmKeyClear, setConfirmKeyClear] = useState(false);
-  const hasChatWork = exchanges.length > 0 || Boolean(draft.trim()) || attachments.length > 0 || JSON.stringify(settings) !== JSON.stringify(DEFAULT_CHAT_SETTINGS);
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const workspaces = visiblePlaygroundWorkspaces(features);
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
@@ -83,21 +81,20 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
         {apiKey !== null ? (
           <div className="chat-heading-actions">
             <Button variant="secondary" onClick={() => {
-              if (hasChatWork) setConfirmKeyClear(true);
-              else setApiKey(null);
+              setConfirmKeyClear(true);
             }}>API 키 지우기</Button>
           </div>
         ) : null}
       </div>
       {confirmKeyClear ? (
-        <div className="playground-credential-confirm" role="group" aria-label="API 키와 Chat 세션 삭제 확인">
-          <p>API 키를 지우면 진행 중인 Chat 요청을 중지하고 대화·초안·첨부·요청 설정을 삭제합니다. 다른 API 키를 입력해도 이전 대화를 재사용하지 않습니다.</p>
+        <div className="playground-credential-confirm" role="group" aria-label="API 키와 Playground 작업 삭제 확인">
+          <p>API 키를 지우면 진행 중인 Chat 요청을 중지하고 대화·초안·첨부·요청 설정을 삭제합니다. 현재 Embedding·Retrieval·Risk 작업 화면의 입력과 결과도 사라집니다. 다른 키로 이전 작업을 복원할 수 없습니다.</p>
           <div className="chat-heading-actions">
             <Button variant="secondary" onClick={() => setConfirmKeyClear(false)}>취소</Button>
             <Button variant="danger" onClick={() => {
               setConfirmKeyClear(false);
               setApiKey(null);
-            }}>API 키 및 Chat 세션 지우기</Button>
+            }}>API 키 및 작업 데이터 지우기</Button>
           </div>
         </div>
       ) : null}
@@ -107,7 +104,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
         ))}
       </nav>
       {needsKey ? <PublicApiKeyForm rejected={apiKey !== null} /> : null}
-      {!needsKey ? <Routes key={apiKey ?? 'anonymous'}>
+      {!needsKey ? <Routes key={credentialRevision}>
         {workspaces.map((workspace) => (
           <Route key={workspace.path} path={workspace.path} element={elements[workspace.path]} />
         ))}

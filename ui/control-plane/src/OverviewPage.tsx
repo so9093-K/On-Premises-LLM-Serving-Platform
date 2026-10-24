@@ -328,7 +328,7 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
           <CardTitle>실행 환경 안내</CardTitle>
           <CardBody className="overview-policy-list">
             {noMainModel ? (
-              <p>이 배포에는 메인 모델이 없습니다. Risk 등 제공되는 기본 API를 사용할 수 있으며 모델 장애로 해석하지 않습니다.</p>
+              <p>이 배포에는 메인 모델이 없습니다. Risk 등 제공되는 기본 API를 사용할 수 있으며 모델 장애로 해석하지 않습니다. Chat을 사용하려면 서버 운영자가 지원되는 모델 Runtime 배포 환경을 구성해야 합니다. Core 화면에서는 모델을 직접 시작할 수 없습니다.</p>
             ) : bootstrap.deployment.lifecycle_owner === 'external' ? (
               <p>메인 모델 실행·전환은 외부 또는 네이티브 런타임에서 관리됩니다.</p>
             ) : null}

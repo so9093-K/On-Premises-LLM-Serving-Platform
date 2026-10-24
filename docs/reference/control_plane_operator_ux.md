@@ -58,7 +58,7 @@ Start/Stop은 직접 실행이 아니라 Plan/Apply 결과를 따르며, 다른 
 
 서버 Configuration Schema의 `group`과 `meaning`을 그대로 소비해 탐색한다. 현재 편집 가능한 그룹 `retrieval`, `streaming`의 사용자용 이름은 `uiText.ts`에만 둔다.
 UI가 Key prefix로 별도 Category authority를 만들지 않는다. `owner`, `editable`, `control_surface`, `applicability`가 실제 편집 가능 여부를 결정한다.
-기존 revision 검증, stale plan 거부 및 이전 상태 복원 계약은 그대로 유지한다.
+기존 revision 검증, stale plan 거부 및 이전 상태 복원 계약은 그대로 유지한다. 편집 중 다른 revision이 적용되거나 Plan/Apply가 실패하면 편집 초안과 편집 시작 시점의 마스킹된 표시값을 보존한다. 서버에서 최신 effective를 다시 읽고 편집 당시 값과 최신 값을 구분해 보여준다. 실패한 Apply의 도달 여부가 불확실하면 과거 Plan을 자동 재전송하지 않고 재검토한다.
 
 ### Playground
 
@@ -69,6 +69,7 @@ Chat 작업 화면에서 전송한 각 요청은 **코드로 사용하기**에�
 Playground는 첫 사용 시 [예제 갤러리](control_plane_playground_examples.md)를 제공한다. 대화가 시작되면 예제 갤러리를 닫고 화면을 이동했다 돌아와도 기존 대화 중심으로 표시한다. 예제는 현재 공개 모델의 기능에 따라 지원 여부를 표시하며, 선택 또는 입력 적용 자체는 추론 요청을 발생시키지 않는다. 샘플 이미지는 same-origin 번들 정적 자산이고, 기존 요청 검증을 통과한 뒤에만 입력에 적용한다. 기존 대화나 작성 중인 내용을 무단으로 지우지 않는다.
 
 
+- 활성 Playground의 `/v1/models` 계약은 표시 중인 탭에서 주기적으로 갱신한다. 외부 변경은 사용자에게 알리고, 미전송 초안과 과거 전송 당시 요청 데이터는 보존한다. 관리형 모델의 `serving_policy_status`가 `active`가 아니라면 Chat 및 도구 결과 후속 요청을 제한하고, 모델 목록 재조회가 실패했을 때도 이전 캐시로 전송하지 않는다. 작성 중인 도구 결과를 포함한 작업 내용은 보존한다. 외부 Static 모델에 Controller 상태를 가정하지 않는다.
 - 요청 본문은 공개 `/v1/models` 계약에서 허용하는 기능과 파라미터로만 구성한다.
 - 스트리밍 응답은 `[DONE]` 종료 신호로 완료를 확인한다. 종료 신호 없이 연결이 닫히면 `STREAM_INCOMPLETE`를 표시하고, 받은 내용은 화면에 유지하되 성공한 대화 기록에는 포함하지 않는다. Gateway가 보낸 SSE 오류와 사용자가 누른 중지는 각각의 상태를 유지한다.
 - API Key, 관리자 Key, 대화는 탭 메모리 범위를 벗어나 영구 저장되지 않는다.

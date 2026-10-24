@@ -133,6 +133,8 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState('all');
   const [draft, setDraft] = useState<ConfigurationDraft>('');
+  // 편집 기준은 화면 메모리에서만 보존한다. 값은 기존 민감 정보 마스킹 규칙으로 표시한다.
+  const [editingBase, setEditingBase] = useState<{ key: string; revision: number; displayed: string } | null>(null);
   const [review, setReview] = useState<ReviewedConfiguration | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastApply, setLastApply] = useState<ConfigurationApplyResponse | null>(null);
@@ -159,8 +161,8 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
   }, [effectiveQuery.error, onUnauthorized, schemaQuery.error]);
 
   const refresh = async () => {
+    // 서버 상태를 다시 읽어도 입력 중인 초안과 편집 기준은 유지한다.
     setReview(null);
-    setSelectedKey(null);
     await Promise.all([schemaQuery.refetch(), effectiveQuery.refetch()]);
   };
 
@@ -186,7 +188,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       }
       setActionError(errorMessage(error));
       if (isRevisionConflict(error)) {
-        setSelectedKey(null);
+        // 서버는 충돌하는 Plan을 거절한다. 사용자 초안은 지우지 않는다.
         await queryClient.invalidateQueries({ queryKey: ['configuration'] });
       }
     },
@@ -205,6 +207,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       setAppliedChanges(reviewed.plan.changes);
       setReview(null);
       setSelectedKey(null);
+      setEditingBase(null);
       await queryClient.invalidateQueries({ queryKey: ['configuration'] });
     },
     onError: async (error) => {
@@ -216,7 +219,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
       // Apply failure는 요청 도달 여부나 persist 단계가 불명확할 수 있다. 같은 review를
       // 재사용하지 않고 canonical state를 다시 읽은 뒤 새 Plan을 요구한다.
       setReview(null);
-      setSelectedKey(null);
+      // 실패한 Apply의 도달 여부가 불분명해도 중복 제출하지 않고 최신 상태를 조회한다.
       await queryClient.invalidateQueries({ queryKey: ['configuration'] });
     },
   });
@@ -253,11 +256,16 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
   if (schemaQuery.isPending || effectiveQuery.isPending) {
     return <div className="inline-loading"><Spinner size="lg" aria-label="설정 불러오는 중" /> 설정을 불러오는 중입니다.</div>;
   }
-  if (schemaQuery.isError) {
-    return <Alert isInline variant="danger" title="설정 메타데이터를 불러오지 못했습니다.">{errorMessage(schemaQuery.error)}</Alert>;
-  }
-  if (effectiveQuery.isError) {
-    return <Alert isInline variant="danger" title="현재 적용 설정을 불러오지 못했습니다.">{errorMessage(effectiveQuery.error)}</Alert>;
+  if (schemaQuery.isError || effectiveQuery.isError) {
+    const error = schemaQuery.isError ? schemaQuery.error : effectiveQuery.error;
+    return (
+      <Alert isInline variant="danger" title="설정 정보를 불러오지 못했습니다.">
+        <p>{errorMessage(error)}</p>
+        <Button variant="secondary" isDisabled={schemaQuery.isFetching || effectiveQuery.isFetching}
+          onClick={() => void refresh()}>다시 시도</Button>
+        <p>문제가 계속되면 서버에서 <code>make status</code>와 <code>make logs</code>를 확인하세요.</p>
+      </Alert>
+    );
   }
 
   const schema = schemaQuery.data;
@@ -271,6 +279,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
     );
   }
 
+  const editingStale = editingBase?.key === selectedKey && editingBase.revision !== effective.revision;
   const writeStatus = effective.write_status;
   const actionPending = planMutation.isPending || applyMutation.isPending;
   const pageActionLocked = actionPending || rollbackActive;
@@ -382,6 +391,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
                         onClick={() => {
                           if (value === null) return;
                           setSelectedKey(metadata.key);
+                          setEditingBase({ key: metadata.key, revision: effective.revision, displayed: displayValue(metadata, value) });
                           setDraft(draftFromEffective(metadata, value));
                           setReview(null);
                           setActionError(null);
@@ -400,6 +410,17 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
         <Card className="review-card">
           <CardTitle>설정 편집 · {configurationLabel(selectedMetadata.key, selectedMetadata.label)}</CardTitle>
           <CardBody>
+            {editingStale ? (
+              <Alert isInline variant="warning" title="편집 중 설정이 변경됐습니다.">
+                <p>다른 작업으로 설정 revision이 변경됐습니다. 작성한 값은 유지했으며 최신 설정을 기준으로 다시 검토해야 합니다.</p>
+                <dl className="facts compact-facts">
+                  <dt>편집 시작 값</dt><dd>{editingBase?.displayed}</dd>
+                  <dt>최신 적용 값</dt><dd>{displayValue(selectedMetadata, selectedEffective)}</dd>
+                  <dt>작성 중인 값</dt><dd>{selectedMetadata.sensitive ? '값 숨김' : formatConfigurationValue(selectedMetadata, draft)}</dd>
+                </dl>
+                <p>아래 편집칸에서 값을 수정한 뒤 최신 revision 기준으로 다시 검토하세요. 이전 변경 계획은 재사용하지 않습니다.</p>
+              </Alert>
+            ) : null}
             <dl className="facts compact-facts">
               <dt>현재 적용 값</dt><dd>{displayValue(selectedMetadata, selectedEffective)}</dd>
               <dt>출처</dt><dd>{sourceLabel(selectedEffective.effective_source)}</dd>
@@ -454,7 +475,7 @@ export function ConfigurationPage({ token, onUnauthorized, deploymentFeatures }:
               )}
             </div>
             <div className="review-actions">
-              <Button variant="secondary" onClick={() => { setSelectedKey(null); setReview(null); }} isDisabled={pageActionLocked}>취소</Button>
+              <Button variant="secondary" onClick={() => { setSelectedKey(null); setEditingBase(null); setReview(null); }} isDisabled={pageActionLocked}>취소</Button>
               <Button
                 variant="secondary"
                 isDanger

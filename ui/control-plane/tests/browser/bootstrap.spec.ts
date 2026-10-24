@@ -147,7 +147,7 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
   await expect(page.getByText(/요청 설정 · 변경됨/)).toBeVisible();
   await page.getByRole('button', { name: 'API 키 지우기' }).click();
   await expect(page.getByText('진행 중인 Chat 요청을 중지하고')).toBeVisible();
-  await page.getByRole('button', { name: 'API 키 및 Chat 세션 지우기' }).click();
+  await page.getByRole('button', { name: 'API 키 및 작업 데이터 지우기' }).click();
   await expect(page.getByLabel('API 키')).toBeVisible();
   await page.getByLabel('API 키').fill('second-user-key');
   await page.getByRole('button', { name: '사용', exact: true }).click();
@@ -485,4 +485,281 @@ test('같은 GPU 모델의 더 큰 프로필이 선택 기준의 문맥 상한�
   await context.fill('12288');
   await expect(page.getByText('실행 한도 값이 유효하지 않습니다.')).toBeVisible();
   await expect(page.getByRole('button', { name: '실행 한도 변경 요청' })).toBeDisabled();
+});
+
+test('Bootstrap의 일시적인 503 오류를 화면에서 복구한다', async ({ page }) => {
+  let reads = 0;
+  await page.route('**/admin/control-plane/bootstrap', async (route) => {
+    reads += 1;
+    await route.fulfill({
+      status: reads === 1 ? 503 : 200,
+      contentType: 'application/json',
+      body: reads === 1
+        ? JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'service unavailable' } })
+        : JSON.stringify({ bootstrap_version: 4, access: { admin_auth_required: true } }),
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByText('Control Plane 정보를 불러오지 못했습니다.')).toBeVisible();
+  await page.getByRole('button', { name: '다시 시도' }).click();
+  await expect(page.getByText('관리자 인증')).toBeVisible();
+  expect(reads).toBe(2);
+});
+
+test('설정 412 충돌 후 최신 상태를 읽어도 작성 중인 값을 보존한다', async ({ page }) => {
+  let revision = 1;
+  let effectiveValue = 10;
+  const status = () => ({
+    available: true, reason: null, store_revision: revision,
+    resolver_revision: revision, runtime_revision: revision,
+    synchronized: true, pending_operations: 0,
+  });
+  const key = 'operational.max_retrieval_documents';
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: { target: 'linux-core', display_name: 'Core', runtime_backend: 'none', features: ['risk'] },
+      configuration: { write_available: true },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/admin/config/schema', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      version: 2, write_status: status(),
+      items: [{
+        key, label: 'Maximum Retrieval Documents', group: 'retrieval', order: 1,
+        type: 'integer', owner: 'operator', editable: true, control_surface: 'configuration',
+        sensitive: false, effective_source: 'operator', apply_mode: 'hot_reload', risk: 'low',
+        applicability: { features: [] }, meaning: '검색 문서 최대 수', help: '설정 변경 검토',
+        related_adrs: ['ADR-0021'], minimum: 1, maximum: 50,
+      }],
+    }),
+  }));
+  await page.route('**/admin/config/effective', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    headers: { etag: `"revision-${revision}"` },
+    body: JSON.stringify({
+      version: 2, revision, write_status: status(),
+      items: [{
+        key, default_value: 10, operator_value: effectiveValue,
+        effective_value: effectiveValue, effective_source: 'operator',
+        owner: 'operator', control_surface: 'configuration',
+        editable: true, sensitive: false, configured: true,
+      }],
+    }),
+  }));
+  await page.route('**/admin/config/plans', (route) => {
+    revision = 2;
+    effectiveValue = 12;
+    return route.fulfill({
+      status: 412, contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'CONFIG_REVISION_CONFLICT', message: '다른 운영자가 변경했습니다.' } }),
+    });
+  });
+  await page.route('**/admin/config/history**', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ items: [], next_cursor: null }),
+  }));
+
+  await page.goto('/admin/console/configuration');
+  await page.getByRole('button', { name: '편집' }).click();
+  await page.getByLabel('새 운영자 값').fill('16');
+  await page.getByRole('button', { name: '변경 내용 검토' }).click();
+  await expect(page.getByText('편집 중 설정이 변경됐습니다.')).toBeVisible();
+  await expect(page.getByLabel('새 운영자 값')).toHaveValue('16');
+  await expect(page.getByText('편집 시작 값')).toBeVisible();
+  await expect(page.getByText('최신 적용 값')).toBeVisible();
+  await expect(page.getByText('작성 중인 값')).toBeVisible();
+  await expect(page.getByText('12', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('16', { exact: true }).first()).toBeVisible();
+});
+
+test('외부 모델 정책 변경을 활성 Playground가 반영하고 미전송 메시지를 유지한다', async ({ page }) => {
+  await page.clock.install();
+  let unavailable = false;
+  let requests = 0;
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: {
+        target: 'linux-nvidia-dynamic', display_name: '테스트 Linux',
+        runtime_backend: 'llama-cpp', features: ['chat', 'model_switching'],
+      },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => {
+    requests += 1;
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list', data: [{
+          id: 'local-main', backend: unavailable ? 'unknown' : 'llama-cpp',
+          serving_policy_status: unavailable ? 'controller_unavailable' : 'active',
+          capabilities: ['chat.completions'], input_modalities: ['text'],
+          context_window: unavailable ? undefined : 8192, request_parameters: {},
+        }],
+      }),
+    });
+  });
+  await page.goto('/admin/console/playground/chat');
+  await expect(page.getByLabel('메시지')).toBeVisible();
+  await page.getByLabel('메시지').fill('보호해야 하는 미전송 초안');
+  unavailable = true;
+  await page.clock.fastForward(16_000);
+  await expect(page.getByText('모델 제어 서비스에 연결할 수 없습니다.')).toBeVisible();
+  await expect(page.getByLabel('메시지')).toHaveValue('보호해야 하는 미전송 초안');
+  await expect(page.getByRole('button', { name: '보내기' })).toBeDisabled();
+  expect(requests).toBeGreaterThan(1);
+});
+
+test('Risk 작업 중 API 키 삭제는 모든 Playground 데이터에 대해 확인한다', async ({ page }) => {
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: { target: 'linux-core', display_name: 'Core', runtime_backend: 'none', features: ['risk'] },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: route.request().headers()['authorization'] ? 200 : 401,
+    contentType: 'application/json',
+    body: route.request().headers()['authorization']
+      ? JSON.stringify({ object: 'list', data: [] })
+      : JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'API key required' } }),
+  }));
+  await page.goto('/admin/console/playground/risk');
+  await page.getByLabel('API 키').fill('user-test-key');
+  await page.getByRole('button', { name: '사용', exact: true }).click();
+  await page.getByLabel('검사할 텍스트').fill('진행 중인 검사 초안');
+  await page.getByRole('button', { name: 'API 키 지우기' }).click();
+  await expect(page.getByText(/Embedding·Retrieval·Risk 작업 화면의 입력과 결과도 사라집니다/)).toBeVisible();
+  await page.getByRole('button', { name: '취소' }).click();
+  await expect(page.getByLabel('검사할 텍스트')).toHaveValue('진행 중인 검사 초안');
+  await page.getByRole('button', { name: 'API 키 지우기' }).click();
+  await page.getByRole('button', { name: 'API 키 및 작업 데이터 지우기' }).click();
+  await expect(page.getByLabel('API 키')).toBeVisible();
+});
+
+test('모델 없는 Core의 모바일 화면에서 Risk 진입과 다음 안내를 제공한다', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false, profile: 'local' },
+      deployment: {
+        target: 'linux-core', display_name: 'Core', runtime_backend: 'none', features: ['risk'],
+        control_mode: 'static', lifecycle_owner: 'external',
+        implementation_status: 'implemented', qualification_status: 'unverified',
+      },
+      configuration: { revision: 1, write_available: false },
+      platform: { version: 'test' },
+      monitoring: { available: false, grafana_available: false },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/admin/traffic/recent', (route) => route.fulfill({
+    status: 503, contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'test unavailable' } }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ object: 'list', data: [] }),
+  }));
+  await page.goto('/admin/console/');
+  await expect(page.getByText(/Chat을 사용하려면 서버 운영자가/)).toBeVisible();
+  await page.getByRole('link', { name: /PII·Secret 탐지 테스트/ }).click();
+  await expect(page.getByRole('heading', { name: 'Risk' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('검사할 텍스트')).toBeVisible();
+});
+
+test('Controller 정책 변경 뒤에는 Tool Calling 후속 전송도 차단하고 입력을 보존한다', async ({ page }) => {
+  await page.clock.install();
+  let policy: 'active' | 'gate_closed' = 'active';
+  let chatRequests = 0;
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: { target: 'linux-nvidia-dynamic', display_name: 'GPU', runtime_backend: 'vllm-cuda', features: ['chat', 'model_switching'] },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ object: 'list', data: [{
+      id: 'local-main', backend: 'vllm-cuda', serving_policy_status: policy,
+      capabilities: ['chat.completions', 'chat.completions.tools'],
+      input_modalities: ['text'], request_parameters: {},
+    }] }),
+  }));
+  await page.route('**/v1/chat/completions', (route) => {
+    chatRequests += 1;
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ choices: [{
+        index: 0, finish_reason: 'tool_calls',
+        message: { role: 'assistant', content: null,
+          tool_calls: [{ id: 'call_a', type: 'function', function: { name: 'lookup', arguments: '{}' } }] },
+      }] }),
+    });
+  });
+  await page.goto('/admin/console/playground/chat');
+  await page.getByLabel('메시지').fill('도구 결과가 필요한 질문');
+  await page.getByRole('button', { name: '보내기', exact: true }).click();
+  const toolResult = page.getByLabel('lookup 결과');
+  await expect(toolResult).toBeVisible();
+  await toolResult.fill('아직 보내지 않은 도구 결과');
+  policy = 'gate_closed';
+  await page.clock.fastForward(16_000);
+  await expect(page.getByText('현재 모델 요청이 차단돼 있습니다.')).toBeVisible();
+  await expect(page.getByRole('button', { name: '도구 결과 보내기' })).toBeDisabled();
+  await expect(toolResult).toHaveValue('아직 보내지 않은 도구 결과');
+  expect(chatRequests).toBe(1);
+});
+
+test('모델 목록 재조회 실패 시 이전 계약으로 새 Chat 요청을 전송하지 않는다', async ({ page }) => {
+  await page.clock.install();
+  let failModelRead = false;
+  let chatRequests = 0;
+  await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      bootstrap_version: 4, access: { admin_auth_required: false },
+      deployment: { target: 'linux-nvidia-dynamic', display_name: 'GPU', runtime_backend: 'vllm-cuda', features: ['chat'] },
+      links: { grafana: null, docs: null },
+    }),
+  }));
+  await page.route('**/v1/models', (route) => route.fulfill({
+    status: failModelRead ? 503 : 200, contentType: 'application/json',
+    body: failModelRead
+      ? JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'temporary failure' } })
+      : JSON.stringify({ object: 'list', data: [{
+        id: 'local-main', backend: 'vllm-cuda', capabilities: ['chat.completions'],
+        serving_policy_status: 'active', input_modalities: ['text'], request_parameters: {},
+      }] }),
+  }));
+  await page.route('**/v1/chat/completions', (route) => {
+    chatRequests += 1;
+    return route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }] }) });
+  });
+  await page.goto('/admin/console/playground/chat');
+  const prompt = page.getByLabel('메시지');
+  await prompt.fill('보존해야 하는 초안');
+  failModelRead = true;
+  await page.clock.fastForward(16_000);
+  await expect(page.getByText('모델 목록을 불러오지 못했습니다.')).toBeVisible();
+  await expect(page.getByRole('button', { name: '보내기', exact: true })).toBeDisabled();
+  await expect(prompt).toHaveValue('보존해야 하는 초안');
+  expect(chatRequests).toBe(0);
+  failModelRead = false;
+  await page.getByRole('button', { name: '모델 정보 다시 조회' }).click();
+  await expect(page.getByText('모델 목록을 불러오지 못했습니다.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '보내기', exact: true })).toBeEnabled();
 });

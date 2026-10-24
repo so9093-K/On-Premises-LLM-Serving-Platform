@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 
 import { fetchPublicModels } from './api';
 
+export const PUBLIC_MODELS_REFRESH_MS = 15_000;
+
 // API 키 문자열 대신 탭 내 인증 세션 버전을 캐시 식별자로 사용한다.
 export function publicModelsQueryKey(credentialRevision: number): readonly [string, number] {
   return ['public-models', credentialRevision];
@@ -14,6 +16,9 @@ export function usePublicModels(apiKey: string | null, credentialRevision: numbe
     queryKey: publicModelsQueryKey(credentialRevision),
     queryFn: () => fetchPublicModels(apiKey),
     retry: false,
-    staleTime: 30_000,
+    staleTime: PUBLIC_MODELS_REFRESH_MS,
+    refetchOnWindowFocus: true,
+    refetchInterval: () => document.visibilityState === 'visible' ? PUBLIC_MODELS_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
   });
 }
