@@ -183,7 +183,7 @@ def managed_endpoint_changes(values: dict[str, str]) -> dict[str, tuple[str, str
             runtime = read_yaml(ROOT / target.main_profile_catalog).get("runtime", {}) if target.main_profile_catalog else {}
         except (OSError, RuntimeError, ValueError):
             target, runtime = None, {}
-        # Host의 Metal Runtime처럼 대역 포트를 쓰는 Main만 대상이다. CPU Static의 cpu-main:8080은 제외한다.
+        # Host의 Metal Runtime처럼 대역 포트를 쓰는 Main만 대상이다. 외부 CPU Static endpoint는 제외한다.
         port = (runtime.get("port") or runtime.get("container_port")) if isinstance(runtime, dict) else None
         if target is not None and target.gateway_runtime_host and port == namespace.default_base + namespace.offsets["main_llm_vllm"]:
             runtime_host = target.gateway_runtime_host

@@ -132,3 +132,19 @@ def test_migration_does_not_accept_arbitrary_or_static_target(tmp_path):
     with pytest.raises(ValueError, match="삭제된 관리형 Target"):
         migrate_environment(tmp_path, policy="cpu", projection=_projection)
     assert env.exists() and state.exists()
+
+
+@pytest.mark.parametrize(("policy", "profile"), [
+    ("cpu", None),
+    ("fallback", None),
+    ("gpu", "gemma4-e4b-it"),
+])
+def test_migration_plan_resolves_real_managed_catalog(tmp_path: Path, policy, profile):
+    """Mock projection 없이 현재 Target/기준 프로필 선언에 맞는 주소를 확인한다."""
+    _fixture(tmp_path)
+    result = migrate_environment(
+        tmp_path, policy=policy, profile=profile, confirmed=False,
+    )
+    assert result["to"] == "linux-nvidia-dynamic"
+    assert result["profile"] == (profile or "cpu-gguf-text")
+    assert result["applied"] is False
