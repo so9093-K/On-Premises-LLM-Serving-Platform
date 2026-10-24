@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Button, Card, CardBody, CardTitle } from '@patternfly/react-core';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 import { isUnauthorized } from './apiFeedback';
 import { ChatPage } from './ChatPage';
@@ -8,7 +8,14 @@ import { useChatSession } from './ChatSessionContext';
 // 같은 이름의 소문자 .ts 모듈이 있다. 대소문자를 구분하지 않는 macOS 파일시스템에서
 // 확장자 없는 import는 .ts를 먼저 찾아 잘못 해석되므로 .tsx를 명시한다.
 import { EmbeddingPlayground } from './EmbeddingPlayground.tsx';
-import { playgroundPath, visiblePlaygroundWorkspaces, type PlaygroundWorkspace } from './navigation';
+import {
+  PLAYGROUND_WORKSPACES,
+  playgroundPath,
+  unavailablePlaygroundWorkspaces,
+  visiblePlaygroundWorkspaces,
+  type PlaygroundWorkspace,
+} from './navigation';
+import { PlaygroundUnavailableNotice } from './PlaygroundUnavailableNotice';
 import { usePublicModels } from './publicModelsQuery';
 import { RiskPlayground } from './RiskPlayground.tsx';
 
@@ -55,6 +62,22 @@ function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
   );
 }
 
+// 배포가 제공하지 않는 기능은 숨기지 않고 무엇인지·왜 없는지·어떻게 쓸 수 있는지 안내한다.
+// Embedding은 실제 화면을 미리보기로 보여 준다. 모델 정보가 있어야 그릴 수 있는 Chat(모델 없는 Core)은
+// 이 안내만 보여 준다. 어느 쪽도 요청을 보내지 않는다.
+function UnavailableWorkspace({ workspace }: { workspace: PlaygroundWorkspace }) {
+  const headingId = `playground-unavailable-${workspace.path}`;
+  return (
+    <section className="playground-workspace" aria-labelledby={headingId}>
+      {/* 화면 설명은 각 작업 화면이 소유한다. 여기서는 이름과 미제공 사유만 보여 준다. */}
+      <div className="playground-panel-heading">
+        <h2 id={headingId}>{workspace.label}</h2>
+      </div>
+      <PlaygroundUnavailableNotice label={workspace.label} />
+    </section>
+  );
+}
+
 // Playground는 Deployment Target이 공개한 기능별 작업 화면을 묶는다. 각 화면은 기존 공개
 // Gateway API만 호출하며, API 키는 화면 사이에서 공유하되 탭 메모리 밖에 저장하지 않는다.
 export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPageProps) {
@@ -62,6 +85,10 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
   const [confirmKeyClear, setConfirmKeyClear] = useState(false);
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const workspaces = visiblePlaygroundWorkspaces(features);
+  const unavailable = unavailablePlaygroundWorkspaces(features);
+  // 미제공 안내는 공개 API를 호출하지 않으므로 API 키 입력 없이 보여 준다.
+  const { pathname } = useLocation();
+  const unavailableSelected = unavailable.some((workspace) => pathname.endsWith(playgroundPath(workspace.path)));
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const elements: Record<PlaygroundWorkspace['path'], ReactNode> = {
     chat: <ChatPage grafanaUrl={grafanaUrl} docsUrl={docsUrl} />,
@@ -101,14 +128,23 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
         </div>
       ) : null}
       <nav className="playground-tabs" aria-label="Playground 기능">
-        {workspaces.map((workspace) => (
+        {PLAYGROUND_WORKSPACES.map((workspace) => unavailable.includes(workspace) ? (
+          <NavLink key={workspace.path} to={playgroundPath(workspace.path)} className="is-unavailable">
+            {workspace.label}{' '}<span className="playground-tab-badge">미제공</span>
+          </NavLink>
+        ) : (
           <NavLink key={workspace.path} to={playgroundPath(workspace.path)}>{workspace.path === 'embeddings' && features.includes('retrieval') ? 'Embedding · Retrieval' : workspace.label}</NavLink>
         ))}
       </nav>
-      {needsKey ? <PublicApiKeyForm rejected={apiKey !== null} /> : null}
-      {!needsKey ? <Routes key={credentialRevision}>
+      {needsKey && !unavailableSelected ? <PublicApiKeyForm rejected={apiKey !== null} /> : null}
+      {!needsKey || unavailableSelected ? <Routes key={credentialRevision}>
         {workspaces.map((workspace) => (
           <Route key={workspace.path} path={workspace.path} element={elements[workspace.path]} />
+        ))}
+        {unavailable.map((workspace) => (
+          <Route key={workspace.path} path={workspace.path} element={workspace.path === 'embeddings'
+            ? <EmbeddingPlayground features={features} preview />
+            : <UnavailableWorkspace workspace={workspace} />} />
         ))}
         {workspaces.length > 0 ? (
           <Route path="*" element={<Navigate to={playgroundPath(workspaces[0].path)} replace />} />

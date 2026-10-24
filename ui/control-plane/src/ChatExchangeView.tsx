@@ -49,7 +49,8 @@ export function ExchangeView({
   return (
     <li className="chat-exchange">
       <div className="chat-message chat-message-user">
-        <span className="chat-role">{exchange.toolResults?.length ? '도구 결과' : '나'}</span>
+        {/* 내 메시지는 말풍선 위치로 구분하고, 이름은 화면 낭독기에만 제공한다. */}
+        <span className={`chat-role${exchange.toolResults?.length ? '' : ' sr-only'}`}>{exchange.toolResults?.length ? '도구 결과' : '나'}</span>
         {exchange.toolResults?.length ? (
           <ul className="chat-tool-result-list" aria-label="전송한 도구 결과">
             {exchange.toolResults.map((result) => (
@@ -128,6 +129,9 @@ export function ExchangeView({
           <Alert isInline isPlain variant="danger" title={turn.error.code ? `${turn.error.code}: ${turn.error.message}` : turn.error.message} />
         ) : null}
         {notice ? <p className="chat-notice">{notice}</p> : null}
+      </div>
+      {/* 지표·요청 재현 정보는 답변 말풍선 밖의 작은 메타 줄에 둔다. 답변 본문이 먼저 읽힌다. */}
+      <div className="chat-turn-meta">
         {facts.length > 0 || turn.requestId ? (
           <dl className="chat-facts">
             {facts.map((fact) => (
@@ -147,9 +151,8 @@ export function ExchangeView({
             ) : null}
           </dl>
         ) : null}
-        <div className="chat-result-links">
-          <details className="chat-request-context">
-            <summary>요청 정보</summary>
+        <details className="chat-request-context">
+          <summary>요청 정보</summary>
           <dl className="facts compact-facts">
             <dt>모델</dt><dd>{exchange.requestContext.modelId}</dd>
             <dt>Backend</dt><dd><code>{exchange.requestContext.backend}</code></dd>
@@ -163,13 +166,12 @@ export function ExchangeView({
             <dd>{exchange.requestContext.capabilities.join(', ') || '—'}</dd>
             <dt>파라미터</dt>
             <dd><code>{JSON.stringify(exchange.requestContext.parameters)}</code></dd>
-            </dl>
-          </details>
-          <RequestExportPanel receipt={exchange.receipt} status={turn.status} />
-          {docsUrl && turn.status === 'complete' ? (
-            <a href={docsUrl} target="_blank" rel="noreferrer">API 문서 ↗</a>
-          ) : null}
-        </div>
+          </dl>
+        </details>
+        <RequestExportPanel receipt={exchange.receipt} status={turn.status} />
+        {docsUrl && turn.status === 'complete' ? (
+          <a href={docsUrl} target="_blank" rel="noreferrer">API 문서 ↗</a>
+        ) : null}
       </div>
     </li>
   );

@@ -19,6 +19,7 @@ import {
   type EmbeddingMode,
   type EmbeddingResult,
 } from './embeddingPlayground';
+import { PlaygroundUnavailableNotice } from './PlaygroundUnavailableNotice';
 import { PublicRequestExportPanel } from './PublicRequestExportPanel';
 import type { PublicRequestRecord } from './publicRequestExport';
 import { usePublicModels } from './publicModelsQuery';
@@ -46,7 +47,9 @@ const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
 };
 
 // 입력과 결과는 이 화면의 상태에만 둔다. 다른 메뉴나 작업 화면으로 이동하면 사라진다.
-export function EmbeddingPlayground({ features }: { features: readonly string[] }) {
+// preview는 Embedding을 제공하지 않는 배포에서 화면 구성과 입력 방식만 보여 준다.
+// Chat 예제 갤러리처럼 기능은 발견할 수 있게 두고, 모델 선택과 실행만 막아 요청을 보내지 않는다.
+export function EmbeddingPlayground({ features, preview = false }: { features: readonly string[]; preview?: boolean }) {
   const { apiKey, credentialRevision, apiKeyRejected, rejectApiKey } = useChatSession();
   const { token } = useAdminSession();
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
@@ -79,7 +82,8 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
   const abortRef = useRef<AbortController | null>(null);
   const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
-  const canRank = model !== null && retrievalAvailable(model, features);
+  const showRank = preview || features.includes('retrieval');
+  const canRank = preview || (model !== null && retrievalAvailable(model, features));
 
   useEffect(() => {
     setRun(null);
@@ -98,7 +102,7 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (model === null || busy) return;
+    if (preview || model === null || busy) return;
     if (mode === 'rank' && !canRank) return;
     const embedding = mode === 'rank' ? null : buildEmbeddingRequest(model, mode, inputs);
     const retrieval = mode === 'rank' ? buildRetrievalRequest(model, query, documents.map((item) => item.text), topN) : null;
@@ -145,46 +149,55 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
     }
   }
 
-  if (modelsQuery.isPending) {
+  if (!preview && modelsQuery.isPending) {
     return <div className="inline-loading"><Spinner size="md" aria-label="모델 목록 불러오는 중" /> 모델 목록을 불러오는 중…</div>;
   }
-  if (modelsQuery.isError && !needsKey) {
+  if (!preview && modelsQuery.isError && !needsKey) {
     return (
       <Alert isInline variant="danger" title="모델 목록을 불러오지 못했습니다.">
         {apiErrorMessage(modelsQuery.error)}
       </Alert>
     );
   }
-  if (model === null) {
+  if (!preview && model === null) {
     return needsKey ? null : <Alert isInline variant="warning" title="Embedding을 지원하는 공개 모델이 없습니다." />;
   }
 
-  const dimensions = embeddingDimensions(model);
-  const runtime = embeddingRuntimeState(model, runtimesQuery.data);
+  const dimensions = model ? embeddingDimensions(model) : [];
+  const runtime = model && !preview ? embeddingRuntimeState(model, runtimesQuery.data) : null;
   return (
     <section className="playground-workspace" aria-labelledby="embedding-workspace-title">
       <div className="playground-panel-heading">
         <div>
           <h2 id="embedding-workspace-title">Embedding</h2>
-          <p>텍스트를 벡터로 변환하고 문장의 유사도를 비교합니다.{features.includes('retrieval') ? ' 질문에 가까운 문서를 관련도순으로 확인할 수 있습니다.' : ''}</p>
+          <p>텍스트를 벡터로 변환하고 문장의 유사도를 비교합니다.{showRank ? ' 질문에 가까운 문서를 관련도순으로 확인할 수 있습니다.' : ''}</p>
         </div>
       </div>
+
+      {preview ? <PlaygroundUnavailableNotice label="Embedding" preview /> : null}
 
       <form className="playground-form" onSubmit={(event) => { void submit(event); }}>
         <div className="playground-form-row">
           <div className="chat-model-selection">
             <label htmlFor="embedding-model">Embedding 모델</label>
-            <select
-              id="embedding-model"
-              value={model.id}
-              disabled={busy}
-              onChange={(event) => setSelectedId(event.currentTarget.value)}
-            >
-              {models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
-            </select>
+            {model && !preview ? (
+              <select
+                id="embedding-model"
+                value={model.id}
+                disabled={busy}
+                onChange={(event) => setSelectedId(event.currentTarget.value)}
+              >
+                {models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
+              </select>
+            ) : (
+              <select id="embedding-model" disabled>
+                <option>제공하는 배포에서 선택</option>
+              </select>
+            )}
           </div>
           <span className="playground-hint">
-            {dimensions.length ? `${dimensions.map((value) => value.toLocaleString()).join(' · ')}차원` : '차원 정보 없음'}
+            {preview ? '모델 차원은 Embedding 모델이 있을 때 표시됩니다.'
+              : dimensions.length ? `${dimensions.map((value) => value.toLocaleString()).join(' · ')}차원` : '차원 정보 없음'}
           </span>
         </div>
 
@@ -205,14 +218,14 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
             <input type="radio" name="embedding-mode" checked={mode === 'compare'} onChange={() => setMode('compare')} />
             두 문장 유사도
           </label>
-          {features.includes('retrieval') ? (
+          {showRank ? (
             <label>
               <input type="radio" name="embedding-mode" checked={mode === 'rank'} disabled={!canRank} onChange={() => setMode('rank')} />
               문서 관련도 순위
             </label>
           ) : null}
         </fieldset>
-        {features.includes('retrieval') && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다. 지원 모델을 선택하면 사용할 수 있습니다.</p> : null}
+        {showRank && !canRank ? <p className="playground-hint">현재 모델은 문서 관련도 순위를 지원하지 않습니다. 지원 모델을 선택하면 사용할 수 있습니다.</p> : null}
 
         {mode === 'rank' ? (
           <div className="playground-retrieval-inputs">
@@ -267,8 +280,9 @@ export function EmbeddingPlayground({ features }: { features: readonly string[] 
         ))}
 
         <div className="chat-composer-actions">
-          {inputError ? <p className="form-error" role="alert">{inputError}</p> : <span />}
-          <Button type="submit" variant="primary" isDisabled={busy}>
+          {inputError ? <p className="form-error" role="alert">{inputError}</p>
+            : preview ? <span className="playground-hint">현재 배포에서는 실행할 수 없습니다.</span> : <span />}
+          <Button type="submit" variant="primary" isDisabled={busy || preview}>
             {busy ? '요청 중…' : mode === 'rank' ? '관련도 순위 확인' : mode === 'compare' ? '유사도 계산' : '벡터 생성'}
           </Button>
         </div>
