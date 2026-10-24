@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import {
+  fetchGatewayReadiness,
   fetchMainModel,
   fetchRecentTraffic,
   fetchRuntimes,
@@ -14,7 +15,7 @@ import { serviceOverviewDashboardUrl } from './activityDiagnostics';
 import { playgroundPath } from './navigation';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { trafficTiles, trafficWindowLabel, type TrafficTone } from './trafficSummary';
-import { mainModelOverviewSignals, unmanagedModelSummary, type OverviewSignalTone } from './overviewSignals';
+import { gatewayReadinessSignals, mainModelOverviewSignals, unmanagedModelSummary, type OverviewSignalTone } from './overviewSignals';
 import {
   accessProfileLabel,
   CAPABILITY_KEYS,
@@ -106,20 +107,36 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
     refetchIntervalInBackground: false,
   });
 
+  // 메인 모델 상태 API가 없는 Target에서는 Gateway readiness가 유일한 서빙 준비 근거다.
+  // 조회 실패는 다른 지표 조회 실패와 달리 주의로 올리지 않는다. 원인 진단은 make status가 소유한다.
+  const readinessEnabled = !modelSwitchingEnabled;
+  const readinessQuery = useQuery({
+    queryKey: ['gateway', 'readiness', authClass],
+    queryFn: () => fetchGatewayReadiness(token),
+    enabled: readinessEnabled,
+    retry: false,
+    staleTime: 10_000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 10_000 : false,
+    refetchIntervalInBackground: false,
+  });
+
   useEffect(() => {
     if (
       isUnauthorized(runtimesQuery.error)
       || isUnauthorized(mainModelQuery.error)
       || isUnauthorized(trafficQuery.error)
+      || isUnauthorized(readinessQuery.error)
     ) {
       onUnauthorized();
     }
-  }, [mainModelQuery.error, onUnauthorized, runtimesQuery.error, trafficQuery.error]);
+  }, [mainModelQuery.error, onUnauthorized, readinessQuery.error, runtimesQuery.error, trafficQuery.error]);
 
-  const refreshing = runtimesQuery.isFetching || mainModelQuery.isFetching || trafficQuery.isFetching;
+  const refreshing = runtimesQuery.isFetching || mainModelQuery.isFetching || trafficQuery.isFetching
+    || readinessQuery.isFetching;
   const refresh = () => {
     if (runtimeControlEnabled) void runtimesQuery.refetch();
     if (modelSwitchingEnabled) void mainModelQuery.refetch();
+    if (readinessEnabled) void readinessQuery.refetch();
     void trafficQuery.refetch();
   };
   const serviceDashboardUrl = serviceOverviewDashboardUrl(bootstrap.links.grafana);
@@ -130,11 +147,15 @@ export function OverviewPage({ bootstrap, token, onUnauthorized }: OverviewPageP
   const budget = runtimesQuery.data?.budget;
   const mainModel = mainModelQuery.data;
   const mainModelSignals = mainModelOverviewSignals(mainModel, runtimeStateLabel);
-  const attentionSignals = mainModelSignals.filter((signal) => signal.tone !== 'info');
+  const attentionSignals = [
+    ...mainModelSignals.filter((signal) => signal.tone !== 'info'),
+    ...gatewayReadinessSignals(readinessEnabled ? readinessQuery.data : null),
+  ];
   const informationalSignals = mainModelSignals.filter((signal) => signal.tone === 'info');
   const checking = (
     (runtimeControlEnabled && runtimesQuery.isPending)
     || (modelSwitchingEnabled && mainModelQuery.isPending)
+    || (readinessEnabled && readinessQuery.isPending)
     || trafficQuery.isPending
   );
   const hasAttention = (

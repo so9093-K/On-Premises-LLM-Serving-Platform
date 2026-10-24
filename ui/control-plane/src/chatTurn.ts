@@ -132,7 +132,13 @@ export function turnFacts(turn: AssistantTurn): TurnFact[] {
 
 export function turnNotice(turn: AssistantTurn): string | null {
   if (turn.status === 'stopped') return '중지했습니다. 받은 부분까지만 표시합니다.';
-  if (turn.status === 'failed') return null;
+  if (turn.status === 'failed') {
+    // Static Target에서는 공개 모델 목록이 정상이어도 모델 Runtime이 내려가 있을 수 있다.
+    // 오류 코드만으로는 다음 행동을 알 수 없으므로 복구 경로를 안내한다.
+    return turn.error?.code === 'MODEL_UNAVAILABLE'
+      ? '모델 Runtime이 요청을 받을 수 없는 상태입니다. Request ID를 서버 운영자에게 전달하거나, 서버에서 make status로 Runtime 상태를 확인한 뒤 다시 보내세요.'
+      : null;
+  }
   if (turn.finishReason === 'length') return '최대 출력 토큰에 도달해 응답이 잘렸습니다.';
   if (turn.status === 'complete' && !turn.content && turn.toolCalls.length === 0 && turn.reasoning) {
     return '생각 과정만 생성되고 답변은 없습니다. 최대 출력 토큰을 늘려 보세요.';

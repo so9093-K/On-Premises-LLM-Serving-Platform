@@ -5,6 +5,8 @@ export type BootstrapResponse =
   paths['/admin/control-plane/bootstrap']['get']['responses'][200]['content']['application/json'];
 export type RecentTrafficResponse =
   paths['/admin/traffic/recent']['get']['responses'][200]['content']['application/json'];
+export type GatewayReadinessResponse =
+  paths['/ready']['get']['responses'][200]['content']['application/json'];
 export type PublicModelListResponse =
   paths['/v1/models']['get']['responses'][200]['content']['application/json'];
 export type RuntimeListResponse =
@@ -177,6 +179,19 @@ export async function verifyAdminToken(token: string): Promise<void> {
 
 export async function fetchRecentTraffic(token: string | null): Promise<RecentTrafficResponse> {
   return jsonRequest<RecentTrafficResponse>('/admin/traffic/recent', token);
+}
+
+// 필수 의존 서비스가 준비되지 않으면 Gateway는 같은 형식의 본문을 503으로 돌려준다.
+export async function fetchGatewayReadiness(token: string | null): Promise<GatewayReadinessResponse> {
+  const response = await fetch('/ready', { cache: 'no-store', headers: adminHeaders(token) });
+  if (response.status === 503) {
+    const body = await response.clone().json().catch(() => null) as GatewayReadinessResponse | null;
+    if (Array.isArray(body?.required_not_ready_dependencies)) return body;
+  }
+  if (!response.ok) {
+    throw await apiError(response);
+  }
+  return (await response.json()) as GatewayReadinessResponse;
 }
 
 // 공개 API는 관리자 키가 아니라 API 키로 인증한다. 관리자 키를 공개 API에 보내지 않는다.

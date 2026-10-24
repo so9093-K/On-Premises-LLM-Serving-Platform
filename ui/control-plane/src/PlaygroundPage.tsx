@@ -5,10 +5,12 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { isUnauthorized } from './apiFeedback';
 import { ChatPage } from './ChatPage';
 import { useChatSession } from './ChatSessionContext';
-import { EmbeddingPlayground } from './EmbeddingPlayground';
+// 같은 이름의 소문자 .ts 모듈이 있다. 대소문자를 구분하지 않는 macOS 파일시스템에서
+// 확장자 없는 import는 .ts를 먼저 찾아 잘못 해석되므로 .tsx를 명시한다.
+import { EmbeddingPlayground } from './EmbeddingPlayground.tsx';
 import { playgroundPath, visiblePlaygroundWorkspaces, type PlaygroundWorkspace } from './navigation';
 import { usePublicModels } from './publicModelsQuery';
-import { RiskPlayground } from './RiskPlayground';
+import { RiskPlayground } from './RiskPlayground.tsx';
 
 type PlaygroundPageProps = {
   features: readonly string[];

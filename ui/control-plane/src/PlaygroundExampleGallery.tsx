@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@patternfly/react-core';
 import { exampleAttachmentSummary, exampleAvailability, exampleRequiresFreshConversation, EXAMPLE_SAMPLE_ASSETS, PLAYGROUND_EXAMPLES, videoExampleLimitSummary, type ExampleSampleId, type PlaygroundExample } from './playgroundExamples';
 import type { ChatControls, PublicModel } from './chatSession';
@@ -31,7 +31,15 @@ export function PlaygroundExampleGallery({
   error, onSelect, onApply, onCancelReplace,
 }: Props) {
   const [failedVideoUrl, setFailedVideoUrl] = useState<string | null>(null);
-  const selected = PLAYGROUND_EXAMPLES.find((item) => item.id === selectedId) ?? null;
+  // 미리보기는 카드 목록 아래에 열려 내부 스크롤 밖에 있을 수 있다. 사용자가 고른 직후에만 보이게 한다.
+  const previewRef = useRef<HTMLDivElement>(null);
+  const revealPreviewRef = useRef(false);
+  useEffect(() => {
+    if (!revealPreviewRef.current || selectedId === null) return;
+    revealPreviewRef.current = false;
+    previewRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedId]);
+  const selected =PLAYGROUND_EXAMPLES.find((item) => item.id === selectedId) ?? null;
   const sampleAsset = selected?.sample ? EXAMPLE_SAMPLE_ASSETS[selected.sample] : null;
   const sampleUrl = selected?.sample ? sampleUrls[selected.sample] : null;
   const availability = selected ? exampleAvailability(selected, model, controls, validateRequest) : null;
@@ -54,7 +62,10 @@ export function PlaygroundExampleGallery({
               type="button"
               key={example.id}
               aria-pressed={selectedId === example.id}
-              onClick={() => onSelect(example.id)}
+              onClick={() => {
+                revealPreviewRef.current = true;
+                onSelect(example.id);
+              }}
               disabled={busy}
             >
               <span className="playground-example-card-heading">
@@ -69,7 +80,7 @@ export function PlaygroundExampleGallery({
         })}
       </div>
       {selected ? (
-        <div className="playground-example-preview" aria-live="polite">
+        <div className="playground-example-preview" aria-live="polite" ref={previewRef}>
           <div className="playground-example-preview-heading">
             <h3>{selected.title}</h3>
             <div className="playground-example-tags" aria-label="적용할 입력 종류">

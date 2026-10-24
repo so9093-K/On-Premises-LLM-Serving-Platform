@@ -2,7 +2,7 @@ import { modelRuntimeLabel, modelServingNotice } from './uiText';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Spinner } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
-import { conversationEndNearViewport } from './chatScroll';
+import { conversationEndNearViewport, followScrollTop } from './chatScroll';
 
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { useChatSession } from './ChatSessionContext';
@@ -45,7 +45,8 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
   return (
     <div className="chat-model-context">
       {showIdentity ? <strong>{model.id}</strong> : null}
-      <span>{model.display_name ?? model.id} · {modelRuntimeLabel(model.backend)}</span>
+      {/* id는 위 strong 또는 모델 선택 상자에 이미 보인다. 표시 이름이 따로 있을 때만 덧붙인다. */}
+      <span>{model.display_name && model.display_name !== model.id ? `${model.display_name} · ` : ''}{modelRuntimeLabel(model.backend)}</span>
       {model.upstream_model_id ? <small>{model.upstream_model_id}</small> : null}
       {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} tokens · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '—')} tokens</small> : null}
       {features.length > 0 ? (
@@ -78,6 +79,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
   const followRef = useRef(true);
+  const revealExamplesRef = useRef(false);
   const followBeforeConfirmRef = useRef(true);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
@@ -174,7 +176,19 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   };
   useEffect(() => {
     const region = conversationScrollRef.current;
-    if (region && followRef.current) region.scrollTop = region.scrollHeight;
+    if (!region) return;
+    // 사용자가 연 예제 갤러리는 대화 위쪽에 생긴다. 끝을 따라가면 열어도 보이지 않는다.
+    if (revealExamplesRef.current) {
+      revealExamplesRef.current = false;
+      region.scrollTop = 0;
+      return;
+    }
+    if (!followRef.current) return;
+    const details = region.querySelector<HTMLElement>('.chat-log > li:last-child :is(.chat-facts, .chat-result-links)');
+    const detailsTop = details
+      ? details.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop
+      : null;
+    region.scrollTop = followScrollTop(detailsTop, region.scrollHeight, region.clientHeight);
   }, [exchanges, showExamples]);
 
   async function onAttachmentsSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -283,6 +297,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       setAppliedExampleId(example.id);
       setInputError(null);
       setConfirmExampleReplace(false);
+      followRef.current = true;
       setShowExamples(false);
       setFocusComposerAfterExample(true);
     } catch (reason) {
@@ -373,6 +388,9 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
             cancelExamplePreparation();
+            // 열면 갤러리를 보여 주고, 닫으면 최신 대화로 돌아간다.
+            revealExamplesRef.current = !showExamples;
+            followRef.current = showExamples;
             setShowExamples((current) => !current);
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
