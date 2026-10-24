@@ -16,7 +16,7 @@ def _settings(*, managed: bool = True):
     catalog_policy = {
         "max_output_tokens": 4096,
         "request_limits": {"max_model_len": 8192, "input_modalities": ["text"]},
-        "request_parameter_policy": {"supported_parameters": []},
+        "request_parameter_policy": {"supported_parameters": ["max_tokens"]},
     }
     return SimpleNamespace(
         public_models=(
@@ -105,7 +105,7 @@ def test_current_policy_is_advertised_only_with_open_gate_and_active_profile():
         "gateway_policy": {
             "max_output_tokens": 2048,
             "request_limits": {"max_model_len": 16384, "input_modalities": ["text"]},
-            "request_parameter_policy": {"supported_parameters": []},
+            "request_parameter_policy": {"supported_parameters": ["max_tokens"]},
         },
     }
     result = asyncio.run(_models(_settings(), Controller({
