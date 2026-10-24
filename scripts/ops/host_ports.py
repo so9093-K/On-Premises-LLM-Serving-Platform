@@ -1,9 +1,11 @@
 """Host 공개 포트를 누가 사용 중인지 확인한다. 표준 라이브러리만 사용한다."""
 from __future__ import annotations
 
+import errno
 import re
 import socket
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,8 +26,18 @@ class PortHolder:
         if self.kind == "container":
             return f"다른 Docker 컨테이너 {self.name}가 사용 중"
         if self.kind == "process":
-            return f"다른 프로세스가 사용 중 (확인: ss -ltnp 'sport = :{port}')"
+            check = (f"lsof -nP -iTCP:{port} -sTCP:LISTEN" if sys.platform == "darwin"
+                     else f"ss -ltnp 'sport = :{port}'")
+            return f"다른 프로세스가 사용 중 (확인: {check})"
         return "사용 가능"
+
+
+def _listening(port: int, bind: str) -> bool:
+    family = socket.AF_INET6 if ":" in bind else socket.AF_INET
+    target = {"0.0.0.0": "127.0.0.1", "::": "::1"}.get(bind, bind)
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1)
+        return sock.connect_ex((target, port)) == 0
 
 
 def _bindable(port: int, bind: str) -> bool:
@@ -33,8 +45,11 @@ def _bindable(port: int, bind: str) -> bool:
     with socket.socket(family, socket.SOCK_STREAM) as sock:
         try:
             sock.bind((bind, port))
-        except OSError:
-            return False
+        except OSError as error:
+            # 직전 정지로 남은 TIME_WAIT도 EADDRINUSE를 낸다. 실제 서버는 SO_REUSEADDR로 기동하므로
+            # 연결을 받는 리스너가 없을 때만 비어 있다고 본다. SO_REUSEADDR 검사는 macOS에서
+            # wildcard 리스너와의 충돌을 놓치므로 쓰지 않는다.
+            return error.errno == errno.EADDRINUSE and not _listening(port, bind)
     return True
 
 
