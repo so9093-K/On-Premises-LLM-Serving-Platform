@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Alert, Button, Card, CardBody, CardTitle } from '@patternfly/react-core';
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Button, Card, CardBody, CardTitle } from '@patternfly/react-core';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 import { isUnauthorized } from './apiFeedback';
 import { ChatPage } from './ChatPage';
@@ -15,6 +15,7 @@ import {
   visiblePlaygroundWorkspaces,
   type PlaygroundWorkspace,
 } from './navigation';
+import { PlaygroundUnavailableNotice } from './PlaygroundUnavailableNotice';
 import { usePublicModels } from './publicModelsQuery';
 import { RiskPlayground } from './RiskPlayground.tsx';
 
@@ -68,17 +69,11 @@ function UnavailableWorkspace({ workspace }: { workspace: PlaygroundWorkspace })
   const headingId = `playground-unavailable-${workspace.path}`;
   return (
     <section className="playground-workspace" aria-labelledby={headingId}>
+      {/* 화면 설명은 각 작업 화면이 소유한다. 여기서는 이름과 미제공 사유만 보여 준다. */}
       <div className="playground-panel-heading">
-        <div>
-          <h2 id={headingId}>{workspace.label}</h2>
-          <p>{workspace.description}</p>
-        </div>
+        <h2 id={headingId}>{workspace.label}</h2>
       </div>
-      <Alert isInline variant="info" title="현재 배포 환경에서는 제공하지 않습니다.">
-        <p>이 배포의 지원 기능에 {workspace.label} 기능이 포함되지 않아 이 화면에서는 요청을 보내지 않습니다. 장애가 아니라 배포 구성에 따른 범위입니다.</p>
-        <p>사용하려면 서버 운영자가 이 기능을 제공하는 배포 환경을 구성해야 합니다. 현재 배포의 지원 기능은 운영 개요의 실행 환경 정보에서 확인할 수 있습니다.</p>
-        <Link to="/">운영 개요로 이동 →</Link>
-      </Alert>
+      <PlaygroundUnavailableNotice label={workspace.label} />
     </section>
   );
 }

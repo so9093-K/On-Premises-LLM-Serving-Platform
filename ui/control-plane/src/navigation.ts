@@ -10,9 +10,9 @@ export type NavigationGroup = typeof NAVIGATION_GROUPS[number];
 // PII·Secret Risk 화면에 접근할 수 있어야 한다. 제공하지 않는 화면도 탭으로는 보여
 // 기능의 존재와 미제공 이유를 알린다.
 export const PLAYGROUND_WORKSPACES = [
-  { path: 'chat', label: 'Chat', feature: 'chat', description: '모델에 메시지를 보내 스트리밍 응답·도구 호출·멀티모달 입력을 확인합니다.' },
-  { path: 'embeddings', label: 'Embedding', feature: 'embeddings', description: '텍스트를 벡터로 바꾸고 두 문장 유사도와 문서 관련도 순위를 확인합니다.' },
-  { path: 'risk', label: 'Risk', feature: 'risk', description: '텍스트의 PII·Secret 위험 신호를 검사합니다.' },
+  { path: 'chat', label: 'Chat', feature: 'chat' },
+  { path: 'embeddings', label: 'Embedding', feature: 'embeddings' },
+  { path: 'risk', label: 'Risk', feature: 'risk' },
 ] as const;
 
 export type PlaygroundWorkspace = typeof PLAYGROUND_WORKSPACES[number];

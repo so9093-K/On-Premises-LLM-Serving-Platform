@@ -19,6 +19,7 @@ import {
   type EmbeddingMode,
   type EmbeddingResult,
 } from './embeddingPlayground';
+import { PlaygroundUnavailableNotice } from './PlaygroundUnavailableNotice';
 import { PublicRequestExportPanel } from './PublicRequestExportPanel';
 import type { PublicRequestRecord } from './publicRequestExport';
 import { usePublicModels } from './publicModelsQuery';
@@ -173,12 +174,7 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
         </div>
       </div>
 
-      {preview ? (
-        <Alert isInline variant="info" title="현재 배포 환경에서는 Embedding을 제공하지 않습니다.">
-          <p>화면 구성과 입력 방식은 확인할 수 있지만 요청은 보내지 않습니다. 장애가 아니라 배포 구성에 따른 범위입니다.</p>
-          <p>사용하려면 서버 운영자가 Embedding Runtime을 제공하는 배포 환경을 구성해야 합니다. <Link to="/">운영 개요에서 현재 지원 기능 보기 →</Link></p>
-        </Alert>
-      ) : null}
+      {preview ? <PlaygroundUnavailableNotice label="Embedding" preview /> : null}
 
       <form className="playground-form" onSubmit={(event) => { void submit(event); }}>
         <div className="playground-form-row">
