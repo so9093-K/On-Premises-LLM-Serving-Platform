@@ -120,6 +120,28 @@ def test_current_policy_is_advertised_only_with_open_gate_and_active_profile():
     assert "chat.completions.vision" not in main["capabilities"]
 
 
+def test_inconsistent_active_profile_identity_or_modalities_is_unverified():
+    active = {
+        "runtime_backend": "llama-cpp",
+        "capabilities": {"deployed_input": ["text"]},
+        "gateway_policy": {
+            "max_output_tokens": 1024,
+            "request_limits": {"max_model_len": 8192, "input_modalities": ["image"]},
+            "request_parameter_policy": {"supported_parameters": ["max_tokens"]},
+        },
+    }
+    for changes in (
+        {},  # ID 없음
+        {"id": "invalid-modalities"},  # 정책과 실행 modality 불일치
+    ):
+        main = asyncio.run(_models(_settings(), Controller({
+            "gate": "open", "active_profile": {**active, **changes},
+        })))[0]
+        assert main["serving_policy_status"] == "unverified"
+        assert main["backend"] == "unknown"
+        assert "context_window" not in main
+
+
 def test_open_gate_with_incomplete_policy_does_not_reuse_default_context():
     active = {
         "id": "incomplete", "runtime_backend": "llama-cpp",

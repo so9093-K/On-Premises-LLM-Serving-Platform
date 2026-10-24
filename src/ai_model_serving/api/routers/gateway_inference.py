@@ -277,7 +277,7 @@ def build_router(
                 if policy_status == "active" and not main_model_serving_open(active_snapshot):
                     policy_status = (
                         "gate_closed"
-                        if isinstance(active_snapshot, dict) and active_snapshot.get("gate") != "open"
+                        if isinstance(active_snapshot, dict) and active_snapshot.get("gate") == "closed"
                         else "unverified"
                     )
         active_policy = (
@@ -296,9 +296,16 @@ def build_router(
         if managed and policy_status == "active":
             profile = active_snapshot["active_profile"]
             backend = profile.get("runtime_backend")
+            policy_limits = (
+                active_policy.get("request_limits") if isinstance(active_policy, dict) else None
+            )
             if (
-                not _complete_listing_policy(active_policy)
+                not isinstance(profile.get("id"), str)
+                or not profile["id"]
+                or not _complete_listing_policy(active_policy)
                 or not active_modalities
+                or not isinstance(policy_limits, dict)
+                or policy_limits.get("input_modalities") != list(active_modalities or ())
                 or not isinstance(backend, str)
                 or not backend
             ):
