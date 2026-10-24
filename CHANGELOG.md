@@ -3,6 +3,9 @@
 이 파일은 사용자와 운영자에게 의미 있는 변경·호환성·마이그레이션을 기록한다. 내부 구현과 수정 과정은 Git commit/PR 이력을 따른다.
 
 ## [Unreleased]
+- Control Plane의 초기 연결·설정 조회 실패에서 화면 재시도와 Host 진단 동선을 제공한다. 설정 Plan 충돌·Apply 실패 때 사용자가 작성한 초안을 유지하고 최신 revision을 다시 조회해 새 검토를 요구한다.
+- Playground는 활성 탭에서 공개 모델 계약을 갱신하고, 외부 모델 변경이나 관리형 Controller 장애·Gate 차단·미검증 상태를 요청 전에 안내한다. 미전송 Chat 초안과 요청 당시 기록은 보존한다.
+- API 키 삭제는 Chat뿐 아니라 Embedding·Retrieval·Risk 작업 데이터 소실까지 확인하며 모델 없는 Core의 다음 설정 작업을 안내한다.
 - Controller 장애·Gate 차단 중 `/v1/models`는 논리 모델 목록을 유지하되 확인되지 않은 Main 실행 한도·Backend를 광고하지 않고 정책 상태를 구분한다.
 - 미지원 이전 Target은 설정 변경 시 명확히 거부한다. 자동 전환·상태 이전이나 인증 설정을 변경하는 호환 계층은 추가하지 않는다.
 - 독립 CPU Compose를 위해 남은 `cpu_main_llama` 서비스 선언을 제거한다.

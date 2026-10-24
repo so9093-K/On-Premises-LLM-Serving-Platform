@@ -28,11 +28,19 @@ function LoadingScreen() {
   );
 }
 
-function FailureScreen({ title, children }: { title: string; children: ReactNode }) {
+function FailureScreen({ title, children, onRetry, retrying = false }: { title: string; children: ReactNode; onRetry?: () => void; retrying?: boolean }) {
   return (
     <main className="centered-state">
       <Alert isInline variant="danger" title={title}>
         {children}
+        {onRetry ? (
+          <div className="state-recovery-actions">
+            <Button variant="secondary" isDisabled={retrying} onClick={onRetry}>
+              {retrying ? '다시 확인 중…' : '다시 시도'}
+            </Button>
+            <small>계속 실패하면 서버에서 <code>make status</code>와 <code>make logs</code>로 상태를 확인하세요.</small>
+          </div>
+        ) : null}
       </Alert>
     </main>
   );
@@ -184,7 +192,12 @@ export default function App() {
     return <LoadingScreen />;
   }
   if (bootstrapQuery.isError) {
-    return <FailureScreen title="Control Plane 정보를 불러오지 못했습니다.">{bootstrapQuery.error.message}</FailureScreen>;
+    return (
+      <FailureScreen title="Control Plane 정보를 불러오지 못했습니다."
+        onRetry={() => { void bootstrapQuery.refetch(); }} retrying={bootstrapQuery.isFetching}>
+        {bootstrapQuery.error.message}
+      </FailureScreen>
+    );
   }
 
   const bootstrap = bootstrapQuery.data;

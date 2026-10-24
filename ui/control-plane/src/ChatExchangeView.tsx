@@ -13,6 +13,7 @@ export function ExchangeView({
   docsUrl,
   pendingToolResult,
   busy,
+  toolSendDisabled,
   onSendToolResults,
 }: {
   exchange: Exchange;
@@ -20,6 +21,7 @@ export function ExchangeView({
   docsUrl: string | null;
   pendingToolResult: boolean;
   busy: boolean;
+  toolSendDisabled: boolean;
   onSendToolResults: (sourceExchangeId: number, results: readonly ChatToolResult[]) => string | null;
 }) {
   const [showRaw, setShowRaw] = useState(false);
@@ -118,6 +120,7 @@ export function ExchangeView({
           <ToolResultForm
             exchange={exchange}
             busy={busy}
+            sendingDisabled={toolSendDisabled}
             onSend={(results) => onSendToolResults(exchange.id, results)}
           />
         ) : null}

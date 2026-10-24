@@ -248,6 +248,18 @@ export function modelRuntimeLabel(backend: string | null | undefined): string {
     'mlx-vlm': 'Apple Silicon · MLX',
     'none': '모델 런타임 없음',
     'adaptive': 'CPU/GPU 자동 선택',
+    'unknown': '실행 엔진 확인 불가',
   };
   return backend ? labels[backend] ?? backend : '확인 불가';
+}
+
+// 관리형 Main 모델의 공개 상태만 해석한다. 외부 Runtime에는 Controller 상태를 추론하지 않는다.
+export function modelServingNotice(status: string | undefined): { title: string; description: string } | null {
+  if (status === undefined || status === 'active') return null;
+  const notices: Record<string, { title: string; description: string }> = {
+    gate_closed: { title: '현재 모델 요청이 차단돼 있습니다.', description: '모델 변경 또는 복구 중일 수 있습니다. 메인 모델의 요청 상태를 확인하세요.' },
+    controller_unavailable: { title: '모델 제어 서비스에 연결할 수 없습니다.', description: '현재 실행 모델과 한도를 확인할 수 없습니다. 운영자가 제어 서비스 상태를 확인해야 합니다.' },
+    unverified: { title: '현재 모델의 실행 상태가 검증되지 않았습니다.', description: '실제 모델 신원이나 요청 정책이 확인되기 전에는 전송할 수 없습니다.' },
+  };
+  return notices[status] ?? { title: '모델 실행 정책을 확인할 수 없습니다.', description: '알 수 없는 정책 상태입니다. 메인 모델 화면에서 현재 상태를 확인하세요.' };
 }

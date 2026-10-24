@@ -1,6 +1,7 @@
-import { modelRuntimeLabel } from './uiText';
+import { modelRuntimeLabel, modelServingNotice } from './uiText';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Alert, Button, Spinner } from '@patternfly/react-core';
+import { Link } from 'react-router-dom';
 import { conversationEndNearViewport } from './chatScroll';
 
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
@@ -86,12 +87,33 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     () => chatCapableModels((modelsQuery.data?.data ?? []) as PublicModel[]),
     [modelsQuery.data],
   );
+  const lastContractRef = useRef<string | null>(null);
+  const [modelContractChanged, setModelContractChanged] = useState(false);
+  useEffect(() => {
+    if (!modelsQuery.isSuccess) return;
+    // 목록 순서 변화만으로 운영자에게 모델 정책 변경 알림을 표시하지 않는다.
+    const currentContract = JSON.stringify([...modelsQuery.data.data].sort((a, b) => a.id.localeCompare(b.id)));
+    if (lastContractRef.current !== null && lastContractRef.current !== currentContract) {
+      setModelContractChanged(true);
+    }
+    lastContractRef.current = currentContract;
+  }, [modelsQuery.data, modelsQuery.isSuccess]);
+  // 최초 기본 모델도 신원으로 고정해 외부 모델 교체 시 다른 모델에 몰래 전송하지 않는다.
+  useEffect(() => {
+    if (modelsQuery.isSuccess && selectedModelId === null && models.length > 0) {
+      setSelectedModelId(models[0].id);
+    }
+  }, [models, modelsQuery.isSuccess, selectedModelId, setSelectedModelId]);
   const retainedModel = models.find((item) => item.id === selectedModelId) ?? null;
   // 사용 중이던 모델이 배포 변경으로 사라져도 초안을 기본 모델에 조용히 전송하지 않는다.
   const selectionUnavailable = selectedModelId !== null && models.length > 0 && retainedModel === null;
   const model = selectionUnavailable ? null : retainedModel ?? models[0] ?? null;
+  const servingNotice = modelServingNotice(model?.serving_policy_status);
   const maxOutputControl = model ? chatControls(model).maxTokens : null;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
+  // 최근 모델 계약 조회에 실패했다면 이전 캐시만으로 요청 가능 상태를 주장하지 않는다.
+  const modelInformationUnavailable = modelsQuery.isError && !needsKey;
+  const modelRequestBlocked = servingNotice !== null || modelInformationUnavailable;
   const pendingToolExchange = pendingToolCallExchange(exchanges);
   const pendingModel = models.find((item) => item.id === pendingModelId) ?? null;
   const pendingSwitchPlan = pendingModel
@@ -275,7 +297,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   function submit() {
     if (attachmentBusy || exampleLoading || pendingModelId !== null) return;
     const text = draft.trim();
-    if ((!text && attachments.length === 0) || model === null) return;
+    if ((!text && attachments.length === 0) || model === null || modelRequestBlocked) return;
     const error = send(model, text, attachments);
     setInputError(error);
     if (error === null) {
@@ -385,12 +407,26 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
         </div>
       ) : null}
 
+      {modelContractChanged ? (
+        <Alert isInline variant="info" title="공개 모델 정보가 변경됐습니다.">
+          <p>모델이나 요청 한도가 외부 운영 작업으로 변경됐을 수 있습니다. 작성 중인 메시지와 이전 응답은 유지됩니다. 현재 모델과 요청 설정을 다시 확인하세요.</p>
+          <Button variant="secondary" onClick={() => setModelContractChanged(false)}>변경 확인</Button>
+        </Alert>
+      ) : null}
+      {servingNotice ? (
+        <Alert isInline variant="warning" title={servingNotice.title}>
+          <p>{servingNotice.description}</p>
+          <Link to="/main-model">메인 모델 상태·복구 확인 →</Link>
+        </Alert>
+      ) : null}
       {modelsQuery.isPending ? (
         <div className="inline-loading"><Spinner size="md" aria-label="모델 목록 불러오는 중" /> 모델 목록을 불러오는 중…</div>
       ) : null}
       {modelsQuery.isError && !needsKey ? (
         <Alert isInline variant="danger" title="모델 목록을 불러오지 못했습니다.">
-          {apiErrorMessage(modelsQuery.error)}
+          <p>{apiErrorMessage(modelsQuery.error)} 최신 모델 정책을 확인하기 전에는 새 요청을 보내지 않습니다.</p>
+          <Button variant="secondary" isDisabled={modelsQuery.isFetching}
+            onClick={() => { void modelsQuery.refetch(); }}>모델 정보 다시 조회</Button>
         </Alert>
       ) : null}
       {modelsQuery.isSuccess && selectionUnavailable ? (
@@ -474,7 +510,10 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                     docsUrl={docsUrl}
                     pendingToolResult={pendingToolExchange?.id === exchange.id}
                     busy={busy}
-                    onSendToolResults={(sourceExchangeId, results) => sendToolResults(model, sourceExchangeId, results)}
+                    toolSendDisabled={modelRequestBlocked}
+                    onSendToolResults={(sourceExchangeId, results) => modelRequestBlocked
+                      ? '현재 모델 요청 가능 상태를 확인하지 못했습니다. 도구 결과는 전송하지 않았습니다.'
+                      : sendToolResults(model, sourceExchangeId, results)}
                   />
                 ))}
               </ol>
@@ -560,7 +599,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                   <Button
                     type="submit"
                     variant="primary"
-                    isDisabled={pendingToolExchange !== null || attachmentBusy || exampleLoading || pendingModelId !== null || (!draft.trim() && attachments.length === 0)}
+                    isDisabled={modelRequestBlocked || pendingToolExchange !== null || attachmentBusy || exampleLoading || pendingModelId !== null || (!draft.trim() && attachments.length === 0)}
                   >
                     보내기
                   </Button>
