@@ -487,6 +487,20 @@ input {
   margin-top: 1rem;
 }
 
+.main-execution-body { display: grid; gap: 1rem; }
+.main-execution-body p { margin: 0; }
+.main-execution-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.main-execution-heading > strong { font-size: 1.25rem; }
+.main-execution-model { overflow-wrap: anywhere; }
+.main-execution-policy { display: grid; gap: 0.375rem; }
+.main-execution-policy p { color: var(--console-text-muted); }
+.main-policy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.main-policy-advanced, .main-gpu-details { border-top: 1px solid var(--console-border); padding-top: 0.875rem; }
+.main-policy-advanced summary, .main-gpu-details summary { cursor: pointer; width: fit-content; }
+.main-policy-advanced[open] > p, .main-gpu-details[open] > .facts { margin-top: 0.875rem; }
+.main-policy-advanced .main-policy-actions { margin-top: 0.75rem; }
+.main-gpu-device { display: grid; gap: 0.75rem; margin-top: 1rem; }
+
 .profile-comparison-intro {
   margin-top: 0;
   max-width: 64rem;

@@ -292,6 +292,13 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
   };
   const gpuPolicy = active?.runtime_backend === "vllm-cuda"
     ? selection?.gpu_assignment : selection?.gpu_candidate;
+  const gpuConditionLabels: Record<string, string> = {
+    GPU_RUNTIME_UNHEALTHY: 'GPU 런타임 응답 확인 실패',
+    GPU_MEMORY_PRESSURE: 'GPU 여유 메모리 부족',
+    GPU_HEALTH_OR_MEMORY_PRESSURE: 'GPU 응답 또는 여유 메모리 확인 실패',
+    GPU_REVALIDATION_PENDING: 'GPU 응답 재검증 대기',
+    GPU_REVALIDATION_FAILED: 'GPU 응답 재검증 미완료',
+  };
   const gpuCandidateProfile = profiles.find(profile => profile.id === selection?.gpu_profile);
   const selectedTokenLimits = reviewProfile ? mainModelTokenLimits(reviewProfile) : null;
   const parsedContextTokens = Number(editContextTokens);
@@ -333,7 +340,7 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
     const target = profiles.find(profile => mode === 'gpu'
       ? profile.id === (active?.runtime_backend === 'vllm-cuda' ? active.id : selection.gpu_profile)
       : profile.id === (selection.cpu_profile ?? 'cpu-gguf-text'));
-    return <Button key={mode} variant="secondary"
+    return <Button key={mode} variant={retry ? 'primary' : 'secondary'}
       isDisabled={switchMutation.isPending || busy || !target || (selection.mode === mode && !retry)}
       onClick={() => {
         if (target) beginReview(target, mode);
@@ -367,39 +374,60 @@ export function MainModelPage({ token, onUnauthorized, chatEnabled }: MainModelP
         </Alert>
       ) : null}
       {selection ? (
-        <Card>
-          <CardTitle>실행 정책 · {executionPolicyPresentation[selection.mode].label}</CardTitle>
-          <CardBody>
-            <p>활성 프로필: {active?.runtime_backend === "llama-cpp" ? "CPU · llama.cpp" : active?.runtime_backend === "vllm-cuda" ? "GPU · vLLM" : "준비 중"}</p>
-            <p>{isRecoveringPolicy(selection.mode) ? (selectionReasons[selection.reason_code] ?? selection.reason_code) : "선택한 엔진의 모델을 유지합니다."}</p>
-            <p>{executionPolicyPresentation[selection.mode].description}</p>
-            <p>요청 상태: {status.gate === "open" ? "수락 중" : "새 요청 차단 중"}</p>
-            {selection.observed_at ? <p>마지막 자원 관측: {new Date(selection.observed_at * 1000).toLocaleString()}</p> : null}
-            {isRecoveringPolicy(selection.mode) ? selection.resources?.gpus.map(gpu => (
-              <div key={gpu.uuid ?? gpu.index} style={{ overflowWrap: "anywhere" }}>
-                <p>GPU {gpu.index}: {gpu.name ?? "제품명 확인 불가"} · 실측 여유 {gpu.free_mib.toLocaleString()} / 전체 {gpu.total_mib.toLocaleString()} MiB</p>
-                <p>UUID: {gpu.uuid ?? "확인 불가"} · PCI: {gpu.pci_bus_id ?? "확인 불가"} · Compute Capability: {gpu.compute_capability ?? "확인 불가"} · Driver: {gpu.driver_version ?? "확인 불가"}</p>
+        <Card className="main-execution-card">
+          <CardTitle>현재 실행</CardTitle>
+          <CardBody className="main-execution-body">
+            <div className="main-execution-heading">
+              <strong>{active?.runtime_backend === 'llama-cpp' ? 'CPU · llama.cpp' : active?.runtime_backend === 'vllm-cuda' ? 'GPU · vLLM' : '준비 중'}</strong>
+              <Label color={status.gate === 'open' ? 'green' : 'orange'}>{status.gate === 'open' ? '요청 수락 중' : '새 요청 차단 중'}</Label>
+            </div>
+            {active ? <p className="main-execution-model"><code>{active.upstream_model_id}</code></p> : null}
+            <div className="main-execution-policy">
+              <strong>실행 정책 · {executionPolicyPresentation[selection.mode].label}</strong>
+              <p>{executionPolicyPresentation[selection.mode].description}</p>
+            </div>
+            {isRecoveringPolicy(selection.mode) && !['CPU_FALLBACK_ACTIVE', 'GPU_SERVING'].includes(selection.reason_code)
+              ? <p>{selectionReasons[selection.reason_code] ?? selection.reason_code}</p> : null}
+            {selection.cpu_retry_at && status.gate === 'closed' && selection.reason_code.startsWith('CPU_FALLBACK_') ? <p>CPU 재시도 가능 시각: {new Date(selection.cpu_retry_at * 1000).toLocaleString()}</p> : null}
+            {!locked ? <>
+              <div className="main-policy-actions" aria-label="실행 정책 선택">
+                {(['fallback', 'cpu'] as const).map(policyAction)}
+                <Link to="/runtimes">런타임 중지·재개</Link>
               </div>
-            )) : null}
-            {isRecoveringPolicy(selection.mode) && gpuPolicy ? (
-              <div style={{ overflowWrap: "anywhere" }}>
-                <p>{active?.runtime_backend === "vllm-cuda" ? "할당 GPU" : "후보 GPU"}: {gpuPolicy.name ?? "제품명 확인 불가"} · {gpuPolicy.uuid}</p>
-                <p>리소스 정책: {gpuPolicy.resource_variant ?? "Reference"} · 선택 근거: {gpuPolicy.policy_source === "operator" ? "운영자 지정" : "전체 VRAM 용량"}</p>
-              </div>
-            ) : null}
-            {selection.gpu_condition && (selection.reason_code.startsWith("CPU_FALLBACK_") || selection.mode === "fallback") ? <p>GPU 상태: {selectionReasons[selection.gpu_condition] ?? selection.gpu_condition}</p> : null}
-            {selection.gpu_retry_at && selection.reason_code === "GPU_FAILURE_BACKOFF" ? <p>GPU 재시도 가능 시각: {new Date(selection.gpu_retry_at * 1000).toLocaleString()}</p> : null}
-            {selection.cpu_retry_at && status.gate === "closed" && selection.reason_code.startsWith("CPU_FALLBACK_") ? <p>CPU 재시도 가능 시각: {new Date(selection.cpu_retry_at * 1000).toLocaleString()}</p> : null}
-            {!locked ? <div className="review-actions" aria-label="실행 정책 선택">
-              {(['fallback', 'cpu'] as const).map(policyAction)}
-              <details>
+              <details className="main-policy-advanced">
                 <summary>고급 실행 정책</summary>
-                <p>자동 복귀 또는 특정 GPU 모델 유지가 필요한 경우 선택합니다.</p>
-                {(['automatic', 'gpu'] as const).map(policyAction)}
+                <p>GPU 자동 복귀 또는 GPU 전용 운영이 필요한 경우 선택합니다.</p>
+                <div className="main-policy-actions">{(['automatic', 'gpu'] as const).map(policyAction)}</div>
               </details>
-            </div> : null}
+            </> : null}
+            {isRecoveringPolicy(selection.mode) ? (
+              <details className="main-gpu-details">
+                <summary>GPU 상태 및 장치 정보</summary>
+                <dl className="facts">
+                  {selection.gpu_condition ? <><dt>마지막 GPU 판단</dt><dd>{gpuConditionLabels[selection.gpu_condition] ?? selectionReasons[selection.gpu_condition] ?? selection.gpu_condition}</dd></> : null}
+                  <dt>마지막 자원 관측</dt><dd>{selection.observed_at ? new Date(selection.observed_at * 1000).toLocaleString() : '관측 정보 없음'}</dd>
+                  {selection.gpu_retry_at && selection.reason_code === 'GPU_FAILURE_BACKOFF' ? <><dt>GPU 재시도 가능 시각</dt><dd>{new Date(selection.gpu_retry_at * 1000).toLocaleString()}</dd></> : null}
+                  {gpuPolicy ? <>
+                    <dt>{active?.runtime_backend === 'vllm-cuda' ? '할당 GPU' : '후보 GPU'}</dt><dd>{gpuPolicy.name ?? '제품명 확인 불가'} · <code>{gpuPolicy.uuid}</code></dd>
+                    <dt>리소스 정책</dt><dd>{gpuPolicy.resource_variant ?? 'Reference'} · {gpuPolicy.policy_source === 'operator' ? '운영자 지정' : '전체 VRAM 용량 기준'}</dd>
+                  </> : null}
+                </dl>
+                {selection.resources?.gpus.map(gpu => (
+                  <div className="main-gpu-device" key={gpu.uuid ?? gpu.index}>
+                    <strong>GPU {gpu.index} · {gpu.name ?? '제품명 확인 불가'}</strong>
+                    <dl className="facts">
+                      <dt>실측 여유 / 전체</dt><dd>{gpu.free_mib.toLocaleString()} / {gpu.total_mib.toLocaleString()} MiB</dd>
+                      <dt>UUID</dt><dd><code>{gpu.uuid ?? '확인 불가'}</code></dd>
+                      <dt>PCI</dt><dd><code>{gpu.pci_bus_id ?? '확인 불가'}</code></dd>
+                      <dt>Compute Capability</dt><dd>{gpu.compute_capability ?? '확인 불가'}</dd>
+                      <dt>드라이버</dt><dd>{gpu.driver_version ?? '확인 불가'}</dd>
+                    </dl>
+                  </div>
+                ))}
+              </details>
+            ) : null}
             {!profiles.some(profile => profile.runtime_backend === 'vllm-cuda') ? <p>GPU 이미지를 준비한 뒤 GPU 고정을 선택할 수 있습니다.</p> : null}
-            <p>중지·재개: <Link to="/runtimes">런타임</Link></p>
+            {locked ? <Link to="/runtimes">런타임 중지·재개</Link> : null}
           </CardBody>
         </Card>
       ) : locked ? (
