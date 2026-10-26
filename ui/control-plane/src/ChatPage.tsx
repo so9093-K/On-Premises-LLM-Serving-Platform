@@ -73,6 +73,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const [exampleLoading, setExampleLoading] = useState(false);
   const [focusComposerAfterExample, setFocusComposerAfterExample] = useState(false);
   const applySequenceRef = useRef(0);
+  const attachmentSequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const settingsDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const clearConfirmRef = useRef<HTMLDivElement | null>(null);
@@ -129,6 +130,14 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   }, [pendingModelId, models]);
   const exampleSnapshotRef = useRef({ model, settings: session.settings, exchanges });
   exampleSnapshotRef.current = { model, settings: session.settings, exchanges };
+  const attachmentSnapshotRef = useRef({ model, credentialRevision, attachments, exchanges });
+  attachmentSnapshotRef.current = { model, credentialRevision, attachments, exchanges };
+
+  // 화면을 떠나거나 키를 지운 뒤 이전 파일 읽기가 세션 입력을 다시 채우면 안 된다.
+  useEffect(() => () => {
+    applySequenceRef.current += 1;
+    attachmentSequenceRef.current += 1;
+  }, []);
 
   function cancelExamplePreparation() {
     applySequenceRef.current += 1;
@@ -208,6 +217,13 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
     if (model === null || files.length === 0 || exampleLoading) return;
+    const sequence = ++attachmentSequenceRef.current;
+    const initialContext = attachmentSnapshotRef.current;
+    const contextUnchanged = () => sequence === attachmentSequenceRef.current
+      && attachmentSnapshotRef.current.model === initialContext.model
+      && attachmentSnapshotRef.current.credentialRevision === initialContext.credentialRevision
+      && attachmentSnapshotRef.current.attachments === initialContext.attachments
+      && attachmentSnapshotRef.current.exchanges === initialContext.exchanges;
     setAttachmentBusy(true);
     setInputError(null);
     try {
@@ -215,17 +231,18 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       const history = conversationAttachments(exchanges);
       for (const file of files) {
         const result = await chatAttachmentFromFile(file, model, [...history, ...next]);
+        if (!contextUnchanged()) return;
         if (result.error) {
           setInputError(result.error);
           break;
         }
         if (result.attachment) next = [...next, result.attachment];
       }
-      setAttachments(next);
+      if (contextUnchanged()) setAttachments(next);
     } catch (reason) {
-      setInputError(reason instanceof Error ? reason.message : '첨부 파일을 읽지 못했습니다.');
+      if (contextUnchanged()) setInputError(reason instanceof Error ? reason.message : '첨부 파일을 읽지 못했습니다.');
     } finally {
-      setAttachmentBusy(false);
+      if (sequence === attachmentSequenceRef.current) setAttachmentBusy(false);
     }
   }
 
@@ -611,7 +628,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                     />
                     <label htmlFor="chat-attachments"><span aria-hidden="true">＋</span> 파일 첨부</label>
                   </div>
-                ) : <small>현재 모델은 파일 입력을 광고하지 않습니다.</small>}
+                ) : <small>파일 첨부를 지원하지 않는 모델입니다.</small>}
                 {/* 이미 있는 도구 줄에 둔다. 입력창 위에 새 줄로 생기면 입력 영역 경계가 위아래로 튄다. */}
                 {appliedExampleId ? (
                   <div className="chat-applied-example" role="status">

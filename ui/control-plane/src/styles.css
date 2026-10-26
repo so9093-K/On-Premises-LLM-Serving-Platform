@@ -104,6 +104,8 @@ input {
   gap: 0.125rem;
 }
 
+.mobile-navigation-toggle { display: none; }
+
 .topbar span {
   color: var(--pf-t--global--text--color--subtle, #6a6e73);
   font-size: 0.875rem;
@@ -1267,9 +1269,13 @@ input {
   }
 
   .sidebar {
+    display: none;
     border-right: 0;
     border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
   }
+
+  .sidebar.is-open { display: flex; }
+  .mobile-navigation-toggle { display: block; flex: 0 0 auto; }
 
   .sidebar nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));

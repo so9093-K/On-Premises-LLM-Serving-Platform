@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Alert, Button, Card, CardBody, CardTitle, Spinner } from '@patternfly/react-core';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
@@ -108,6 +108,10 @@ function AuthGate() {
 function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
   const { token, clearToken } = useAdminSession();
   const location = useLocation();
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationToggleRef = useRef<HTMLButtonElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
+  useEffect(() => setNavigationOpen(false), [location.pathname]);
   const sections = visibleNavigationSections(bootstrap.deployment.features);
   const pages: Record<NavigationPath, ReactNode> = {
     '/': <OverviewPage bootstrap={bootstrap} token={token} onUnauthorized={clearToken} />,
@@ -129,12 +133,21 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
           <strong>AI 모델 서빙 Control Plane</strong>
           <span>{deploymentTargetLabel(bootstrap.deployment.target, bootstrap.deployment.display_name)}</span>
         </div>
+        <button type="button" className="mobile-navigation-toggle" ref={navigationToggleRef}
+          aria-expanded={navigationOpen} aria-controls="console-navigation"
+          onClick={() => setNavigationOpen((open) => !open)}>메뉴</button>
         {bootstrap.access.admin_auth_required ? (
           <Button variant="secondary" onClick={clearToken}>관리자 키 지우기</Button>
         ) : null}
       </header>
       <div className="workspace">
-        <aside className="sidebar" aria-label="Control Plane 탐색">
+        <aside id="console-navigation" className={`sidebar${navigationOpen ? ' is-open' : ''}`} aria-label="Control Plane 탐색"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && navigationOpen) {
+              setNavigationOpen(false);
+              navigationToggleRef.current?.focus();
+            }
+          }}>
           <nav>
             {NAVIGATION_GROUPS.map((group) => {
               const items = sections.filter((section) => section.group === group);
@@ -142,7 +155,13 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
                 <div className="nav-group" key={group}>
                   <span className="nav-group-label">{t(`navGroup.${group}`)}</span>
                   {items.map((section) => (
-                    <NavLink key={section.path} to={section.path} end={section.path === '/'}>
+                    <NavLink key={section.path} to={section.path} end={section.path === '/'}
+                      onClick={() => {
+                        if (navigationOpen) {
+                          setNavigationOpen(false);
+                          contentRef.current?.focus();
+                        }
+                      }}>
                       {t(section.labelKey)}
                     </NavLink>
                   ))}
@@ -156,7 +175,7 @@ function Shell({ bootstrap }: { bootstrap: BootstrapResponse }) {
             ) : null)}
           </div>
         </aside>
-        <main className="content">
+        <main className="content" ref={contentRef} tabIndex={-1}>
           <PageErrorBoundary resetKey={location.pathname}>
             <Routes>
               {sections.map((section) => (
