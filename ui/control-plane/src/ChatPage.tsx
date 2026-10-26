@@ -45,8 +45,7 @@ function ModelContext({ model, showIdentity }: { model: PublicModel; showIdentit
   return (
     <div className="chat-model-context">
       {showIdentity ? <strong>{model.id}</strong> : null}
-      {/* id는 위 strong 또는 모델 선택 상자에 이미 보인다. 표시 이름이 따로 있을 때만 덧붙인다. */}
-      <span>{model.display_name && model.display_name !== model.id ? `${model.display_name} · ` : ''}{modelRuntimeLabel(model.backend)}</span>
+      <span>{modelRuntimeLabel(model.backend)}</span>
       {model.upstream_model_id ? <small>{model.upstream_model_id}</small> : null}
       {model.context_window ? <small>문맥 {model.context_window.toLocaleString()} tokens · 최대 출력 {String(model.request_parameters.max_tokens?.max ?? '—')} tokens</small> : null}
       {features.length > 0 ? (

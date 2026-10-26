@@ -2,8 +2,9 @@
 
 이 저장소는 GitHub를 Source Repository로 사용한다. 현재 자동화는
 [GitHub 검증 워크플로](../.github/workflows/validate.yml)가 `main` push, Pull Request와
-수동 실행에서 macOS·Ubuntu의 pytest, Vitest·Playwright 검사와
-Linux Platform image build·container smoke를 수행한다.
+수동 실행에서 macOS·Ubuntu의 pytest와 프런트엔드 검사를 수행한다.
+Linux Platform image build·container smoke는 `main` push와 수동 실행에서,
+Playwright 검사는 수동 실행에서 수행한다.
 
 Container image publish와 운영 배포를 담당하는 CI/CD pipeline은 현재 정의하지 않는다.
 특정 CI provider, registry 또는 runner를 먼저 선택하지 않고도 같은 결과를 만들 수 있도록
@@ -14,7 +15,8 @@ transport/orchestration adapter이며 별도 remote deployment state machine을 
 
 | 책임 | 현재 진입점 | 기준 |
 |---|---|---|
-| 코드 품질·기본 테스트 | `make check` | `pyproject.toml`, `uv.lock`, Ruff, 신규 Suite와 생성 산출물 |
+| 빠른 정적·타입 검사 | `make check` | Ruff, 생성 산출물, Control Plane 타입 |
+| 기능 테스트·프런트엔드 빌드 | `make test`, `make console-check` | pytest, Vitest, Control Plane 소스·배포 산출물 |
 | Platform image build | `make build-image` | `Dockerfile`, `pyproject.toml`, `uv.lock` |
 | Platform image HTTP verification | `make image-smoke` | 이미 빌드된 이미지의 Gateway·Console·Docs 동작 |
 | Unified vLLM image build | `make build-vllm-unified-image` | `configs/vllm_unified_build.yaml`, runtime Dockerfile·patch |
@@ -64,7 +66,7 @@ SSH/Ansible/CI runner가 이 lifecycle을 다른 host에서 호출할 수는 있
 
 ## 9.4 자원 경계
 
-기본 품질 CLI는 GPU Runtime을 시작하지 않는다. `make check`는 Ruff·생성물 확인, pytest, Vitest 및 프런트엔드 소스 빌드 검사를 실행한다. 브라우저 검사는 `make browser-test`로 별도 실행한다.
+기본 품질 CLI는 GPU Runtime을 시작하지 않는다. `make check`는 Ruff·생성 산출물·Control Plane 타입만 확인한다. 테스트·빌드·브라우저 검사는 필요한 개별 명령으로 실행한다.
 
 향후 image publish·배포 자동화를 추가할 때는 다음 자원을 별도로 직렬화한다.
 
@@ -79,7 +81,7 @@ admission, prerequisite 순차 기동과 readiness/rollback 정책이 소유한�
 ## 9.5 미래 자동화 추가 원칙
 
 Platform image는 application source·lock·Dockerfile·runtime config가 하나의 배포 artifact로
-조립되는 경계라 PR에서 build와 container smoke를 required gate로 검증한다. CI는
+조립되는 경계이며 `main` push와 수동 CI에서 build와 container smoke를 확인한다. CI는
 `make build-image`와 `make image-smoke`를 별도 단계로 호출하며 image publish나
 운영 promotion 규칙을 소유하지 않는다.
 추가 자동화를 넣을 때는 어떤 장애를 막는지, artifact invalidation 범위, cold/warm build 비용,
@@ -95,9 +97,8 @@ verification image와 release candidate의 구분을 먼저 확인한다.
 8. Workflow 문법은 provider 자체 검증을 사용하며 `make validate`에 YAML parser를 넣지 않는다.
 9. CI를 위해 테스트 전용 helper나 Source of Truth 복제 파일을 만들지 않는다.
 
-Platform image의 build·smoke는 현재 required gate다. 반면 Unified vLLM artifact는 크기와
-CUDA/runtime compatibility, GPU qualification을 함께 다루므로 일반 application PR의 Platform
-image gate와 같은 경로로 취급하지 않는다. Unified vLLM 자동 검증을 추가할 때는 별도 builder와
+Platform image의 build·smoke는 PR의 기본 대기 범위에 포함하지 않는다. Unified vLLM artifact는 크기와
+CUDA/runtime compatibility, GPU qualification을 함께 다루므로 Platform image와 별도 경로로 다룬다. Unified vLLM 자동 검증을 추가할 때는 별도 builder와
 실제 GPU·모델 호환성 확인과 분리해 manual/non-blocking 단계부터 검토한다.
 
 ## 9.6 관련 문서

@@ -75,7 +75,7 @@ make setup-test-runners
 make check
 ```
 
-`make check`는 Ruff·생성 산출물 Drift·pytest·Vitest·Control Plane 소스 빌드 검사를 실행한다.
+`make check`는 Ruff·생성 산출물 Drift·Control Plane 타입을 확인한다. 테스트·빌드는 필요한 개별 명령으로 실행한다.
 Chromium UI 실행은 `make browser-test`로 별도 호출하며, 실제 Runtime/GPU 준비 상태는
 `make up`·`make status`가 소유한다.
 

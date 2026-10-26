@@ -4,6 +4,7 @@
 
 Accepted
 
+- Native Runner와 운영 Lifecycle의 경계는 유효하다. 기본 검사 범위와 CI 실행 조건은 현행 `Makefile`과 `.github/workflows/validate.yml`이 소유한다.
 - ADR-0043의 one-off Runtime validation 실행 경로를 이 결정으로 대체한다. ADR-0043의 **raw Runtime host 미공개 및 내부 네트워크 격리 원칙**은 유지한다.
 - ADR-0042의 Qualification 선언 정책과 별도 근거·성능 시스템을 두지 않는 결정은 유지한다.
 
@@ -30,9 +31,9 @@ Python, Console, Chromium 테스트와 정적 계약 검증이 여러 전용 She
 
 ## Operational impact
 
-`make setup-dev`와 `make setup-test-runners`로 개발·브라우저 도구를 준비한다.
-`make check`는 정적 검사·pytest·Vitest·Control Plane 빌드를 실행한다.
-Chromium 작업은 `make browser-test`로 별도 호출한다.
+`make setup-dev`로 Python 개발 환경을 준비하고, UI 타입·빌드 도구는 `npm --prefix ui/control-plane ci`로 설치한다.
+`make check`는 Ruff·생성 산출물 Drift·Control Plane 타입을 확인한다.
+pytest·Vitest·Chromium·이미지 검사는 개별 명령으로 선택하며, UI 테스트 도구가 필요할 때 `make setup-test-runners`를 실행한다.
 `make up` 성공 및 `make status`의 의미에는 변경이 없다.
 
 ## Related
