@@ -31,7 +31,7 @@ export function PlaygroundExampleGallery({
   error, onSelect, onApply, onCancelReplace,
 }: Props) {
   const [failedVideoUrl, setFailedVideoUrl] = useState<string | null>(null);
-  // 미리보기는 카드 목록 아래에 열려 내부 스크롤 밖에 있을 수 있다. 사용자가 고른 직후에만 보이게 한다.
+  // 선택한 예제의 미리보기를 사용자가 고른 직후에만 보이게 한다.
   const previewRef = useRef<HTMLDivElement>(null);
   const revealPreviewRef = useRef(false);
   useEffect(() => {
@@ -53,36 +53,10 @@ export function PlaygroundExampleGallery({
   return (
     <section className="playground-examples" aria-label="시작 예제">
       <h2>예제로 시작하기</h2>
-      <div className="playground-example-grid" role="group" aria-label="예제 선택">
-        {PLAYGROUND_EXAMPLES.map((example) => {
-          const support = exampleAvailability(example, model, controls, validateRequest);
-          return (
-            <button
-              className={`playground-example-card${selectedId === example.id ? ' is-selected' : ''}${support.available ? '' : ' is-unavailable'}`}
-              type="button"
-              key={example.id}
-              aria-pressed={selectedId === example.id}
-              onClick={() => {
-                revealPreviewRef.current = true;
-                onSelect(example.id);
-              }}
-              disabled={busy}
-            >
-              <span className="playground-example-card-heading">
-                <span className="playground-example-mark" aria-hidden="true">{CATEGORY_MARK[example.category]}</span>
-                <span className="playground-example-title">{example.title}</span>
-                {selectedId === example.id ? <span className="playground-example-check" aria-hidden="true">✓</span> : null}
-              </span>
-              <span className="playground-example-description">{example.description}</span>
-              {!support.available ? <span className="playground-example-unavailable">{support.reason}</span> : null}
-            </button>
-          );
-        })}
-      </div>
       {selected ? (
         <div className="playground-example-preview" aria-live="polite" ref={previewRef}>
           <div className="playground-example-preview-heading">
-            <h3>{selected.title}</h3>
+            <h3>{selected.title} · 예제 미리보기</h3>
             <div className="playground-example-tags" aria-label="적용할 입력 종류">
               {sampleAsset ? <span>{exampleAttachmentSummary([sampleAsset])}</span> : null}
               {selected.systemPrompt ? <span>시스템 프롬프트</span> : null}
@@ -90,7 +64,16 @@ export function PlaygroundExampleGallery({
               {!selected.sample && !selected.systemPrompt && !selected.schema ? <span>텍스트 입력</span> : null}
             </div>
           </div>
-          <p className="playground-example-prompt">{selected.prompt}</p>
+          {selected.systemPrompt ? (
+            <div className="playground-example-message">
+              <strong>시스템 프롬프트</strong>
+              <p className="playground-example-system" role="region" aria-label="예제 시스템 프롬프트" tabIndex={0}>{selected.systemPrompt}</p>
+            </div>
+          ) : null}
+          <div className="playground-example-message">
+            <strong>사용자 메시지</strong>
+            <p className="playground-example-prompt">{selected.prompt}</p>
+          </div>
           {sampleAsset && sampleUrl ? (
             <figure className="playground-example-sample">
               {sampleAsset.modality === 'audio' ? (
@@ -149,11 +132,10 @@ export function PlaygroundExampleGallery({
               <p>{selected.sampleTranscript}</p>
             </details>
           ) : null}
-          {selected.systemPrompt || selected.schema ? (
+          {selected.schema ? (
             <details className="playground-example-technical">
-              <summary>{selected.schema ? 'JSON Schema 보기' : '시스템 프롬프트 보기'}</summary>
-              {selected.systemPrompt ? <p>{selected.systemPrompt}</p> : null}
-              {selected.schema ? <pre>{selected.schema.value}</pre> : null}
+              <summary>JSON Schema 보기</summary>
+              <pre>{selected.schema.value}</pre>
             </details>
           ) : null}
           {unavailableReason ? <p className="playground-example-warning" role="status">{unavailableReason}</p> : null}
@@ -169,12 +151,38 @@ export function PlaygroundExampleGallery({
           ) : (
             <div className="playground-example-actions">
               <Button onClick={() => onApply(selected)} isDisabled={busy || Boolean(unavailableReason)}>
-                입력에 적용
+                예제 적용
               </Button>
             </div>
           )}
         </div>
       ) : null}
+      <div className="playground-example-grid" role="group" aria-label="예제 선택">
+        {PLAYGROUND_EXAMPLES.map((example) => {
+          const support = exampleAvailability(example, model, controls, validateRequest);
+          return (
+            <button
+              className={`playground-example-card${selectedId === example.id ? ' is-selected' : ''}${support.available ? '' : ' is-unavailable'}`}
+              type="button"
+              key={example.id}
+              aria-pressed={selectedId === example.id}
+              onClick={() => {
+                revealPreviewRef.current = true;
+                onSelect(example.id);
+              }}
+              disabled={busy}
+            >
+              <span className="playground-example-card-heading">
+                <span className="playground-example-mark" aria-hidden="true">{CATEGORY_MARK[example.category]}</span>
+                <span className="playground-example-title">{example.title}</span>
+                {selectedId === example.id ? <span className="playground-example-check" aria-hidden="true">✓</span> : null}
+              </span>
+              <span className="playground-example-description">{example.description}</span>
+              {!support.available ? <span className="playground-example-unavailable">{support.reason}</span> : null}
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

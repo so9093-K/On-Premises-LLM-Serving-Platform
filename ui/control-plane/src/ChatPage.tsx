@@ -75,6 +75,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const attachmentSequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const settingsDialogRef = useRef<HTMLDialogElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const clearConfirmRef = useRef<HTMLDivElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
@@ -426,7 +427,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setShowExamples((current) => !current);
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
-          <Button type="button" variant="secondary" aria-haspopup="dialog"
+          <Button ref={settingsTriggerRef} type="button" variant="secondary" aria-haspopup="dialog"
             onClick={() => settingsDialogRef.current?.showModal()}>요청 설정</Button>
           {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
             followBeforeConfirmRef.current = followRef.current;
@@ -592,6 +593,13 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               {pendingToolExchange ? (
                 <p className="chat-notice">모델이 도구 결과를 기다리고 있습니다. 위 tool call에 결과를 입력한 뒤 계속하세요.</p>
               ) : null}
+              {session.settings.systemPrompt.trim() ? (
+                <button type="button" className="chat-system-prompt-status" aria-haspopup="dialog"
+                  onClick={() => {
+                    settingsDialogRef.current?.showModal();
+                    settingsDialogRef.current?.querySelector<HTMLTextAreaElement>('#chat-system-prompt')?.focus();
+                  }}>시스템 프롬프트 사용 중 · 편집</button>
+              ) : null}
               <textarea
                 id="chat-input"
                 aria-label="메시지"
@@ -667,7 +675,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               </div>
             </form>
           </div>
-            <dialog ref={settingsDialogRef} className="chat-settings-dialog" aria-labelledby="chat-settings-title">
+            <dialog ref={settingsDialogRef} className="chat-settings-dialog" aria-labelledby="chat-settings-title"
+              onClose={() => settingsTriggerRef.current?.focus()}>
               <div className="chat-settings-dialog-heading">
                 <h3 id="chat-settings-title">요청 설정</h3>
                 <Button variant="plain" aria-label="요청 설정 닫기"
