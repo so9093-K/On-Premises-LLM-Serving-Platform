@@ -48,7 +48,7 @@ app-check: ## Python 기본 품질 실행
 	$(MAKE) validate
 	$(MAKE) test
 
-check: ## 공통 CLI 전체 기본 품질 실행
+check: ## 빠른 정적 검사 (Ruff·생성 산출물·Control Plane 타입)
 	@"$(PYTHON)" scripts/quality_cli.py check
 
 setup-test-runners: ## Vitest·Playwright 테스트 도구 준비

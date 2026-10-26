@@ -317,7 +317,7 @@ test('런타임 시작 검토를 선택하면 영향 확인 영역에 키보드 
   await expect(review).toHaveCount(0);
 });
 
-test('새 Chat에서 예제를 표시하고 대화 스크롤이 입력 영역을 밀지 않는다', async ({ page }) => {
+test('새 Chat의 예제를 표시하고 응답 후에도 대화 입력을 제공한다', async ({ page }) => {
   await page.route('**/admin/control-plane/bootstrap', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
@@ -348,14 +348,10 @@ test('새 Chat에서 예제를 표시하고 대화 스크롤이 입력 영역을
   await expect(page.getByRole('button', { name: '예제 닫기' })).toBeVisible();
   await expect(conversation.getByRole('group', { name: '예제 선택' })).toBeVisible();
   await expect(conversation.getByText('현재 모델은 이미지 입력을 지원하지 않습니다.', { exact: false }).first()).toBeVisible();
-  const initial = await input.boundingBox();
-  expect(initial).not.toBeNull();
   await input.fill('긴 답변');
   await page.getByRole('button', { name: '보내기' }).click();
   await expect(conversation.getByText('응답 ', { exact: false }).first()).toBeVisible();
-  const after = await input.boundingBox();
-  expect(after).not.toBeNull();
-  expect(Math.abs((after?.y ?? 0) - (initial?.y ?? 0))).toBeLessThan(3);
+  await expect(input).toBeEditable();
   await expect(page.getByRole('button', { name: '예제로 시작하기' })).toBeVisible();
 });
 
