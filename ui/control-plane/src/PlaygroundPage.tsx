@@ -5,9 +5,7 @@ import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { isUnauthorized } from './apiFeedback';
 import { ChatPage } from './ChatPage';
 import { useChatSession } from './ChatSessionContext';
-// 같은 이름의 소문자 .ts 모듈이 있다. 대소문자를 구분하지 않는 macOS 파일시스템에서
-// 확장자 없는 import는 .ts를 먼저 찾아 잘못 해석되므로 .tsx를 명시한다.
-import { EmbeddingPlayground } from './EmbeddingPlayground.tsx';
+import { EmbeddingWorkspace } from './EmbeddingWorkspace';
 import {
   PLAYGROUND_WORKSPACES,
   playgroundPath,
@@ -17,7 +15,7 @@ import {
 } from './navigation';
 import { PlaygroundUnavailableNotice } from './PlaygroundUnavailableNotice';
 import { usePublicModels } from './publicModelsQuery';
-import { RiskPlayground } from './RiskPlayground.tsx';
+import { RiskWorkspace } from './RiskWorkspace';
 
 type PlaygroundPageProps = {
   features: readonly string[];
@@ -92,8 +90,8 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const elements: Record<PlaygroundWorkspace['path'], ReactNode> = {
     chat: <ChatPage grafanaUrl={grafanaUrl} docsUrl={docsUrl} />,
-    embeddings: <EmbeddingPlayground features={features} />,
-    risk: <RiskPlayground features={features} />,
+    embeddings: <EmbeddingWorkspace features={features} />,
+    risk: <RiskWorkspace features={features} />,
   };
 
   return (
@@ -143,7 +141,7 @@ export function PlaygroundPage({ features, grafanaUrl, docsUrl }: PlaygroundPage
         ))}
         {unavailable.map((workspace) => (
           <Route key={workspace.path} path={workspace.path} element={workspace.path === 'embeddings'
-            ? <EmbeddingPlayground features={features} preview />
+            ? <EmbeddingWorkspace features={features} preview />
             : <UnavailableWorkspace workspace={workspace} />} />
         ))}
         {workspaces.length > 0 ? (

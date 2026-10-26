@@ -1,5 +1,5 @@
-import { EMBEDDINGS_PATH } from './embeddingPlayground.ts';
-import { RISK_CHECKS } from './riskPlayground.ts';
+import { EMBEDDINGS_PATH } from './embeddingPlayground';
+import { RISK_CHECKS } from './riskPlayground';
 import { RETRIEVAL_RERANK_PATH } from './retrievalPlayground.ts';
 import { withGatewayOrigin } from './gatewayOrigin.ts';
 

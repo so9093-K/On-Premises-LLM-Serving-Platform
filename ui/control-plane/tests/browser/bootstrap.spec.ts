@@ -110,7 +110,7 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
       bootstrap_version: 4,
       access: { admin_auth_required: false },
       deployment: {
-        target: 'linux-cpu-managed',
+        target: 'linux-nvidia-dynamic',
         display_name: 'CPU',
         runtime_backend: 'llama-cpp',
         features: ['chat', 'risk'],
@@ -322,7 +322,7 @@ test('새 Chat의 예제를 표시하고 응답 후에도 대화 입력을 제�
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       bootstrap_version: 4, access: { admin_auth_required: false },
-      deployment: { target: 'linux-cpu-managed', display_name: 'CPU', runtime_backend: 'llama-cpp', features: ['chat', 'risk'] },
+      deployment: { target: 'linux-nvidia-dynamic', display_name: 'CPU', runtime_backend: 'llama-cpp', features: ['chat', 'risk'] },
       links: { grafana: null, docs: null },
     }),
   }));

@@ -49,7 +49,7 @@ const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
 // 입력과 결과는 이 화면의 상태에만 둔다. 다른 메뉴나 작업 화면으로 이동하면 사라진다.
 // preview는 Embedding을 제공하지 않는 배포에서 화면 구성과 입력 방식만 보여 준다.
 // Chat 예제 갤러리처럼 기능은 발견할 수 있게 두고, 모델 선택과 실행만 막아 요청을 보내지 않는다.
-export function EmbeddingPlayground({ features, preview = false }: { features: readonly string[]; preview?: boolean }) {
+export function EmbeddingWorkspace({ features, preview = false }: { features: readonly string[]; preview?: boolean }) {
   const { apiKey, credentialRevision, apiKeyRejected, rejectApiKey } = useChatSession();
   const { token } = useAdminSession();
   const modelsQuery = usePublicModels(apiKey, credentialRevision);

@@ -53,7 +53,7 @@ const VERDICT_TEXT: Record<RiskInterpretation['verdict'], { title: string; detai
 
 // 입력과 결과는 이 화면의 상태에만 둔다. 응답은 원문 값을 포함하지 않으며, 화면도 결과에
 // 입력을 복제하지 않는다. 다른 메뉴나 작업 화면으로 이동하면 둘 다 사라진다.
-export function RiskPlayground({ features }: { features: readonly string[] }) {
+export function RiskWorkspace({ features }: { features: readonly string[] }) {
   const { apiKey, credentialRevision, rejectApiKey } = useChatSession();
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
   const models = useMemo(() => (modelsQuery.data?.data ?? []) as PublicModel[], [modelsQuery.data]);
