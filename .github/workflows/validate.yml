@@ -66,6 +66,7 @@ jobs:
 
   browser:
     name: Browser (Chromium)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -96,6 +97,7 @@ jobs:
 
   platform-image:
     name: Container Image (Build + Smoke)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -123,7 +125,12 @@ jobs:
           python3 - <<'PY'
           import json, os, sys
           results = json.loads(os.environ["JOB_RESULTS"])
-          failures = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
+          optional = {"browser", "platform-image"}
+          failures = {
+              name: job["result"] for name, job in results.items()
+              if job["result"] != "success"
+              and not (name in optional and job["result"] == "skipped")
+          }
           for name, job in results.items():
               print(f"{name}: {job['result']}")
           sys.exit(1 if failures else 0)

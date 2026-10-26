@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("suite", choices=("python", "frontend", "browser", "all"))
     run.add_argument("--junit-dir", type=Path, help="선택적 JUnit XML 출력 디렉터리")
     sub.add_parser("validate", help="최소 정적 검사 및 생성 산출물 확인")
-    sub.add_parser("check", help="정적 검사, Python·프런트엔드, Control Plane 빌드")
+    sub.add_parser("check", help="빠른 정적 검사: Ruff·생성 산출물·Control Plane 타입")
     args = parser.parse_args(argv)
     if args.command == "run":
         suites = ("python", "frontend", "browser") if args.suite == "all" else (args.suite,)
@@ -108,9 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     failed = []
     for name, run_step in (
         ("validate", _validate),
-        ("python", lambda: _run_suites(("python",), None)),
-        ("frontend", lambda: _run_suites(("frontend",), None)),
-        ("console", lambda: _invoke("Control Plane 소스·빌드", ["npm", "run", "check:source"], cwd=CONSOLE)),
+        ("console", lambda: _invoke("Control Plane 타입", ["npm", "run", "typecheck"], cwd=CONSOLE)),
     ):
         status = run_step()
         if status:

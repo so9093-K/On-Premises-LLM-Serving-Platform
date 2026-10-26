@@ -10,7 +10,7 @@ Git, Python 3.12–3.13, [프로젝트 지정 uv 버전](../../pyproject.toml)�
 git clone https://github.com/so9093-K/On-Premises-LLM-Serving-Platform.git
 cd On-Premises-LLM-Serving-Platform
 make setup-dev
-make setup-test-runners
+npm --prefix ui/control-plane ci  # Control Plane 작업 시
 git switch -c feat/my-change
 ```
 
@@ -53,7 +53,7 @@ DCGM exporter 9400, Grafana 컨테이너 3000, Prometheus 9090처럼 외부 엔�
 
 ## 3. 테스트·검증
 
-테스트 실행은 공통 CLI로 통일합니다. `make test`, `make validate`, `make console-check`, `make check`, `make browser-test`를 사용하세요. Chromium은 별도로 `npm --prefix ui/control-plane exec -- playwright install chromium`으로 설치합니다. 실행 계약은 [테스트와 검증](../08_testing_validation.md)을 참고하세요. 운영 시작과 배포 Readiness는 테스트 체계와 독립적입니다.
+평소에는 `make check`로 정적 검사·타입 오류를 빠르게 확인하고 수정한 기능을 직접 실행합니다. Python 테스트는 `make test`, UI 테스트·빌드는 `make console-check`, 브라우저 시나리오는 `make browser-test`로 필요할 때 실행합니다. UI 테스트 도구는 `make setup-test-runners`, Chromium은 `npm --prefix ui/control-plane exec -- playwright install chromium`으로 준비합니다. [테스트와 검증](../08_testing_validation.md)에서 CI 실행 범위를 확인할 수 있습니다.
 
 ## 4. PR
 
