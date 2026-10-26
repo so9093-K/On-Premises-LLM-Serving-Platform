@@ -130,9 +130,9 @@ export function ExchangeView({
         ) : null}
         {notice ? <p className="chat-notice">{notice}</p> : null}
       </div>
-      {/* 지표·요청 재현 정보는 답변 말풍선 밖의 작은 메타 줄에 둔다. 답변 본문이 먼저 읽힌다. */}
+      {/* 응답 지표와 요청 도구는 답변 말풍선 밖에 둔다. */}
       <div className="chat-turn-meta">
-        {facts.length > 0 || turn.requestId ? (
+        {facts.length > 0 ? (
           <dl className="chat-facts">
             {facts.map((fact) => (
               <div key={fact.label}>
@@ -140,29 +140,24 @@ export function ExchangeView({
                 <dd>{fact.value}</dd>
               </div>
             ))}
-            {turn.requestId ? (
-              <div>
-                <dt>request_id</dt>
-                <dd>
-                  <code>{turn.requestId}</code>
-                  {logUrl ? <a href={logUrl} target="_blank" rel="noreferrer">로그 ↗</a> : null}
-                </dd>
-              </div>
-            ) : null}
           </dl>
         ) : null}
         <details className="chat-request-context">
           <summary>요청 정보</summary>
           <dl className="facts compact-facts">
+            {turn.requestId ? <>
+              <dt>Request ID</dt>
+              <dd><code>{turn.requestId}</code>{logUrl ? <> · <a href={logUrl} target="_blank" rel="noreferrer">로그 보기 ↗</a></> : null}</dd>
+            </> : null}
             <dt>모델</dt><dd>{exchange.requestContext.modelId}</dd>
-            <dt>Backend</dt><dd><code>{exchange.requestContext.backend}</code></dd>
+            <dt>실행 엔진</dt><dd><code>{exchange.requestContext.backend}</code></dd>
             <dt>입력</dt>
             <dd>
               {exchange.requestContext.inputModalities.length > 0
                 ? exchange.requestContext.inputModalities.map(inputModalityLabel).join(', ')
                 : '—'}
             </dd>
-            <dt>Capability</dt>
+            <dt>지원 기능</dt>
             <dd>{exchange.requestContext.capabilities.join(', ') || '—'}</dd>
             <dt>파라미터</dt>
             <dd><code>{JSON.stringify(exchange.requestContext.parameters)}</code></dd>

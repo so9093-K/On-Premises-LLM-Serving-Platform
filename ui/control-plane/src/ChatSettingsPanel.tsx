@@ -1,4 +1,3 @@
-import { useState, type Ref } from 'react';
 import { Button } from '@patternfly/react-core';
 import { useChatSession } from './ChatSessionContext';
 import {
@@ -87,7 +86,7 @@ function OptionalBooleanSetting({
   );
 }
 
-export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; detailsRef?: Ref<HTMLDetailsElement> }) {
+export function ChatSettingsPanel({ model }: { model: PublicModel }) {
   const { settings, updateSettings } = useChatSession();
   const changedSettings = Object.keys(DEFAULT_CHAT_SETTINGS).filter((key) => {
     const name = key as keyof typeof DEFAULT_CHAT_SETTINGS;
@@ -95,7 +94,6 @@ export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; d
   });
   const hasChanges = changedSettings.length > 0;
   const controls = chatControls(model);
-  const [open, setOpen] = useState(false);
   const logprobsDefault = controls.logprobs?.defaultEnabled ?? false;
   const logprobsEnabled = settings.logprobs ?? logprobsDefault;
 
@@ -116,12 +114,11 @@ export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; d
   ];
 
   return (
-    <details ref={detailsRef} className="chat-settings" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>요청 설정{hasChanges ? ` · 변경됨 (${changedSettings.length})` : ' · 모델 기본값'} · 시스템 프롬프트 / 출력 길이 / 스트리밍</summary>
+    <div className="chat-settings">
       <div className="chat-settings-body">
         {hasChanges ? (
           <div className="chat-settings-modified" role="status">
-            <span>이 모델로 보내는 다음 요청에 변경된 설정이 적용됩니다.</span>
+            <span>변경된 설정 {changedSettings.length}개 · 다음 요청에 적용</span>
             <Button variant="secondary" size="sm" onClick={() => updateSettings(DEFAULT_CHAT_SETTINGS)}>요청 설정 초기화</Button>
           </div>
         ) : null}
@@ -459,7 +456,7 @@ export function ChatSettingsPanel({ model, detailsRef }: { model: PublicModel; d
           </details>
         ) : null}
       </div>
-    </details>
+    </div>
   );
 }
 
