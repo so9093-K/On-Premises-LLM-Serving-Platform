@@ -74,7 +74,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
   const applySequenceRef = useRef(0);
   const attachmentSequenceRef = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  const settingsDetailsRef = useRef<HTMLDetailsElement | null>(null);
+  const settingsDialogRef = useRef<HTMLDialogElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const clearConfirmRef = useRef<HTMLDivElement | null>(null);
   const clearTriggerRef = useRef<HTMLButtonElement | null>(null);
   const focusComposerAfterClearRef = useRef(false);
@@ -416,7 +417,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       <div className="playground-panel-heading">
         <div>
           <h2 id="chat-workspace-title">Chat Completions</h2>
-          <p>실제 모델 응답과 전송한 요청을 확인합니다.</p>
         </div>
         <div className="chat-heading-actions">
           <Button type="button" variant="secondary" onClick={() => {
@@ -427,9 +427,8 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
             setShowExamples((current) => !current);
             setExampleError(null);
           }}>{showExamples ? '예제 닫기' : '예제로 시작하기'}</Button>
-          <a className="chat-settings-jump" href="#chat-model-settings" onClick={() => {
-            if (settingsDetailsRef.current) settingsDetailsRef.current.open = true;
-          }}>요청 설정 ↓</a>
+          <Button ref={settingsTriggerRef} type="button" variant="secondary" aria-haspopup="dialog"
+            onClick={() => settingsDialogRef.current?.showModal()}>요청 설정</Button>
           {exchanges.length > 0 ? <Button ref={clearTriggerRef} variant="secondary" onClick={() => {
             followBeforeConfirmRef.current = followRef.current;
             followRef.current = false;
@@ -494,7 +493,6 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
 
       {model !== null ? (
         <>
-          <div className="chat-layout">
             {/* 모델 정보·대화·입력을 하나의 대화창으로 묶는다. 모델 정보는 창의 머리글이다. */}
             <div className="chat-main">
           <div className="chat-model-bar">
@@ -595,6 +593,13 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               {pendingToolExchange ? (
                 <p className="chat-notice">모델이 도구 결과를 기다리고 있습니다. 위 tool call에 결과를 입력한 뒤 계속하세요.</p>
               ) : null}
+              {session.settings.systemPrompt.trim() ? (
+                <button type="button" className="chat-system-prompt-status" aria-haspopup="dialog"
+                  onClick={() => {
+                    settingsDialogRef.current?.showModal();
+                    settingsDialogRef.current?.querySelector<HTMLTextAreaElement>('#chat-system-prompt')?.focus();
+                  }}>시스템 프롬프트 사용 중 · 편집</button>
+              ) : null}
               <textarea
                 id="chat-input"
                 aria-label="메시지"
@@ -627,7 +632,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
                     />
                     <label htmlFor="chat-attachments"><span aria-hidden="true">＋</span> 파일 첨부</label>
                   </div>
-                ) : <small>파일 첨부를 지원하지 않는 모델입니다.</small>}
+                ) : null}
                 {/* 이미 있는 도구 줄에 둔다. 입력창 위에 새 줄로 생기면 입력 영역 경계가 위아래로 튄다. */}
                 {appliedExampleId ? (
                   <div className="chat-applied-example" role="status">
@@ -670,11 +675,15 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
               </div>
             </form>
           </div>
-            <aside className="chat-side" id="chat-model-settings" aria-label="요청 설정">
-              <ChatSettingsPanel model={model} detailsRef={settingsDetailsRef} />
-              <a className="chat-back-link" href="#chat-input">대화 입력으로 돌아가기 ↑</a>
-            </aside>
-          </div>
+            <dialog ref={settingsDialogRef} className="chat-settings-dialog" aria-labelledby="chat-settings-title"
+              onClose={() => settingsTriggerRef.current?.focus()}>
+              <div className="chat-settings-dialog-heading">
+                <h3 id="chat-settings-title">요청 설정</h3>
+                <Button variant="plain" aria-label="요청 설정 닫기"
+                  onClick={() => settingsDialogRef.current?.close()}>닫기</Button>
+              </div>
+              <ChatSettingsPanel model={model} />
+            </dialog>
         </>
       ) : null}
     </section>

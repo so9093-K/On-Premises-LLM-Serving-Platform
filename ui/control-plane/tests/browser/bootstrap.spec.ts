@@ -142,9 +142,10 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
   await expect(prompt).toBeVisible();
   await expect(page.locator('.chat-model-context').getByText('first-model', { exact: true })).toBeVisible();
   await prompt.fill('키 A로 작성한 초안');
-  await page.getByRole('link', { name: /요청 설정/ }).click();
+  await page.getByRole('button', { name: '요청 설정', exact: true }).click();
   await page.getByLabel('시스템 프롬프트').fill('키 A의 시스템 프롬프트');
-  await expect(page.getByText(/요청 설정 · 변경됨/)).toBeVisible();
+  await expect(page.getByText(/변경된 설정/)).toBeVisible();
+  await page.getByRole('button', { name: '요청 설정 닫기' }).click();
   await page.getByRole('button', { name: 'API 키 지우기' }).click();
   await expect(page.getByText('진행 중인 Chat 요청을 중지하고')).toBeVisible();
   await page.getByRole('button', { name: 'API 키 및 작업 데이터 지우기' }).click();
@@ -154,7 +155,7 @@ test('API 키를 삭제하면 이전 Chat 초안과 요청 설정이 함께 초�
   await expect(page.getByLabel('메시지')).toHaveValue('');
   await expect(page.locator('.chat-model-context').getByText('second-model', { exact: true })).toBeVisible();
   await expect(page.locator('.chat-model-context').getByText('first-model', { exact: true })).toHaveCount(0);
-  await page.getByRole('link', { name: /요청 설정/ }).click();
+  await page.getByRole('button', { name: '요청 설정', exact: true }).click();
   await expect(page.getByLabel('시스템 프롬프트')).toHaveValue('');
 });
 
