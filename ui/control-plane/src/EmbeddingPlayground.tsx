@@ -80,10 +80,16 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
   const [inputError, setInputError] = useState<string | null>(null);
   const [lastRequest, setLastRequest] = useState<PublicRequestRecord | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const model = models.find((item) => item.id === selectedId) ?? models[0] ?? null;
+  const model = selectedId === null ? models[0] ?? null : models.find((item) => item.id === selectedId) ?? null;
+  const selectionUnavailable = selectedId !== null && model === null;
+  const selectedModelKey = selectedId ?? model?.id;
   const needsKey = isUnauthorized(modelsQuery.error) || apiKeyRejected;
   const showRank = preview || features.includes('retrieval');
   const canRank = preview || (model !== null && retrievalAvailable(model, features));
+
+  useEffect(() => {
+    if (modelsQuery.isSuccess && selectedId === null && models.length > 0) setSelectedId(models[0].id);
+  }, [modelsQuery.isSuccess, models, selectedId]);
 
   useEffect(() => {
     setRun(null);
@@ -94,15 +100,15 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
     setInputChangedSinceRequest(false);
     setBusy(false);
     return () => abortRef.current?.abort();
-  }, [model?.id, mode]);
+  }, [selectedModelKey, mode]);
 
   useEffect(() => {
-    if (mode === 'rank' && !canRank) setMode('single');
-  }, [mode, canRank]);
+    if (mode === 'rank' && model !== null && !canRank) setMode('single');
+  }, [mode, canRank, model]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (preview || model === null || busy) return;
+    if (preview || model === null || modelsQuery.isError || busy) return;
     if (mode === 'rank' && !canRank) return;
     const embedding = mode === 'rank' ? null : buildEmbeddingRequest(model, mode, inputs);
     const retrieval = mode === 'rank' ? buildRetrievalRequest(model, query, documents.map((item) => item.text), topN) : null;
@@ -152,14 +158,7 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
   if (!preview && modelsQuery.isPending) {
     return <div className="inline-loading"><Spinner size="md" aria-label="모델 목록 불러오는 중" /> 모델 목록을 불러오는 중…</div>;
   }
-  if (!preview && modelsQuery.isError && !needsKey) {
-    return (
-      <Alert isInline variant="danger" title="모델 목록을 불러오지 못했습니다.">
-        {apiErrorMessage(modelsQuery.error)}
-      </Alert>
-    );
-  }
-  if (!preview && model === null) {
+  if (!preview && model === null && selectedId === null && modelsQuery.isSuccess) {
     return needsKey ? null : <Alert isInline variant="warning" title="Embedding을 지원하는 공개 모델이 없습니다." />;
   }
 
@@ -176,17 +175,33 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
 
       {preview ? <PlaygroundUnavailableNotice label="Embedding" preview /> : null}
 
+      {!preview && modelsQuery.isError && !needsKey ? (
+        <Alert isInline variant="danger" title="모델 목록을 불러오지 못했습니다.">
+          <p>{apiErrorMessage(modelsQuery.error)} 입력과 마지막 결과를 유지했습니다. 모델 정보를 다시 확인한 뒤 실행하세요.</p>
+          <Button variant="secondary" isDisabled={modelsQuery.isFetching}
+            onClick={() => { void modelsQuery.refetch(); }}>모델 정보 다시 조회</Button>
+        </Alert>
+      ) : null}
+      {!preview && selectionUnavailable ? (
+        <Alert isInline variant="warning" title="이전에 선택한 Embedding 모델을 사용할 수 없습니다.">
+          <p>입력과 마지막 결과를 유지했습니다. 사용할 모델을 직접 선택하세요.</p>
+          <Button variant="secondary" isDisabled={modelsQuery.isFetching}
+            onClick={() => { void modelsQuery.refetch(); }}>모델 목록 새로고침</Button>
+        </Alert>
+      ) : null}
+
       <form className="playground-form" onSubmit={(event) => { void submit(event); }}>
         <div className="playground-form-row">
           <div className="chat-model-selection">
             <label htmlFor="embedding-model">Embedding 모델</label>
-            {model && !preview ? (
+            {!preview && (models.length > 0 || selectedId !== null) ? (
               <select
                 id="embedding-model"
-                value={model.id}
+                value={selectedId ?? model?.id ?? ''}
                 disabled={busy}
                 onChange={(event) => setSelectedId(event.currentTarget.value)}
               >
+                {selectionUnavailable ? <option value={selectedId ?? ''} disabled>{selectedId} · 사용 불가</option> : null}
                 {models.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}
               </select>
             ) : (
@@ -282,7 +297,7 @@ export function EmbeddingPlayground({ features, preview = false }: { features: r
         <div className="chat-composer-actions">
           {inputError ? <p className="form-error" role="alert">{inputError}</p>
             : preview ? <span className="playground-hint">현재 배포에서는 실행할 수 없습니다.</span> : <span />}
-          <Button type="submit" variant="primary" isDisabled={busy || preview}>
+          <Button type="submit" variant="primary" isDisabled={busy || preview || model === null || modelsQuery.isError}>
             {busy ? '요청 중…' : mode === 'rank' ? '관련도 순위 확인' : mode === 'compare' ? '유사도 계산' : '벡터 생성'}
           </Button>
         </div>
