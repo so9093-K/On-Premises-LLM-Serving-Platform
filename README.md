@@ -2,51 +2,33 @@
 
 자체 인프라에서 AI 모델을 **OpenAI 호환 API**로 제공하고 **Control Plane**에서 운영하는 플랫폼입니다. 모델 상태와 요청을 확인하고, 지원되는 환경에서는 모델 전환과 GPU 자원을 관리합니다.
 
-**Self-hosted · Linux/NVIDIA · Apple Silicon**
+**Self-hosted · Linux · NVIDIA GPU / CPU**
 
 [빠른 시작](#quick-start) · [배포 환경](#deployment-targets) · [역할별 이용 안내](#usage-guides) · [개발자 가이드](docs/guides/developer-guide.md)
 
 <a id="quick-start"></a>
 
-## 빠른 시작
+## 빠른 시작 · Linux
 
+Linux에서 Python 3.12–3.13, uv, Docker와 CPU 여유 RAM 4 GiB 이상을 준비합니다. NVIDIA GPU를 사용하려면 드라이버·Container Toolkit과 모델에 충분한 VRAM이 필요합니다. 모델 접근 권한과 상세 설치 조건은 [설치 가이드](docs/guides/getting-started.md)를 확인하세요.
 
-Python·uv, Docker가 필요합니다. 소스는 [ZIP 다운로드](https://github.com/so9093-K/On-Premises-LLM-Serving-Platform/archive/refs/heads/main.zip) 또는 Git으로 준비합니다. 환경별 준비 조건과 모델 권한·자원 설정은 [빠른 시작 가이드](docs/guides/getting-started.md)를 확인하세요.
-
-압축을 풀거나 복제한 소스의 `Makefile`이 있는 디렉터리에서 실행합니다.
+소스를 [ZIP 다운로드](https://github.com/so9093-K/On-Premises-LLM-Serving-Platform/archive/refs/heads/main.zip)하거나 Git으로 복제한 뒤, `Makefile`이 있는 디렉터리에서 실행합니다.
 
 ```bash
-make up TARGET=linux-core ACCESS=local
+make up TARGET=linux-nvidia-dynamic ACCESS=local
 make status
 ```
 
-위 명령은 모델 없이 기본 서비스를 시작합니다. 모델을 실행하려면 환경에 맞는 Target으로 바꿔 실행하세요.
+기본 실행 정책은 **GPU 우선 · CPU 복구**입니다. CPU 모델로 시작해 GPU 사용 조건을 확인하며, CPU 복구 후 GPU 복귀는 Console에서 직접 선택합니다. 최초 실행에는 이미지 빌드와 모델 다운로드 시간이 필요합니다.
 
-| 내 환경 | `TARGET` |
-|---|---|
-| GPU·모델 없이 기본 서비스만 (Gateway·Control Plane·PII/Secret Risk) | `linux-core` |
-| Linux, GPU 우선·CPU 복구 (GPU 복귀는 수동) | `auto` |
-| macOS Apple Silicon (MLX-VLM) | `macos-metal-static` |
-
-외부 llama.cpp·관리형 CPU·외부 vLLM 연결은 [배포 환경](#deployment-targets)과 [빠른 시작 가이드](docs/guides/getting-started.md#1-실행-환경-선택)를 참고하세요.
-
-준비되면 Control Plane `http://127.0.0.1:9400/admin/console/`에서 상태와 Playground를 확인하고, Gateway `http://127.0.0.1:9400`으로 OpenAI 호환 API를 호출합니다.
-
-모델 없이도 PII 탐지를 확인할 수 있습니다.
-
-```bash
-curl -sS http://127.0.0.1:9400/v1/risk/detectors/pii/assessments -H "Content-Type: application/json" \
-  -d '{"prompt": "Contact hong@example.com."}'
-```
-
-Chat 요청은 Main Runtime이 준비된 Target에서 실행합니다.
+`Platform READY`를 확인한 뒤 Control Plane `http://127.0.0.1:9400/admin/console/`에서 모델 상태와 Playground를 확인하세요. 첫 Chat 요청은 다음처럼 보냅니다.
 
 ```bash
 curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application/json" \
   -d '{"model": "local-main", "messages": [{"role": "user", "content": "안녕하세요"}], "max_tokens": 128}'
 ```
 
-기본 포트 대역은 `9400`입니다(Gateway 9400, Grafana 9410). 다른 대역을 쓰려면 첫 설치는 `make up TARGET=<deployment-target> PORTS=9600`, 설치된 환경은 `make ports BASE=9600` 후 `make up`으로 적용합니다. 내부 서비스 포트와 모니터링 설정도 같은 대역으로 바뀌며 소스 수정이나 개발 도구가 필요하지 않습니다. [포트 대역 변경](docs/12_operations.md#포트-대역-변경과-기존-캐시)을 참고하세요.
+기본 포트는 Gateway `9400`, Grafana `9410`입니다. 다른 대역은 첫 실행에 `PORTS=9600`을 추가하거나, 설치된 환경에서 `make ports BASE=9600` 후 `make up`으로 적용합니다. [포트 대역 변경](docs/12_operations.md#포트-대역-변경과-기존-캐시)
 
 일상 운영은 `make up` · `make status` · `make logs` · `make down`을 사용합니다. 인증이 활성화된 환경에서는 사용자 API Key가 필요합니다.
 
@@ -92,19 +74,15 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 
 <a id="deployment-targets"></a>
 
-## 배포 환경
+## 배포 환경 · Linux
 
-| Target | 모델 실행 | 지원 기능 | 운영 주체 |
-|---|---|---|---|
-| `linux-core` | 없음 | Gateway·Control Plane·PII/Secret Risk | 기본 서비스만 실행 |
-| `linux-cpu-static` | 외부 llama.cpp CPU Runtime | Text Chat·Responses, PII·Secret Risk | 외부 모델 서버 · 미검증 |
-| `linux-nvidia-dynamic` | vLLM GPU / llama.cpp CPU · 자동 또는 고정 정책 | 활성 모델별 Chat·Responses, Embedding·Retrieval, Risk | 플랫폼 관리 · 모델 전환·GPU 제어 |
-| `linux-nvidia-static` | 외부 vLLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
-| `macos-metal-static` | MLX-VLM | Chat·Responses, PII·Secret Risk | 외부 Main Runtime |
+| 구성 | 실행 옵션 | 제공 범위 |
+|---|---|---|
+| GPU 우선 · CPU 복구 | `TARGET=linux-nvidia-dynamic` | 모델 서빙·전환과 GPU 자원 관리. 활성 모델·자원 정책에 따라 Embedding·Retrieval·Risk 제공 |
+| CPU 모델 고정 | `TARGET=linux-nvidia-dynamic POLICY=cpu` | llama.cpp CPU 모델의 Text Chat·Responses와 PII·Secret Risk. GPU 없이 실행 |
+| 모델 없는 기본 서비스 | `TARGET=linux-core` | Gateway·Control Plane·Scalar·PII·Secret Risk |
 
-관리형 CPU는 `make up TARGET=linux-nvidia-dynamic POLICY=cpu ACCESS=local`으로 시작합니다. 같은 Runtime Controller가 CPU/GPU 모델 변경과 서버 문맥·출력 한도를 관리합니다.
-
-기능별 지원·검증 상태와 모델 자원 조건은 [Deployment Target](configs/deployment_targets.yaml) 및 [모델 운영](docs/06_model_operations.md)을 참고하세요.
+모델 권한·자원 조건은 [모델 운영](docs/06_model_operations.md), 실행 정책은 [관리형 Linux 가이드](docs/guides/adaptive-runtime.md)를 참고하세요. 외부 Runtime 연결과 전체 Target별 설치 절차는 [설치 가이드](docs/guides/getting-started.md#1-실행-환경-선택)에서 안내합니다.
 
 <a id="usage-guides"></a>
 
@@ -116,12 +94,12 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 - **외부 API 사용자:** 운영자가 제공하는 API Base URL과 사용자 API Key로 모델을 호출합니다. [API 연동 가이드](docs/guides/api-integration.md#remote-api)
 - **서버 운영자:** 원격 접속이 필요한 경우 `ACCESS=edge`와 별도 Tailscale·Nginx 설정을 검토합니다. [Host 설정·해제 가이드](docs/guides/remote-access.md#operator-setup)
 
-원격 접속은 **일반 인터넷 공개가 아닌 선택적 Tailnet 접속**입니다. Host 설정 가이드는 Ubuntu/Linux 기준이며 macOS Host의 동일한 원격 구성은 아직 실환경 검증되지 않았습니다.
+원격 접속은 **일반 인터넷 공개가 아닌 선택적 Tailnet 접속**입니다. Host 설정 가이드는 Ubuntu/Linux 기준입니다.
 
 ## 문서
 
-[가이드 목차](docs/guides/README.md) · [기술 문서](docs/README.md) · [기여 안내](CONTRIBUTING.md) · [변경 이력](CHANGELOG.md)
+[가이드 목차](docs/guides/README.md) · [환경별 설치](docs/guides/getting-started.md) · [기술 문서](docs/README.md) · [기여 안내](CONTRIBUTING.md) · [변경 이력](CHANGELOG.md)
 
 ## 라이선스
 
-직접 작성한 소스 코드·문서·설정은 별도 표시가 없는 한 [Apache License 2.0](LICENSE)을 따릅니다. 제3자 소프트웨어와 모델 가중치는 각 원저작자의 라이선스 및 이용 약관을 따릅니다. [제3자 고지](NOTICE)
+프로젝트의 라이선스는 [LICENSE](LICENSE)를 확인하세요. 제3자 소프트웨어와 모델 가중치의 라이선스·이용 약관은 각 원저작자를 따르며, 관련 고지는 [NOTICE](NOTICE)에 정리되어 있습니다.
