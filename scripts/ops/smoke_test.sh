@@ -14,7 +14,7 @@ if [[ -z "$GATEWAY_PROBE_HOST" || "$GATEWAY_PROBE_HOST" == "0.0.0.0" ]]; then
   GATEWAY_PROBE_HOST="localhost"
 fi
 GATEWAY_BASE_URL="http://${GATEWAY_PROBE_HOST}:${GATEWAY_PORT:-$(service_default_host_port gateway)}"
-API_KEY="$(local_env_first_value "$ENV_FILE" API_KEY API_KEYS || true)"
+API_KEY="$(local_env_first_value "$ENV_FILE" API_KEYS API_KEY || true)"
 # smoke는 일반 Gateway 경로를 그대로 호출한다. 별도 30초 상수를 두면 정상적인
 # admission queue 대기보다 먼저 실패해 배포 rollback의 원인이 된다. 명시적
 # SMOKE_MAX_REQUEST_SECONDS override가 없으면 Gateway의 기존 요청 예산을 쓴다.
@@ -128,7 +128,7 @@ AUTH_ARGS=()
 if [[ -n "$API_KEY" ]]; then
   AUTH_ARGS=(-H "Authorization: Bearer ${API_KEY}")
 fi
-ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEY ADMIN_API_KEYS || true)"
+ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEYS ADMIN_API_KEY || true)"
 ADMIN_AUTH_ARGS=()
 if [[ -n "$ADMIN_API_KEY" ]]; then
   ADMIN_AUTH_ARGS=(-H "Authorization: Bearer ${ADMIN_API_KEY}")

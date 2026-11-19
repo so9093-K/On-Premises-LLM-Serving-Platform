@@ -101,6 +101,9 @@ local_env_first_value() {
   for key in "$@"; do
     value="$(env_file_value "$env_file" "$key" 2>/dev/null || true)"
     if [[ -n "$value" ]]; then
+      value="${value%%,*}"
+      value="${value#${value%%[![:space:]]*}}"
+      value="${value%${value##*[![:space:]]}}"
       printf '%s\n' "$value"
       return 0
     fi
@@ -108,7 +111,10 @@ local_env_first_value() {
   for key in "$@"; do
     value="${!key:-}"
     if [[ -n "$value" ]]; then
-      printf '%s\n' "${value%%,*}"
+      value="${value%%,*}"
+      value="${value#${value%%[![:space:]]*}}"
+      value="${value%${value##*[![:space:]]}}"
+      printf '%s\n' "$value"
       return 0
     fi
   done

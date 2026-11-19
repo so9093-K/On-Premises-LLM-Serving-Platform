@@ -342,7 +342,7 @@ def write_runtime_secrets(values: dict[str, str]) -> None:
     Prometheus cannot expand env vars inside prometheus.yml, so it reads the admin
     bearer token from a generated file mounted read-only into the container.
     """
-    admin_key = values.get("ADMIN_API_KEY") or values.get("ADMIN_API_KEYS", "").split(",", 1)[0]
+    admin_key = (values.get("ADMIN_API_KEYS") or values.get("ADMIN_API_KEY", "")).split(",", 1)[0].strip()
     if not admin_key:
         return
     secret_dir = ROOT / ".runtime" / "prometheus"
@@ -391,7 +391,7 @@ def sync_runtime_secrets_from_env(env_path: Path) -> None:
     `.env`는 보존하고 `.runtime/prometheus/admin_api_key`만 복구할 때 사용합니다.
     """
     values = read_env_values(env_path)
-    admin_key = values.get("ADMIN_API_KEY") or values.get("ADMIN_API_KEYS", "").split(",", 1)[0]
+    admin_key = (values.get("ADMIN_API_KEYS") or values.get("ADMIN_API_KEY", "")).split(",", 1)[0].strip()
     if not admin_key:
         raise RuntimeError(f"{env_path}에 ADMIN_API_KEY 또는 ADMIN_API_KEYS가 없습니다")
     write_runtime_secrets({"ADMIN_API_KEY": admin_key})
@@ -454,7 +454,15 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
         if key in template_values and existing.get(key) != template_values[key]
     ]
 
-    if not added and not removed and not refreshed:
+    # 허용 목록이 인증 권한을 소유한다. 폐기된 클라이언트 별칭 때문에 기동·수집이
+    # 실패하지 않도록 목록 안의 키를 선택하며, 운영자가 등록한 키는 재발급하지 않는다.
+    aliases = {}
+    for alias, allowlist in (("API_KEY", "API_KEYS"), ("ADMIN_API_KEY", "ADMIN_API_KEYS")):
+        allowed = [key.strip() for key in existing.get(allowlist, "").split(",") if key.strip()]
+        if allowed and existing.get(alias) not in allowed:
+            aliases[alias] = allowed[0]
+
+    if not added and not removed and not refreshed and not aliases:
         print(f"변경 없음: .env가 최신 상태입니다. (profile={profile})")
         return 0
 
@@ -467,6 +475,8 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
             "갱신될 repository image key "
             f"({len(refreshed)}개): {', '.join(sorted(refreshed))}"
         )
+    if aliases:
+        print("활성 키 목록에 맞출 클라이언트 별칭: " + ", ".join(sorted(aliases)))
 
     if dry_run:
         print("dry-run: 실제 변경 없음.")
@@ -482,6 +492,7 @@ def sync_env_keys(env_path: Path, *, dry_run: bool = False) -> int:
     for k in managed_image_keys:
         if k in template_values:
             merged[k] = template_values[k]
+    merged.update(aliases)
 
     if merged.get("HF_TOKEN") and not merged.get("HUGGING_FACE_HUB_TOKEN"):
         merged["HUGGING_FACE_HUB_TOKEN"] = merged["HF_TOKEN"]

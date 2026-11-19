@@ -16,7 +16,7 @@ if [[ -z "$GATEWAY_PROBE_HOST" || "$GATEWAY_PROBE_HOST" == "0.0.0.0" ]]; then
 fi
 GATEWAY_BASE_URL="${GATEWAY_BASE_URL:-http://${GATEWAY_PROBE_HOST}:${GATEWAY_PORT:-$(service_default_host_port gateway)}}"
 RISK_SIGNAL_SERVICE_BASE_URL="${RISK_SIGNAL_SERVICE_HOST_BASE_URL:-http://localhost:${RISK_SIGNAL_SERVICE_PORT:-$(service_default_host_port risk_signal_service)}}"
-ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEY ADMIN_API_KEYS || true)"
+ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEYS ADMIN_API_KEY || true)"
 
 status_pid() {
   local name="$1"
