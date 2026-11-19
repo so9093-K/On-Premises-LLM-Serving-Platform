@@ -44,6 +44,15 @@ def test_playground_uses_user_key_and_only_projects_user_features():
             assert client.get(path).status_code == 404
 
 
+def test_short_credentials_block_publication_before_host_commands(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("API_KEYS=short-key\nADMIN_API_KEYS=" + "a" * 40 + "\n")
+    with patch("scripts.access.remote_access.preflight", return_value=[]), patch.object(public_access, "_run") as run:
+        with pytest.raises(RuntimeError, match="32자 이상"):
+            public_access.start(env, tmp_path)
+        run.assert_not_called()
+
+
 @pytest.mark.parametrize(("values", "override", "access", "expected"), [
     ({}, None, None, True),
     ({"PUBLIC_ACCESS_ENABLED": "false"}, None, None, False),

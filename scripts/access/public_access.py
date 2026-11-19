@@ -132,6 +132,10 @@ def start(env_file: Path, directory: Path) -> str:
     issues = preflight(env_file)
     if issues:
         raise RuntimeError("; ".join(issues))
+    values = load_strict_env_file(env_file)
+    for name in ("API_KEYS", "ADMIN_API_KEYS"):
+        if any(len(key.strip()) < 32 for key in values.get(name, "").split(",")):
+            raise RuntimeError(f"외부 공유에는 {name}의 각 키가 32자 이상이어야 합니다. 생성된 무작위 키를 사용하세요.")
     missing = [name for name in ("nginx", "tailscale") if shutil.which(name) is None]
     if missing:
         raise RuntimeError(f"서버 도구 설치 필요: {', '.join(missing)}. docs/guides/public-access.md 참고")
@@ -146,7 +150,6 @@ def start(env_file: Path, directory: Path) -> str:
     if listener_present(config) and (owner is None or not owns_listener(config, owner)):
         raise RuntimeError("기존 Serve/Funnel 8443을 보존했습니다. 해당 Listener를 먼저 운영자가 해제해야 합니다.")
     stop(directory)
-    values = load_strict_env_file(env_file)
     listener = load_port_namespace(ROOT, values).port("team_api_proxy")
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
