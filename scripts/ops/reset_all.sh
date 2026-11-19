@@ -38,7 +38,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   bash scripts/ops/down_all.sh
 elif [[ "$BUILD_PROFILE" == "local" ]]; then
   echo "[reset] Docker unavailable; stopping app-only host processes"
-  bash scripts/ops/down_services.sh --local
+  bash scripts/ops/down_all.sh
 else
   echo "[reset] Docker daemon is required to verify full-stack project ownership before reset" >&2
   exit 2

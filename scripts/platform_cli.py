@@ -691,7 +691,13 @@ def reconcile_up_target(
     confirm_access: bool,
     execution_policy: str | None = None,
     port_base: int | None = None,
+    public_access: str | None = None,
 ) -> None:
+    from scripts.access.public_access import sharing_enabled
+    sharing = sharing_enabled(_env_values() if ENV_PATH.is_file() else {}, public_access, access_profile)
+    if sharing and access_profile is None:
+        access_profile, confirm_access = "edge", True
+        print("[platform] 외부 공유 기본 설정: 사용자 Playground·API 공개, 관리자 경로 비공개")
     if (execution_policy is None and not ENV_PATH.is_file()
         and not (ROOT / ".runtime/main-model/main-model-state.json").exists()
         and target.target_id == "linux-nvidia-dynamic"):
@@ -719,8 +725,15 @@ def reconcile_up_target(
             "configuration change requires confirmation; platform was not started"
         )
 
+    # 실행 중 Gateway의 인증·포트를 바꾸기 전에 이전 공개 경로를 먼저 닫는다.
+    _run(sys.executable, "scripts/access/public_access.py", "down")
+
+    from scripts.config.setup_env import parse_env_template, write_env
+    lines, seeded = parse_env_template(ENV_PATH)
+    seeded["PUBLIC_ACCESS_ENABLED"] = str(sharing).lower()
+    write_env(lines, seeded, ENV_PATH)
+
     if execution_policy is not None:
-        from scripts.config.setup_env import parse_env_template, write_env
         lines, seeded = parse_env_template(ENV_PATH)
         seeded["MAIN_MODEL_EXECUTION_POLICY"] = execution_policy
         write_env(lines, seeded, ENV_PATH)
@@ -784,6 +797,13 @@ def _gateway_json(
         return 0, None
 
 
+def _print_external_status(values: dict[str, str]) -> None:
+    if values.get("PUBLIC_ACCESS_ENABLED", "true") == "true":
+        subprocess.run([sys.executable, "scripts/access/public_access.py", "status"], cwd=ROOT, check=False)
+    else:
+        print("External      DISABLED")
+
+
 def status_target(target: DeploymentTarget) -> int:
     values = _env_values()
     if values.get("BUILD_PROFILE") == "local":
@@ -801,6 +821,7 @@ def status_target(target: DeploymentTarget) -> int:
         print(f"Access        {values.get('ACCESS_PROFILE') or 'legacy/custom'}")
         print(f"Gateway       {'READY' if gateway_ready else 'UNAVAILABLE'}  {_gateway_base_url(values)}")
         print(f"Applications  {'READY' if process_status.returncode == 0 else 'DEGRADED'}")
+        _print_external_status(values)
         if not ready:
             print("")
             print("Attention")
@@ -830,6 +851,7 @@ def status_target(target: DeploymentTarget) -> int:
     else:
         gateway_status = f"ERROR_HTTP_{code}"
     print(f"Gateway       {gateway_status}  {gateway_url}")
+    _print_external_status(values)
 
     if values.get("BUILD_PROFILE") != "local" and code:
         runtime_code, runtime_doc = _gateway_json(values, "/admin/runtimes", admin=True)
@@ -903,6 +925,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--access-profile", choices=access_profile_names())
     parser.add_argument("--confirm-access", action="store_true")
     parser.add_argument("--port-base", type=int)
+    parser.add_argument("--public-access", choices=("on", "off"))
     args = parser.parse_args(argv)
     # 파이프·파일로 받아도 단계 출력과 오류의 순서가 섞이지 않게 한다.
     sys.stdout.reconfigure(line_buffering=True)
@@ -911,7 +934,7 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("CONFIRM=access requires ACCESS=local|private|edge")
         if args.action != "up" and (
             args.main_profile or args.main_base_url or args.access_profile or args.confirm_access
-            or args.execution_policy or args.port_base is not None
+            or args.execution_policy or args.port_base is not None or args.public_access is not None
         ):
             raise RuntimeError("MODEL, MAIN_URL, ACCESS, CONFIRM and PORTS are make up options")
 
@@ -934,7 +957,14 @@ def main(argv: list[str] | None = None) -> int:
                 confirm_access=args.confirm_access,
                 execution_policy=args.execution_policy,
                 port_base=args.port_base,
+                public_access=args.public_access,
             )
+            if _env_values().get("PUBLIC_ACCESS_ENABLED") == "true":
+                # 외부 도구·등록 실패는 이미 준비된 Core·모델의 생명주기와 분리한다.
+                subprocess.run(
+                    [sys.executable, "scripts/access/public_access.py", "up", "--env-file", str(ENV_PATH)],
+                    cwd=ROOT, check=False,
+                )
         elif args.action == "down":
             down_target(target)
         else:

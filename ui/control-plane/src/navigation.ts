@@ -1,5 +1,9 @@
 import type { UiTextKey } from './uiText';
 
+export function isOperatorConsole(): boolean {
+  return globalThis.location?.pathname.startsWith('/admin/console/') ?? false;
+}
+
 // 메뉴와 Route가 같은 경로 및 target capability를 사용한다.
 // 그룹 순서는 UI preference이지만 각 기능의 가용 여부는 deployment feature 계약이 소유한다.
 export const NAVIGATION_GROUPS = ['service', 'operations', 'development'] as const;

@@ -3,6 +3,7 @@
 common_example_keys:
   - APP_ENV
   - ACCESS_PROFILE
+  - PUBLIC_ACCESS_ENABLED
   - DEPLOYMENT_TARGET
   - LOG_LEVEL
   - GATEWAY_HOST

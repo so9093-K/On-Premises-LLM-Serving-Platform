@@ -1,4 +1,6 @@
-# 원격 접속 가이드
+# Tailnet 비공개 원격 접속 가이드
+
+가입·설치 없는 외부 사용자 접속은 [공개 접속 가이드](public-access.md)를 따른다. 이 문서는 `SHARE=off`인 비공개 Tailnet 접속을 안내한다.
 
 이 문서의 **Host 설치·운영 명령은 Ubuntu/Linux GPU 서버**에서 이미 실행 중인 플랫폼을 Tailnet 내부에 제공하는 절차다.
 Ubuntu 또는 macOS의 **외부 사용자 기기**에서는 Tailscale과 브라우저·SDK로 접속할 수 있다. 그러나 **macOS 자체를 원격 접속 Host로 운영하는 Tailscale Serve·팀원 Proxy 구성은 이 문서와 CI에서 검증되지 않았다.** Ubuntu의 `apt`, `systemctl`, Nginx 설정 경로를 macOS Host 명령으로 사용하지 않는다.
@@ -63,17 +65,17 @@ Gateway도 Tailnet 사용자별 Role·Quota를 제공하지 않는다. 팀원에
 ## 2. 설치 준비
 
 - Linux 서버에 기존 `make up`이 준비돼 있고 Gateway가 동작해야 한다.
-- `make up ACCESS=edge`는 기존 설정 변경 계획만 보여 준다.
-  계획 검토 후에만 `make up ACCESS=edge CONFIRM=access`를 실행한다.
+- `make up ACCESS=edge SHARE=off`는 기존 설정 변경 계획만 보여 준다.
+  계획 검토 후에만 `make up ACCESS=edge SHARE=off CONFIRM=access`를 실행한다.
 - `make status`, `make auth-status`로 상태를 확인한다.
 - Tailscale은 서버 운영자가 설치·업데이트한다. **팀원 API를 공유할 때만** Nginx를 별도로 설치·관리한다. 프로젝트는 두 소프트웨어를 자동 설치하지 않는다.
 - 기존 Tailscale Serve/Funnel 설정을 확인하고 관리자용 HTTPS 443 충돌을 검토한다. **팀원 API를 공유할 때만** Nginx 9480·HTTPS 8443 충돌도 확인한다.
 - API Key와 Admin Key는 별도 값이다. 실제 키를 Git·Issue·Screenshot·Shell history에 기록하지 않는다.
 
 ```bash
-make up ACCESS=edge
+make up ACCESS=edge SHARE=off
 # 표시된 설정 변경 내용을 검토한 뒤 운영자가 명시적으로 적용
-make up ACCESS=edge CONFIRM=access
+make up ACCESS=edge SHARE=off CONFIRM=access
 make status
 ./.venv/bin/python scripts/access/remote_access.py preflight
 ```
@@ -198,7 +200,7 @@ tailscale serve status
 
 ## 7. 상태·안전한 해제·복구
 
-원격 접속은 플랫폼 바깥의 **선택형 Host 구성**이다. `make down`, `make reset`, `make purge`는 Tailscale·Nginx·Tailnet Grants를 소유하거나 자동 삭제하지 않는다. 아래 해제는 **이 플랫폼이 전용으로 소유한 항목**만 대상으로 하며, 공유 Host 구성과 다른 서비스는 보존한다.
+원격 접속은 플랫폼 바깥의 **선택형 Host 구성**이다. `make down`, `make reset`, `make purge`는 이 문서에서 수동 구성한 관리자 443·Team Nginx·Tailnet Grants를 자동 삭제하지 않는다. 자동 공개 공유가 만든 8443·전용 Proxy의 생명주기는 [공개 접속 가이드](public-access.md)가 정의한다. 아래 해제는 **이 플랫폼이 전용으로 소유한 항목**만 대상으로 하며, 공유 Host 구성과 다른 서비스는 보존한다.
 
 ### 7.1 현재 구성과 소유권 확인
 

@@ -327,6 +327,10 @@ make auth-plan MODE=<auth-mode>
 exposure topology는 private_network 하나이며 raw runtime/operations endpoint를 여는
 별도 operator mode는 없다.
 
+사용자용 외부 공유는 `PUBLIC_ACCESS_ENABLED`가 소유한다. 기본 `make up`은 edge 인증과
+Funnel 8443을 준비하며, `SHARE=off`는 공개 경로만 해제한다. 수동 관리자 443과
+자동 공유의 상태·소유권·종료 절차는 [외부 접속 가이드](guides/public-access.md)를 따른다.
+
 ---
 
 ## 12.9 복구와 재검증

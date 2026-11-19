@@ -27,7 +27,7 @@ PLATFORM_ACCESS_CONFIRM_ARG = $(if $(filter access,$(CONFIRM)),--confirm-access,
 
 up: ## 필요한 준비를 수렴한 뒤 플랫폼을 사용 가능 상태로 만든다
 	@"$(PYTHON)" scripts/build/setup_python_environment.py --profile runtime
-	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG) $(if $(POLICY),--execution-policy "$(if $(filter auto,$(POLICY)),automatic,$(POLICY))",) $(if $(PORTS),--port-base "$(PORTS)",)
+	@$(PLATFORM_CLI) up $(PLATFORM_TARGET_ARG) $(PLATFORM_PROFILE_ARG) $(PLATFORM_MAIN_URL_ARG) $(PLATFORM_ACCESS_ARG) $(PLATFORM_ACCESS_CONFIRM_ARG) $(if $(POLICY),--execution-policy "$(if $(filter auto,$(POLICY)),automatic,$(POLICY))",) $(if $(PORTS),--port-base "$(PORTS)",) $(if $(SHARE),--public-access "$(SHARE)",)
 
 status: ## 현재 플랫폼 상태와 주의할 항목을 요약한다
 	@if [[ ! -x "$(CURDIR)/.venv/bin/python" ]]; then echo "Platform UNCONFIGURED"; echo "First run: make up TARGET=<deployment-target>"; exit 1; fi
@@ -72,6 +72,7 @@ help:
 	done
 	@echo ""
 	@echo "첫 실행: make up TARGET=<deployment-target> [ACCESS=local|private|edge] [PORTS=<포트 대역>]"
+	@echo "외부 공유: 기본 준비 · 로컬 전용 ACCESS=local · 공개 해제 SHARE=off · 다시 공개 SHARE=on"
 	@echo "일상 운영: make up / make status / make logs / make down"
 	@echo "초기화: make reset   cache/전체 정리: make purge"
 	@echo ""

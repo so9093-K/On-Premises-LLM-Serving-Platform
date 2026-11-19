@@ -2470,3 +2470,4 @@ a.overview-action-tile:hover {
 @media (max-width: 600px) {
   .state-recovery-actions > button { flex: 1 1 100%; }
 }
+.public-playground { max-width: 1600px; margin: 0 auto; min-height: 100dvh; }

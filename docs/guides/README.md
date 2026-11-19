@@ -6,6 +6,7 @@
 |---|---|
 | 설치 및 첫 모델 응답 | [빠른 시작](getting-started.md) |
 | 모델·Runtime·GPU 운영 및 복구 | [사용자 가이드](user-guide.md) |
+| 가입·설치 없는 외부 Playground·API 접속 | [사용자 외부 접속](public-access.md) |
 | 외부 관리자의 브라우저 접속 | [Control Plane 접속](remote-access.md#external-admin) |
 | 외부 팀원·앱의 HTTPS API 호출 | [외부 API 접속](api-integration.md#remote-api) |
 | 서버 운영자의 Tailscale·Nginx·권한 구성 | [원격 접속 Host 구성](remote-access.md#operator-setup) |

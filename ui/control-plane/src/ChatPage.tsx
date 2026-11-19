@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent
 import { Alert, Button, Spinner } from '@patternfly/react-core';
 import { Link } from 'react-router-dom';
 import { conversationEndNearViewport } from './chatScroll';
+import { isOperatorConsole } from './navigation';
 
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import { useChatSession } from './ChatSessionContext';
@@ -466,7 +467,7 @@ export function ChatPage({ grafanaUrl, docsUrl }: ChatPageProps) {
       {servingNotice ? (
         <Alert isInline variant="warning" title={servingNotice.title}>
           <p>{servingNotice.description}</p>
-          <Link to="/main-model">메인 모델 상태·복구 확인 →</Link>
+          {isOperatorConsole() ? <Link to="/main-model">메인 모델 상태·복구 확인 →</Link> : <p>서버 운영자에게 모델 상태 확인을 요청하세요.</p>}
         </Alert>
       ) : null}
       {modelsQuery.isPending ? (

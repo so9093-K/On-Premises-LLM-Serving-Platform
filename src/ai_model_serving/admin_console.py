@@ -4,11 +4,13 @@ import json
 from pathlib import Path, PurePosixPath
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 
 CONSOLE_PREFIX = "/admin/console"
 CONSOLE_ASSET_PREFIX = f"{CONSOLE_PREFIX}/assets/"
+PLAYGROUND_PREFIX = "/playground"
+PLAYGROUND_ASSET_PREFIX = f"{PLAYGROUND_PREFIX}/assets/"
 _CONSOLE_ROOT = Path(__file__).resolve().parent / "static" / "control-plane"
 
 _CSP = "; ".join(
@@ -124,3 +126,44 @@ def register_admin_console(app: FastAPI, *, root: Path | None = None) -> None:
         # 클라이언트 경로는 BrowserRouter가 소유한다. 서버는 동일한 불변 진입
         # 문서만 제공하며 API·정적 파일 Prefix는 상위에서 더 구체적인 라우트로 처리한다.
         return FileResponse(index_path, headers=_INDEX_HEADERS)
+
+
+def register_public_playground(
+    app: FastAPI, *, features: tuple[str, ...], api_dependencies: list, root: Path | None = None,
+) -> None:
+    """사용자 화면은 정적으로 제공하고 기능 조회는 일반 API 인증으로 보호한다."""
+    console_root = (root or _CONSOLE_ROOT).resolve()
+    index_path = console_root / "playground.html"
+    if not index_path.is_file():
+        raise RuntimeError("Playground generated entry is missing")
+    # 두 진입점의 공통 청크는 같은 Manifest를 소유하며 사용자 URL로 제공한다.
+    html = index_path.read_text(encoding="utf-8").replace(
+        CONSOLE_ASSET_PREFIX, PLAYGROUND_ASSET_PREFIX,
+    )
+    asset_files = _manifest_asset_files(
+        console_root / "asset-manifest.json", (console_root / "assets").resolve(),
+    )
+    public_features = sorted(set(features) & {
+        "chat", "embeddings", "retrieval", "risk", "prompt_detection",
+    })
+
+    @app.get(PLAYGROUND_PREFIX, include_in_schema=False)
+    async def playground_redirect() -> RedirectResponse:
+        return RedirectResponse(f"{PLAYGROUND_PREFIX}/", status_code=307)
+
+    @app.get(f"{PLAYGROUND_PREFIX}/config.json", dependencies=api_dependencies, include_in_schema=False)
+    async def playground_configuration() -> JSONResponse:
+        return JSONResponse({"features": public_features}, headers={"Cache-Control": "no-store"})
+
+    @app.get(f"{PLAYGROUND_PREFIX}/assets/{{asset_path:path}}", include_in_schema=False)
+    async def playground_asset(asset_path: str) -> FileResponse:
+        candidate = asset_files.get(asset_path)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Playground asset not found.")
+        return FileResponse(candidate, headers=_ASSET_HEADERS)
+
+    @app.get(f"{PLAYGROUND_PREFIX}/{{client_path:path}}", include_in_schema=False)
+    async def playground_index(client_path: str) -> HTMLResponse:
+        if client_path.rstrip("/") not in {"", "chat", "embeddings", "risk"}:
+            raise HTTPException(status_code=404, detail="Playground page not found.")
+        return HTMLResponse(html, headers=_INDEX_HEADERS)

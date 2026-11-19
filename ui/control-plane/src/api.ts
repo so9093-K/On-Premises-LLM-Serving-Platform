@@ -199,6 +199,10 @@ export async function fetchPublicModels(apiKey: string | null): Promise<PublicMo
   return jsonRequest<PublicModelListResponse>('/v1/models', apiKey);
 }
 
+export async function fetchPlaygroundConfiguration(apiKey: string | null): Promise<{ features: string[] }> {
+  return jsonRequest<{ features: string[] }>('/playground/config.json', apiKey);
+}
+
 export type PublicJsonResult = {
   payload: unknown;
   requestId: string | null;
