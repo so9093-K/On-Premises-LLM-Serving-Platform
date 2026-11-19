@@ -37,7 +37,14 @@ def sharing_enabled(values: dict[str, str], override: str | None, access: str | 
 
 
 def _run(*command: str) -> str:
-    result = subprocess.run(command, text=True, capture_output=True, timeout=20, check=False)
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=20, check=False)
+    except subprocess.TimeoutExpired as exc:
+        # 첫 Funnel 승인은 CLI가 URL을 출력한 채 대기하므로 안내를 보존한다.
+        chunks = [value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+                  for value in (exc.stdout, exc.stderr) if value]
+        detail = "\n".join(chunks).strip()
+        raise RuntimeError(detail or f"{command[0]} 응답 시간 초과. 연결·실행 권한을 확인하세요.") from exc
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or f"{command[0]} 실행 실패")
     return result.stdout
