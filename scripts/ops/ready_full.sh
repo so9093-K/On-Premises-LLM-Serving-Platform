@@ -10,8 +10,8 @@ COMPOSE_FILE="${COMPOSE_FILE:-ops/compose/full-stack.private-network.yaml}"
 export ENV_FILE COMPOSE_FILE
 load_local_env "$ENV_FILE"
 
-ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEY ADMIN_API_KEYS || true)"
-API_KEY="$(local_env_first_value "$ENV_FILE" API_KEY API_KEYS || true)"
+ADMIN_API_KEY="$(local_env_first_value "$ENV_FILE" ADMIN_API_KEYS ADMIN_API_KEY || true)"
+API_KEY="$(local_env_first_value "$ENV_FILE" API_KEYS API_KEY || true)"
 
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || command -v python)}"
 "$PYTHON_BIN" scripts/build/check_python.py --context ready-full >/dev/null
@@ -238,9 +238,6 @@ wait_for_probe "gateway /health" "$GATEWAY_BASE_URL/health" 200
 # /health 통과 후 필수 dependency가 준비될 때까지 /ready를 기다린다.
 # compose 서비스에는 로컬 run/*.pid 파일이 없으므로, readiness는 HTTP로 폴링한다.
 wait_for_gateway_ready "$GATEWAY_BASE_URL/ready" "$ADMIN_API_KEY"
-
-# 실제 Main Chat 확인 전에 필수 dependency 상태를 진단용으로 출력한다.
-bash scripts/ops/status_services.sh --full || true
 
 # /ready 통과 뒤 실제 Chat 경로도 확인한다. 두 probe 사이에 전환이 시작될 수 있다.
 wait_for_main_model_ready
