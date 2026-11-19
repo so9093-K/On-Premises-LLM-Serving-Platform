@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -13,6 +14,14 @@ from ai_model_serving.admin_console import register_public_playground
 from ai_model_serving.security import require_bearer_auth
 from ai_model_serving.settings import SecuritySettings
 from scripts.access import public_access
+
+
+def test_funnel_approval_url_survives_command_timeout():
+    message = b"Funnel is not enabled on your tailnet. https://login.tailscale.com/f/funnel?node=test"
+    failure = subprocess.TimeoutExpired(["tailscale", "funnel"], 20, output=message)
+    with patch.object(public_access.subprocess, "run", side_effect=failure):
+        with pytest.raises(RuntimeError, match=r"https://login.tailscale.com/f/funnel\?node=test"):
+            public_access._run("tailscale", "funnel")
 
 
 def test_playground_uses_user_key_and_only_projects_user_features():
