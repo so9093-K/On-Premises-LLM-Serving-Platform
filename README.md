@@ -15,16 +15,18 @@ Linux에서 Python 3.12–3.13, uv, Docker와 CPU 여유 RAM 4 GiB 이상을 준
 소스를 [ZIP 다운로드](https://github.com/so9093-K/On-Premises-LLM-Serving-Platform/archive/refs/heads/main.zip)하거나 Git으로 복제한 뒤, `Makefile`이 있는 디렉터리에서 실행합니다.
 
 ```bash
-make up TARGET=linux-nvidia-dynamic ACCESS=local
+make up TARGET=linux-nvidia-dynamic
 make status
 ```
 
 기본 실행 정책은 **GPU 우선 · CPU 복구**입니다. CPU 모델로 시작해 GPU 사용 조건을 확인하며, CPU 복구 후 GPU 복귀는 Console에서 직접 선택합니다. 최초 실행에는 이미지 빌드와 모델 다운로드 시간이 필요합니다.
 
-`Platform READY`를 확인한 뒤 Control Plane `http://127.0.0.1:9400/admin/console/`에서 모델 상태와 Playground를 확인하세요. 첫 Chat 요청은 다음처럼 보냅니다.
+`Platform READY`를 확인한 뒤 Control Plane `http://127.0.0.1:9400/admin/console/`에서 관리자 키로 인증합니다. 사용자 Playground는 `/playground/`에서 API 키로 접속합니다. 키는 생성된 `.env`의 `ADMIN_API_KEY`와 `API_KEY`를 각각 사용하세요. 첫 Chat 요청은 다음처럼 보냅니다.
 
 ```bash
-curl -sS http://127.0.0.1:9400/v1/chat/completions -H "Content-Type: application/json" \
+read -r -s -p "사용자 API 키: " API_KEY
+curl -sS http://127.0.0.1:9400/v1/chat/completions \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
   -d '{"model": "local-main", "messages": [{"role": "user", "content": "안녕하세요"}], "max_tokens": 128}'
 ```
 
@@ -90,11 +92,11 @@ Gateway의 `/docs`에서 API 요청 스키마·예제·테스트 요청을 확�
 
 이미 구성된 플랫폼에 **외부 기기에서 접속하는 사용자**는 저장소 설치나 서버의 `make` 명령이 필요하지 않습니다. 운영자가 전달한 실제 주소와 권한을 사용합니다.
 
+- **외부 사용자:** 전달받은 Playground 주소와 API 키로 접속합니다. Tailscale 가입·설치가 필요 없습니다. 같은 주소의 `/v1`을 SDK의 Base URL로 사용합니다. [외부 접속 가이드](docs/guides/public-access.md)
 - **외부 관리자:** 승인된 Tailnet에서 Control Plane에 접속하고 Admin Key로 인증합니다. [관리자 접속 가이드](docs/guides/remote-access.md#external-admin)
-- **외부 API 사용자:** 운영자가 제공하는 API Base URL과 사용자 API Key로 모델을 호출합니다. [API 연동 가이드](docs/guides/api-integration.md#remote-api)
-- **서버 운영자:** 원격 접속이 필요한 경우 `ACCESS=edge`와 별도 Tailscale·Nginx 설정을 검토합니다. [Host 설정·해제 가이드](docs/guides/remote-access.md#operator-setup)
+- **서버 운영자:** 최초 Nginx 설치와 Tailscale 연결을 준비하면 `make up`이 사용자용 Funnel 8443을 구성합니다. 관리자 Console은 비공개 443으로 분리합니다. [서버 준비](docs/guides/public-access.md#서버-준비)
 
-원격 접속은 **일반 인터넷 공개가 아닌 선택적 Tailnet 접속**입니다. Host 설정 가이드는 Ubuntu/Linux 기준입니다.
+`make up`은 외부 공유를 기본으로 준비합니다. 최초 서버 준비가 안 되어도 플랫폼은 실행되며 `External UNAVAILABLE`로 구분합니다. 로컬 전용은 `make up ACCESS=local`, 공개 해제는 `make up SHARE=off`입니다. 선택은 `.env`에 보관합니다.
 
 ## 문서
 

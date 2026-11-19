@@ -69,8 +69,10 @@ HF_TOKEN=hf_xxx make up TARGET=linux-nvidia-dynamic
 make status
 ```
 
-기본 access profile은 local이다. 다른 접근 의도가 필요하면 `make up ACCESS=...`의
-plan/confirm 흐름을 사용한다.
+기본 `make up`은 edge 인증과 사용자용 Funnel 공유를 준비한다. 최초 서버 준비와
+공개 범위는 [외부 접속 가이드](guides/public-access.md)를 따른다. 로컬 전용은
+`ACCESS=local`, 공유 해제는 `SHARE=off`로 선택한다. 기존 배포에서 명시적으로
+Access Profile을 바꿀 때에는 `make up ACCESS=...`의 plan/confirm 흐름을 사용한다.
 
 ---
 

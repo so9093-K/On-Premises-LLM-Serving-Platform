@@ -23,7 +23,7 @@ type PlaygroundPageProps = {
   docsUrl: string | null;
 };
 
-function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
+export function PublicApiKeyForm({ rejected }: { rejected: boolean }) {
   const { setApiKey } = useChatSession();
   const [draft, setDraft] = useState('');
 

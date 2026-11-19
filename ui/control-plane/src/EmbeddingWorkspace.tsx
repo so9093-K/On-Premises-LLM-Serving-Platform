@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { ApiError, fetchRuntimes, postPublicJson } from './api';
-import { useAdminSession } from './auth/AdminSessionContext';
+import { useOptionalAdminSession } from './auth/AdminSessionContext';
 import { apiErrorMessage, isUnauthorized } from './apiFeedback';
 import type { PublicModel } from './chatSession';
 import { useChatSession } from './ChatSessionContext';
@@ -51,13 +51,14 @@ const RUNTIME_NOTICE: Record<'starting' | 'stopped' | 'unavailable', string> = {
 // Chat 예제 갤러리처럼 기능은 발견할 수 있게 두고, 모델 선택과 실행만 막아 요청을 보내지 않는다.
 export function EmbeddingWorkspace({ features, preview = false }: { features: readonly string[]; preview?: boolean }) {
   const { apiKey, credentialRevision, apiKeyRejected, rejectApiKey } = useChatSession();
-  const { token } = useAdminSession();
+  const adminSession = useOptionalAdminSession();
+  const token = adminSession?.token ?? null;
   const modelsQuery = usePublicModels(apiKey, credentialRevision);
   // Runtime 상태는 관리자 API의 보조 진단이다. 조회하지 못하면 안내만 생략하고 요청 판단은 Gateway가 한다.
   const runtimesQuery = useQuery({
     queryKey: ['runtime-control', 'runtimes', token === null ? 'anonymous' : 'authenticated'],
     queryFn: () => fetchRuntimes(token),
-    enabled: features.includes('runtime_control'),
+    enabled: adminSession !== null && features.includes('runtime_control'),
     retry: false,
     staleTime: 10_000,
   });

@@ -5,7 +5,9 @@ from typing import Any
 
 from fastapi import Depends, FastAPI
 
-from ..admin_console import CONSOLE_ASSET_PREFIX, register_admin_console
+from ..admin_console import (
+    CONSOLE_ASSET_PREFIX, PLAYGROUND_ASSET_PREFIX, register_admin_console, register_public_playground,
+)
 from ..app_kernel import (
     admin_dependencies as build_admin_dependencies,
     create_service_app,
@@ -217,7 +219,7 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
         settings=settings,
         metrics=metrics,
         logger=logger,
-        ignored_path_prefixes=(CONSOLE_ASSET_PREFIX,),
+        ignored_path_prefixes=(CONSOLE_ASSET_PREFIX, PLAYGROUND_ASSET_PREFIX),
     )
     install_cors_middleware(app, settings=settings)
 
@@ -256,6 +258,7 @@ def create_gateway_app(settings: AppSettings | None = None, clients: GatewayClie
     install_exception_handlers(app, metrics=metrics, logger=logger, validation_reason=validation_reason)
     register_documentation_ui(app, settings=settings, title="AI Model Serving Gateway")
     register_admin_console(app)
+    register_public_playground(app, features=tuple(settings.deployment_target.features), api_dependencies=api_dependencies)
     register_health(app, service="gateway", spec=_GW_SPECS[("GET", "/health")])
 
     app.include_router(

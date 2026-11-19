@@ -4,6 +4,8 @@
 
 Accepted
 
+인터넷 공개 제외 결정(8번)은 [ADR-0067](0067-public-playground-and-api-entry.md)로 대체되었다. 이 문서의 수동 비공개 팀원 접속은 `SHARE=off` 구성에 해당한다.
+
 ## Context
 
 기존 `ACCESS=edge`는 Gateway를 Loopback에 유지하면서 API/Admin Bearer 인증을

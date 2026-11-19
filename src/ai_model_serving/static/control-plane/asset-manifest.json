@@ -1,11 +1,13 @@
 {
-  "index.html": {
-    "file": "assets/index-BAASravC.js",
-    "name": "index",
-    "src": "index.html",
-    "isEntry": true,
+  "_styles-AUVMs9z9.css": {
+    "file": "assets/styles-AUVMs9z9.css",
+    "src": "_styles-AUVMs9z9.css"
+  },
+  "_styles-DJb11NNZ.js": {
+    "file": "assets/styles-DJb11NNZ.js",
+    "name": "styles",
     "css": [
-      "assets/index-Bjy3DmgQ.css"
+      "assets/styles-AUVMs9z9.css"
     ],
     "assets": [
       "assets/sample-chart-CY3Pofix.png",
@@ -24,6 +26,18 @@
       "assets/Felt-Bkg-Generic-Light-CLIWo2pl.svg",
       "assets/PF-Bkg-Generic-Dark-BXzEO4HC.svg",
       "assets/Felt-Bkg-Generic-Dark-C47rH4Qs.svg"
+    ]
+  },
+  "index.html": {
+    "file": "assets/console-BYRhlonE.js",
+    "name": "console",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "_styles-DJb11NNZ.js"
+    ],
+    "css": [
+      "assets/console-D24d52nV.css"
     ]
   },
   "node_modules/@patternfly/react-core/dist/styles/assets/fonts/RedHatDisplay/RedHatDisplayVF-Italic.woff2": {
@@ -69,6 +83,15 @@
   "node_modules/@patternfly/react-core/dist/styles/assets/pficon/pf-v6-pficon.woff2": {
     "file": "assets/pf-v6-pficon-Dy6oiu9u.woff2",
     "src": "node_modules/@patternfly/react-core/dist/styles/assets/pficon/pf-v6-pficon.woff2"
+  },
+  "playground.html": {
+    "file": "assets/playground-Cz2w77rF.js",
+    "name": "playground",
+    "src": "playground.html",
+    "isEntry": true,
+    "imports": [
+      "_styles-DJb11NNZ.js"
+    ]
   },
   "src/playgroundAssets/sample-audio.wav": {
     "file": "assets/sample-audio-813705wS.wav",

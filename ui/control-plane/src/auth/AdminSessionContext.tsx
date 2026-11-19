@@ -34,9 +34,13 @@ export function AdminSessionProvider({ children }: PropsWithChildren) {
 }
 
 export function useAdminSession(): AdminSessionValue {
-  const value = useContext(AdminSessionContext);
+  const value = useOptionalAdminSession();
   if (value === null) {
     throw new Error('useAdminSession must be used inside AdminSessionProvider');
   }
   return value;
+}
+
+export function useOptionalAdminSession(): AdminSessionValue | null {
+  return useContext(AdminSessionContext);
 }

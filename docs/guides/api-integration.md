@@ -11,8 +11,8 @@
 
 서버 운영자가 이미 구성한 **팀원 API 전용 HTTPS 주소**를 사용합니다. **사용자 기기에 이 저장소를 설치하거나 `make` 명령을 실행할 필요는 없습니다.**
 
-1. 운영자에게 본인의 Tailscale 접속 권한(HTTPS 8443), **API Base URL**, **사용자 API Key**, 모델 별칭을 요청합니다.
-2. 본인의 기기에서 Tailscale에 로그인·연결합니다. 주소 형식은 `https://<실제-서버-tailnet-이름>:8443`이며, 실제 서버 주소는 운영자가 확인해 전달합니다.
+1. 운영자에게 **API Base URL**, **사용자 API Key**, 모델 별칭을 요청합니다.
+2. 공개 Funnel 접속에는 Tailscale 가입·설치가 필요 없습니다. 주소 형식은 `https://<실제-서버-tailnet-이름>:8443`이며, 실제 서버 주소는 운영자가 확인해 전달합니다.
 3. 아래 `GATEWAY_URL`을 **운영자가 전달한 주소**로 설정한 뒤 **1절의 API Key 입력 및 `/v1/models` 호출**을 진행합니다.
 
 ```bash
@@ -20,11 +20,11 @@
 export GATEWAY_URL="https://<실제-서버-tailnet-이름>:8443"
 ```
 
-위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings **경로만 전달**하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
+위 주소는 **Gateway Base URL**이므로 `/v1`은 요청 경로 또는 SDK의 `base_url`에 한 번만 추가합니다. HTTPS 8443은 `GET /v1/models`와 허용된 Chat·Responses·Embeddings·Retrieval·Risk 경로를 전달하며, 관리자 Control Plane·`/docs`·`/metrics`는 제공하지 않습니다.
 
 **Proxy의 경로 허용과 모델 기능 지원은 별개**입니다. 실제 지원 기능은 [Deployment Target 설정](../../configs/deployment_targets.yaml)과 `/v1/models`의 모델 Capability를 확인하세요. 현재 `linux-nvidia-dynamic` Target은 Embeddings를 지원하지만 `linux-nvidia-static`과 `macos-metal-static`은 지원하지 않습니다. 허용된 경로라도 현재 Target이나 활성 Runtime에서 처리할 수 있다고 가정하지 않습니다.
-Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세요. 연결 실패는 Tailscale·주소·8443 Grants, `401`은 일반 사용자 API Key, `404`는 허용된 API 경로를 운영자에게 확인합니다.
-[외부 API 접속 안내](remote-access.md#external-api)와 [서버 운영자 설정](remote-access.md#operator-setup)은 다른 절차입니다.
+Key를 URL이나 공유 문서에 넣지 말고 안전한 경로로 수령하세요. 연결 실패는 실제 주소·서버의 공개 상태, `401`은 일반 사용자 API Key, `404`는 허용된 API 경로를 운영자에게 확인합니다.
+[외부 접속 안내](public-access.md)와 [서버 운영자 설정](public-access.md#서버-준비)은 다른 절차입니다.
 
 ---
 

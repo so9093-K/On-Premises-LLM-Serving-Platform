@@ -9,6 +9,11 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="$(command -v python3 || command -v python)"
 fi
 
+# 구성·의존성을 지우기 전에 이 checkout의 공개 진입점을 먼저 닫는다.
+if [[ -d "$ROOT/.runtime/public-access" ]]; then
+  "$PYTHON_BIN" scripts/access/public_access.py down
+fi
+
 if [[ "$(uname -s)" == "Darwin" ]]; then
   "$PYTHON_BIN" scripts/runtime/macos_mlx_runtime.py stop
 fi

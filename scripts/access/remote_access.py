@@ -47,7 +47,7 @@ def preflight(env_file: Path) -> list[str]:
     return errors
 
 
-def nginx_config(env_file: Path) -> str:
+def nginx_config(env_file: Path, *, public: bool = False) -> str:
     """팀원 API Nginx 설정을 현재 포트 대역으로 출력한다.
 
     저장소 예시는 기본 대역(Gateway 9400, 팀원 Listener 9480) 기준이다. Loopback
@@ -59,7 +59,8 @@ def nginx_config(env_file: Path) -> str:
     listener = namespace.port("team_api_proxy")
     default_gateway = namespace.default_base
     default_listener = namespace.default_base + namespace.offsets["team_api_proxy"]
-    template = (ROOT / "ops/access/team-api.nginx.conf").read_text(encoding="utf-8")
+    name = "public-playground.nginx.conf" if public else "team-api.nginx.conf"
+    template = (ROOT / "ops/access" / name).read_text(encoding="utf-8")
     return (
         template.replace(f"listen 127.0.0.1:{default_listener};", f"listen 127.0.0.1:{listener};")
         .replace(f"127.0.0.1:{default_gateway};", f"127.0.0.1:{gateway};")
@@ -71,10 +72,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Tailscale 비공개 원격 접근 사전 검증")
     parser.add_argument("command", choices=("preflight", "status", "nginx-config"))
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
+    parser.add_argument("--public", action="store_true", help="사용자 Playground·API 전용 설정 출력")
     args = parser.parse_args()
 
     if args.command == "nginx-config":
-        print(nginx_config(args.env_file), end="")
+        print(nginx_config(args.env_file, public=args.public), end="")
         return 0
 
     if args.command == "status":
